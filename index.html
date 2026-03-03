@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>線上訂房系統</title>
+    <link rel="icon" id="customerFavicon" href="/favicon.ico">
+    <link rel="apple-touch-icon" id="customerAppleTouchIcon" href="/favicon.ico">
     <link rel="preload" href="Background%20image.jpg" as="image">
     <link rel="stylesheet" href="style.css">
     
@@ -13,6 +15,13 @@
             try {
                 const res = await fetch('/api/landing-settings');
                 const result = await res.json();
+                const faviconUrl = result.success && result.data && result.data.landing_favicon;
+                if (faviconUrl) {
+                    const iconEl = document.getElementById('customerFavicon');
+                    const appleIconEl = document.getElementById('customerAppleTouchIcon');
+                    if (iconEl) iconEl.href = faviconUrl;
+                    if (appleIconEl) appleIconEl.href = faviconUrl;
+                }
                 const pixelId = result.success && result.data && result.data.landing_fb_pixel_id;
                 if (pixelId && pixelId !== 'YOUR_PIXEL_ID_HERE' && /^\d+$/.test(pixelId)) {
                     !function(f,b,e,v,n,t,s)

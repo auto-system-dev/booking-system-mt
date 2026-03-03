@@ -218,6 +218,9 @@ function applyConfig(cfg) {
     if (cfg.landing_og_image) {
         setMeta('ogImage', cfg.landing_og_image);
     }
+    if (cfg.landing_favicon) {
+        setFavicon(cfg.landing_favicon);
+    }
 }
 
 // ===== 工具函數 =====
@@ -249,6 +252,14 @@ function setMeta(id, value) {
     if (!value) return;
     const el = document.getElementById(id);
     if (el) el.setAttribute('content', value);
+}
+
+function setFavicon(url) {
+    if (!url) return;
+    const iconEl = document.getElementById('customerFavicon');
+    const appleIconEl = document.getElementById('customerAppleTouchIcon');
+    if (iconEl) iconEl.href = url;
+    if (appleIconEl) appleIconEl.href = url;
 }
 
 function setLink(id, url) {

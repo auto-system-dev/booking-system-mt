@@ -48,11 +48,11 @@ const uploadImage = multer({
         fileSize: 5 * 1024 * 1024 // 最大 5MB
     },
     fileFilter: function (req, file, cb) {
-        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif', 'image/x-icon', 'image/vnd.microsoft.icon'];
         if (allowedTypes.includes(file.mimetype)) {
             cb(null, true);
         } else {
-            cb(new Error('僅支援 JPG、PNG、WebP、GIF 格式的圖片'));
+            cb(new Error('僅支援 JPG、PNG、WebP、GIF、ICO 格式的圖片'));
         }
     }
 });
