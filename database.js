@@ -1791,6 +1791,9 @@ async function initEmailTemplates() {
                 <p style="color: #2e7d32; margin: 10px 0;"><strong>線上訂房：</strong><a href="{{bookingUrl}}" style="color: #1976d2; text-decoration: underline;">重新訂房</a></p>
                 <p style="color: #2e7d32; margin: 10px 0;"><strong>Email：</strong><a href="mailto:{{hotelEmail}}" style="color: #1976d2; text-decoration: underline;">{{hotelEmail}}</a></p>
                 <p style="color: #2e7d32; margin: 10px 0;"><strong>電話：</strong>{{hotelPhone}}</p>
+                {{#if officialLineUrl}}
+                <p style="color: #2e7d32; margin: 10px 0;"><strong>官方 LINE：</strong><a href="{{officialLineUrl}}" target="_blank" style="color: #1976d2; text-decoration: underline;">{{officialLineUrl}}</a></p>
+                {{/if}}
             </div>
 
             {{hotelInfoFooter}}
@@ -1901,8 +1904,18 @@ async function initEmailTemplates() {
                     console.log(`⚠️ 付款完成模板缺少完整聯絡資訊區塊，需要更新`);
                 }
             }
+
+            // 檢查取消通知模板是否缺少官方 LINE 聯絡資訊
+            let needsUpdateForCancelNotificationOfficialLine = false;
+            if (template.key === 'cancel_notification' && existing && existing.content && existing.content.trim() !== '') {
+                const hasOfficialLineField = existing.content.includes('{{officialLineUrl}}');
+                if (!hasOfficialLineField) {
+                    needsUpdateForCancelNotificationOfficialLine = true;
+                    console.log(`⚠️ 取消通知模板缺少官方 LINE 聯絡資訊，需要更新`);
+                }
+            }
             
-            if (!existing || !existing.content || existing.content.trim() === '' || existing.template_name !== template.name || isContentTooShort || needsUpdateForHtmlStructure || forceUpdateCheckinReminder || forceUpdatePaymentReminder || needsUpdateForPaymentReminder || needsUpdateForFeedbackResponsive || needsUpdateForFeedbackOfficialLine || needsUpdateForBookingContactInfo || needsUpdateForPaymentCompletedContactInfo) {
+            if (!existing || !existing.content || existing.content.trim() === '' || existing.template_name !== template.name || isContentTooShort || needsUpdateForHtmlStructure || forceUpdateCheckinReminder || forceUpdatePaymentReminder || needsUpdateForPaymentReminder || needsUpdateForFeedbackResponsive || needsUpdateForFeedbackOfficialLine || needsUpdateForBookingContactInfo || needsUpdateForPaymentCompletedContactInfo || needsUpdateForCancelNotificationOfficialLine) {
                 if (usePostgreSQL) {
                     await query(
                         `INSERT INTO email_templates (template_key, template_name, subject, content, is_enabled, days_before_checkin, send_hour_checkin, days_after_checkout, send_hour_feedback, days_reserved, send_hour_payment_reminder)

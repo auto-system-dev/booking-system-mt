@@ -7975,6 +7975,9 @@ app.post('/api/email-templates/reset-to-default', requireAuth, checkPermission('
                 <p style="color: #2e7d32; margin: 10px 0;"><strong>線上訂房：</strong><a href="{{bookingUrl}}" style="color: #1976d2; text-decoration: underline;">重新訂房</a></p>
                 <p style="color: #2e7d32; margin: 10px 0;"><strong>Email：</strong><a href="mailto:{{hotelEmail}}" style="color: #1976d2; text-decoration: underline;">{{hotelEmail}}</a></p>
                 <p style="color: #2e7d32; margin: 10px 0;"><strong>電話：</strong>{{hotelPhone}}</p>
+                {{#if officialLineUrl}}
+                <p style="color: #2e7d32; margin: 10px 0;"><strong>官方 LINE：</strong><a href="{{officialLineUrl}}" target="_blank" style="color: #1976d2; text-decoration: underline;">{{officialLineUrl}}</a></p>
+                {{/if}}
             </div>
 
             {{hotelInfoFooter}}
@@ -8918,6 +8921,9 @@ app.get('/api/email-templates/:key/default', requireAuth, checkPermission('email
                 <p style="color: #2e7d32; margin: 10px 0;"><strong>線上訂房：</strong><a href="{{bookingUrl}}" style="color: #1976d2; text-decoration: underline;">重新訂房</a></p>
                 <p style="color: #2e7d32; margin: 10px 0;"><strong>Email：</strong><a href="mailto:{{hotelEmail}}" style="color: #1976d2; text-decoration: underline;">{{hotelEmail}}</a></p>
                 <p style="color: #2e7d32; margin: 10px 0;"><strong>電話：</strong>{{hotelPhone}}</p>
+                {{#if officialLineUrl}}
+                <p style="color: #2e7d32; margin: 10px 0;"><strong>官方 LINE：</strong><a href="{{officialLineUrl}}" target="_blank" style="color: #1976d2; text-decoration: underline;">{{officialLineUrl}}</a></p>
+                {{/if}}
             </div>
 
             {{hotelInfoFooter}}
