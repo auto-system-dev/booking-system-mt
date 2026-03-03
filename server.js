@@ -7193,6 +7193,9 @@ app.post('/api/email-templates/reset-to-default', requireAuth, checkPermission('
                 <div style="background: white; padding: 15px; border-radius: 6px; margin-bottom: 12px;">
                     <p style="margin: 0 0 8px 0; font-size: 16px;"><strong style="color: #1976d2;">📧 Email：</strong><a href="mailto:{{hotelEmail}}" style="color: #1976d2; text-decoration: none;">{{hotelEmail}}</a></p>
                     <p style="margin: 0; font-size: 16px;"><strong style="color: #1976d2;">📞 電話：</strong><a href="tel:{{hotelPhone}}" style="color: #1976d2; text-decoration: none;">{{hotelPhone}}</a></p>
+                    {{#if officialLineUrl}}
+                    <p style="margin: 8px 0 0 0; font-size: 16px;"><strong style="color: #1976d2;">💬 官方 LINE：</strong><a href="{{officialLineUrl}}" target="_blank" style="color: #1976d2; text-decoration: none;">{{officialLineUrl}}</a></p>
+                    {{/if}}
                 </div>
                 <p style="margin: 0; font-size: 15px; color: #1976d2; font-weight: 600;">期待您的到來，祝您住宿愉快！</p>
             </div>
@@ -7244,6 +7247,7 @@ app.post('/api/email-templates/reset-to-default', requireAuth, checkPermission('
                         content: `<p style="margin: 0 0 12px 0; font-size: 16px;">如有任何問題，歡迎隨時聯繫我們：</p>
 <p style="margin: 0 0 8px 0; font-size: 16px;"><strong>電話：</strong>{{hotelPhone}}</p>
 <p style="margin: 0 0 8px 0; font-size: 16px;"><strong>Email：</strong>{{hotelEmail}}</p>
+{{#if officialLineUrl}}<p style="margin: 0 0 8px 0; font-size: 16px;"><strong>官方 LINE：</strong>{{officialLineUrl}}</p>{{/if}}
 <p style="margin: 0; font-size: 16px;"><strong>服務時間：</strong>24 小時</p>`
                     }
                 })
@@ -9105,6 +9109,9 @@ app.post('/api/email-templates/checkin_reminder/regenerate', requireAuth, checkP
                 <div style="background: white; padding: 15px; border-radius: 6px; margin-bottom: 12px;">
                     <p style="margin: 0 0 8px 0; font-size: 16px;"><strong style="color: #1976d2;">📧 Email：</strong><a href="mailto:{{hotelEmail}}" style="color: #1976d2; text-decoration: none;">{{hotelEmail}}</a></p>
                     <p style="margin: 0; font-size: 16px;"><strong style="color: #1976d2;">📞 電話：</strong><a href="tel:{{hotelPhone}}" style="color: #1976d2; text-decoration: none;">{{hotelPhone}}</a></p>
+                    {{#if officialLineUrl}}
+                    <p style="margin: 8px 0 0 0; font-size: 16px;"><strong style="color: #1976d2;">💬 官方 LINE：</strong><a href="{{officialLineUrl}}" target="_blank" style="color: #1976d2; text-decoration: none;">{{officialLineUrl}}</a></p>
+                    {{/if}}
                 </div>
                 <p style="margin: 0; font-size: 15px; color: #1976d2; font-weight: 600;">期待您的到來，祝您住宿愉快！</p>
             </div>
@@ -9168,6 +9175,7 @@ app.post('/api/email-templates/checkin_reminder/regenerate', requireAuth, checkP
                         enabled: true,
                         content: `<p style="margin: 0 0 8px 0; font-size: 16px;"><strong>電話：</strong>{{hotelPhone}}</p>
 <p style="margin: 0 0 8px 0; font-size: 16px;"><strong>Email：</strong><a href="mailto:{{hotelEmail}}" style="color: #1976d2; text-decoration: underline;">{{hotelEmail}}</a></p>
+{{#if officialLineUrl}}<p style="margin: 0 0 8px 0; font-size: 16px;"><strong>官方 LINE：</strong><a href="{{officialLineUrl}}" target="_blank" style="color: #1976d2; text-decoration: underline;">{{officialLineUrl}}</a></p>{{/if}}
 <p style="margin: 0; font-size: 16px;"><strong>服務時間：</strong>24 小時</p>`
                     }
                 })
@@ -9313,6 +9321,9 @@ app.post('/api/email-templates/checkin_reminder/force-update-card-format', requi
                 <div style="background: white; padding: 15px; border-radius: 6px; margin-bottom: 12px;">
                     <p style="margin: 0 0 8px 0; font-size: 16px;"><strong style="color: #1976d2;">📧 Email：</strong><a href="mailto:{{hotelEmail}}" style="color: #1976d2; text-decoration: none;">{{hotelEmail}}</a></p>
                     <p style="margin: 0; font-size: 16px;"><strong style="color: #1976d2;">📞 電話：</strong><a href="tel:{{hotelPhone}}" style="color: #1976d2; text-decoration: none;">{{hotelPhone}}</a></p>
+                    {{#if officialLineUrl}}
+                    <p style="margin: 8px 0 0 0; font-size: 16px;"><strong style="color: #1976d2;">💬 官方 LINE：</strong><a href="{{officialLineUrl}}" target="_blank" style="color: #1976d2; text-decoration: none;">{{officialLineUrl}}</a></p>
+                    {{/if}}
                 </div>
                 <p style="margin: 0; font-size: 15px; color: #1976d2; font-weight: 600;">期待您的到來，祝您住宿愉快！</p>
             </div>
@@ -9444,6 +9455,7 @@ app.post('/api/email-templates/checkin_reminder/clear-blocks', requireAuth, chec
                 content: `<p style="margin: 0 0 12px 0; font-size: 16px;">如有任何問題，歡迎隨時聯繫我們：</p>
 <p style="margin: 0 0 8px 0; font-size: 16px;"><strong>電話：</strong>{{hotelPhone}}</p>
 <p style="margin: 0 0 8px 0; font-size: 16px;"><strong>Email：</strong>{{hotelEmail}}</p>
+{{#if officialLineUrl}}<p style="margin: 0 0 8px 0; font-size: 16px;"><strong>官方 LINE：</strong>{{officialLineUrl}}</p>{{/if}}
 <p style="margin: 0; font-size: 16px;"><strong>服務時間：</strong>24 小時</p>`
             };
         }
@@ -9549,6 +9561,9 @@ app.post('/api/email-templates/checkin_reminder/clear-blocks', requireAuth, chec
                 <div style="background: white; padding: 15px; border-radius: 6px; margin-bottom: 12px;">
                     <p style="margin: 0 0 8px 0; font-size: 16px;"><strong style="color: #1976d2;">📧 Email：</strong><a href="mailto:{{hotelEmail}}" style="color: #1976d2; text-decoration: none;">{{hotelEmail}}</a></p>
                     <p style="margin: 0; font-size: 16px;"><strong style="color: #1976d2;">📞 電話：</strong><a href="tel:{{hotelPhone}}" style="color: #1976d2; text-decoration: none;">{{hotelPhone}}</a></p>
+                    {{#if officialLineUrl}}
+                    <p style="margin: 8px 0 0 0; font-size: 16px;"><strong style="color: #1976d2;">💬 官方 LINE：</strong><a href="{{officialLineUrl}}" target="_blank" style="color: #1976d2; text-decoration: none;">{{officialLineUrl}}</a></p>
+                    {{/if}}
                 </div>
                 <p style="margin: 0; font-size: 15px; color: #1976d2; font-weight: 600;">期待您的到來，祝您住宿愉快！</p>
             </div>

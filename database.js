@@ -1045,6 +1045,9 @@ async function initEmailTemplates() {
                 <div style="background: white; padding: 15px; border-radius: 6px; margin-bottom: 12px;">
                     <p style="margin: 0 0 8px 0; font-size: 16px;"><strong style="color: #1976d2;">📧 Email：</strong><a href="mailto:{{hotelEmail}}" style="color: #1976d2; text-decoration: none;">{{hotelEmail}}</a></p>
                     <p style="margin: 0; font-size: 16px;"><strong style="color: #1976d2;">📞 電話：</strong><a href="tel:{{hotelPhone}}" style="color: #1976d2; text-decoration: none;">{{hotelPhone}}</a></p>
+                    {{#if officialLineUrl}}
+                    <p style="margin: 8px 0 0 0; font-size: 16px;"><strong style="color: #1976d2;">💬 官方 LINE：</strong><a href="{{officialLineUrl}}" target="_blank" style="color: #1976d2; text-decoration: none;">{{officialLineUrl}}</a></p>
+                    {{/if}}
                 </div>
                 <p style="margin: 0; font-size: 15px; color: #1976d2; font-weight: 600;">期待您的到來，祝您住宿愉快！</p>
             </div>
