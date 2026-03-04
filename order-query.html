@@ -97,6 +97,28 @@
             background: #1a1d24;
         }
 
+        .btn-secondary {
+            width: 100%;
+            border: none;
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+            background: #4b5563;
+            cursor: pointer;
+        }
+
+        .btn-secondary:hover {
+            background: #374151;
+        }
+
+        .action-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
         .message {
             margin-top: 12px;
             font-size: 14px;
@@ -142,6 +164,12 @@
             font-weight: 700;
             margin-bottom: 6px;
         }
+
+        @media (max-width: 560px) {
+            .action-group {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -157,7 +185,15 @@
                         <input id="emailInput" type="email" placeholder="請輸入訂房時的 Email">
                     </div>
 
-                    <button id="queryBtn" class="btn-primary" type="button">查詢訂單</button>
+                    <div class="form-group">
+                        <label for="otpInput">一次性驗證碼（OTP）</label>
+                        <input id="otpInput" type="text" inputmode="numeric" maxlength="6" placeholder="請輸入 6 碼驗證碼">
+                    </div>
+
+                    <div class="action-group">
+                        <button id="sendOtpBtn" class="btn-secondary" type="button">寄送驗證碼</button>
+                        <button id="verifyBtn" class="btn-primary" type="button">驗證並查詢</button>
+                    </div>
                     <div id="queryMessage" class="message"></div>
 
                     <div class="result">
@@ -171,7 +207,9 @@
 
     <script>
         const emailInput = document.getElementById('emailInput');
-        const queryBtn = document.getElementById('queryBtn');
+        const otpInput = document.getElementById('otpInput');
+        const sendOtpBtn = document.getElementById('sendOtpBtn');
+        const verifyBtn = document.getElementById('verifyBtn');
         const queryMessage = document.getElementById('queryMessage');
         const resultMeta = document.getElementById('resultMeta');
         const bookingList = document.getElementById('bookingList');
@@ -222,22 +260,64 @@
             `).join('');
         }
 
-        async function queryByEmail() {
+        async function sendOtp() {
             const email = (emailInput.value || '').trim().toLowerCase();
             if (!email) {
                 setMessage('請輸入 Email', true);
                 return;
             }
 
-            setMessage('查詢中...');
-            queryBtn.disabled = true;
+            setMessage('寄送中...');
+            sendOtpBtn.disabled = true;
+            verifyBtn.disabled = true;
 
             try {
-                const response = await fetch(`/api/bookings/email/${encodeURIComponent(email)}`);
+                const response = await fetch('/api/order-query/otp/send', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
                 const result = await response.json();
 
                 if (!response.ok || !result.success) {
-                    throw new Error(result.message || '查詢失敗');
+                    throw new Error(result.message || '寄送失敗');
+                }
+
+                setMessage(result.message || '驗證碼已寄送');
+            } catch (error) {
+                setMessage(error.message || '寄送失敗', true);
+            } finally {
+                sendOtpBtn.disabled = false;
+                verifyBtn.disabled = false;
+            }
+        }
+
+        async function verifyOtpAndQuery() {
+            const email = (emailInput.value || '').trim().toLowerCase();
+            const otp = (otpInput.value || '').trim();
+            if (!email) {
+                setMessage('請輸入 Email', true);
+                return;
+            }
+            if (!otp) {
+                setMessage('請輸入驗證碼', true);
+                return;
+            }
+
+            setMessage('驗證中...');
+            sendOtpBtn.disabled = true;
+            verifyBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/order-query/otp/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, otp })
+                });
+                const result = await response.json();
+
+                if (!response.ok || !result.success) {
+                    throw new Error(result.message || '驗證失敗');
                 }
 
                 setMessage('查詢成功');
@@ -247,15 +327,17 @@
                 resultMeta.textContent = '查詢失敗';
                 bookingList.innerHTML = '';
             } finally {
-                queryBtn.disabled = false;
+                sendOtpBtn.disabled = false;
+                verifyBtn.disabled = false;
             }
         }
 
-        queryBtn.addEventListener('click', queryByEmail);
-        emailInput.addEventListener('keydown', (event) => {
+        sendOtpBtn.addEventListener('click', sendOtp);
+        verifyBtn.addEventListener('click', verifyOtpAndQuery);
+        otpInput.addEventListener('keydown', (event) => {
             if (event.key === 'Enter') {
                 event.preventDefault();
-                queryByEmail();
+                verifyOtpAndQuery();
             }
         });
     </script>
