@@ -9743,6 +9743,26 @@ function formatPaymentDeadline(deadline) {
     });
 }
 
+function ensureAutoMailNotice(content) {
+    const noticeText = '此為系統自動發送郵件，請勿直接回覆';
+    if (!content || content.includes(noticeText)) {
+        return content;
+    }
+
+    const noticeHtml = `
+    <div style="margin-top: 30px; padding-top: 18px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 14px; line-height: 1.6;">
+        ${noticeText}
+    </div>`;
+
+    if (/<\/body>/i.test(content)) {
+        return content.replace(/<\/body>/i, `${noticeHtml}\n</body>`);
+    }
+    if (/<\/html>/i.test(content)) {
+        return content.replace(/<\/html>/i, `${noticeHtml}\n</html>`);
+    }
+    return `${content}\n${noticeHtml}`;
+}
+
 // 替換郵件模板中的變數
 async function replaceTemplateVariables(template, booking, bankInfo = null, additionalData = {}) {
     // 確保模板內容存在（支援多種欄位名稱）
@@ -10677,6 +10697,7 @@ ${htmlEnd}`;
         subject = subject.replace(new RegExp(key, 'g'), variables[key]);
     });
     
+    content = ensureAutoMailNotice(content);
     return { subject, content };
 }
 
