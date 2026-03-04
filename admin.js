@@ -4618,15 +4618,16 @@ async function saveGmailSettings() {
     const gmailClientSecret = document.getElementById('gmailClientSecret').value.trim();
     const gmailRefreshToken = document.getElementById('gmailRefreshToken').value.trim();
     
-    // 驗證必填欄位
-    if (!emailUser || !gmailClientID || !gmailClientSecret || !gmailRefreshToken) {
-        showError('請填寫所有必填欄位（Gmail 帳號、Client ID、Client Secret、Refresh Token）');
+    // Gmail 為備用設定：允許全部留空
+    const filledCount = [emailUser, gmailClientID, gmailClientSecret, gmailRefreshToken].filter(v => !!v).length;
+    if (filledCount > 0 && filledCount < 4) {
+        showError('Gmail 為備用設定：若要啟用請完整填寫四個欄位，或全部留空');
         return;
     }
     
-    // 驗證 Email 格式
+    // 有填帳號時才驗證 Email 格式
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(emailUser)) {
+    if (emailUser && !emailRegex.test(emailUser)) {
         showError('請輸入有效的 Gmail 帳號');
         return;
     }
