@@ -2070,6 +2070,7 @@ async function generateCustomerEmail(data) {
                         <p style="margin: 5px 0; color: #333;">帳號：<span style="font-size: 18px; color: #e74c3c; font-weight: 700; letter-spacing: 2px;">${data.bankInfo.account}</span></p>
                         ${data.bankInfo.accountName ? `<p style="margin: 5px 0; color: #333;">戶名：${data.bankInfo.accountName}</p>` : ''}
                         <p style="margin: 15px 0 5px 0; padding-top: 10px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">請在匯款時備註訂房編號後5碼：<strong>${data.bookingId ? data.bookingId.slice(-5) : ''}</strong></p>
+                        <p style="margin: 8px 0 0 0; color: #666; font-size: 14px;">匯款後請加入官方LINE告知，謝謝！</p>
                     </div>
                     ` : '<p style="color: #856404; margin: 10px 0;">⚠️ 匯款資訊尚未設定，請聯繫客服取得匯款帳號。</p>'}
                 </div>
@@ -7193,6 +7194,7 @@ app.post('/api/email-templates/reset-to-default', requireAuth, checkPermission('
                 <p style="margin: 8px 0;"><strong>帳號：</strong><strong style="color: #e74c3c;">{{bankAccount}}</strong></p>
                 <p style="margin: 8px 0;"><strong>戶名：</strong>{{accountName}}</p>
                 <p style="margin: 15px 0 0 0; padding-top: 15px; border-top: 1px solid #ffc107;">請在匯款時備註訂房編號後5碼：<strong>{{bookingIdLast5}}</strong></p>
+                <p style="margin: 8px 0 0 0;">匯款後請加入官方LINE告知，謝謝！</p>
             </div>
             
             {{#if isDeposit}}
@@ -7714,6 +7716,9 @@ app.post('/api/email-templates/reset-to-default', requireAuth, checkPermission('
                     {{/if}}
                     <p style="margin: 18px 0 0 0; padding-top: 15px; border-top: 1px solid #ddd; color: #666; font-size: 15px; line-height: 1.6;">
                         請在匯款時備註訂房編號後5碼：<strong style="font-size: 16px; color: #333;">{{bookingIdLast5}}</strong>
+                    </p>
+                    <p style="margin: 8px 0 0 0; color: #666; font-size: 15px; line-height: 1.6;">
+                        匯款後請加入官方LINE告知，謝謝！
                     </p>
                 </div>
                 {{else}}
@@ -8374,6 +8379,7 @@ app.get('/api/email-templates/:key/default', requireAuth, checkPermission('email
                 <p style="margin: 8px 0;"><strong>帳號：</strong><strong style="color: #e74c3c;">{{bankAccount}}</strong></p>
                 <p style="margin: 8px 0;"><strong>戶名：</strong>{{accountName}}</p>
                 <p style="margin: 15px 0 0 0; padding-top: 15px; border-top: 1px solid #ffc107;">請在匯款時備註訂房編號後5碼：<strong>{{bookingIdLast5}}</strong></p>
+                <p style="margin: 8px 0 0 0;">匯款後請加入官方LINE告知，謝謝！</p>
             </div>
             
             {{#if isDeposit}}
@@ -8682,6 +8688,9 @@ app.get('/api/email-templates/:key/default', requireAuth, checkPermission('email
                     {{/if}}
                     <p style="margin: 18px 0 0 0; padding-top: 15px; border-top: 1px solid #ddd; color: #666; font-size: 15px; line-height: 1.6;">
                         請在匯款時備註訂房編號後5碼：<strong style="font-size: 16px; color: #333;">{{bookingIdLast5}}</strong>
+                    </p>
+                    <p style="margin: 8px 0 0 0; color: #666; font-size: 15px; line-height: 1.6;">
+                        匯款後請加入官方LINE告知，謝謝！
                     </p>
                 </div>
                 {{else}}

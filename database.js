@@ -889,6 +889,7 @@ async function initEmailTemplates() {
                 <p style="margin: 8px 0;"><strong>帳號：</strong><strong style="color: #e74c3c;">{{bankAccount}}</strong></p>
                 <p style="margin: 8px 0;"><strong>戶名：</strong>{{accountName}}</p>
                 <p style="margin: 15px 0 0 0; padding-top: 15px; border-top: 1px solid #ffc107;">請在匯款時備註訂房編號後5碼：<strong>{{bookingIdLast5}}</strong></p>
+                <p style="margin: 8px 0 0 0;">匯款後請加入官方LINE告知，謝謝！</p>
             </div>
             
             {{#if isDeposit}}
@@ -1372,6 +1373,9 @@ async function initEmailTemplates() {
                     {{/if}}
                     <p style="margin: 18px 0 0 0; padding-top: 15px; border-top: 1px solid #ddd; color: #666; font-size: 15px; line-height: 1.6;">
                         請在匯款時備註訂房編號後5碼：<strong style="font-size: 16px; color: #333;">{{bookingIdLast5}}</strong>
+                    </p>
+                    <p style="margin: 8px 0 0 0; color: #666; font-size: 15px; line-height: 1.6;">
+                        匯款後請加入官方LINE告知，謝謝！
                     </p>
                 </div>
                 {{else}}
@@ -1892,6 +1896,16 @@ async function initEmailTemplates() {
                     console.log(`⚠️ 訂房確認模板缺少完整聯絡資訊區塊，需要更新`);
                 }
             }
+
+            // 檢查訂房確認模板是否缺少匯款後加入官方 LINE 提示
+            let needsUpdateForBookingTransferLineNotice = false;
+            if (template.key === 'booking_confirmation' && existing && existing.content && existing.content.trim() !== '') {
+                const hasTransferLineNotice = existing.content.includes('匯款後請加入官方LINE告知，謝謝！');
+                if (!hasTransferLineNotice) {
+                    needsUpdateForBookingTransferLineNotice = true;
+                    console.log('⚠️ 訂房確認模板缺少匯款後官方 LINE 提示，需要更新');
+                }
+            }
             
             // 檢查付款完成模板是否缺少聯絡資訊區塊（電話 / Email / 官方 LINE）
             let needsUpdateForPaymentCompletedContactInfo = false;
@@ -1915,7 +1929,7 @@ async function initEmailTemplates() {
                 }
             }
             
-            if (!existing || !existing.content || existing.content.trim() === '' || existing.template_name !== template.name || isContentTooShort || needsUpdateForHtmlStructure || forceUpdateCheckinReminder || forceUpdatePaymentReminder || needsUpdateForPaymentReminder || needsUpdateForFeedbackResponsive || needsUpdateForFeedbackOfficialLine || needsUpdateForBookingContactInfo || needsUpdateForPaymentCompletedContactInfo || needsUpdateForCancelNotificationOfficialLine) {
+            if (!existing || !existing.content || existing.content.trim() === '' || existing.template_name !== template.name || isContentTooShort || needsUpdateForHtmlStructure || forceUpdateCheckinReminder || forceUpdatePaymentReminder || needsUpdateForPaymentReminder || needsUpdateForFeedbackResponsive || needsUpdateForFeedbackOfficialLine || needsUpdateForBookingContactInfo || needsUpdateForBookingTransferLineNotice || needsUpdateForPaymentCompletedContactInfo || needsUpdateForCancelNotificationOfficialLine) {
                 if (usePostgreSQL) {
                     await query(
                         `INSERT INTO email_templates (template_key, template_name, subject, content, is_enabled, days_before_checkin, send_hour_checkin, days_after_checkout, send_hour_feedback, days_reserved, send_hour_payment_reminder)
