@@ -4388,7 +4388,7 @@ async function saveHotelInfoSettings() {
         
         const allSuccess = results.every(r => r.success);
         if (allSuccess) {
-            showSuccess('旅館資訊已儲存');
+            showSuccess('民宿資訊已儲存');
         } else {
             const errorMsg = results.find(r => !r.success)?.message || '請稍後再試';
             showError('儲存失敗：' + errorMsg);
