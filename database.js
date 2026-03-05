@@ -1172,13 +1172,11 @@ async function initEmailTemplates() {
             <div class="info-section">
                 <div class="info-section-title">💬 意見回饋</div>
                 <p style="margin: 0 0 15px 0; font-size: 16px; line-height: 1.8;">如果您有任何建議、意見或需要協助，歡迎隨時透過以下方式與我們聯繫：</p>
-                <div style="background: white; padding: 15px; border-radius: 6px; margin-bottom: 12px;">
-                    <p style="margin: 0 0 8px 0; font-size: 16px;"><strong style="color: #2e7d32;">📧 Email：</strong><a href="mailto:{{hotelEmail}}" style="color: #1976d2; text-decoration: none;">{{hotelEmail}}</a></p>
-                    <p style="margin: 0; font-size: 16px;"><strong style="color: #2e7d32;">📞 電話：</strong><a href="tel:{{hotelPhone}}" style="color: #1976d2; text-decoration: none;">{{hotelPhone}}</a></p>
-                    {{#if officialLineUrl}}
-                    <p style="margin: 8px 0 0 0; font-size: 16px;"><strong style="color: #2e7d32;">💬 官方 LINE：</strong><a href="{{officialLineUrl}}" target="_blank" style="color: #1976d2; text-decoration: none;">{{officialLineUrl}}</a></p>
-                    {{/if}}
-                </div>
+                <p style="margin: 0 0 8px 0; font-size: 16px;"><strong style="color: #2e7d32;">Email：</strong><a href="mailto:{{hotelEmail}}" style="color: #1976d2; text-decoration: none;">{{hotelEmail}}</a></p>
+                <p style="margin: 0; font-size: 16px;"><strong style="color: #2e7d32;">電話：</strong><a href="tel:{{hotelPhone}}" style="color: #1976d2; text-decoration: none;">{{hotelPhone}}</a></p>
+                {{#if officialLineUrl}}
+                <p style="margin: 8px 0 0 0; font-size: 16px;"><strong style="color: #2e7d32;">官方 LINE：</strong><a href="{{officialLineUrl}}" target="_blank" style="color: #1976d2; text-decoration: none;">{{officialLineUrl}}</a></p>
+                {{/if}}
                 <p style="margin: 0; font-size: 15px; color: #2e7d32; font-weight: 600;">我們會認真聆聽您的意見，並持續改進服務品質！</p>
             </div>
             
@@ -1885,6 +1883,17 @@ async function initEmailTemplates() {
                 }
             }
 
+            // 檢查感謝入住模板是否仍有舊樣式（聯絡資訊前方小圖示、白底區塊）
+            let needsUpdateForFeedbackContactStyle = false;
+            if (template.key === 'feedback_request' && existing && existing.content && existing.content.trim() !== '') {
+                const hasLegacyIcons = existing.content.includes('📧 Email') || existing.content.includes('📞 電話') || existing.content.includes('💬 官方 LINE');
+                const hasLegacyWhiteBox = existing.content.includes('background: white; padding: 15px; border-radius: 6px; margin-bottom: 12px;');
+                if (hasLegacyIcons || hasLegacyWhiteBox) {
+                    needsUpdateForFeedbackContactStyle = true;
+                    console.log(`⚠️ 感謝入住模板仍為舊聯絡資訊樣式，需要更新`);
+                }
+            }
+
             // 檢查訂房確認模板是否缺少聯絡資訊區塊（電話 / Email / 官方 LINE）
             let needsUpdateForBookingContactInfo = false;
             if (template.key === 'booking_confirmation' && existing && existing.content && existing.content.trim() !== '') {
@@ -1929,7 +1938,7 @@ async function initEmailTemplates() {
                 }
             }
             
-            if (!existing || !existing.content || existing.content.trim() === '' || existing.template_name !== template.name || isContentTooShort || needsUpdateForHtmlStructure || forceUpdateCheckinReminder || forceUpdatePaymentReminder || needsUpdateForPaymentReminder || needsUpdateForFeedbackResponsive || needsUpdateForFeedbackOfficialLine || needsUpdateForBookingContactInfo || needsUpdateForBookingTransferLineNotice || needsUpdateForPaymentCompletedContactInfo || needsUpdateForCancelNotificationOfficialLine) {
+            if (!existing || !existing.content || existing.content.trim() === '' || existing.template_name !== template.name || isContentTooShort || needsUpdateForHtmlStructure || forceUpdateCheckinReminder || forceUpdatePaymentReminder || needsUpdateForPaymentReminder || needsUpdateForFeedbackResponsive || needsUpdateForFeedbackOfficialLine || needsUpdateForFeedbackContactStyle || needsUpdateForBookingContactInfo || needsUpdateForBookingTransferLineNotice || needsUpdateForPaymentCompletedContactInfo || needsUpdateForCancelNotificationOfficialLine) {
                 if (usePostgreSQL) {
                     await query(
                         `INSERT INTO email_templates (template_key, template_name, subject, content, is_enabled, days_before_checkin, send_hour_checkin, days_after_checkout, send_hour_feedback, days_reserved, send_hour_payment_reminder)
