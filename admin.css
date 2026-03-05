@@ -129,6 +129,7 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    text-decoration: none;
 }
 
 .btn-refresh .material-symbols-outlined {
@@ -140,6 +141,13 @@ body {
     background: #2474a0;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(44, 142, 196, 0.4);
+    color: white;
+    text-decoration: none;
+}
+
+.btn-refresh:visited {
+    color: white;
+    text-decoration: none;
 }
 
 /* 搜尋和篩選 */
