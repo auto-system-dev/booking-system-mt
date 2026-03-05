@@ -1891,6 +1891,21 @@ async function initEmailTemplates() {
                 }
             }
 
+            // 檢查感謝入住模板是否仍使用舊色彩與舊行距（聯絡資訊藍字、結語無上間距）
+            let needsUpdateForFeedbackContactTextColorAndSpacing = false;
+            if (template.key === 'feedback_request' && existing && existing.content && existing.content.trim() !== '') {
+                const hasBlueContactLinks = existing.content.includes('color: #1976d2;');
+                const hasGreenContactLabels = existing.content.includes('<strong style="color: #2e7d32;">Email：</strong>') ||
+                    existing.content.includes('<strong style="color: #2e7d32;">電話：</strong>') ||
+                    existing.content.includes('<strong style="color: #2e7d32;">官方 LINE：</strong>');
+                const hasOldClosingSpacing = existing.content.includes('<p style="margin: 0; font-size: 15px; color: #2e7d32; font-weight: 600;">我們會認真聆聽您的意見，並持續改進服務品質！</p>');
+
+                if (hasBlueContactLinks || hasGreenContactLabels || hasOldClosingSpacing) {
+                    needsUpdateForFeedbackContactTextColorAndSpacing = true;
+                    console.log(`⚠️ 感謝入住模板聯絡資訊文字顏色或結語行距仍為舊版，需要更新`);
+                }
+            }
+
             // 檢查訂房確認模板是否缺少聯絡資訊區塊（電話 / Email / 官方 LINE）
             let needsUpdateForBookingContactInfo = false;
             if (template.key === 'booking_confirmation' && existing && existing.content && existing.content.trim() !== '') {
@@ -1935,7 +1950,7 @@ async function initEmailTemplates() {
                 }
             }
             
-            if (!existing || !existing.content || existing.content.trim() === '' || existing.template_name !== template.name || isContentTooShort || needsUpdateForHtmlStructure || forceUpdateCheckinReminder || forceUpdatePaymentReminder || needsUpdateForPaymentReminder || needsUpdateForFeedbackResponsive || needsUpdateForFeedbackOfficialLine || needsUpdateForFeedbackContactStyle || needsUpdateForBookingContactInfo || needsUpdateForBookingTransferLineNotice || needsUpdateForPaymentCompletedContactInfo || needsUpdateForCancelNotificationOfficialLine) {
+            if (!existing || !existing.content || existing.content.trim() === '' || existing.template_name !== template.name || isContentTooShort || needsUpdateForHtmlStructure || forceUpdateCheckinReminder || forceUpdatePaymentReminder || needsUpdateForPaymentReminder || needsUpdateForFeedbackResponsive || needsUpdateForFeedbackOfficialLine || needsUpdateForFeedbackContactStyle || needsUpdateForFeedbackContactTextColorAndSpacing || needsUpdateForBookingContactInfo || needsUpdateForBookingTransferLineNotice || needsUpdateForPaymentCompletedContactInfo || needsUpdateForCancelNotificationOfficialLine) {
                 if (usePostgreSQL) {
                     await query(
                         `INSERT INTO email_templates (template_key, template_name, subject, content, is_enabled, days_before_checkin, send_hour_checkin, days_after_checkout, send_hour_feedback, days_reserved, send_hour_payment_reminder)
