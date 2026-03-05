@@ -1169,10 +1169,10 @@ async function initEmailTemplates() {
             <div class="info-section">
                 <div class="info-section-title">💬 意見回饋</div>
                 <p style="margin: 0 0 15px 0; font-size: 16px; line-height: 1.8;">如果您有任何建議、意見或需要協助，歡迎隨時透過以下方式與我們聯繫：</p>
-                <p style="margin: 0 0 8px 0; font-size: 16px;"><strong style="color: #333;">Email：</strong><a href="mailto:{{hotelEmail}}" style="color: #333; text-decoration: none;">{{hotelEmail}}</a></p>
-                <p style="margin: 0; font-size: 16px;"><strong style="color: #333;">電話：</strong><a href="tel:{{hotelPhone}}" style="color: #333; text-decoration: none;">{{hotelPhone}}</a></p>
+                <p style="margin: 0 0 8px 0; font-size: 16px;"><strong style="color: #333;">Email：</strong><a href="mailto:{{hotelEmail}}" style="color: #1976d2; text-decoration: none;">{{hotelEmail}}</a></p>
+                <p style="margin: 0; font-size: 16px;"><strong style="color: #333;">電話：</strong><a href="tel:{{hotelPhone}}" style="color: #1976d2; text-decoration: none;">{{hotelPhone}}</a></p>
                 {{#if officialLineUrl}}
-                <p style="margin: 8px 0 0 0; font-size: 16px;"><strong style="color: #333;">官方 LINE：</strong><a href="{{officialLineUrl}}" target="_blank" style="color: #333; text-decoration: none;">{{officialLineUrl}}</a></p>
+                <p style="margin: 8px 0 0 0; font-size: 16px;"><strong style="color: #333;">官方 LINE：</strong><a href="{{officialLineUrl}}" target="_blank" style="color: #1976d2; text-decoration: none;">{{officialLineUrl}}</a></p>
                 {{/if}}
                 <p style="margin: 8px 0 0 0; font-size: 15px; color: #2e7d32; font-weight: 600;">我們會認真聆聽您的意見，並持續改進服務品質！</p>
             </div>
@@ -1894,17 +1894,19 @@ async function initEmailTemplates() {
             // 檢查感謝入住模板是否仍使用舊色彩與舊行距（聯絡資訊藍字、結語無上間距）
             let needsUpdateForFeedbackContactTextColorAndSpacing = false;
             if (template.key === 'feedback_request' && existing && existing.content && existing.content.trim() !== '') {
-                const hasBlueContactLinks = existing.content.includes('color: #1976d2;');
+                const hasBlackContactLinks = existing.content.includes('href="mailto:{{hotelEmail}}" style="color: #333; text-decoration: none;"') ||
+                    existing.content.includes('href="tel:{{hotelPhone}}" style="color: #333; text-decoration: none;"') ||
+                    existing.content.includes('href="{{officialLineUrl}}" target="_blank" style="color: #333; text-decoration: none;"');
                 const hasGreenContactLabels = existing.content.includes('<strong style="color: #2e7d32;">Email：</strong>') ||
                     existing.content.includes('<strong style="color: #2e7d32;">電話：</strong>') ||
                     existing.content.includes('<strong style="color: #2e7d32;">官方 LINE：</strong>');
                 const hasOldClosingSpacing = existing.content.includes('<p style="margin: 0; font-size: 15px; color: #2e7d32; font-weight: 600;">我們會認真聆聽您的意見，並持續改進服務品質！</p>');
-                const hasExpectedBlackEmailLink = existing.content.includes('href="mailto:{{hotelEmail}}" style="color: #333; text-decoration: none;"');
-                const hasExpectedBlackPhoneLink = existing.content.includes('href="tel:{{hotelPhone}}" style="color: #333; text-decoration: none;"');
-                const hasExpectedBlackLineLink = existing.content.includes('href="{{officialLineUrl}}" target="_blank" style="color: #333; text-decoration: none;"');
-                const missingExpectedBlackContactStyles = !hasExpectedBlackEmailLink || !hasExpectedBlackPhoneLink || !hasExpectedBlackLineLink;
+                const hasExpectedBlueEmailLink = existing.content.includes('href="mailto:{{hotelEmail}}" style="color: #1976d2; text-decoration: none;"');
+                const hasExpectedBluePhoneLink = existing.content.includes('href="tel:{{hotelPhone}}" style="color: #1976d2; text-decoration: none;"');
+                const hasExpectedBlueLineLink = existing.content.includes('href="{{officialLineUrl}}" target="_blank" style="color: #1976d2; text-decoration: none;"');
+                const missingExpectedBlueContactStyles = !hasExpectedBlueEmailLink || !hasExpectedBluePhoneLink || !hasExpectedBlueLineLink;
 
-                if (hasBlueContactLinks || hasGreenContactLabels || hasOldClosingSpacing || missingExpectedBlackContactStyles) {
+                if (hasBlackContactLinks || hasGreenContactLabels || hasOldClosingSpacing || missingExpectedBlueContactStyles) {
                     needsUpdateForFeedbackContactTextColorAndSpacing = true;
                     console.log(`⚠️ 感謝入住模板聯絡資訊文字顏色或結語行距仍為舊版，需要更新`);
                 }
