@@ -8760,6 +8760,8 @@ async function showAddAdminModal() {
     document.getElementById('adminPassword').required = true;
     document.getElementById('adminPasswordGroup').style.display = 'block';
     document.getElementById('adminIsActiveGroup').style.display = 'none';
+    document.getElementById('adminIsActive').checked = true;
+    updateAdminIsActiveToggleUI(true);
     
     // 載入角色選項
     await loadRoleOptions();
@@ -8792,6 +8794,7 @@ async function showEditAdminModal(adminId) {
             document.getElementById('adminPhone').value = admin.phone || '';
             document.getElementById('adminNotes').value = admin.notes || '';
             document.getElementById('adminIsActive').checked = admin.is_active === 1 || admin.is_active === true;
+            updateAdminIsActiveToggleUI(document.getElementById('adminIsActive').checked);
             
             document.getElementById('adminModal').style.display = 'block';
         } else {
@@ -8830,6 +8833,17 @@ function closeAdminModal() {
     document.getElementById('adminModal').style.display = 'none';
     document.getElementById('adminForm').reset();
     document.getElementById('editAdminId').value = '';
+    updateAdminIsActiveToggleUI(document.getElementById('adminIsActive').checked);
+}
+
+// 同步「管理員帳號啟用」開關外觀（與加購商品前台啟用開關一致）
+function updateAdminIsActiveToggleUI(isEnabled) {
+    const track = document.getElementById('adminIsActiveTrack');
+    const thumb = document.getElementById('adminIsActiveThumb');
+    const text = document.getElementById('adminIsActiveText');
+    if (track) track.style.backgroundColor = isEnabled ? '#27ae60' : '#ccc';
+    if (thumb) thumb.style.transform = isEnabled ? 'translateX(24px)' : 'translateX(0)';
+    if (text) text.textContent = isEnabled ? '啟用此帳號' : '停用此帳號';
 }
 
 // 儲存管理員
