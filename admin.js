@@ -1029,6 +1029,11 @@ async function loadDashboard() {
 async function loadBookings() {
     try {
         const response = await adminFetch('/api/bookings');
+        if (response.status === 401) {
+            console.warn('載入訂房記錄收到 401，登入已過期');
+            showLoginPage();
+            return;
+        }
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1186,6 +1191,15 @@ async function loadBookingCalendar() {
         // 獲取訂房資料
         const calendarUrl = `${window.location.origin}/api/bookings?startDate=${encodeURIComponent(startDateStr)}&endDate=${encodeURIComponent(endDateStr)}`;
         const bookingsResponse = await fetch(calendarUrl);
+        if (bookingsResponse.status === 401) {
+            console.warn('載入訂房日曆收到 401，登入已過期');
+            showLoginPage();
+            const container = document.getElementById('bookingCalendarContainer');
+            if (container) {
+                container.innerHTML = '<div class="loading">請重新登入</div>';
+            }
+            return;
+        }
         if (!bookingsResponse.ok) {
             throw new Error(`HTTP ${bookingsResponse.status}: ${bookingsResponse.statusText}`);
         }
