@@ -962,7 +962,7 @@ async function handleCreateBooking(req, res) {
         bookingData.earlyBirdRule = earlyBirdRule;
         bookingData.promoDiscount = promoDiscountAmount;
         bookingData.promoCode = promoCode || null; // 優惠代碼字串（用於折扣說明）
-        
+
         // 發送郵件
         let emailSent = false;
         let emailErrorMsg = '';
@@ -980,8 +980,8 @@ async function handleCreateBooking(req, res) {
                 });
                 emailSent = !!sendResult.customerEmailSent;
                 emailErrorMsg = sendResult.customerEmailError || '';
-            } catch (emailError) {
-                emailErrorMsg = emailError.message || '未知錯誤';
+        } catch (emailError) {
+            emailErrorMsg = emailError.message || '未知錯誤';
                 console.error('❌ 匯款轉帳通知發送失敗:', emailErrorMsg);
             }
         } else {
@@ -1156,8 +1156,8 @@ async function handleCreateBooking(req, res) {
                 console.log('🌍 當前環境:', isProduction ? '正式環境 (Production)' : '測試環境 (Test)');
                 console.log(isProduction ? '💰 使用正式環境設定' : '🧪 使用測試環境設定');
                 if (isProduction && ecpayMerchantID === '2000132') {
-                    console.warn('⚠️  警告：正式環境仍在使用測試環境的 MerchantID！');
-                    console.warn('   請在系統設定中設定綠界支付參數，或設定 ECPAY_MERCHANT_ID_PROD 環境變數');
+                        console.warn('⚠️  警告：正式環境仍在使用測試環境的 MerchantID！');
+                        console.warn('   請在系統設定中設定綠界支付參數，或設定 ECPAY_MERCHANT_ID_PROD 環境變數');
                 }
                 
                 console.log('📋 綠界設定:', {
