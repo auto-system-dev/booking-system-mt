@@ -469,7 +469,7 @@ body {
 
 .btn-apply-promo {
     padding: 12px 24px;
-    background: #667eea;
+    background: #2C8EC4;
     color: white;
     border: none;
     border-radius: 12px;
@@ -482,9 +482,9 @@ body {
 }
 
 .btn-apply-promo:hover {
-    background: #5568d3;
+    background: #1a6a9a;
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    box-shadow: 0 4px 12px rgba(44, 142, 196, 0.3);
 }
 
 .btn-apply-promo:active {
