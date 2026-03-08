@@ -665,6 +665,83 @@ let isHtmlMode = false;
 let isPreviewVisible = false; // 預覽是否顯示
 let currentEmailStyle = 'card'; // 當前郵件樣式
 let isSimpleMode = false; // 簡化編輯模式：只編輯文字內容，保護 HTML 結構
+let opsDashboardRangeMode = 'month';
+
+function formatDateYmd(dateObj) {
+    return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+}
+
+function updateOpsRangeButtons() {
+    const weekBtn = document.getElementById('opsRangeWeekBtn');
+    const monthBtn = document.getElementById('opsRangeMonthBtn');
+    if (weekBtn) weekBtn.classList.toggle('active', opsDashboardRangeMode === 'week');
+    if (monthBtn) monthBtn.classList.toggle('active', opsDashboardRangeMode === 'month');
+}
+
+function setOpsDateInputs(startDate, endDate) {
+    const startInput = document.getElementById('opsStartDate');
+    const endInput = document.getElementById('opsEndDate');
+    if (startInput) startInput.value = startDate;
+    if (endInput) endInput.value = endDate;
+}
+
+function setOpsDashboardTitle(suffixText) {
+    const title = document.getElementById('opsDashboardTitle');
+    if (!title) return;
+    title.innerHTML = `
+        <span class="material-symbols-outlined" style="font-size: 24px; vertical-align: middle; margin-right: 6px;">monitoring</span>
+        營運 KPI（${suffixText}）`;
+}
+
+function getOpsRangeParams() {
+    updateOpsRangeButtons();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let startDate;
+    let endDate = new Date(today);
+
+    if (opsDashboardRangeMode === 'week') {
+        startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 6);
+        setOpsDashboardTitle('本週');
+    } else {
+        startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        setOpsDashboardTitle('本月');
+    }
+
+    const startStr = formatDateYmd(startDate);
+    const endStr = formatDateYmd(endDate);
+    setOpsDateInputs(startStr, endStr);
+    return { startDate: startStr, endDate: endStr };
+}
+
+function setOpsDashboardRange(mode) {
+    opsDashboardRangeMode = mode === 'week' ? 'week' : 'month';
+    updateOpsRangeButtons();
+    loadDashboard();
+}
+
+function applyCustomOpsRange() {
+    const startInput = document.getElementById('opsStartDate');
+    const endInput = document.getElementById('opsEndDate');
+    const startDate = startInput?.value;
+    const endDate = endInput?.value;
+
+    if (!startDate || !endDate) {
+        showError('請先選擇 KPI 的開始與結束日期');
+        return;
+    }
+    if (startDate > endDate) {
+        showError('KPI 開始日期不可晚於結束日期');
+        return;
+    }
+
+    opsDashboardRangeMode = 'custom';
+    updateOpsRangeButtons();
+    setOpsDashboardTitle(`${startDate} ~ ${endDate}`);
+    loadDashboard({ startDate, endDate, isCustom: true });
+}
 
 // 初始化
 document.addEventListener('DOMContentLoaded', async function() {
@@ -985,11 +1062,21 @@ function switchRoomTypeTab(tab) {
 }
 
 // 載入儀表板數據
-async function loadDashboard() {
+async function loadDashboard(options = {}) {
     try {
+        const isCustom = !!options.isCustom;
+        const rangeParams = isCustom
+            ? { startDate: options.startDate, endDate: options.endDate }
+            : getOpsRangeParams();
+
+        const opsQuery = new URLSearchParams({
+            startDate: rangeParams.startDate,
+            endDate: rangeParams.endDate
+        }).toString();
+
         const [dashboardResponse, opsResponse] = await Promise.all([
             adminFetch('/api/dashboard'),
-            adminFetch('/api/dashboard/ops')
+            adminFetch(`/api/dashboard/ops?${opsQuery}`)
         ]);
 
         if (!dashboardResponse.ok) {
@@ -1039,6 +1126,10 @@ async function loadDashboard() {
 
                 const cancellationEl = document.getElementById('opsCancellationRate');
                 if (cancellationEl) cancellationEl.textContent = formatPercent(kpis.cancellationRate);
+
+                if (!isCustom && opsResult.data.range) {
+                    setOpsDateInputs(opsResult.data.range.startDate, opsResult.data.range.endDate);
+                }
             } else {
                 console.warn('營運 KPI 載入失敗:', opsResult.message || '未知錯誤');
             }

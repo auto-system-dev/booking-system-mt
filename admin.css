@@ -960,6 +960,44 @@ body {
     line-height: 1.2;
 }
 
+.ops-kpi-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.ops-kpi-toggle,
+.ops-kpi-dates {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ops-kpi-dates input[type="date"] {
+    padding: 8px 10px;
+    border: 1px solid #d9d9d9;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.ops-kpi-toggle .btn-secondary.active {
+    background: #2C8EC4;
+    color: #fff;
+    border-color: #2C8EC4;
+}
+
+@media (max-width: 768px) {
+    .ops-kpi-controls {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .ops-kpi-dates {
+        flex-wrap: wrap;
+    }
+}
+
 /* 郵件模板管理樣式 */
 .email-templates-container {
     padding: 20px;
