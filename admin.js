@@ -3689,11 +3689,7 @@ function showRoomTypeModal(room) {
                 <small>可上傳多張照片，訪客在銷售頁點擊房型圖片後可瀏覽所有照片</small>
             </div>
             ` : ''}
-            <div class="form-group">
-                <label>圖示（Emoji，備用）</label>
-                <input type="text" name="icon" value="${isEdit ? escapeHtml(room.icon) : '🏠'}" maxlength="10">
-                <small>當沒有上傳照片時，將顯示此圖示</small>
-            </div>
+            <input type="hidden" name="icon" value="${isEdit ? escapeHtml(room.icon || '🏠') : '🏠'}">
             <div class="form-group">
                 <label>顯示順序</label>
                 <input type="number" name="display_order" value="${isEdit ? room.display_order : 0}" min="0" step="1">
