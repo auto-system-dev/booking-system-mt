@@ -666,6 +666,47 @@ let isPreviewVisible = false; // 預覽是否顯示
 let currentEmailStyle = 'card'; // 當前郵件樣式
 let isSimpleMode = false; // 簡化編輯模式：只編輯文字內容，保護 HTML 結構
 let opsDashboardRangeMode = 'month';
+let kpiHelpHideTimer = null;
+
+const kpiHelpContentMap = {
+    occupancy: {
+        title: '每日入住率',
+        lines: [
+            '公式：已售房晚 / 可售房晚 x 100%',
+            '口徑：只計入「有效/保留」訂房的重疊房晚。',
+            '分母：房型數 x 區間天數。'
+        ]
+    },
+    adr: {
+        title: '平均房價（ADR）',
+        lines: [
+            '公式：總房費收入 / 已售房晚',
+            '口徑：只計入「有效/保留」訂房。',
+            '說明：每筆會先換算每晚收入再按重疊夜數加總。'
+        ]
+    },
+    conversion: {
+        title: '轉換率',
+        lines: [
+            '公式：（有效 + 保留）/ 區間內全部訂單 x 100%',
+            '口徑：以入住日在區間內為母體。'
+        ]
+    },
+    payment: {
+        title: '付款成功率',
+        lines: [
+            '公式：已付款 /（已付款 + 待付款 + 付款失敗）x 100%',
+            '口徑：以入住日在區間內為母體。'
+        ]
+    },
+    cancellation: {
+        title: '取消率',
+        lines: [
+            '公式：取消訂單 / 區間內全部訂單 x 100%',
+            '口徑：以入住日在區間內為母體（非取消發生日）。'
+        ]
+    }
+};
 
 function formatDateYmd(dateObj) {
     return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
@@ -743,6 +784,79 @@ function applyCustomOpsRange() {
     updateOpsRangeButtons();
     setOpsDashboardTitle(`${startDate} ~ ${endDate}`);
     loadDashboard({ startDate, endDate, isCustom: true });
+}
+
+function hideKpiHelpPopover() {
+    const popover = document.getElementById('kpiHelpPopover');
+    if (!popover) return;
+    popover.classList.remove('active');
+    popover.setAttribute('aria-hidden', 'true');
+}
+
+function showKpiHelpPopover(triggerEl, key) {
+    const popover = document.getElementById('kpiHelpPopover');
+    const content = kpiHelpContentMap[key];
+    if (!popover || !content) return;
+
+    const html = `
+        <div class="kpi-help-popover-title">${escapeHtml(content.title)}</div>
+        ${content.lines.map(line => `<div class="kpi-help-popover-line">${escapeHtml(line)}</div>`).join('')}
+    `;
+    popover.innerHTML = html;
+    popover.classList.add('active');
+    popover.setAttribute('aria-hidden', 'false');
+
+    const rect = triggerEl.getBoundingClientRect();
+    const spacing = 10;
+
+    let left = rect.left;
+    let top = rect.bottom + spacing;
+
+    const maxLeft = window.innerWidth - popover.offsetWidth - 8;
+    if (left > maxLeft) left = Math.max(8, maxLeft);
+    if (left < 8) left = 8;
+
+    const maxTop = window.innerHeight - popover.offsetHeight - 8;
+    if (top > maxTop) {
+        top = Math.max(8, rect.top - popover.offsetHeight - spacing);
+    }
+
+    popover.style.left = `${left}px`;
+    popover.style.top = `${top}px`;
+
+    if (kpiHelpHideTimer) {
+        clearTimeout(kpiHelpHideTimer);
+    }
+    kpiHelpHideTimer = setTimeout(() => {
+        hideKpiHelpPopover();
+    }, 9000);
+}
+
+function initOpsKpiHelp() {
+    const triggers = document.querySelectorAll('.kpi-help-trigger');
+    if (!triggers.length) return;
+
+    triggers.forEach((el) => {
+        el.addEventListener('click', (event) => {
+            event.stopPropagation();
+            const key = el.dataset.kpiHelpKey;
+            showKpiHelpPopover(el, key);
+        });
+    });
+
+    document.addEventListener('click', (event) => {
+        const popover = document.getElementById('kpiHelpPopover');
+        if (!popover || !popover.classList.contains('active')) return;
+        if (!popover.contains(event.target)) {
+            hideKpiHelpPopover();
+        }
+    });
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            hideKpiHelpPopover();
+        }
+    });
 }
 
 // 初始化
@@ -878,6 +992,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     
     // 暴露函數到 window 對象，以便在 HTML onclick 屬性中訪問
     exposeFunctionsToWindow();
+    initOpsKpiHelp();
 });
 
 // 切換區塊
