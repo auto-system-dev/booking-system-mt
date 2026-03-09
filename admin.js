@@ -1074,22 +1074,13 @@ async function loadDashboard(options = {}) {
             endDate: rangeParams.endDate
         }).toString();
 
-        const [dashboardResponse, opsResponse] = await Promise.all([
-            adminFetch('/api/dashboard'),
-            adminFetch(`/api/dashboard/ops?${opsQuery}`)
-        ]);
+        const dashboardResponse = await adminFetch('/api/dashboard');
 
         if (!dashboardResponse.ok) {
             throw new Error(`HTTP ${dashboardResponse.status}: ${dashboardResponse.statusText}`);
         }
-        if (!opsResponse.ok) {
-            throw new Error(`HTTP ${opsResponse.status}: ${opsResponse.statusText}`);
-        }
 
-        const [result, opsResult] = await Promise.all([
-            dashboardResponse.json(),
-            opsResponse.json()
-        ]);
+        const result = await dashboardResponse.json();
 
         if (result.success) {
             const data = result.data || {};
@@ -1107,31 +1098,42 @@ async function loadDashboard(options = {}) {
             document.getElementById('reservedBookings').textContent = data.reservedBookings || 0;
             document.getElementById('cancelledBookings').textContent = data.cancelledBookings || 0;
 
-            if (opsResult.success && opsResult.data && opsResult.data.kpis) {
-                const kpis = opsResult.data.kpis;
-                const formatPercent = (v) => `${(Number(v) || 0).toFixed(1)}%`;
-                const formatCurrency = (v) => `NT$ ${Math.round(Number(v) || 0).toLocaleString()}`;
-
-                const occupancyEl = document.getElementById('opsOccupancyRate');
-                if (occupancyEl) occupancyEl.textContent = formatPercent(kpis.occupancyRate);
-
-                const adrEl = document.getElementById('opsAverageRoomRate');
-                if (adrEl) adrEl.textContent = formatCurrency(kpis.averageRoomRate);
-
-                const conversionEl = document.getElementById('opsConversionRate');
-                if (conversionEl) conversionEl.textContent = formatPercent(kpis.conversionRate);
-
-                const paymentEl = document.getElementById('opsPaymentSuccessRate');
-                if (paymentEl) paymentEl.textContent = formatPercent(kpis.paymentSuccessRate);
-
-                const cancellationEl = document.getElementById('opsCancellationRate');
-                if (cancellationEl) cancellationEl.textContent = formatPercent(kpis.cancellationRate);
-
-                if (!isCustom && opsResult.data.range) {
-                    setOpsDateInputs(opsResult.data.range.startDate, opsResult.data.range.endDate);
+            // KPI 次要查詢：即使失敗也不影響上方儀表板顯示
+            try {
+                const opsResponse = await adminFetch(`/api/dashboard/ops?${opsQuery}`);
+                if (!opsResponse.ok) {
+                    throw new Error(`HTTP ${opsResponse.status}: ${opsResponse.statusText}`);
                 }
-            } else {
-                console.warn('營運 KPI 載入失敗:', opsResult.message || '未知錯誤');
+                const opsResult = await opsResponse.json();
+
+                if (opsResult.success && opsResult.data && opsResult.data.kpis) {
+                    const kpis = opsResult.data.kpis;
+                    const formatPercent = (v) => `${(Number(v) || 0).toFixed(1)}%`;
+                    const formatCurrency = (v) => `NT$ ${Math.round(Number(v) || 0).toLocaleString()}`;
+
+                    const occupancyEl = document.getElementById('opsOccupancyRate');
+                    if (occupancyEl) occupancyEl.textContent = formatPercent(kpis.occupancyRate);
+
+                    const adrEl = document.getElementById('opsAverageRoomRate');
+                    if (adrEl) adrEl.textContent = formatCurrency(kpis.averageRoomRate);
+
+                    const conversionEl = document.getElementById('opsConversionRate');
+                    if (conversionEl) conversionEl.textContent = formatPercent(kpis.conversionRate);
+
+                    const paymentEl = document.getElementById('opsPaymentSuccessRate');
+                    if (paymentEl) paymentEl.textContent = formatPercent(kpis.paymentSuccessRate);
+
+                    const cancellationEl = document.getElementById('opsCancellationRate');
+                    if (cancellationEl) cancellationEl.textContent = formatPercent(kpis.cancellationRate);
+
+                    if (!isCustom && opsResult.data.range) {
+                        setOpsDateInputs(opsResult.data.range.startDate, opsResult.data.range.endDate);
+                    }
+                } else {
+                    console.warn('營運 KPI 載入失敗:', opsResult.message || '未知錯誤');
+                }
+            } catch (opsError) {
+                console.warn('營運 KPI API 暫不可用，不影響基本儀表板顯示:', opsError.message);
             }
         } else {
             showError('載入儀表板數據失敗：' + (result.message || '未知錯誤'));
