@@ -707,6 +707,8 @@ function getOpsRangeParams() {
         setOpsDashboardTitle('本週');
     } else {
         startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+        // 本月口徑改為「1 號到月底」，符合月報檢視習慣
+        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
         setOpsDashboardTitle('本月');
     }
 
