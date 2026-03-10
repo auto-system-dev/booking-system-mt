@@ -10231,6 +10231,8 @@ function switchLandingTab(tab) {
     localStorage.setItem('landingTab', tab);
 }
 
+let landingFacilityGalleryItems = [];
+
 // 銷售頁設定欄位對應表
 const landingFieldMap = {
     // 基本資訊
@@ -10346,6 +10348,7 @@ async function loadLandingSettings() {
                     restoreFeatureCheckboxes('landingFacilities');
                 }
             }
+            loadLandingFacilityGalleryEditor(data['landing_facility_gallery']);
             // 還原色系主題
             restoreLandingTheme(data['landing_theme']);
             console.log('✅ 銷售頁設定已載入');
@@ -10356,6 +10359,167 @@ async function loadLandingSettings() {
         console.error('❌ 載入銷售頁設定錯誤:', error);
         showError('載入銷售頁設定時發生錯誤：' + error.message);
     }
+}
+
+function loadLandingFacilityGalleryEditor(rawValue) {
+    landingFacilityGalleryItems = [];
+    if (rawValue) {
+        try {
+            const parsed = typeof rawValue === 'string' ? JSON.parse(rawValue) : rawValue;
+            if (Array.isArray(parsed)) {
+                landingFacilityGalleryItems = parsed.map((item, index) => ({
+                    id: item.id || `f_${Date.now()}_${index}`,
+                    title: item.title || '',
+                    desc: item.desc || '',
+                    image: item.image || '',
+                    enabled: item.enabled !== false,
+                    order: Number(item.order) || (index + 1)
+                }));
+            }
+        } catch (error) {
+            console.warn('解析 landing_facility_gallery 失敗，將使用空資料:', error);
+        }
+    }
+    normalizeLandingFacilityGalleryOrder();
+    renderLandingFacilityGalleryEditor();
+}
+
+function normalizeLandingFacilityGalleryOrder() {
+    landingFacilityGalleryItems.forEach((item, index) => {
+        item.order = index + 1;
+    });
+}
+
+function renderLandingFacilityGalleryEditor() {
+    const container = document.getElementById('landingFacilityGalleryList');
+    if (!container) return;
+
+    if (!landingFacilityGalleryItems.length) {
+        container.innerHTML = '<div style="color: #888; font-size: 13px;">尚未新增相簿項目</div>';
+        return;
+    }
+
+    container.innerHTML = landingFacilityGalleryItems.map((item, index) => `
+        <div style="border: 1px solid #dbe4ee; border-radius: 10px; padding: 10px; background: #fff;" data-facility-item-id="${item.id}">
+            <div style="display: grid; grid-template-columns: 140px 1fr; gap: 12px;">
+                <div>
+                    <div style="width: 100%; height: 96px; border-radius: 8px; border: 1px solid #e5e7eb; background: #f8fafc; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+                        ${item.image ? `<img src="${escapeHtml(item.image)}" alt="" style="width: 100%; height: 100%; object-fit: cover;">` : '<span style="color:#94a3b8;font-size:12px;">尚未上傳</span>'}
+                    </div>
+                    <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
+                        <button type="button" class="btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="uploadLandingFacilityGalleryImage('${item.id}')">上傳</button>
+                        <button type="button" class="btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="clearLandingFacilityGalleryImage('${item.id}')">清空</button>
+                        <input type="file" id="landingFacilityImageInput_${item.id}" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none;" onchange="handleLandingFacilityGalleryImageUpload(this, '${item.id}')">
+                    </div>
+                </div>
+                <div>
+                    <div class="form-group" style="margin-bottom:8px;">
+                        <label style="font-size:13px;">標題</label>
+                        <input type="text" value="${escapeHtml(item.title)}" oninput="updateLandingFacilityGalleryItem('${item.id}', 'title', this.value)" placeholder="例如：公共客廳">
+                    </div>
+                    <div class="form-group" style="margin-bottom:8px;">
+                        <label style="font-size:13px;">描述（選填）</label>
+                        <input type="text" value="${escapeHtml(item.desc)}" oninput="updateLandingFacilityGalleryItem('${item.id}', 'desc', this.value)" placeholder="例如：寬敞舒適，適合聚會">
+                    </div>
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap;">
+                        <label style="display:flex; align-items:center; gap:6px; font-size:13px;">
+                            <input type="checkbox" ${item.enabled ? 'checked' : ''} onchange="updateLandingFacilityGalleryItem('${item.id}', 'enabled', this.checked)">
+                            啟用顯示
+                        </label>
+                        <div style="display:flex; gap:6px;">
+                            <button type="button" class="btn-secondary" style="padding:4px 8px; font-size:12px;" onclick="moveLandingFacilityGalleryItem('${item.id}', -1)" ${index === 0 ? 'disabled' : ''}>上移</button>
+                            <button type="button" class="btn-secondary" style="padding:4px 8px; font-size:12px;" onclick="moveLandingFacilityGalleryItem('${item.id}', 1)" ${index === landingFacilityGalleryItems.length - 1 ? 'disabled' : ''}>下移</button>
+                            <button type="button" class="btn-delete" style="padding:4px 8px; font-size:12px;" onclick="removeLandingFacilityGalleryItem('${item.id}')">刪除</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function addLandingFacilityGalleryItem() {
+    landingFacilityGalleryItems.push({
+        id: `f_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        title: '',
+        desc: '',
+        image: '',
+        enabled: true,
+        order: landingFacilityGalleryItems.length + 1
+    });
+    renderLandingFacilityGalleryEditor();
+}
+
+function updateLandingFacilityGalleryItem(id, key, value) {
+    const item = landingFacilityGalleryItems.find(x => x.id === id);
+    if (!item) return;
+    item[key] = value;
+}
+
+function removeLandingFacilityGalleryItem(id) {
+    landingFacilityGalleryItems = landingFacilityGalleryItems.filter(x => x.id !== id);
+    normalizeLandingFacilityGalleryOrder();
+    renderLandingFacilityGalleryEditor();
+}
+
+function moveLandingFacilityGalleryItem(id, direction) {
+    const index = landingFacilityGalleryItems.findIndex(x => x.id === id);
+    if (index < 0) return;
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= landingFacilityGalleryItems.length) return;
+    const temp = landingFacilityGalleryItems[index];
+    landingFacilityGalleryItems[index] = landingFacilityGalleryItems[targetIndex];
+    landingFacilityGalleryItems[targetIndex] = temp;
+    normalizeLandingFacilityGalleryOrder();
+    renderLandingFacilityGalleryEditor();
+}
+
+function uploadLandingFacilityGalleryImage(itemId) {
+    const input = document.getElementById(`landingFacilityImageInput_${itemId}`);
+    if (input) input.click();
+}
+
+function clearLandingFacilityGalleryImage(itemId) {
+    const item = landingFacilityGalleryItems.find(x => x.id === itemId);
+    if (!item) return;
+    item.image = '';
+    renderLandingFacilityGalleryEditor();
+}
+
+async function handleLandingFacilityGalleryImageUpload(input, itemId) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+        showError('圖片大小不可超過 5MB');
+        input.value = '';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+        const response = await adminFetch('/api/admin/landing/upload-image', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
+        if (result.success && result.data && result.data.image_url) {
+            const item = landingFacilityGalleryItems.find(x => x.id === itemId);
+            if (item) {
+                item.image = result.data.image_url;
+            }
+            renderLandingFacilityGalleryEditor();
+            showSuccess('公設圖片上傳成功');
+        } else {
+            showError('上傳失敗：' + (result.message || '未知錯誤'));
+        }
+    } catch (error) {
+        console.error('上傳公設圖片錯誤:', error);
+        showError('上傳公設圖片失敗：' + error.message);
+    }
+
+    input.value = '';
 }
 
 // 載入房型管理資料並動態生成房型展示 UI
@@ -10523,9 +10687,9 @@ async function saveLandingRoomFeatures(silent = false) {
 }
 
 // 儲存民宿設施設定
-async function saveLandingFacilities() {
+async function saveLandingFacilities(silent = false) {
     const hiddenInput = document.getElementById('landingFacilities');
-    if (!hiddenInput) return;
+    if (!hiddenInput) return false;
 
     try {
         const response = await adminFetch('/api/admin/settings/landing_facilities', {
@@ -10534,14 +10698,48 @@ async function saveLandingFacilities() {
             body: JSON.stringify({ value: hiddenInput.value, description: '銷售頁-民宿設施' })
         });
         const result = await response.json();
-        if (result.success) {
-            showSuccess('民宿設施已儲存');
-        } else {
-            showError('儲存失敗：' + (result.message || ''));
+        if (!result.success) {
+            if (!silent) showError('儲存失敗：' + (result.message || ''));
+            return false;
         }
+        if (!silent) showSuccess('民宿設施已儲存');
+        return true;
     } catch (error) {
         console.error('❌ 儲存民宿設施錯誤:', error);
-        showError('儲存失敗：' + error.message);
+        if (!silent) showError('儲存失敗：' + error.message);
+        return false;
+    }
+}
+
+async function saveLandingFacilityGallery(silent = false) {
+    try {
+        const normalized = landingFacilityGalleryItems.map((item, index) => ({
+            id: item.id || `f_${index + 1}`,
+            title: String(item.title || '').trim(),
+            desc: String(item.desc || '').trim(),
+            image: String(item.image || '').trim(),
+            enabled: item.enabled !== false,
+            order: index + 1
+        })).filter(item => item.image);
+
+        const response = await adminFetch('/api/admin/settings/landing_facility_gallery', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                value: JSON.stringify(normalized),
+                description: '銷售頁-公設相簿（JSON）'
+            })
+        });
+        const result = await response.json();
+        if (!result.success) {
+            if (!silent) showError('公設相簿儲存失敗：' + (result.message || ''));
+            return false;
+        }
+        return true;
+    } catch (error) {
+        console.error('❌ 儲存公設相簿錯誤:', error);
+        if (!silent) showError('公設相簿儲存失敗：' + error.message);
+        return false;
     }
 }
 
@@ -10576,7 +10774,16 @@ async function saveLandingSettings(tab) {
             }
             break;
         case 'facilities':
-            saveLandingFacilities();
+            {
+                const facilitiesSaved = await saveLandingFacilities(true);
+                const gallerySaved = await saveLandingFacilityGallery(true);
+                if (facilitiesSaved && gallerySaved) {
+                    showSuccess('民宿設施與公設相簿已儲存');
+                    setTimeout(() => loadLandingSettings(), 300);
+                } else {
+                    showError('儲存失敗：請檢查民宿設施或公設相簿設定');
+                }
+            }
             return;
         case 'reviews':
             keysToSave = Object.keys(landingFieldMap).filter(k =>
@@ -10992,6 +11199,13 @@ window.loadLandingSettings = loadLandingSettings;
 window.saveLandingSettings = saveLandingSettings;
 window.saveLandingRoomFeatures = saveLandingRoomFeatures;
 window.saveLandingFacilities = saveLandingFacilities;
+window.addLandingFacilityGalleryItem = addLandingFacilityGalleryItem;
+window.removeLandingFacilityGalleryItem = removeLandingFacilityGalleryItem;
+window.moveLandingFacilityGalleryItem = moveLandingFacilityGalleryItem;
+window.uploadLandingFacilityGalleryImage = uploadLandingFacilityGalleryImage;
+window.clearLandingFacilityGalleryImage = clearLandingFacilityGalleryImage;
+window.updateLandingFacilityGalleryItem = updateLandingFacilityGalleryItem;
+window.handleLandingFacilityGalleryImageUpload = handleLandingFacilityGalleryImageUpload;
 window.syncFeatureCheckboxes = syncFeatureCheckboxes;
 window.restoreFeatureCheckboxes = restoreFeatureCheckboxes;
 window.handleHeroImageUpload = handleHeroImageUpload;

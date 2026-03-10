@@ -172,6 +172,7 @@ async function applyConfig(cfg) {
 
     // ===== 民宿設施 =====
     renderAmenities(cfg);
+    renderFacilityGallery(cfg);
 
     // ===== 客戶評價 =====
     if (cfg.landing_review_count) {
@@ -243,6 +244,15 @@ function setText(id, value) {
     if (!value) return;
     const el = document.getElementById(id);
     if (el) el.textContent = value;
+}
+
+function escapeHtml(str) {
+    return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
 function normalizeIconName(value) {
@@ -356,6 +366,49 @@ function renderAmenities(cfg) {
             <span>${name}</span>
         </div>`;
     }).join('');
+}
+
+function renderFacilityGallery(cfg) {
+    const section = document.getElementById('facilityGallerySection');
+    const grid = document.getElementById('facilityGalleryGrid');
+    if (!section || !grid) return;
+
+    let items = [];
+    try {
+        const raw = cfg.landing_facility_gallery || '[]';
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (Array.isArray(parsed)) {
+            items = parsed
+                .filter(item => item && item.image && item.enabled !== false)
+                .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+        }
+    } catch (error) {
+        console.warn('⚠️ landing_facility_gallery JSON 解析失敗:', error.message);
+    }
+
+    if (!items.length) {
+        section.style.display = 'none';
+        return;
+    }
+
+    section.style.display = '';
+    const imageList = items.map(item => item.image).filter(Boolean);
+    window._facilityGalleryImages = imageList;
+
+    grid.innerHTML = items.map((item, index) => `
+        <article class="facility-gallery-card" onclick="openFacilityGallery(${index})">
+            <img class="facility-gallery-image" src="${escapeHtml(item.image)}" alt="${escapeHtml(item.title || '公共設施照片')}" loading="lazy">
+            <div class="facility-gallery-info">
+                <div class="facility-gallery-title">${escapeHtml(item.title || '公共設施')}</div>
+                ${item.desc ? `<div class="facility-gallery-desc">${escapeHtml(item.desc)}</div>` : ''}
+            </div>
+        </article>
+    `).join('');
+}
+
+function openFacilityGallery(index = 0) {
+    const images = window._facilityGalleryImages || [];
+    openImageGallery('公共設施相簿', images, index);
 }
 
 // ===== 動態生成房型卡片（從房型管理 + 設施設定合併） =====
@@ -874,14 +927,20 @@ let _galleryImages = [];
 function openRoomGallery(roomId) {
     const data = window._roomGalleryData && window._roomGalleryData[roomId];
     if (!data || data.images.length === 0) return;
-    
-    _galleryImages = data.images;
-    _galleryCurrentIndex = 0;
-    
+    openImageGallery(data.name, data.images, 0);
+}
+
+function openImageGallery(title, images, startIndex = 0) {
+    if (!Array.isArray(images) || images.length === 0) return;
+
+    _galleryImages = images.filter(Boolean);
+    if (_galleryImages.length === 0) return;
+    _galleryCurrentIndex = Math.max(0, Math.min(startIndex, _galleryImages.length - 1));
+
     const overlay = document.getElementById('galleryLightbox');
     if (!overlay) return;
-    
-    document.getElementById('galleryTitle').textContent = data.name;
+
+    document.getElementById('galleryTitle').textContent = title || '圖片';
     updateGalleryDisplay();
     overlay.classList.add('active');
     document.body.style.overflow = 'hidden';
