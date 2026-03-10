@@ -11038,7 +11038,7 @@ function renderEarlyBirdTable(settings) {
     if (!tbody) return;
     
     if (!settings || settings.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; color: #888; padding: 40px;">
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: #888; padding: 40px;">
             <span class="material-symbols-outlined" style="font-size: 48px; display: block; margin-bottom: 10px; color: #ccc;">nest_eco_leaf</span>
             尚未設定早鳥/晚鳥優惠規則<br>
             <small>點擊上方「新增優惠規則」開始設定</small>
@@ -11055,6 +11055,12 @@ function renderEarlyBirdTable(settings) {
         const daysText = s.max_days_before 
             ? `${s.min_days_before} ~ ${s.max_days_before} 天`
             : `≥ ${s.min_days_before} 天`;
+        const applyDayTypeTextMap = {
+            all: '全部',
+            weekday: '僅平日',
+            holiday: '僅假日'
+        };
+        const applyDayTypeText = applyDayTypeTextMap[String(s.apply_day_type || 'all').toLowerCase()] || '全部';
         
         let roomTypesText = '所有房型';
         if (s.applicable_room_types) {
@@ -11087,6 +11093,7 @@ function renderEarlyBirdTable(settings) {
             <td style="text-align: center;">${discountTypeText}</td>
             <td style="text-align: right;">${discountValueText}</td>
             <td style="text-align: center;">${daysText}</td>
+            <td style="text-align: center;">${applyDayTypeText}</td>
             <td style="text-align: left; font-size: 13px;">${escapeHtml(roomTypesText)}</td>
             <td style="text-align: left; font-size: 13px;">${dateText}</td>
             <td style="text-align: center;">${s.priority}</td>
@@ -11153,6 +11160,7 @@ function showAddEarlyBirdModal() {
     document.getElementById('earlyBirdMinDays').value = '0';
     document.getElementById('earlyBirdPriority').value = '0';
     document.getElementById('earlyBirdIsActive').value = '1';
+    document.getElementById('earlyBirdApplyDayType').value = 'all';
     toggleEarlyBirdMaxDiscount();
     loadRoomTypesForEarlyBird(null);
     document.getElementById('earlyBirdModal').style.display = 'flex';
@@ -11178,6 +11186,7 @@ async function editEarlyBirdSetting(id) {
             document.getElementById('earlyBirdEndDate').value = s.end_date ? s.end_date.split('T')[0] : '';
             document.getElementById('earlyBirdPriority').value = s.priority ?? 0;
             document.getElementById('earlyBirdIsActive').value = s.is_active ? '1' : '0';
+            document.getElementById('earlyBirdApplyDayType').value = s.apply_day_type || 'all';
             document.getElementById('earlyBirdDescription').value = s.description || '';
             
             toggleEarlyBirdMaxDiscount();
@@ -11227,6 +11236,7 @@ async function saveEarlyBirdSetting(event) {
         min_days_before: parseInt(document.getElementById('earlyBirdMinDays').value) || 0,
         max_days_before: document.getElementById('earlyBirdMaxDays').value ? parseInt(document.getElementById('earlyBirdMaxDays').value) : null,
         max_discount: document.getElementById('earlyBirdMaxDiscount').value ? parseInt(document.getElementById('earlyBirdMaxDiscount').value) : null,
+        apply_day_type: document.getElementById('earlyBirdApplyDayType').value || 'all',
         applicable_room_types: selectedRoomTypes.length > 0 ? selectedRoomTypes : null,
         is_active: parseInt(document.getElementById('earlyBirdIsActive').value),
         priority: parseInt(document.getElementById('earlyBirdPriority').value) || 0,
@@ -11246,6 +11256,10 @@ async function saveEarlyBirdSetting(event) {
     }
     if (data.discount_type === 'percent' && data.discount_value > 100) {
         showError('百分比折扣不能超過 100%');
+        return;
+    }
+    if (!['all', 'weekday', 'holiday'].includes(data.apply_day_type)) {
+        showError('適用日型設定不正確');
         return;
     }
     

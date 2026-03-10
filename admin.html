@@ -810,6 +810,7 @@
                                     <th style="text-align: center;">折扣類型</th>
                                     <th style="text-align: right;">折扣值</th>
                                     <th style="text-align: center;">提前天數</th>
+                                    <th style="text-align: center;">適用日型</th>
                                     <th style="text-align: left;">適用房型</th>
                                     <th style="text-align: left;">有效期間</th>
                                     <th style="text-align: center;">優先級</th>
@@ -819,7 +820,7 @@
                             </thead>
                             <tbody id="earlyBirdTableBody">
                                 <tr>
-                                    <td colspan="9" class="loading">載入中...</td>
+                                    <td colspan="10" class="loading">載入中...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -882,6 +883,16 @@
                                     <span style="color: #888;">載入中...</span>
                                 </div>
                                 <small style="color: #888;">不勾選表示適用所有房型</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="earlyBirdApplyDayType">適用日型</label>
+                                <select id="earlyBirdApplyDayType">
+                                    <option value="all">全部</option>
+                                    <option value="weekday">僅平日</option>
+                                    <option value="holiday">僅假日</option>
+                                </select>
+                                <small style="color: #888;">平日/假日判斷依房型管理的「平日/假日設定」與假日清單</small>
                             </div>
                             
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">

@@ -685,6 +685,7 @@ async function initPostgreSQL() {
                     min_days_before INTEGER NOT NULL DEFAULT 0,
                     max_days_before INTEGER DEFAULT NULL,
                     max_discount INTEGER DEFAULT NULL,
+                    apply_day_type VARCHAR(20) DEFAULT 'all',
                     applicable_room_types TEXT DEFAULT NULL,
                     is_active INTEGER DEFAULT 1,
                     priority INTEGER DEFAULT 0,
@@ -696,6 +697,13 @@ async function initPostgreSQL() {
                 )
             `);
             console.log('✅ 早鳥/晚鳥優惠設定表已準備就緒');
+            try {
+                await query(`ALTER TABLE early_bird_settings ADD COLUMN IF NOT EXISTS apply_day_type VARCHAR(20) DEFAULT 'all'`);
+            } catch (err) {
+                if (!err.message || (!err.message.includes('already exists') && !err.message.includes('duplicate column'))) {
+                    console.warn('⚠️  添加 early_bird_settings.apply_day_type 欄位時發生錯誤:', err.message);
+                }
+            }
             
             // ==================== 權限管理系統 ====================
             
@@ -2535,6 +2543,7 @@ function initSQLite() {
                                                             min_days_before INTEGER NOT NULL DEFAULT 0,
                                                             max_days_before INTEGER DEFAULT NULL,
                                                             max_discount INTEGER DEFAULT NULL,
+                                                            apply_day_type TEXT DEFAULT 'all',
                                                             applicable_room_types TEXT DEFAULT NULL,
                                                             is_active INTEGER DEFAULT 1,
                                                             priority INTEGER DEFAULT 0,
@@ -2549,6 +2558,11 @@ function initSQLite() {
                                                             console.warn('⚠️  建立 early_bird_settings 表時發生錯誤:', err.message);
                                                         } else {
                                                             console.log('✅ 早鳥/晚鳥優惠設定表已準備就緒');
+                                                        }
+                                                    });
+                                                    db.run(`ALTER TABLE early_bird_settings ADD COLUMN apply_day_type TEXT DEFAULT 'all'`, (alterErr) => {
+                                                        if (alterErr && !alterErr.message.includes('duplicate column')) {
+                                                            console.warn('⚠️  新增 early_bird_settings.apply_day_type 欄位時發生錯誤:', alterErr.message);
                                                         }
                                                     });
                                                     
@@ -4404,10 +4418,10 @@ async function getEarlyBirdSettingById(id) {
 async function createEarlyBirdSetting(data) {
     try {
         const sql = usePostgreSQL
-            ? `INSERT INTO early_bird_settings (name, discount_type, discount_value, min_days_before, max_days_before, max_discount, applicable_room_types, is_active, priority, start_date, end_date, description)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *`
-            : `INSERT INTO early_bird_settings (name, discount_type, discount_value, min_days_before, max_days_before, max_discount, applicable_room_types, is_active, priority, start_date, end_date, description)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+            ? `INSERT INTO early_bird_settings (name, discount_type, discount_value, min_days_before, max_days_before, max_discount, apply_day_type, applicable_room_types, is_active, priority, start_date, end_date, description)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`
+            : `INSERT INTO early_bird_settings (name, discount_type, discount_value, min_days_before, max_days_before, max_discount, apply_day_type, applicable_room_types, is_active, priority, start_date, end_date, description)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
         
         const params = [
             data.name,
@@ -4416,6 +4430,7 @@ async function createEarlyBirdSetting(data) {
             data.min_days_before || 0,
             data.max_days_before || null,
             data.max_discount || null,
+            data.apply_day_type || 'all',
             data.applicable_room_types ? JSON.stringify(data.applicable_room_types) : null,
             data.is_active !== undefined ? data.is_active : 1,
             data.priority || 0,
@@ -4443,14 +4458,14 @@ async function updateEarlyBirdSetting(id, data) {
             ? `UPDATE early_bird_settings SET 
                 name = $1, discount_type = $2, discount_value = $3, 
                 min_days_before = $4, max_days_before = $5, max_discount = $6,
-                applicable_room_types = $7, is_active = $8, priority = $9, 
-                start_date = $10, end_date = $11, description = $12,
+                apply_day_type = $7, applicable_room_types = $8, is_active = $9, priority = $10, 
+                start_date = $11, end_date = $12, description = $13,
                 updated_at = CURRENT_TIMESTAMP
-               WHERE id = $13 RETURNING *`
+               WHERE id = $14 RETURNING *`
             : `UPDATE early_bird_settings SET 
                 name = ?, discount_type = ?, discount_value = ?, 
                 min_days_before = ?, max_days_before = ?, max_discount = ?,
-                applicable_room_types = ?, is_active = ?, priority = ?, 
+                apply_day_type = ?, applicable_room_types = ?, is_active = ?, priority = ?, 
                 start_date = ?, end_date = ?, description = ?,
                 updated_at = CURRENT_TIMESTAMP
                WHERE id = ?`;
@@ -4462,6 +4477,7 @@ async function updateEarlyBirdSetting(id, data) {
             data.min_days_before || 0,
             data.max_days_before || null,
             data.max_discount || null,
+            data.apply_day_type || 'all',
             data.applicable_room_types ? JSON.stringify(data.applicable_room_types) : null,
             data.is_active !== undefined ? data.is_active : 1,
             data.priority || 0,
@@ -4515,6 +4531,7 @@ async function calculateEarlyBirdDiscount(checkInDate, roomTypeName, totalAmount
         // 取得所有啟用的規則
         const allRules = await getAllEarlyBirdSettings();
         console.log(`🐦 共有 ${allRules.length} 條規則`);
+        const checkInIsHoliday = await isHolidayOrWeekend(checkInDate, true);
         const activeRules = allRules.filter(rule => {
             // is_active 可能是字串 "0"/"1" 或數字 0/1
             const isActive = parseInt(rule.is_active) === 1;
@@ -4541,6 +4558,16 @@ async function calculateEarlyBirdDiscount(checkInDate, roomTypeName, totalAmount
             }
             if (rule.max_days_before !== null && rule.max_days_before !== undefined && daysBeforeCheckIn > rule.max_days_before) {
                 console.log(`🐦 規則「${rule.name}」不符合: 提前${daysBeforeCheckIn}天 > 最多${rule.max_days_before}天`);
+                return false;
+            }
+
+            const applyDayType = String(rule.apply_day_type || 'all').trim().toLowerCase();
+            if (applyDayType === 'weekday' && checkInIsHoliday) {
+                console.log(`🐦 規則「${rule.name}」不符合: 僅平日，但入住日 ${checkInDate} 為假日`);
+                return false;
+            }
+            if (applyDayType === 'holiday' && !checkInIsHoliday) {
+                console.log(`🐦 規則「${rule.name}」不符合: 僅假日，但入住日 ${checkInDate} 為平日`);
                 return false;
             }
             
@@ -4595,6 +4622,7 @@ async function calculateEarlyBirdDiscount(checkInDate, roomTypeName, totalAmount
                 discount_type: bestRule.discount_type,
                 discount_value: bestRule.discount_value,
                 max_discount: bestRule.max_discount,
+                apply_day_type: bestRule.apply_day_type || 'all',
                 min_days_before: bestRule.min_days_before,
                 max_days_before: bestRule.max_days_before,
                 description: bestRule.description
