@@ -640,6 +640,42 @@ body {
     box-shadow: 0 4px 12px rgba(44, 142, 196, 0.4);
 }
 
+/* 公設相簿小按鈕（與儲存按鈕同色系） */
+.facility-gallery-mini-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.facility-gallery-mini-btn {
+    padding: 4px 10px;
+    background: #2C8EC4;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.facility-gallery-mini-btn:hover:not(:disabled) {
+    background: #2474a0;
+}
+
+.facility-gallery-mini-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.facility-gallery-mini-btn.danger {
+    background: #dc3545;
+}
+
+.facility-gallery-mini-btn.danger:hover:not(:disabled) {
+    background: #c82333;
+}
+
 /* 主要按鈕 */
 .btn-primary {
     padding: 10px 20px;

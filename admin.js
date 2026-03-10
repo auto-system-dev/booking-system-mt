@@ -10406,9 +10406,9 @@ function renderLandingFacilityGalleryEditor() {
                     <div style="width: 100%; height: 96px; border-radius: 8px; border: 1px solid #e5e7eb; background: #f8fafc; display: flex; align-items: center; justify-content: center; overflow: hidden;">
                         ${item.image ? `<img src="${escapeHtml(item.image)}" alt="" style="width: 100%; height: 100%; object-fit: cover;">` : '<span style="color:#94a3b8;font-size:12px;">尚未上傳</span>'}
                     </div>
-                    <div style="display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;">
-                        <button type="button" class="btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="uploadLandingFacilityGalleryImage('${item.id}')">上傳</button>
-                        <button type="button" class="btn-secondary" style="padding:4px 10px; font-size:12px;" onclick="clearLandingFacilityGalleryImage('${item.id}')">清空</button>
+                    <div class="facility-gallery-mini-actions">
+                        <button type="button" class="facility-gallery-mini-btn" onclick="uploadLandingFacilityGalleryImage('${item.id}')">上傳</button>
+                        <button type="button" class="facility-gallery-mini-btn" onclick="clearLandingFacilityGalleryImage('${item.id}')">清空</button>
                         <input type="file" id="landingFacilityImageInput_${item.id}" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none;" onchange="handleLandingFacilityGalleryImageUpload(this, '${item.id}')">
                     </div>
                 </div>
@@ -10427,9 +10427,9 @@ function renderLandingFacilityGalleryEditor() {
                             啟用顯示
                         </label>
                         <div style="display:flex; gap:6px;">
-                            <button type="button" class="btn-secondary" style="padding:4px 8px; font-size:12px;" onclick="moveLandingFacilityGalleryItem('${item.id}', -1)" ${index === 0 ? 'disabled' : ''}>上移</button>
-                            <button type="button" class="btn-secondary" style="padding:4px 8px; font-size:12px;" onclick="moveLandingFacilityGalleryItem('${item.id}', 1)" ${index === landingFacilityGalleryItems.length - 1 ? 'disabled' : ''}>下移</button>
-                            <button type="button" class="btn-delete" style="padding:4px 8px; font-size:12px;" onclick="removeLandingFacilityGalleryItem('${item.id}')">刪除</button>
+                            <button type="button" class="facility-gallery-mini-btn" onclick="moveLandingFacilityGalleryItem('${item.id}', -1)" ${index === 0 ? 'disabled' : ''}>上移</button>
+                            <button type="button" class="facility-gallery-mini-btn" onclick="moveLandingFacilityGalleryItem('${item.id}', 1)" ${index === landingFacilityGalleryItems.length - 1 ? 'disabled' : ''}>下移</button>
+                            <button type="button" class="facility-gallery-mini-btn danger" onclick="removeLandingFacilityGalleryItem('${item.id}')">刪除</button>
                         </div>
                     </div>
                 </div>
