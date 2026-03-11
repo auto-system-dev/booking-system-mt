@@ -712,7 +712,6 @@ window.addEventListener('scroll', throttle(checkScrollDepth, 200));
 const navbar = document.getElementById('navbar');
 const navToggle = document.getElementById('navToggle');
 const navMenu = document.getElementById('navMenu');
-const navMenuClose = document.getElementById('navMenuClose');
 
 // 捲動時添加背景
 window.addEventListener('scroll', () => {
@@ -734,10 +733,6 @@ if (navToggle && navMenu) {
         navMenu.classList.toggle('active');
         navToggle.classList.toggle('active');
     });
-
-    if (navMenuClose) {
-        navMenuClose.addEventListener('click', closeMobileMenu);
-    }
     
     // 點擊連結後關閉選單
     navMenu.querySelectorAll('.nav-link, .nav-cta').forEach(link => {
