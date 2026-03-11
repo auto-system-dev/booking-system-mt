@@ -22,6 +22,20 @@ const landingThemes = {
 
 // ===== 從 API 載入設定並套用至頁面 =====
 async function loadLandingConfig() {
+    const ssrPayload = window.__LANDING_SSR__;
+    if (ssrPayload && ssrPayload.data) {
+        try {
+            landingConfig = ssrPayload.data;
+            landingConfig._roomTypes = ssrPayload.roomTypes || [];
+            console.log('📋 SSR 載入房型數量:', landingConfig._roomTypes.length);
+            await applyConfig(landingConfig);
+            console.log('✅ 銷售頁設定已由 SSR 注入');
+            return;
+        } catch (error) {
+            console.warn('⚠️ SSR 設定套用失敗，改用 API 重新載入:', error.message);
+        }
+    }
+
     try {
         const response = await fetch('/api/landing-settings');
         const result = await response.json();

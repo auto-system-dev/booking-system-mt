@@ -1459,6 +1459,201 @@ app.get('/order-query', (req, res) => {
     res.sendFile(path.join(__dirname, 'order-query.html'));
 });
 
+async function getLandingPagePayload() {
+    const allSettings = await db.getAllSettings();
+    const landingSettings = {};
+    allSettings.forEach(setting => {
+        if (setting.key.startsWith('landing_')) {
+            landingSettings[setting.key] = setting.value;
+        }
+    });
+
+    const allRoomTypes = await db.getAllRoomTypes();
+    const landingRoomTypes = (allRoomTypes || []).filter(r => r.show_on_landing === 1);
+
+    const allGalleryImages = await db.getAllRoomTypeGalleryImages();
+    const galleryMap = {};
+    (allGalleryImages || []).forEach(img => {
+        if (!galleryMap[img.room_type_id]) galleryMap[img.room_type_id] = [];
+        galleryMap[img.room_type_id].push(img.image_url);
+    });
+    landingRoomTypes.forEach(room => {
+        room.gallery_images = galleryMap[room.id] || [];
+    });
+
+    return { landingSettings, landingRoomTypes };
+}
+
+function escapeHtmlText(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function escapeHtmlAttr(value) {
+    return escapeHtmlText(value).replace(/"/g, '&quot;');
+}
+
+function replaceElementContentById(html, id, value, options = {}) {
+    if (value === undefined || value === null || value === '') return html;
+    const content = options.allowHtml ? String(value) : escapeHtmlText(value);
+    const pattern = new RegExp(`(<[^>]*\\sid="${id}"[^>]*>)([\\s\\S]*?)(</[^>]+>)`);
+    return html.replace(pattern, (_, openTag, __oldContent, closeTag) => `${openTag}${content}${closeTag}`);
+}
+
+function replaceAttrById(html, id, attrName, value) {
+    if (!value) return html;
+    const pattern = new RegExp(`(<[^>]*\\sid="${id}"[^>]*\\s${attrName}=")([^"]*)(")`);
+    const attrValue = escapeHtmlAttr(value);
+    return html.replace(pattern, (_, prefix, __oldValue, suffix) => `${prefix}${attrValue}${suffix}`);
+}
+
+function replaceLinkHrefById(html, id, value) {
+    if (!value) return html;
+    const raw = String(value).trim();
+    if (!raw || raw === '#') return html;
+    let normalized = raw;
+    if (!/^(https?:\/\/|line:\/\/|mailto:|tel:)/i.test(normalized)) {
+        normalized = `https://${normalized}`;
+    }
+    return replaceAttrById(html, id, 'href', normalized);
+}
+
+function hexToRgb(hex) {
+    const normalized = String(hex || '').trim().replace('#', '');
+    if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
+        return { r: 26, g: 58, b: 74 };
+    }
+    return {
+        r: parseInt(normalized.slice(0, 2), 16),
+        g: parseInt(normalized.slice(2, 4), 16),
+        b: parseInt(normalized.slice(4, 6), 16)
+    };
+}
+
+function buildLandingThemeStyleTag(themeId) {
+    const themes = {
+        default: { primary: '#1a3a4a', primary_light: '#2d5a6e', accent: '#c9a962', accent_hover: '#b8954d', bg_cream: '#f8f6f3', text_dark: '#2d3436', text_light: '#636e72' },
+        forest:  { primary: '#2d5016', primary_light: '#4a7a2e', accent: '#d4a853', accent_hover: '#c09640', bg_cream: '#f5f7f2', text_dark: '#2d3426', text_light: '#5a6b52' },
+        mountain:{ primary: '#3d4f5f', primary_light: '#5a7186', accent: '#e8b960', accent_hover: '#d4a64d', bg_cream: '#f4f5f7', text_dark: '#2c3440', text_light: '#6b7a88' },
+        sakura:  { primary: '#8b4557', primary_light: '#a8637a', accent: '#f0c987', accent_hover: '#e0b870', bg_cream: '#fdf6f0', text_dark: '#3d2832', text_light: '#8a6a72' },
+        sunset:  { primary: '#5a3e2b', primary_light: '#7d5a3f', accent: '#e8a54b', accent_hover: '#d49438', bg_cream: '#faf5ef', text_dark: '#3a2a1e', text_light: '#8a7060' },
+        ocean:   { primary: '#1e5799', primary_light: '#3a7bc8', accent: '#ffd700', accent_hover: '#e6c200', bg_cream: '#f0f5fa', text_dark: '#1a2a3a', text_light: '#5a6a7a' },
+        autumn:  { primary: '#5c4033', primary_light: '#7d5e50', accent: '#c9a962', accent_hover: '#b8954d', bg_cream: '#f9f4ef', text_dark: '#3a2e26', text_light: '#7a6a5a' },
+        minimal: { primary: '#1a1a2e', primary_light: '#33334d', accent: '#e2b259', accent_hover: '#d0a048', bg_cream: '#f5f5f5', text_dark: '#1a1a1a', text_light: '#666666' }
+    };
+    const theme = themes[themeId] || themes.default;
+    const pRgb = hexToRgb(theme.primary);
+    const aRgb = hexToRgb(theme.accent);
+    return `<style id="landingSsrThemeVars">:root{--primary:${theme.primary};--primary-light:${theme.primary_light};--accent:${theme.accent};--accent-hover:${theme.accent_hover};--bg-cream:${theme.bg_cream};--bg-dark:${theme.primary};--text-dark:${theme.text_dark};--text-light:${theme.text_light};--primary-alpha-95:rgba(${pRgb.r},${pRgb.g},${pRgb.b},0.95);--primary-alpha-85:rgba(${pRgb.r},${pRgb.g},${pRgb.b},0.85);--primary-alpha-75:rgba(${pRgb.r},${pRgb.g},${pRgb.b},0.75);--primary-alpha-60:rgba(${pRgb.r},${pRgb.g},${pRgb.b},0.6);--primary-alpha-08:rgba(${pRgb.r},${pRgb.g},${pRgb.b},0.08);--accent-shadow:rgba(${aRgb.r},${aRgb.g},${aRgb.b},0.4);--accent-shadow-lg:rgba(${aRgb.r},${aRgb.g},${aRgb.b},0.5);--accent-alpha-10:rgba(${aRgb.r},${aRgb.g},${aRgb.b},0.1);}</style>`;
+}
+
+function renderLandingTemplate(templateHtml, landingSettings, landingRoomTypes) {
+    let html = templateHtml;
+    const cfg = landingSettings || {};
+    const landingName = cfg.landing_name || '';
+    const seoTitle = cfg.landing_seo_title || landingName || '民宿銷售頁';
+
+    html = replaceElementContentById(html, 'pageTitle', seoTitle);
+    html = replaceElementContentById(html, 'navLogo', landingName);
+    html = replaceElementContentById(html, 'footerBrand', landingName);
+
+    html = replaceElementContentById(html, 'heroTitle', cfg.landing_title, { allowHtml: true });
+    html = replaceElementContentById(html, 'heroSubtitle', cfg.landing_subtitle);
+    html = replaceElementContentById(html, 'heroBadge', cfg.landing_badge);
+    html = replaceElementContentById(html, 'heroPricePrefix', cfg.landing_price_prefix);
+    html = replaceElementContentById(html, 'heroPriceAmount', cfg.landing_price_amount);
+    html = replaceElementContentById(html, 'heroPriceOriginal', cfg.landing_price_original);
+    html = replaceElementContentById(html, 'countdownText', cfg.landing_countdown_text, { allowHtml: true });
+
+    html = replaceElementContentById(html, 'heroTrust1', cfg.landing_hero_trust_1);
+    html = replaceElementContentById(html, 'heroTrust2', cfg.landing_hero_trust_2);
+    html = replaceElementContentById(html, 'heroTrust3', cfg.landing_hero_trust_3);
+    html = replaceElementContentById(html, 'heroTrustIcon1', cfg.landing_hero_trust_icon_1);
+    html = replaceElementContentById(html, 'heroTrustIcon2', cfg.landing_hero_trust_icon_2);
+    html = replaceElementContentById(html, 'heroTrustIcon3', cfg.landing_hero_trust_icon_3);
+
+    html = replaceElementContentById(html, 'featuresSectionTitle', cfg.landing_features_title);
+    html = replaceElementContentById(html, 'featuresSectionSubtitle', cfg.landing_features_subtitle);
+    for (let i = 1; i <= 4; i++) {
+        html = replaceElementContentById(html, `featureIcon${i}`, cfg[`landing_feature_${i}_icon`]);
+        html = replaceElementContentById(html, `featureTitle${i}`, cfg[`landing_feature_${i}_title`]);
+        html = replaceElementContentById(html, `featureDesc${i}`, cfg[`landing_feature_${i}_desc`]);
+    }
+
+    html = replaceElementContentById(html, 'roomsSectionTitle', cfg.landing_rooms_title);
+    html = replaceElementContentById(html, 'roomsSectionSubtitle', cfg.landing_rooms_subtitle);
+    if (cfg.landing_review_count) {
+        html = replaceElementContentById(html, 'reviewTitle', `超過 ${cfg.landing_review_count} 位旅客的選擇`);
+    }
+    html = replaceElementContentById(html, 'reviewScore', cfg.landing_review_score);
+
+    html = replaceElementContentById(html, 'locationSectionTitle', cfg.landing_location_title);
+    html = replaceElementContentById(html, 'locationAddress', cfg.landing_address);
+    html = replaceElementContentById(html, 'locationDriving', cfg.landing_driving);
+    html = replaceElementContentById(html, 'locationTransit', cfg.landing_transit);
+    html = replaceElementContentById(html, 'locationPhone', cfg.landing_phone);
+    html = replaceAttrById(html, 'locationMap', 'src', cfg.landing_map_url);
+
+    html = replaceElementContentById(html, 'finalCtaTitle', cfg.landing_final_cta_title);
+    html = replaceElementContentById(html, 'finalCtaDesc', cfg.landing_final_cta_desc);
+    html = replaceElementContentById(html, 'finalGuaranteeText', cfg.landing_final_guarantee);
+    html = replaceElementContentById(html, 'finalGuaranteeIcon', cfg.landing_final_guarantee_icon);
+
+    const ctaText = cfg.landing_cta_text;
+    html = replaceElementContentById(html, 'heroCtaText', ctaText);
+    html = replaceElementContentById(html, 'navCtaBtn', ctaText);
+    html = replaceElementContentById(html, 'finalCtaText', ctaText);
+    html = replaceElementContentById(html, 'floatingCtaText', ctaText);
+
+    html = replaceAttrById(html, 'metaDescription', 'content', cfg.landing_seo_desc);
+    html = replaceAttrById(html, 'ogTitle', 'content', seoTitle);
+    html = replaceAttrById(html, 'ogDescription', 'content', cfg.landing_seo_desc);
+    html = replaceAttrById(html, 'ogImage', 'content', cfg.landing_og_image);
+    html = replaceAttrById(html, 'customerFavicon', 'href', cfg.landing_favicon);
+    html = replaceAttrById(html, 'customerAppleTouchIcon', 'href', cfg.landing_favicon);
+    html = replaceLinkHrefById(html, 'socialFb', cfg.landing_social_fb);
+    html = replaceLinkHrefById(html, 'socialIg', cfg.landing_social_ig);
+    html = replaceLinkHrefById(html, 'socialLine', cfg.landing_social_line);
+
+    if (cfg.landing_hero_image) {
+        html = html.replace(
+            /<section class="hero" id="hero">/,
+            `<section class="hero" id="hero" style="background-image: url('${escapeHtmlAttr(cfg.landing_hero_image)}');">`
+        );
+    }
+
+    if (cfg.landing_theme) {
+        html = html.replace('</head>', `    ${buildLandingThemeStyleTag(cfg.landing_theme)}\n</head>`);
+    }
+
+    const ssrPayload = {
+        data: cfg,
+        roomTypes: landingRoomTypes || []
+    };
+    const serializedPayload = JSON.stringify(ssrPayload).replace(/</g, '\\u003c');
+    html = html.replace(
+        /<script src="landing\.js"><\/script>/,
+        `<script>window.__LANDING_SSR__ = ${serializedPayload};</script>\n    <script src="landing.js"></script>`
+    );
+
+    return html;
+}
+
+app.get(['/landing', '/landing.html'], publicLimiter, async (req, res) => {
+    try {
+        const { landingSettings, landingRoomTypes } = await getLandingPagePayload();
+        const templateHtml = await fs.promises.readFile(path.join(__dirname, 'landing.html'), 'utf8');
+        const renderedHtml = renderLandingTemplate(templateHtml, landingSettings, landingRoomTypes);
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(renderedHtml);
+    } catch (error) {
+        console.error('SSR 產生銷售頁失敗，改回靜態檔案:', error);
+        res.sendFile(path.join(__dirname, 'landing.html'));
+    }
+});
+
 // 管理後台登入頁面
 app.get('/admin/login', (req, res) => {
     // 如果已經登入，重導向到管理後台
@@ -4573,28 +4768,8 @@ app.post('/api/admin/landing/upload-image', requireAuth, (req, res) => {
 // API: 取得銷售頁設定（公開）
 app.get('/api/landing-settings', publicLimiter, async (req, res) => {
     try {
-        const allSettings = await db.getAllSettings();
-        const landingSettings = {};
-        allSettings.forEach(setting => {
-            if (setting.key.startsWith('landing_')) {
-                landingSettings[setting.key] = setting.value;
-            }
-        });
-        // 同時回傳啟用中且設為顯示在銷售頁的房型資料
-        const allRoomTypes = await db.getAllRoomTypes();
-        const landingRoomTypes = (allRoomTypes || []).filter(r => r.show_on_landing === 1);
-        
-        // 取得所有圖庫圖片，按房型分組
-        const allGalleryImages = await db.getAllRoomTypeGalleryImages();
-        const galleryMap = {};
-        (allGalleryImages || []).forEach(img => {
-            if (!galleryMap[img.room_type_id]) galleryMap[img.room_type_id] = [];
-            galleryMap[img.room_type_id].push(img.image_url);
-        });
-        landingRoomTypes.forEach(room => {
-            room.gallery_images = galleryMap[room.id] || [];
-        });
-        
+        const { landingSettings, landingRoomTypes } = await getLandingPagePayload();
+
         res.json({
             success: true,
             data: landingSettings,
