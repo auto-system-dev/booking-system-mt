@@ -1539,6 +1539,19 @@
                                     <input type="file" id="landingNavLogoInput" accept="image/png,image/jpeg,image/webp,image/gif" style="display: none;" onchange="handleLandingNavLogoUpload(this)">
                                 </div>
                                 <div class="form-group">
+                                    <label>Favicon（landing / index 共用）</label>
+                                    <input type="hidden" id="landingFavicon">
+                                    <div id="landingFaviconUploadArea" onclick="document.getElementById('landingFaviconInput').click()" style="border: 2px dashed #d0d7de; border-radius: 8px; padding: 16px; text-align: center; cursor: pointer; background: #fafbfc;">
+                                        <div id="landingFaviconPreview">
+                                            <span class="material-symbols-outlined" style="font-size: 40px; color: #888; display: block; margin-bottom: 8px;">image</span>
+                                            <p style="margin: 0; color: #555;">點擊上傳 favicon</p>
+                                            <small style="color: #888;">建議 PNG / ICO（正方形），最大 1MB</small>
+                                        </div>
+                                    </div>
+                                    <input type="file" id="landingFaviconInput" accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/jpeg,image/webp,image/gif" style="display: none;" onchange="handleLandingFaviconUpload(this)">
+                                    <small>上傳後會套用到 `landing` 與 `index` 頁面分頁小圖。</small>
+                                </div>
+                                <div class="form-group">
                                     <label>主標題</label>
                                     <input type="text" id="landingTitle" placeholder="例如：遠離塵囂 擁抱自然">
                                     <small>Hero 區塊的大標題（支援用 &lt;br&gt; 換行）</small>
@@ -2055,19 +2068,6 @@
                                     <label>頁面描述（Meta Description）</label>
                                     <textarea id="landingSeoDesc" rows="2" placeholder="例如：坐落於青山綠水間，提供您最舒適的住宿體驗。限時優惠中！"></textarea>
                                     <small>顯示在搜尋引擎結果中（建議 60-160 字）</small>
-                                </div>
-                                <div class="form-group">
-                                    <label>Favicon（landing / index 共用）</label>
-                                    <input type="hidden" id="landingFavicon">
-                                    <div id="landingFaviconUploadArea" onclick="document.getElementById('landingFaviconInput').click()" style="border: 2px dashed #d0d7de; border-radius: 8px; padding: 16px; text-align: center; cursor: pointer; background: #fafbfc;">
-                                        <div id="landingFaviconPreview">
-                                            <span class="material-symbols-outlined" style="font-size: 40px; color: #888; display: block; margin-bottom: 8px;">image</span>
-                                            <p style="margin: 0; color: #555;">點擊上傳 favicon</p>
-                                            <small style="color: #888;">建議 PNG / ICO（正方形），最大 1MB</small>
-                                        </div>
-                                    </div>
-                                    <input type="file" id="landingFaviconInput" accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/jpeg,image/webp,image/gif" style="display: none;" onchange="handleLandingFaviconUpload(this)">
-                                    <small>上傳後會套用到 `landing` 與 `index` 頁面分頁小圖。</small>
                                 </div>
                                 <div class="form-group">
                                     <label>Open Graph 分享圖片 URL</label>

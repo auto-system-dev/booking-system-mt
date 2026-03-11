@@ -10760,7 +10760,7 @@ async function saveLandingSettings(tab) {
             keysToSave = Object.keys(landingFieldMap).filter(k =>
                 ['landing_name', 'landing_title', 'landing_subtitle', 'landing_badge',
                  'landing_price_prefix', 'landing_price_amount', 'landing_price_original',
-                 'landing_nav_logo', 'landing_hero_image', 'landing_countdown_days', 'landing_countdown_text',
+                 'landing_nav_logo', 'landing_favicon', 'landing_hero_image', 'landing_countdown_days', 'landing_countdown_text',
                  'landing_cta_text', 'landing_hero_trust_1', 'landing_hero_trust_2',
                  'landing_hero_trust_3', 'landing_final_guarantee', 'landing_hero_trust_icon_1',
                  'landing_hero_trust_icon_2', 'landing_hero_trust_icon_3', 'landing_final_guarantee_icon'].includes(k)
@@ -10807,7 +10807,7 @@ async function saveLandingSettings(tab) {
             break;
         case 'tracking':
             keysToSave = Object.keys(landingFieldMap).filter(k =>
-                ['landing_fb_pixel_id', 'landing_seo_title', 'landing_seo_desc', 'landing_og_image', 'landing_favicon'].includes(k)
+                ['landing_fb_pixel_id', 'landing_seo_title', 'landing_seo_desc', 'landing_og_image'].includes(k)
             );
             break;
     }
