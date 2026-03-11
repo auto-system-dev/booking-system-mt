@@ -11001,14 +11001,14 @@ async function handleLandingNavLogoUpload(input) {
             const logoInput = document.getElementById('landingNavLogo');
             if (logoInput) logoInput.value = imageUrl;
             showLandingNavLogoPreview(imageUrl);
-            showSuccess('導航列 Logo 上傳成功');
+            showSuccess('Logo 上傳成功');
         } else {
             showError('上傳失敗：' + (result.message || '未知錯誤'));
             if (uploadArea) uploadArea.innerHTML = originalContent;
         }
     } catch (error) {
-        console.error('上傳導航列 Logo 錯誤:', error);
-        showError('上傳導航列 Logo 失敗：' + error.message);
+        console.error('上傳 Logo 錯誤:', error);
+        showError('上傳 Logo 失敗：' + error.message);
         if (uploadArea) uploadArea.innerHTML = originalContent;
     }
 
@@ -11022,7 +11022,7 @@ function showLandingNavLogoPreview(imageUrl) {
         <div id="landingNavLogoPreview" style="display: flex; align-items: center; justify-content: center; gap: 12px; position: relative;">
             <img src="${imageUrl}" style="width: 42px; height: 42px; border-radius: 50%; border: 1px solid #ddd; object-fit: cover; background: #fff;">
             <div style="text-align: left;">
-                <p style="margin: 0; color: #444; font-weight: 600;">導航列 Logo 已上傳</p>
+                <p style="margin: 0; color: #444; font-weight: 600;">Logo 已上傳</p>
                 <small style="color: #888;">點擊此區可重新上傳</small>
             </div>
             <button type="button" onclick="event.stopPropagation(); removeLandingNavLogo();" style="position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; border-radius: 50%; border: none; background: #e74c3c; color: white; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
@@ -11038,7 +11038,7 @@ function removeLandingNavLogo() {
         uploadArea.innerHTML = `
             <div id="landingNavLogoPreview">
                 <span class="material-symbols-outlined" style="font-size: 32px; color: #9aa0a6; display:block; margin-bottom: 6px;">add_photo_alternate</span>
-                <p style="margin:0; color:#666;">點擊上傳導航列 Logo</p>
+                <p style="margin:0; color:#666;">點擊上傳 Logo</p>
                 <small style="color:#999;">建議正方形 PNG/WebP，最大 2MB</small>
             </div>
         `;
