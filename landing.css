@@ -501,6 +501,7 @@ section {
     color: var(--text-light);
     line-height: 1.7;
     white-space: pre-line;
+    text-align: left;
 }
 
 /* ===== 房型展示區 ===== */
