@@ -93,6 +93,10 @@ body {
     gap: 32px;
 }
 
+.nav-menu-close {
+    display: none;
+}
+
 .nav-link {
     color: rgba(255, 255, 255, 0.85);
     text-decoration: none;
@@ -1142,6 +1146,7 @@ section {
         gap: 24px;
         transition: var(--transition);
         box-shadow: var(--shadow-lg);
+        z-index: 1200;
     }
     
     .nav-menu.active {
@@ -1150,6 +1155,27 @@ section {
     
     .nav-toggle {
         display: flex;
+        z-index: 1300;
+    }
+
+    .nav-menu-close {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        top: 18px;
+        right: 18px;
+        width: 36px;
+        height: 36px;
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+        cursor: pointer;
+    }
+
+    .nav-menu-close .material-symbols-outlined {
+        font-size: 20px;
     }
     
     .features-grid {

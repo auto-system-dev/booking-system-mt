@@ -712,6 +712,7 @@ window.addEventListener('scroll', throttle(checkScrollDepth, 200));
 const navbar = document.getElementById('navbar');
 const navToggle = document.getElementById('navToggle');
 const navMenu = document.getElementById('navMenu');
+const navMenuClose = document.getElementById('navMenuClose');
 
 // 捲動時添加背景
 window.addEventListener('scroll', () => {
@@ -724,17 +725,43 @@ window.addEventListener('scroll', () => {
 
 // 手機版選單切換
 if (navToggle && navMenu) {
+    const closeMobileMenu = () => {
+        navMenu.classList.remove('active');
+        navToggle.classList.remove('active');
+    };
+
     navToggle.addEventListener('click', () => {
         navMenu.classList.toggle('active');
         navToggle.classList.toggle('active');
     });
+
+    if (navMenuClose) {
+        navMenuClose.addEventListener('click', closeMobileMenu);
+    }
     
     // 點擊連結後關閉選單
-    navMenu.querySelectorAll('.nav-link').forEach(link => {
+    navMenu.querySelectorAll('.nav-link, .nav-cta').forEach(link => {
         link.addEventListener('click', () => {
-            navMenu.classList.remove('active');
-            navToggle.classList.remove('active');
+            closeMobileMenu();
         });
+    });
+
+    // 點選單外區域可關閉
+    document.addEventListener('click', (event) => {
+        const isOpen = navMenu.classList.contains('active');
+        if (!isOpen) return;
+        const clickedInsideMenu = navMenu.contains(event.target);
+        const clickedToggle = navToggle.contains(event.target);
+        if (!clickedInsideMenu && !clickedToggle) {
+            closeMobileMenu();
+        }
+    });
+
+    // Esc 可關閉選單
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            closeMobileMenu();
+        }
     });
 }
 
