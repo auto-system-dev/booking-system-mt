@@ -776,14 +776,19 @@ window.addEventListener('scroll', () => {
 
 // 手機版選單切換
 if (navToggle && navMenu) {
+    const setMobileMenuState = (open) => {
+        navMenu.classList.toggle('active', open);
+        navToggle.classList.toggle('active', open);
+        navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+
     const closeMobileMenu = () => {
-        navMenu.classList.remove('active');
-        navToggle.classList.remove('active');
+        setMobileMenuState(false);
     };
 
     navToggle.addEventListener('click', () => {
-        navMenu.classList.toggle('active');
-        navToggle.classList.toggle('active');
+        const isOpen = navMenu.classList.contains('active');
+        setMobileMenuState(!isOpen);
     });
     
     // 點擊連結後關閉選單
