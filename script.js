@@ -67,6 +67,7 @@ let capacityModalData = { capacity: 0, totalGuests: 0 };
 let lineUserId = null; // LINE User ID（如果從 LIFF 開啟）
 let appliedPromoCode = null; // 已套用的優惠代碼
 let earlyBirdDiscount = null; // 已偵測的早鳥優惠
+let memberLevelDiscount = null; // 已偵測的會員折扣
 
 // ===== Facebook Pixel 追蹤函數 =====
 
@@ -652,6 +653,12 @@ document.addEventListener('DOMContentLoaded', async function() {
             input.addEventListener('input', function() {
                 clearFieldError(inputId);
             });
+            if (inputId === 'guestEmail') {
+                input.addEventListener('blur', function() {
+                    // Email 變更後重新計算，更新會員折扣顯示
+                    calculatePrice();
+                });
+            }
         }
     });
     
@@ -771,6 +778,47 @@ function calculateEarlyBirdDiscountAmount(totalAmount) {
     return Math.round(discountAmount);
 }
 
+// 檢查會員折扣（依歷史已付款且有效訂單）
+async function checkMemberLevelDiscount(guestEmail, totalAmount) {
+    try {
+        const email = String(guestEmail || '').trim().toLowerCase();
+        if (!email) {
+            memberLevelDiscount = null;
+            return null;
+        }
+
+        const response = await fetch('/api/member-discount/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ guestEmail: email, totalAmount })
+        });
+
+        if (!response.ok) {
+            memberLevelDiscount = null;
+            return null;
+        }
+
+        const result = await response.json();
+        if (result.success && result.data) {
+            memberLevelDiscount = result.data;
+            return memberLevelDiscount;
+        }
+
+        memberLevelDiscount = null;
+        return null;
+    } catch (error) {
+        console.warn('⚠️ 檢查會員折扣失敗:', error.message);
+        memberLevelDiscount = null;
+        return null;
+    }
+}
+
+function calculateMemberDiscountAmount(totalAmount) {
+    const percent = parseFloat(memberLevelDiscount?.discount_percent || 0);
+    if (percent <= 0 || totalAmount <= 0) return 0;
+    return Math.round(totalAmount * (percent / 100));
+}
+
 // 計算價格（考慮平日/假日）
 async function calculatePrice() {
     const selectedRoom = document.querySelector('input[name="roomType"]:checked');
@@ -791,6 +839,12 @@ async function calculatePrice() {
     function applyDiscountsAndDisplay(pricePerNight, nights, roomTotal) {
         let totalAmount = roomTotal + addonsTotal;
         const originalTotal = totalAmount;
+        
+        // 0. 計算會員等級折扣
+        let memberDiscountAmount = 0;
+        if (memberLevelDiscount && memberLevelDiscount.applicable) {
+            memberDiscountAmount = calculateMemberDiscountAmount(totalAmount);
+        }
         
         // 1. 計算早鳥折扣
         let ebDiscountAmount = 0;
@@ -817,7 +871,7 @@ async function calculatePrice() {
             }
         }
         
-        const totalDiscount = ebDiscountAmount + promoDiscountAmount;
+        const totalDiscount = memberDiscountAmount + ebDiscountAmount + promoDiscountAmount;
         totalAmount = Math.max(0, totalAmount - totalDiscount);
         
         const paymentAmount = document.querySelector('input[name="paymentAmount"]:checked').value;
@@ -825,7 +879,7 @@ async function calculatePrice() {
         const paymentType = paymentAmount === 'deposit' ? depositRate : 1;
         const finalAmount = totalAmount * paymentType;
         
-        updatePriceDisplay(pricePerNight, nights, originalTotal, totalDiscount, paymentAmount, finalAmount, addonsTotal, null, ebDiscountAmount, promoDiscountAmount);
+        updatePriceDisplay(pricePerNight, nights, originalTotal, totalDiscount, paymentAmount, finalAmount, addonsTotal, null, memberDiscountAmount, ebDiscountAmount, promoDiscountAmount);
     }
     
     if (!checkInDate || !checkOutDate) {
@@ -835,6 +889,8 @@ async function calculatePrice() {
         const pricePerNight = parseInt(roomOption.dataset.price);
         const nights = calculateNights();
         const roomTotal = pricePerNight * nights;
+        const guestEmail = document.getElementById('guestEmail')?.value || '';
+        await checkMemberLevelDiscount(guestEmail, roomTotal + addonsTotal);
         applyDiscountsAndDisplay(pricePerNight, nights, roomTotal);
         return;
     }
@@ -851,6 +907,8 @@ async function calculatePrice() {
             
             // 檢查早鳥優惠（使用精確金額，傳入資料庫名稱）
             await checkEarlyBirdDiscount(checkInDate, roomTypeValue, roomTotal + addonsTotal);
+            const guestEmail = document.getElementById('guestEmail')?.value || '';
+            await checkMemberLevelDiscount(guestEmail, roomTotal + addonsTotal);
             applyDiscountsAndDisplay(averagePricePerNight, nights, roomTotal);
         } else {
             console.error('計算價格失敗:', result.message);
@@ -859,6 +917,8 @@ async function calculatePrice() {
             const roomTotal = pricePerNight * nights;
             // 用基礎價格檢查早鳥優惠
             await checkEarlyBirdDiscount(checkInDate, roomTypeValue, roomTotal + addonsTotal);
+            const guestEmail = document.getElementById('guestEmail')?.value || '';
+            await checkMemberLevelDiscount(guestEmail, roomTotal + addonsTotal);
             applyDiscountsAndDisplay(pricePerNight, nights, roomTotal);
         }
     } catch (error) {
@@ -868,6 +928,8 @@ async function calculatePrice() {
         const roomTotal = pricePerNight * nights;
         // 用基礎價格檢查早鳥優惠
         await checkEarlyBirdDiscount(checkInDate, roomTypeValue, roomTotal + addonsTotal);
+        const guestEmail = document.getElementById('guestEmail')?.value || '';
+        await checkMemberLevelDiscount(guestEmail, roomTotal + addonsTotal);
         applyDiscountsAndDisplay(pricePerNight, nights, roomTotal);
     }
 }
@@ -1077,7 +1139,7 @@ function calculatePromoCodeDiscount(promoCode, totalAmount) {
 }
 
 // 更新價格顯示
-function updatePriceDisplay(pricePerNight, nights, totalAmount, discountAmount = 0, paymentType, finalAmount = 0, addonsTotal = 0, depositPercent = null, earlyBirdAmount = 0, promoAmount = 0) {
+function updatePriceDisplay(pricePerNight, nights, totalAmount, discountAmount = 0, paymentType, finalAmount = 0, addonsTotal = 0, depositPercent = null, memberAmount = 0, earlyBirdAmount = 0, promoAmount = 0) {
     // 如果沒有提供 depositPercent，使用全域變數
     if (depositPercent === null) {
         depositPercent = depositPercentage;
@@ -1116,13 +1178,20 @@ function updatePriceDisplay(pricePerNight, nights, totalAmount, discountAmount =
         </div>`;
     }
     
+    // 顯示會員折扣
+    if (memberAmount > 0 && memberLevelDiscount) {
+        const levelName = memberLevelDiscount.level_name || '會員';
+        const percent = parseFloat(memberLevelDiscount.discount_percent || 0);
+        html += `<div style="margin-bottom: 5px; color: #2563eb; font-weight: 600;">會員折扣（${levelName}${percent > 0 ? ` ${percent}%` : ''}）：-NT$ ${memberAmount.toLocaleString()}</div>`;
+    }
+
     // 顯示優惠代碼折扣
     if (promoAmount > 0 && appliedPromoCode) {
         html += `<div style="margin-bottom: 5px; color: #10b981; font-weight: 600;">優惠折扣（${appliedPromoCode.name}）：-NT$ ${promoAmount.toLocaleString()}</div>`;
     }
     
     // 顯示折抵後金額
-    const totalDiscountAmount = (earlyBirdAmount || 0) + (promoAmount || 0);
+    const totalDiscountAmount = (memberAmount || 0) + (earlyBirdAmount || 0) + (promoAmount || 0);
     if (totalDiscountAmount > 0) {
         const finalTotal = totalAmount - totalDiscountAmount;
         html += `<div style="font-weight: 700; font-size: 18px; color: #2C8EC4; border-top: 2px solid #ddd; padding-top: 5px; margin-top: 5px;">折抵後金額：NT$ ${finalTotal.toLocaleString()}</div>`;
@@ -1506,6 +1575,12 @@ document.getElementById('bookingForm').addEventListener('submit', async function
     if (earlyBirdDiscount && earlyBirdDiscount.applicable) {
         ebDiscount = calculateEarlyBirdDiscountAmount(totalAmount);
     }
+
+    // 計算會員折扣
+    let memberDiscount = 0;
+    if (memberLevelDiscount && memberLevelDiscount.applicable) {
+        memberDiscount = calculateMemberDiscountAmount(totalAmount);
+    }
     
     // 計算優惠代碼折扣
     let promoDiscount = 0;
@@ -1522,7 +1597,7 @@ document.getElementById('bookingForm').addEventListener('submit', async function
         }
     }
     
-    const discountAmount = ebDiscount + promoDiscount;
+    const discountAmount = memberDiscount + ebDiscount + promoDiscount;
     totalAmount = Math.max(0, totalAmount - discountAmount);
     
     const depositRate = depositPercentage / 100;

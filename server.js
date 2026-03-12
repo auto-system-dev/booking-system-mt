@@ -922,9 +922,29 @@ async function handleCreateBooking(req, res) {
         
         // 計算折扣金額和折後總額（在發送郵件之前）
         let discountAmount = 0;
+        let memberDiscountAmount = 0;
+        let memberDiscountPercent = 0;
+        let memberLevelName = null;
         let earlyBirdDiscountAmount = 0;
         let earlyBirdRule = null;
         let discountedTotal = totalAmount;
+
+        // 0. 計算會員等級折扣（依歷史「已付款且有效」訂房）
+        try {
+            const paidActiveStats = await db.getPaidActiveCustomerStatsByEmail(guestEmail);
+            const memberLevel = await db.calculateCustomerLevel(
+                paidActiveStats.total_spent || 0,
+                paidActiveStats.booking_count || 0
+            );
+            memberDiscountPercent = parseFloat(memberLevel?.discount_percent || 0);
+            memberLevelName = memberLevel?.level_name || null;
+            if (memberDiscountPercent > 0) {
+                memberDiscountAmount = Math.round(totalAmount * (memberDiscountPercent / 100));
+                console.log(`👑 會員折扣已套用: ${memberLevelName}, 折扣=${memberDiscountAmount} (${memberDiscountPercent}%)`);
+            }
+        } catch (memberError) {
+            console.warn('⚠️  計算會員折扣失敗:', memberError.message);
+        }
         
         // 1. 先計算早鳥優惠折扣（自動套用）
         try {
@@ -986,13 +1006,18 @@ async function handleCreateBooking(req, res) {
         }
         
         // 3. 合計折扣
-        discountAmount = Math.round(earlyBirdDiscountAmount + promoDiscountAmount);
+        discountAmount = Math.round(memberDiscountAmount + earlyBirdDiscountAmount + promoDiscountAmount);
         discountedTotal = Math.max(0, totalAmount - discountAmount);
+        const paymentRate = paymentAmount === 'deposit' ? (depositPercentage / 100) : 1;
+        bookingData.finalAmount = Math.round(discountedTotal * paymentRate);
         
         // 將折扣資訊加入到 bookingData（用於郵件模板）
         bookingData.discountAmount = discountAmount;
         bookingData.discountedTotal = discountedTotal;
         bookingData.originalAmount = totalAmount; // 原始總金額（用於計算折後總額）
+        bookingData.memberDiscount = memberDiscountAmount;
+        bookingData.memberDiscountPercent = memberDiscountPercent;
+        bookingData.memberLevelName = memberLevelName;
         bookingData.earlyBirdDiscount = earlyBirdDiscountAmount;
         bookingData.earlyBirdRule = earlyBirdRule;
         bookingData.promoDiscount = promoDiscountAmount;
@@ -1031,28 +1056,6 @@ async function handleCreateBooking(req, res) {
             try {
                 // 確保 LINE Bot 設定是最新的（從資料庫重新載入）
                 await lineBot.loadSettings();
-                
-                // 計算折扣金額和折後總額
-                let discountAmount = 0;
-                let discountedTotal = totalAmount;
-                if (promoCode) {
-                    try {
-                        const promoCodeData = await db.getPromoCodeByCode(promoCode);
-                        if (promoCodeData) {
-                            if (promoCodeData.discount_type === 'fixed') {
-                                discountAmount = promoCodeData.discount_value;
-                            } else if (promoCodeData.discount_type === 'percent') {
-                                discountAmount = totalAmount * (promoCodeData.discount_value / 100);
-                                if (promoCodeData.max_discount && discountAmount > promoCodeData.max_discount) {
-                                    discountAmount = promoCodeData.max_discount;
-                                }
-                            }
-                            discountedTotal = Math.max(0, totalAmount - discountAmount);
-                        }
-                    } catch (promoError) {
-                        console.warn('⚠️  計算折扣金額失敗:', promoError.message);
-                    }
-                }
                 
                 console.log('📱 發送 LINE 訂房成功訊息（匯款轉帳）...');
                 const lineResult = await lineBot.sendBookingSuccessMessage(lineUserId, {
@@ -1133,30 +1136,17 @@ async function handleCreateBooking(req, res) {
             }
             
             // 記錄優惠代碼使用（如果有使用）
-            let discountAmount = 0;
-            let discountedTotal = totalAmount;
             if (promoCode) {
                 try {
                     const promoCodeData = await db.getPromoCodeByCode(promoCode);
                     if (promoCodeData) {
-                        // 計算折扣金額（應該與前端計算的一致）
-                        if (promoCodeData.discount_type === 'fixed') {
-                            discountAmount = promoCodeData.discount_value;
-                        } else if (promoCodeData.discount_type === 'percent') {
-                            discountAmount = totalAmount * (promoCodeData.discount_value / 100);
-                            if (promoCodeData.max_discount && discountAmount > promoCodeData.max_discount) {
-                                discountAmount = promoCodeData.max_discount;
-                            }
-                        }
-                        discountedTotal = Math.max(0, totalAmount - discountAmount);
-                        
                         await db.recordPromoCodeUsage(
                             promoCodeData.id,
                             bookingData.bookingId,
                             guestEmail,
-                            Math.round(discountAmount),
+                            Math.round(promoDiscountAmount),
                             totalAmount,
-                            finalAmount
+                            bookingData.finalAmount
                         );
                         console.log('✅ 優惠代碼使用記錄已儲存:', promoCode);
                     }
@@ -1165,10 +1155,6 @@ async function handleCreateBooking(req, res) {
                     // 不影響訂房流程，只記錄警告
                 }
             }
-            
-            // 將折扣資訊加入到 bookingData（用於管理員郵件）
-            bookingData.discountAmount = discountAmount;
-            bookingData.discountedTotal = discountedTotal;
         } catch (dbError) {
             console.error('❌ 資料庫儲存錯誤:', dbError.message);
             console.error('   錯誤堆疊:', dbError.stack);
@@ -2864,6 +2850,51 @@ app.delete('/api/member-levels/:id', requireAuth, checkPermission('customers.del
         res.status(500).json({
             success: false,
             message: '刪除會員等級失敗：' + error.message
+        });
+    }
+});
+
+// API: 檢查會員折扣（公開 API，用於前台）
+app.post('/api/member-discount/check', publicLimiter, async (req, res) => {
+    try {
+        const guestEmail = String(req.body.guestEmail || '').trim().toLowerCase();
+        const totalAmount = parseInt(req.body.totalAmount || 0, 10) || 0;
+
+        if (!guestEmail) {
+            return res.json({
+                success: true,
+                data: {
+                    applicable: false,
+                    level_name: null,
+                    discount_percent: 0,
+                    discount_amount: 0
+                }
+            });
+        }
+
+        const stats = await db.getPaidActiveCustomerStatsByEmail(guestEmail);
+        const level = await db.calculateCustomerLevel(stats.total_spent || 0, stats.booking_count || 0);
+        const discountPercent = parseFloat(level?.discount_percent || 0);
+        const discountAmount = discountPercent > 0
+            ? Math.round(totalAmount * (discountPercent / 100))
+            : 0;
+
+        res.json({
+            success: true,
+            data: {
+                applicable: discountAmount > 0,
+                level_name: level?.level_name || null,
+                discount_percent: discountPercent,
+                discount_amount: discountAmount,
+                eligible_booking_count: stats.booking_count || 0,
+                eligible_total_spent: stats.total_spent || 0
+            }
+        });
+    } catch (error) {
+        console.error('檢查會員折扣錯誤:', error);
+        res.status(500).json({
+            success: false,
+            message: '檢查會員折扣失敗：' + error.message
         });
     }
 });

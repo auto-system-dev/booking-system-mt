@@ -4815,6 +4815,36 @@ async function getCustomerByEmail(email) {
     }
 }
 
+// 取得客戶「已付款且有效」訂房統計（用於會員等級/會員折扣判斷）
+async function getPaidActiveCustomerStatsByEmail(email) {
+    try {
+        const sql = usePostgreSQL
+            ? `SELECT
+                COUNT(*) as booking_count,
+                COALESCE(SUM(final_amount), 0) as total_spent
+               FROM bookings
+               WHERE guest_email = $1
+                 AND payment_status = 'paid'
+                 AND status = 'active'`
+            : `SELECT
+                COUNT(*) as booking_count,
+                COALESCE(SUM(final_amount), 0) as total_spent
+               FROM bookings
+               WHERE guest_email = ?
+                 AND payment_status = 'paid'
+                 AND status = 'active'`;
+
+        const result = await queryOne(sql, [email]);
+        return {
+            booking_count: parseInt(result?.booking_count || 0, 10),
+            total_spent: parseInt(result?.total_spent || 0, 10)
+        };
+    } catch (error) {
+        console.error('❌ 查詢客戶已付款有效統計失敗:', error.message);
+        throw error;
+    }
+}
+
 // 更新客戶資料（更新所有該 email 的訂房記錄）
 async function updateCustomer(email, updateData) {
     try {
@@ -6976,6 +7006,7 @@ module.exports = {
     // 客戶管理
     getAllCustomers,
     getCustomerByEmail,
+    getPaidActiveCustomerStatsByEmail,
     updateCustomer,
     deleteCustomer,
     // 會員等級管理
