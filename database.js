@@ -3940,34 +3940,56 @@ async function deleteMemberLevel(id) {
 // 計算客戶等級（根據消費金額和訂房次數）
 async function calculateCustomerLevel(totalSpent, bookingCount) {
     try {
-        // 取得所有啟用的等級，按 display_order 降序排列（最高等級優先）
+        // 取得所有啟用的等級
         const sql = usePostgreSQL
             ? `SELECT * FROM member_levels 
                WHERE is_active = 1 
-               ORDER BY display_order DESC, min_spent DESC, min_bookings DESC`
+               ORDER BY display_order ASC, id ASC`
             : `SELECT * FROM member_levels 
                WHERE is_active = 1 
-               ORDER BY display_order DESC, min_spent DESC, min_bookings DESC`;
+               ORDER BY display_order ASC, id ASC`;
         
         const result = await query(sql);
         const levels = result.rows;
         
-        // 從最高等級開始檢查，找到第一個符合條件的等級
-        for (const level of levels) {
-            const minSpent = parseInt(level.min_spent || 0);
-            const minBookings = parseInt(level.min_bookings || 0);
-            
-            if (totalSpent >= minSpent && bookingCount >= minBookings) {
-                return {
-                    id: level.id,
-                    level_name: level.level_name,
-                    discount_percent: parseFloat(level.discount_percent || 0)
-                };
-            }
+        // 先找出所有符合門檻的等級
+        const qualifiedLevels = levels.filter((level) => {
+            const minSpent = parseInt(level.min_spent || 0, 10);
+            const minBookings = parseInt(level.min_bookings || 0, 10);
+            return totalSpent >= minSpent && bookingCount >= minBookings;
+        });
+
+        // 從符合門檻的等級中選擇「門檻最高」者，避免 0 門檻的新會員覆蓋其他等級
+        if (qualifiedLevels.length > 0) {
+            qualifiedLevels.sort((a, b) => {
+                const aMinSpent = parseInt(a.min_spent || 0, 10);
+                const bMinSpent = parseInt(b.min_spent || 0, 10);
+                if (bMinSpent !== aMinSpent) return bMinSpent - aMinSpent;
+
+                const aMinBookings = parseInt(a.min_bookings || 0, 10);
+                const bMinBookings = parseInt(b.min_bookings || 0, 10);
+                if (bMinBookings !== aMinBookings) return bMinBookings - aMinBookings;
+
+                const aDiscount = parseFloat(a.discount_percent || 0);
+                const bDiscount = parseFloat(b.discount_percent || 0);
+                if (bDiscount !== aDiscount) return bDiscount - aDiscount;
+
+                // 同門檻時，display_order 較大者視為較高等級
+                const aOrder = parseInt(a.display_order || 0, 10);
+                const bOrder = parseInt(b.display_order || 0, 10);
+                return bOrder - aOrder;
+            });
+
+            const best = qualifiedLevels[0];
+            return {
+                id: best.id,
+                level_name: best.level_name,
+                discount_percent: parseFloat(best.discount_percent || 0)
+            };
         }
         
         // 如果沒有符合的等級，返回最低等級（通常是新會員）
-        const lowestLevel = levels[levels.length - 1] || null;
+        const lowestLevel = levels[0] || null;
         if (lowestLevel) {
             return {
                 id: lowestLevel.id,
