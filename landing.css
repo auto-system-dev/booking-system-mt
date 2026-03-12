@@ -869,15 +869,17 @@ section {
 }
 
 .facility-gallery-title {
-    font-size: 16px;
-    font-weight: 700;
+    font-family: 'Noto Serif TC', serif;
+    font-size: 22px;
+    font-weight: 600;
     color: var(--text-dark);
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
 
 .facility-gallery-desc {
-    font-size: 14px;
-    line-height: 1.6;
+    font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 13px;
+    line-height: 1.7;
     color: var(--text-light);
 }
 

@@ -444,7 +444,7 @@ function renderFacilityGallery(cfg) {
         <article class="facility-gallery-card" onclick="openFacilityGallery(${index})">
             <div class="facility-gallery-image-wrap">
                 <img class="facility-gallery-image" src="${escapeHtml(item.images[0])}" alt="${escapeHtml(item.title || '公共設施照片')}" loading="lazy">
-                <span class="room-gallery-hint"><span class="material-symbols-outlined">photo_library</span> ${item.images.length} 張照片</span>
+                ${item.images.length > 1 ? `<span class="room-gallery-hint"><span class="material-symbols-outlined">photo_library</span> ${item.images.length} 張照片</span>` : ''}
             </div>
             <div class="facility-gallery-info">
                 <div class="facility-gallery-title">${escapeHtml(item.title || '公共設施')}</div>
