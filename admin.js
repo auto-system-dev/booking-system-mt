@@ -4175,18 +4175,18 @@ function showAddonModal(addon) {
             </div>
             <div class="form-group">
                 <label>摘要（短描述）</label>
-                <input type="text" name="summary" value="${isEdit ? escapeHtml(addon.summary || '') : ''}" maxlength="120" placeholder="例如:在地食材手作早餐">
+                <input type="text" name="summary" value="${isEdit ? escapeHtml(addon.summary || '') : ''}" maxlength="120" placeholder="例如：在地食材手作早餐">
                 <small>可留空，最多 120 字，顯示在查看詳情裡</small>
             </div>
             <div class="form-group">
                 <label>詳細說明</label>
                 <textarea name="details" rows="8" maxlength="3000" placeholder="例如：內容包含、服務時間、兌換方式">${isEdit ? escapeHtml(addon.details || '') : ''}</textarea>
-                <small>可留空，最多 3000 字，顯示在查看詳情裡</small>
+                <small>可留空，最多 3000 字，建議條列重點（不要長段落），顯示在查看詳情裡</small>
             </div>
             <div class="form-group">
                 <label>注意事項</label>
                 <textarea name="terms" rows="7" maxlength="3000" placeholder="例如：取消規則、不可與其他優惠並用">${isEdit ? escapeHtml(addon.terms || '') : ''}</textarea>
-                <small>可留空，最多 3000 字，顯示在查看詳情裡</small>
+                <small>可留空，最多 3000 字，建議條列重點（不要長段落），顯示在查看詳情裡</small>
             </div>
             <div class="form-group">
                 <label>顯示順序</label>
