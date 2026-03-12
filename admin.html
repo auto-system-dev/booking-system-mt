@@ -2362,6 +2362,14 @@
             <div class="modal-body">
                 <form id="memberLevelForm" onsubmit="saveMemberLevel(event)">
                     <input type="hidden" id="memberLevelId" value="">
+                    <div class="form-group" style="background: #f6f8fb; border: 1px solid #dbe4f0; border-radius: 8px; padding: 12px 14px;">
+                        <label style="margin-bottom: 6px;">升級規則說明</label>
+                        <small style="display: block; line-height: 1.7;">
+                            1. 會員升級需同時達到「消費金額門檻」與「訂房次數門檻」。<br>
+                            2. 任一門檻設為 0，表示該條件不限制。<br>
+                            3. 若同時符合多個等級，系統會套用符合條件的最高等級。
+                        </small>
+                    </div>
                     <div class="form-group">
                         <label>等級名稱 <span style="color: red;">*</span></label>
                         <input type="text" id="memberLevelName" required placeholder="例如：新會員">
@@ -2373,12 +2381,12 @@
                             <input type="number" id="memberLevelMinSpent" min="0" step="1000" value="0" placeholder="0">
                             <span class="input-suffix">NT$</span>
                         </div>
-                        <small>達到此消費金額才能升級到此等級</small>
+                        <small>需與訂房次數門檻同時達成；設為 0 表示不限制</small>
                     </div>
                     <div class="form-group">
                         <label>訂房次數門檻</label>
                         <input type="number" id="memberLevelMinBookings" min="0" step="1" value="0" placeholder="0">
-                        <small>達到此訂房次數才能升級到此等級</small>
+                        <small>需與消費金額門檻同時達成；設為 0 表示不限制</small>
                     </div>
                     <div class="form-group">
                         <label>折扣百分比</label>
