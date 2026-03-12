@@ -10301,6 +10301,7 @@ const landingFieldMap = {
     landing_transit: 'landingTransit',
     landing_phone: 'landingPhone',
     landing_map_url: 'landingMapUrl',
+    landing_google_review_url: 'landingGoogleReviewUrl',
     landing_social_fb: 'landingSocialFb',
     landing_social_ig: 'landingSocialIg',
     landing_social_line: 'landingSocialLine',
@@ -10860,7 +10861,7 @@ async function saveLandingSettings(tab) {
         case 'contact':
             keysToSave = Object.keys(landingFieldMap).filter(k =>
                 ['landing_address', 'landing_driving', 'landing_transit', 'landing_phone',
-                 'landing_map_url', 'landing_social_fb', 'landing_social_ig', 'landing_social_line',
+                 'landing_map_url', 'landing_google_review_url', 'landing_social_fb', 'landing_social_ig', 'landing_social_line',
                  'landing_location_title', 'landing_final_cta_title', 'landing_final_cta_desc'].includes(k)
             );
             break;
@@ -10915,6 +10916,7 @@ async function saveLandingSettings(tab) {
             landing_transit: '銷售頁-大眾運輸',
             landing_phone: '銷售頁-聯絡電話',
             landing_map_url: '銷售頁-地圖網址',
+            landing_google_review_url: '銷售頁-Google評價連結',
             landing_social_fb: '銷售頁-Facebook',
             landing_social_ig: '銷售頁-Instagram',
             landing_social_line: '銷售頁-LINE'

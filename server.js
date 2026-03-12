@@ -9091,6 +9091,11 @@ ${htmlEnd}`;
         const officialLineUrl = await db.getSetting('landing_social_line') || '';
         variables['{{officialLineUrl}}'] = officialLineUrl;
     }
+    // Google 評價連結：供模板中直接使用 {{googleReviewUrl}}
+    if (!variables['{{googleReviewUrl}}']) {
+        const googleReviewUrl = await db.getSetting('landing_google_review_url') || '';
+        variables['{{googleReviewUrl}}'] = googleReviewUrl;
+    }
     
     // 處理嵌套條件區塊的輔助函數（改進版，能正確處理嵌套結構）
     // 需要在處理入住提醒區塊之前定義
@@ -9209,6 +9214,9 @@ ${htmlEnd}`;
     // 處理官方 LINE 條件（有設定銷售頁 LINE 才顯示）
     const hasOfficialLineUrl = !!(variables['{{officialLineUrl}}'] && String(variables['{{officialLineUrl}}']).trim() !== '');
     content = processConditionalBlock(content, hasOfficialLineUrl, 'officialLineUrl');
+    // 處理 Google 評價連結條件（有設定連結才顯示按鈕）
+    const hasGoogleReviewUrl = !!(variables['{{googleReviewUrl}}'] && String(variables['{{googleReviewUrl}}']).trim() !== '');
+    content = processConditionalBlock(content, hasGoogleReviewUrl, 'googleReviewUrl');
 
     // 入住提醒區塊條件
     if (isCheckinReminder) {
