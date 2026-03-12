@@ -266,20 +266,7 @@ window.closeEmailTemplateModal = function() {
 async function checkAuthStatus() {
     try {
         console.log('🔐 檢查登入狀態...');
-        
-        // 並行取得 CSRF Token 和檢查登入狀態，減少等待時間
-        console.log('🔑 並行取得 CSRF Token 和檢查登入狀態...');
-        const [csrfResult, response] = await Promise.all([
-            getCsrfToken().catch(err => {
-                console.warn('⚠️ 取得 CSRF Token 失敗（非關鍵）:', err);
-                return null;
-            }),
-            adminFetch('/api/admin/check-auth')
-        ]);
-        
-        if (csrfResult) {
-            console.log('🔑 CSRF Token 已取得');
-        }
+        const response = await adminFetch('/api/admin/check-auth');
         
         console.log('📡 API 回應狀態:', {
             ok: response?.ok,
@@ -307,6 +294,10 @@ async function checkAuthStatus() {
             // 已登入，顯示管理後台
             console.log('✅ 已登入，顯示管理後台');
             showAdminPage(result.admin);
+            // 非阻塞預取 CSRF Token，讓後續寫入請求更快
+            getCsrfToken().catch(err => {
+                console.warn('⚠️ 預取 CSRF Token 失敗（非關鍵）:', err);
+            });
         } else {
             // 未登入，顯示登入頁面
             console.log('ℹ️ 未登入，顯示登入頁面');
@@ -334,6 +325,37 @@ function showLoginPage() {
         loginPage.style.display = 'flex';
         loginPage.style.visibility = 'visible';
     }
+}
+
+function setLoginStatusMessage(message, isError = false) {
+    const errorDiv = document.getElementById('loginError');
+    if (!errorDiv) return;
+    if (!message) {
+        errorDiv.style.display = 'none';
+        errorDiv.textContent = '';
+        errorDiv.style.whiteSpace = '';
+        errorDiv.style.background = '';
+        errorDiv.style.border = '';
+        errorDiv.style.color = '';
+        return;
+    }
+    errorDiv.style.display = 'block';
+    errorDiv.textContent = message;
+    errorDiv.style.whiteSpace = 'pre-line';
+    if (isError) {
+        errorDiv.style.background = '';
+        errorDiv.style.border = '';
+        errorDiv.style.color = '';
+    } else {
+        errorDiv.style.background = '#eef6ff';
+        errorDiv.style.border = '1px solid #bcdcff';
+        errorDiv.style.color = '#1e4f8f';
+    }
+}
+
+function isAdminPageVisible() {
+    const adminPage = document.getElementById('adminPage');
+    return !!(adminPage && window.getComputedStyle(adminPage).display !== 'none');
 }
 
 // 顯示管理後台
@@ -584,8 +606,10 @@ function handleUnauthorizedSession() {
 }
 
 async function adminFetch(url, options = {}) {
-    // 取得 CSRF Token
-    const csrfToken = await getCsrfToken();
+    const requestMethod = (options.method || 'GET').toUpperCase();
+    const needsCsrfToken = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(requestMethod);
+    // 只有寫入請求才等待 CSRF Token，避免 check-auth/列表查詢被阻塞
+    const csrfToken = needsCsrfToken ? await getCsrfToken() : null;
     
     // 判斷是否為 FormData（檔案上傳時不能手動設定 Content-Type，瀏覽器會自動處理 multipart boundary）
     const isFormData = options.body instanceof FormData;
@@ -604,7 +628,7 @@ async function adminFetch(url, options = {}) {
     };
     
     // 如果是 POST、PUT、PATCH、DELETE 請求，加入 CSRF Token
-    if (csrfToken && ['POST', 'PUT', 'PATCH', 'DELETE'].includes((options.method || 'GET').toUpperCase())) {
+    if (csrfToken && needsCsrfToken) {
         defaultOptions.headers['X-CSRF-Token'] = csrfToken;
     }
     
@@ -879,17 +903,34 @@ document.addEventListener('DOMContentLoaded', async function() {
         // 後續 checkAuthStatus() 若判定已登入，會再切到管理後台
         showLoginPage();
         
-        // 檢查登入狀態
+        // 檢查登入狀態（含冷啟動提示與自動重試）
         console.log('🔐 準備檢查登入狀態...');
-        // 加上超時，避免 API 卡住導致長時間白畫面/無反應
-        await Promise.race([
-            checkAuthStatus(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('檢查登入狀態逾時')), 8000))
-        ]).catch(err => {
-            console.warn('⚠️ checkAuthStatus 未完成（可能逾時/伺服器未回應）:', err?.message || err);
-            // 保持在登入頁
+        const tryCheckAuth = async (attempt, maxAttempts = 4) => {
+            try {
+                await Promise.race([
+                    checkAuthStatus(),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('檢查登入狀態逾時')), 8000))
+                ]);
+                if (isAdminPageVisible()) {
+                    setLoginStatusMessage('');
+                    return true;
+                }
+            } catch (err) {
+                console.warn(`⚠️ checkAuthStatus 第 ${attempt} 次失敗:`, err?.message || err);
+            }
+
+            if (attempt < maxAttempts) {
+                setLoginStatusMessage(`服務喚醒中，正在重試連線（${attempt}/${maxAttempts}）...`);
+                await new Promise(resolve => setTimeout(resolve, 2200));
+                return tryCheckAuth(attempt + 1, maxAttempts);
+            }
+
             showLoginPage();
-        });
+            setLoginStatusMessage('服務可能剛喚醒，請稍候 5-10 秒後再試登入。');
+            return false;
+        };
+
+        await tryCheckAuth(1);
         
         // 導航切換
         const navItems = document.querySelectorAll('.nav-item');
