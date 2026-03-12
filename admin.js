@@ -4160,6 +4160,11 @@ function showAddonModal(addon) {
                 <input type="text" name="display_name" value="${isEdit ? escapeHtml(addon.display_name) : ''}" required>
             </div>
             <div class="form-group">
+                <label>摘要（前台卡片短描述）</label>
+                <input type="text" name="summary" value="${isEdit ? escapeHtml(addon.summary || '') : ''}" maxlength="120" placeholder="例如：需於入住前一天預約">
+                <small>可留空，最多 120 字</small>
+            </div>
+            <div class="form-group">
                 <label>價格</label>
                 <input type="number" name="price" value="${isEdit ? addon.price : ''}" min="0" step="1" required>
                 <small>加購商品的單價</small>
@@ -4172,6 +4177,16 @@ function showAddonModal(addon) {
             <div class="form-group">
                 <label>圖示（Emoji）</label>
                 <input type="text" name="icon" value="${isEdit ? escapeHtml(addon.icon) : '➕'}" maxlength="10">
+            </div>
+            <div class="form-group">
+                <label>詳細說明</label>
+                <textarea name="details" rows="5" maxlength="3000" placeholder="例如：內容包含、服務時間、兌換方式">${isEdit ? escapeHtml(addon.details || '') : ''}</textarea>
+                <small>可留空，最多 3000 字</small>
+            </div>
+            <div class="form-group">
+                <label>注意事項</label>
+                <textarea name="terms" rows="4" maxlength="3000" placeholder="例如：取消規則、不可與其他優惠並用">${isEdit ? escapeHtml(addon.terms || '') : ''}</textarea>
+                <small>可留空，最多 3000 字</small>
             </div>
             <div class="form-group">
                 <label>顯示順序</label>
@@ -4202,9 +4217,12 @@ async function saveAddon(event, id) {
     const data = {
         name: formData.get('name'),
         display_name: formData.get('display_name'),
+        summary: (formData.get('summary') || '').trim(),
         price: parseInt(formData.get('price')),
         unit_label: (formData.get('unit_label') || '人').trim() || '人',
         icon: formData.get('icon') || '➕',
+        details: (formData.get('details') || '').trim(),
+        terms: (formData.get('terms') || '').trim(),
         display_order: parseInt(formData.get('display_order')) || 0,
         is_active: parseInt(formData.get('is_active'))
     };
@@ -4246,10 +4264,14 @@ async function toggleAddonStatus(id, isActive) {
         }
         
         const data = {
+            name: addon.name,
             display_name: addon.display_name,
             price: addon.price,
             unit_label: addon.unit_label || '人',
+            summary: addon.summary || '',
             icon: addon.icon || '➕',
+            details: addon.details || '',
+            terms: addon.terms || '',
             display_order: addon.display_order || 0,
             is_active: isActive ? 1 : 0
         };

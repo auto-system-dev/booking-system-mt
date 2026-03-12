@@ -480,6 +480,26 @@ const validateAddon = createValidationMiddleware([
             req.body.unit_label = rawUnit;
         }
         return { valid: true };
+    },
+    (req) => {
+        if (req.method === 'POST' || req.method === 'PUT') {
+            const summary = String(req.body.summary || '').trim();
+            const details = String(req.body.details || '').trim();
+            const terms = String(req.body.terms || '').trim();
+            if (summary.length > 120) {
+                return { valid: false, message: '摘要長度不可超過 120 個字' };
+            }
+            if (details.length > 3000) {
+                return { valid: false, message: '詳細說明長度不可超過 3000 個字' };
+            }
+            if (terms.length > 3000) {
+                return { valid: false, message: '注意事項長度不可超過 3000 個字' };
+            }
+            req.body.summary = summary;
+            req.body.details = details;
+            req.body.terms = terms;
+        }
+        return { valid: true };
     }
 ]);
 

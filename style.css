@@ -215,6 +215,28 @@ body {
     cursor: not-allowed !important;
 }
 
+.addon-summary {
+    color: #666;
+    font-size: 13px;
+    line-height: 1.6;
+    margin-bottom: 6px;
+}
+
+.addon-detail-link {
+    margin-top: 8px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #2C8EC4;
+    text-decoration: underline;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.addon-detail-link:hover {
+    color: #1f6f99;
+}
+
 @media (max-width: 768px) {
     .addons-grid {
         grid-template-columns: 1fr;
@@ -727,6 +749,42 @@ body {
     background: #fff;
     color: #333;
     border-color: #ddd;
+}
+
+.addon-detail-dialog {
+    text-align: left;
+    max-width: 560px;
+}
+
+.addon-detail-body {
+    max-height: 60vh;
+    overflow-y: auto;
+    margin: 6px 0 16px;
+}
+
+.addon-detail-summary {
+    background: #f3f8fc;
+    border: 1px solid #d8e9f4;
+    border-radius: 8px;
+    color: #2b4a5e;
+    font-size: 14px;
+    line-height: 1.7;
+    padding: 10px 12px;
+    margin: 0 0 14px;
+}
+
+.addon-detail-heading {
+    margin: 10px 0 6px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #2c3e50;
+}
+
+.addon-detail-content {
+    margin: 0 0 10px;
+    color: #444;
+    line-height: 1.7;
+    font-size: 14px;
 }
 
 .success-message:not(.hidden) {

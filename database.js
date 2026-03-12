@@ -376,6 +376,9 @@ async function initPostgreSQL() {
                     display_name VARCHAR(255) NOT NULL,
                     price INTEGER NOT NULL,
                     unit_label VARCHAR(50) DEFAULT '人',
+                    summary VARCHAR(120) DEFAULT '',
+                    details TEXT DEFAULT '',
+                    terms TEXT DEFAULT '',
                     icon VARCHAR(255) DEFAULT '➕',
                     display_order INTEGER DEFAULT 0,
                     is_active INTEGER DEFAULT 1,
@@ -388,19 +391,35 @@ async function initPostgreSQL() {
             // 加購商品欄位遷移（舊資料庫補上 unit_label）
             try {
                 await query(`ALTER TABLE addons ADD COLUMN IF NOT EXISTS unit_label VARCHAR(50) DEFAULT '人'`);
+                await query(`ALTER TABLE addons ADD COLUMN IF NOT EXISTS summary VARCHAR(120) DEFAULT ''`);
+                await query(`ALTER TABLE addons ADD COLUMN IF NOT EXISTS details TEXT DEFAULT ''`);
+                await query(`ALTER TABLE addons ADD COLUMN IF NOT EXISTS terms TEXT DEFAULT ''`);
             } catch (addErr) {
                 if (addErr.message && !addErr.message.includes('already exists') && !addErr.message.includes('duplicate column')) {
                     try {
                         const checkResult = await query(`
                             SELECT column_name FROM information_schema.columns
-                            WHERE table_name = 'addons' AND column_name = $1
-                        `, ['unit_label']);
-                        if (!checkResult.rows || checkResult.rows.length === 0) {
+                            WHERE table_name = 'addons' AND column_name = ANY($1)
+                        `, [['unit_label', 'summary', 'details', 'terms']]);
+                        const existingColumns = new Set((checkResult.rows || []).map(row => row.column_name));
+                        if (!existingColumns.has('unit_label')) {
                             await query(`ALTER TABLE addons ADD COLUMN unit_label VARCHAR(50) DEFAULT '人'`);
                             console.log('✅ 已添加 addons.unit_label 欄位');
                         }
+                        if (!existingColumns.has('summary')) {
+                            await query(`ALTER TABLE addons ADD COLUMN summary VARCHAR(120) DEFAULT ''`);
+                            console.log('✅ 已添加 addons.summary 欄位');
+                        }
+                        if (!existingColumns.has('details')) {
+                            await query(`ALTER TABLE addons ADD COLUMN details TEXT DEFAULT ''`);
+                            console.log('✅ 已添加 addons.details 欄位');
+                        }
+                        if (!existingColumns.has('terms')) {
+                            await query(`ALTER TABLE addons ADD COLUMN terms TEXT DEFAULT ''`);
+                            console.log('✅ 已添加 addons.terms 欄位');
+                        }
                     } catch (innerErr) {
-                        console.warn('⚠️  添加 addons.unit_label 欄位時發生錯誤:', innerErr.message);
+                        console.warn('⚠️  添加 addons 延伸欄位時發生錯誤:', innerErr.message);
                     }
                 }
             }
@@ -2227,6 +2246,9 @@ function initSQLite() {
                                                     display_name TEXT NOT NULL,
                                                     price INTEGER NOT NULL,
                                                     unit_label TEXT DEFAULT '人',
+                                                    summary TEXT DEFAULT '',
+                                                    details TEXT DEFAULT '',
+                                                    terms TEXT DEFAULT '',
                                                     icon TEXT DEFAULT '➕',
                                                     display_order INTEGER DEFAULT 0,
                                                     is_active INTEGER DEFAULT 1,
@@ -2243,6 +2265,21 @@ function initSQLite() {
                                                     db.run(`ALTER TABLE addons ADD COLUMN unit_label TEXT DEFAULT '人'`, (alterErr) => {
                                                         if (alterErr && !alterErr.message.includes('duplicate column')) {
                                                             console.warn('⚠️  新增 addons.unit_label 欄位時發生錯誤:', alterErr.message);
+                                                        }
+                                                    });
+                                                    db.run(`ALTER TABLE addons ADD COLUMN summary TEXT DEFAULT ''`, (alterErr) => {
+                                                        if (alterErr && !alterErr.message.includes('duplicate column')) {
+                                                            console.warn('⚠️  新增 addons.summary 欄位時發生錯誤:', alterErr.message);
+                                                        }
+                                                    });
+                                                    db.run(`ALTER TABLE addons ADD COLUMN details TEXT DEFAULT ''`, (alterErr) => {
+                                                        if (alterErr && !alterErr.message.includes('duplicate column')) {
+                                                            console.warn('⚠️  新增 addons.details 欄位時發生錯誤:', alterErr.message);
+                                                        }
+                                                    });
+                                                    db.run(`ALTER TABLE addons ADD COLUMN terms TEXT DEFAULT ''`, (alterErr) => {
+                                                        if (alterErr && !alterErr.message.includes('duplicate column')) {
+                                                            console.warn('⚠️  新增 addons.terms 欄位時發生錯誤:', alterErr.message);
                                                         }
                                                     });
 
@@ -5661,17 +5698,23 @@ async function getAddonById(id) {
 // 新增加購商品
 async function createAddon(addonData) {
     try {
+        const summary = String(addonData.summary || '').trim();
+        const details = String(addonData.details || '').trim();
+        const terms = String(addonData.terms || '').trim();
         const sql = usePostgreSQL
-            ? `INSERT INTO addons (name, display_name, price, unit_label, icon, display_order, is_active) 
-               VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
-            : `INSERT INTO addons (name, display_name, price, unit_label, icon, display_order, is_active) 
-               VALUES (?, ?, ?, ?, ?, ?, ?)`;
+            ? `INSERT INTO addons (name, display_name, price, unit_label, summary, details, terms, icon, display_order, is_active) 
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`
+            : `INSERT INTO addons (name, display_name, price, unit_label, summary, details, terms, icon, display_order, is_active) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
         
         const values = [
             addonData.name,
             addonData.display_name,
             addonData.price,
             addonData.unit_label || '人',
+            summary,
+            details,
+            terms,
             addonData.icon || '➕',
             addonData.display_order || 0,
             addonData.is_active !== undefined ? addonData.is_active : 1
@@ -5688,14 +5731,20 @@ async function createAddon(addonData) {
 // 更新加購商品
 async function updateAddon(id, addonData) {
     try {
+        const summary = String(addonData.summary || '').trim();
+        const details = String(addonData.details || '').trim();
+        const terms = String(addonData.terms || '').trim();
         const sql = usePostgreSQL
-            ? `UPDATE addons SET display_name = $1, price = $2, unit_label = $3, icon = $4, display_order = $5, is_active = $6, updated_at = CURRENT_TIMESTAMP WHERE id = $7`
-            : `UPDATE addons SET display_name = ?, price = ?, unit_label = ?, icon = ?, display_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+            ? `UPDATE addons SET display_name = $1, price = $2, unit_label = $3, summary = $4, details = $5, terms = $6, icon = $7, display_order = $8, is_active = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10`
+            : `UPDATE addons SET display_name = ?, price = ?, unit_label = ?, summary = ?, details = ?, terms = ?, icon = ?, display_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
         
         const values = [
             addonData.display_name,
             addonData.price,
             addonData.unit_label || '人',
+            summary,
+            details,
+            terms,
             addonData.icon || '➕',
             addonData.display_order || 0,
             addonData.is_active !== undefined ? addonData.is_active : 1,

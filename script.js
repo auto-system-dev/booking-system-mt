@@ -8,6 +8,57 @@ function formatAddonUnit(unitLabel) {
     const normalized = String(unitLabel || '人').trim();
     return normalized || '人';
 }
+
+function escapeAddonText(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function formatAddonMultiline(value) {
+    return escapeAddonText(value).replace(/\r?\n/g, '<br>');
+}
+
+function showAddonDetailModal(encodedAddonName) {
+    const addonName = decodeURIComponent(encodedAddonName || '');
+    const addon = addons.find(item => item.name === addonName);
+    if (!addon) return;
+
+    const details = String(addon.details || '').trim();
+    const terms = String(addon.terms || '').trim();
+    const summary = String(addon.summary || '').trim();
+
+    const titleEl = document.getElementById('addonDetailTitle');
+    const bodyEl = document.getElementById('addonDetailBody');
+    const overlay = document.getElementById('addonDetailModal');
+    if (!titleEl || !bodyEl || !overlay) return;
+
+    titleEl.textContent = addon.display_name || addon.name;
+    let html = '';
+    if (summary) {
+        html += `<p class="addon-detail-summary">${formatAddonMultiline(summary)}</p>`;
+    }
+    if (details) {
+        html += `<h4 class="addon-detail-heading">詳細說明</h4><p class="addon-detail-content">${formatAddonMultiline(details)}</p>`;
+    }
+    if (terms) {
+        html += `<h4 class="addon-detail-heading">注意事項</h4><p class="addon-detail-content">${formatAddonMultiline(terms)}</p>`;
+    }
+    if (!html) {
+        html = '<p class="addon-detail-content">目前尚未提供詳細說明。</p>';
+    }
+    bodyEl.innerHTML = html;
+    overlay.classList.remove('hidden');
+}
+
+function hideAddonDetailModal() {
+    const overlay = document.getElementById('addonDetailModal');
+    if (!overlay) return;
+    overlay.classList.add('hidden');
+}
 let depositPercentage = 30; // 預設訂金百分比
 let unavailableRooms = []; // 已滿房的房型列表
 let datePicker = null; // 日期區間選擇器
@@ -215,6 +266,11 @@ function renderAddons() {
         const quantity = selectedAddon ? selectedAddon.quantity : 0;
         const isSelected = quantity > 0;
         const unitLabel = formatAddonUnit(addon.unit_label);
+        const summary = String(addon.summary || '').trim();
+        const details = String(addon.details || '').trim();
+        const terms = String(addon.terms || '').trim();
+        const hasDetailContent = !!(details || terms);
+        const encodedName = encodeURIComponent(addon.name || '');
         
         return `
             <div class="addon-option ${isSelected ? 'selected' : ''}" data-addon="${addon.name}" data-price="${addon.price}">
@@ -222,7 +278,9 @@ function renderAddons() {
                     <span style="font-size: 24px;">${addon.icon || '➕'}</span>
                     <div style="flex: 1;">
                         <div style="font-weight: 600; font-size: 16px; margin-bottom: 5px;">${addon.display_name}</div>
+                        ${summary ? `<div class="addon-summary">${escapeAddonText(summary)}</div>` : ''}
                         <div style="color: #2C8EC4; font-weight: 600;">NT$ ${addon.price.toLocaleString()}/每${unitLabel}</div>
+                        ${hasDetailContent ? `<button type="button" class="addon-detail-link" onclick="showAddonDetailModal('${encodedName}')">查看詳情</button>` : ''}
                     </div>
                     <div style="display: flex; align-items: center; gap: 10px;">
                         <button type="button" class="addon-quantity-btn" onclick="changeAddonQuantity('${addon.name}', -1)" style="width: 32px; height: 32px; border: 1px solid #ddd; border-radius: 4px; background: #fff; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; color: #666;" ${quantity === 0 ? 'disabled' : ''}>−</button>
@@ -611,6 +669,8 @@ document.addEventListener('DOMContentLoaded', async function() {
 document.addEventListener('DOMContentLoaded', function() {
     const cancelBtn = document.getElementById('capacityCancelBtn');
     const confirmBtn = document.getElementById('capacityConfirmBtn');
+    const addonDetailCloseBtn = document.getElementById('addonDetailCloseBtn');
+    const addonDetailModal = document.getElementById('addonDetailModal');
     if (cancelBtn) {
         cancelBtn.addEventListener('click', () => {
             hideCapacityModal();
@@ -624,6 +684,23 @@ document.addEventListener('DOMContentLoaded', function() {
             if (form) form.requestSubmit();
         });
     }
+    if (addonDetailCloseBtn) {
+        addonDetailCloseBtn.addEventListener('click', () => {
+            hideAddonDetailModal();
+        });
+    }
+    if (addonDetailModal) {
+        addonDetailModal.addEventListener('click', (event) => {
+            if (event.target === addonDetailModal) {
+                hideAddonDetailModal();
+            }
+        });
+    }
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            hideAddonDetailModal();
+        }
+    });
 });
 
 // 計算住宿天數
