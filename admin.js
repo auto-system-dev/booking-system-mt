@@ -962,49 +962,53 @@ document.addEventListener('DOMContentLoaded', async function() {
         showLoginPage();
     }
     
-    // 根據 URL hash 載入對應區塊
-    const urlHash = window.location.hash;
-    if (urlHash === '#dashboard') {
-        switchSection('dashboard');
-        loadDashboard();
-    } else if (urlHash === '#bookings') {
-        switchSection('bookings');
-        if (currentBookingView === 'calendar') {
-            loadBookingCalendar();
-        } else {
-            loadBookings();
+    // 根據 URL hash 載入對應區塊（僅在已登入時執行，避免登入頁持續背景請求）
+    if (isAdminPageVisible()) {
+        const urlHash = window.location.hash;
+        if (urlHash === '#dashboard') {
+            switchSection('dashboard');
+            loadDashboard();
+        } else if (urlHash === '#bookings') {
+            switchSection('bookings');
+            if (currentBookingView === 'calendar') {
+                loadBookingCalendar();
+            } else {
+                loadBookings();
+            }
+        } else if (urlHash === '#room-types') {
+            switchSection('room-types');
+            // loadRoomTypes() 會在 switchSection 中根據分頁狀態決定是否載入
+        } else if (urlHash === '#settings') {
+            switchSection('settings');
+            loadSettings();
+            loadHolidays();
+        } else if (urlHash === '#addons') {
+            switchSection('addons');
+            loadAddons();
+        } else if (urlHash === '#promotions') {
+            switchSection('promotions');
+        } else if (urlHash === '#promo-codes') {
+            switchSection('promotions');
+            switchPromotionTab('promo-codes');
+        } else if (urlHash === '#early-bird') {
+            switchSection('promotions');
+            switchPromotionTab('early-bird');
+        } else if (urlHash === '#holidays') {
+            switchSection('holidays');
+            loadHolidays();
+        } else if (urlHash === '#email-templates') {
+            switchSection('email-templates');
+            loadEmailTemplates();
+        } else if (urlHash === '#statistics') {
+            switchSection('statistics');
+            loadStatistics();
+        } else if (!urlHash) {
+            // 如果沒有 URL hash，預設顯示儀表板
+            switchSection('dashboard');
+            loadDashboard();
         }
-    } else if (urlHash === '#room-types') {
-        switchSection('room-types');
-        // loadRoomTypes() 會在 switchSection 中根據分頁狀態決定是否載入
-    } else if (urlHash === '#settings') {
-        switchSection('settings');
-        loadSettings();
-        loadHolidays();
-    } else if (urlHash === '#addons') {
-        switchSection('addons');
-        loadAddons();
-    } else if (urlHash === '#promotions') {
-        switchSection('promotions');
-    } else if (urlHash === '#promo-codes') {
-        switchSection('promotions');
-        switchPromotionTab('promo-codes');
-    } else if (urlHash === '#early-bird') {
-        switchSection('promotions');
-        switchPromotionTab('early-bird');
-    } else if (urlHash === '#holidays') {
-        switchSection('holidays');
-        loadHolidays();
-    } else if (urlHash === '#email-templates') {
-        switchSection('email-templates');
-        loadEmailTemplates();
-    } else if (urlHash === '#statistics') {
-        switchSection('statistics');
-        loadStatistics();
-    } else if (!urlHash) {
-        // 如果沒有 URL hash，預設顯示儀表板
-        switchSection('dashboard');
-        loadDashboard();
+    } else {
+        console.log('ℹ️ 未登入，略過 URL hash 初始化資料請求');
     }
 
     // 點擊模態框外部關閉
