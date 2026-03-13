@@ -10925,11 +10925,15 @@ async function saveLandingSettings(tab) {
             keysToSave = Object.keys(landingFieldMap).filter(k =>
                 ['landing_name', 'landing_title', 'landing_subtitle', 'landing_badge',
                  'landing_price_prefix', 'landing_price_amount', 'landing_price_original',
-                 'landing_about_title', 'landing_about_subtitle', 'landing_about_card_desc',
                  'landing_nav_logo', 'landing_favicon', 'landing_hero_image', 'landing_countdown_days', 'landing_countdown_text',
                  'landing_cta_text', 'landing_hero_trust_1', 'landing_hero_trust_2',
                  'landing_hero_trust_3', 'landing_final_guarantee', 'landing_hero_trust_icon_1',
                  'landing_hero_trust_icon_2', 'landing_hero_trust_icon_3', 'landing_final_guarantee_icon'].includes(k)
+            );
+            break;
+        case 'about':
+            keysToSave = Object.keys(landingFieldMap).filter(k =>
+                ['landing_about_title', 'landing_about_subtitle', 'landing_about_card_desc'].includes(k)
             );
             break;
         case 'features':
