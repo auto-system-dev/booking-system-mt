@@ -10448,6 +10448,12 @@ async function loadLandingSettings() {
             } else {
                 removeLandingFavicon();
             }
+            const ogImageUrl = data['landing_og_image'];
+            if (ogImageUrl) {
+                showLandingOgImagePreview(ogImageUrl);
+            } else {
+                removeLandingOgImage();
+            }
             // 載入房型展示（從房型管理 + settings 合併）
             loadLandingRoomTypes(data);
             // 還原民宿設施勾選
@@ -11723,6 +11729,85 @@ function removeLandingFavicon() {
     if (fileInput) fileInput.value = '';
 }
 
+// ===== Open Graph 圖片上傳 =====
+async function handleLandingOgImageUpload(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    if (file.size > 3 * 1024 * 1024) {
+        showError('Open Graph 圖片大小不可超過 3MB');
+        input.value = '';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const uploadArea = document.getElementById('landingOgImageUploadArea');
+    const originalContent = uploadArea ? uploadArea.innerHTML : '';
+    if (uploadArea) {
+        uploadArea.innerHTML = `
+            <div style="padding: 12px; text-align: center;">
+                <span class="material-symbols-outlined" style="font-size: 32px; color: #667eea; animation: spin 1s linear infinite;">progress_activity</span>
+                <p style="color: #667eea; margin: 8px 0 0;">上傳中...</p>
+            </div>
+        `;
+    }
+
+    try {
+        const response = await adminFetch('/api/admin/landing/upload-image', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
+
+        if (result.success) {
+            const imageUrl = result.data.image_url;
+            const ogInput = document.getElementById('landingOgImage');
+            if (ogInput) ogInput.value = imageUrl;
+            showLandingOgImagePreview(imageUrl);
+            showSuccess('Open Graph 圖片上傳成功');
+        } else {
+            showError('上傳失敗：' + (result.message || '未知錯誤'));
+            if (uploadArea) uploadArea.innerHTML = originalContent;
+        }
+    } catch (error) {
+        console.error('上傳 Open Graph 圖片錯誤:', error);
+        showError('上傳 Open Graph 圖片時發生錯誤：' + error.message);
+        if (uploadArea) uploadArea.innerHTML = originalContent;
+    }
+
+    input.value = '';
+}
+
+function showLandingOgImagePreview(imageUrl) {
+    const uploadArea = document.getElementById('landingOgImageUploadArea');
+    if (!uploadArea) return;
+    uploadArea.innerHTML = `
+        <div id="landingOgImagePreview" style="position: relative; display: inline-block; width: 100%; max-width: 360px;">
+            <img src="${imageUrl}" style="width: 100%; aspect-ratio: 1200 / 630; border-radius: 8px; border: 1px solid #ddd; object-fit: cover; background: #fff;">
+            <button type="button" onclick="event.stopPropagation(); removeLandingOgImage();" style="position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; border-radius: 50%; border: none; background: #e74c3c; color: white; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;">✕</button>
+        </div>
+    `;
+}
+
+function removeLandingOgImage() {
+    const ogInput = document.getElementById('landingOgImage');
+    if (ogInput) ogInput.value = '';
+    const uploadArea = document.getElementById('landingOgImageUploadArea');
+    if (uploadArea) {
+        uploadArea.innerHTML = `
+            <div id="landingOgImagePreview">
+                <span class="material-symbols-outlined" style="font-size: 40px; color: #888; display: block; margin-bottom: 8px;">image</span>
+                <p style="margin: 0; color: #555;">點擊上傳 Open Graph 圖片</p>
+                <small style="color: #888;">建議 1200x630，支援 JPG/PNG/WebP，最大 3MB</small>
+            </div>
+        `;
+    }
+    const fileInput = document.getElementById('landingOgImageInput');
+    if (fileInput) fileInput.value = '';
+}
+
 // ===== 色系主題管理 =====
 
 // 預設配色主題定義
@@ -11870,6 +11955,8 @@ window.handleHeroImageUpload = handleHeroImageUpload;
 window.removeHeroImage = removeHeroImage;
 window.handleLandingNavLogoUpload = handleLandingNavLogoUpload;
 window.removeLandingNavLogo = removeLandingNavLogo;
+window.handleLandingOgImageUpload = handleLandingOgImageUpload;
+window.removeLandingOgImage = removeLandingOgImage;
 window.selectTheme = selectTheme;
 window.saveLandingTheme = saveLandingTheme;
 

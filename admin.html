@@ -1995,9 +1995,17 @@
                                     <small>顯示在搜尋引擎結果中（建議 60-160 字）</small>
                                 </div>
                                 <div class="form-group">
-                                    <label>Open Graph 分享圖片 URL</label>
-                                    <input type="text" id="landingOgImage" placeholder="https://your-domain.com/images/og-image.jpg">
-                                    <small>Facebook 分享時顯示的圖片（建議 1200x630）</small>
+                                    <label>Open Graph 分享圖片</label>
+                                    <input type="hidden" id="landingOgImage">
+                                    <input type="file" id="landingOgImageInput" accept="image/jpeg,image/png,image/webp,image/gif" style="display:none;" onchange="handleLandingOgImageUpload(this)">
+                                    <div id="landingOgImageUploadArea" onclick="document.getElementById('landingOgImageInput').click()" style="border: 2px dashed #d0d7de; border-radius: 10px; padding: 16px; text-align: center; cursor: pointer; background: #f8fafc;">
+                                        <div id="landingOgImagePreview">
+                                            <span class="material-symbols-outlined" style="font-size: 40px; color: #888; display: block; margin-bottom: 8px;">image</span>
+                                            <p style="margin: 0; color: #555;">點擊上傳 Open Graph 圖片</p>
+                                            <small style="color: #888;">建議 1200x630，支援 JPG/PNG/WebP，最大 3MB</small>
+                                        </div>
+                                    </div>
+                                    <small>Facebook 分享時顯示的圖片。上傳後會自動儲存圖片網址。</small>
                                 </div>
                             </div>
                         </div>
