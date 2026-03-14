@@ -605,7 +605,7 @@ function renderRoomCards(cfg) {
                             <span class="price-current">NT$ 2,800</span>
                             <span class="price-old">NT$ 3,500</span>
                         </div>
-                        <a href="index.html" class="room-book-btn" onclick="trackBookingClick()">預訂</a>
+                        <a href="/booking" class="room-book-btn" onclick="trackBookingClick()">預訂</a>
                     </div>
                 </div>
             </div>
@@ -659,7 +659,7 @@ function renderRoomCards(cfg) {
                             <span class="price-current">NT$ ${price.toLocaleString()}</span>
                             ${originalPrice > 0 ? `<span class="price-old">NT$ ${originalPrice.toLocaleString()}</span>` : ''}
                         </div>
-                        <a href="index.html" class="room-book-btn" onclick="event.stopPropagation(); trackBookingClick();">預訂</a>
+                        <a href="/booking" class="room-book-btn" onclick="event.stopPropagation(); trackBookingClick();">預訂</a>
                     </div>
                 </div>
             </div>
@@ -1081,9 +1081,9 @@ function updateBookingLinks() {
     const utmParams = getUTMParams();
     const queryString = new URLSearchParams(utmParams).toString();
     
-    document.querySelectorAll('a[href="index.html"]').forEach(link => {
+    document.querySelectorAll('a[href="/booking"]').forEach(link => {
         if (queryString && utmParams.utm_source !== 'direct') {
-            link.href = `index.html?${queryString}`;
+            link.href = `/booking?${queryString}`;
         }
     });
 }

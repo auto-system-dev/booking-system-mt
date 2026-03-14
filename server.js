@@ -1445,8 +1445,8 @@ async function logAction(req, action, resourceType = null, resourceId = null, de
 
 // 健康檢查端點已移至 session middleware 之前（第 108 行附近）
 
-// 首頁
-app.get('/', (req, res) => {
+// 訂房頁（從銷售頁導流）
+app.get('/booking', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
@@ -1729,7 +1729,7 @@ function renderLandingTemplate(templateHtml, landingSettings, landingRoomTypes) 
     return html;
 }
 
-app.get(['/landing', '/landing.html'], publicLimiter, async (req, res) => {
+async function handleLandingPageRequest(req, res) {
     try {
         const { landingSettings, landingRoomTypes } = await getLandingPagePayload();
         const templateHtml = await fs.promises.readFile(path.join(__dirname, 'landing.html'), 'utf8');
@@ -1740,6 +1740,17 @@ app.get(['/landing', '/landing.html'], publicLimiter, async (req, res) => {
         console.error('SSR 產生銷售頁失敗，改回靜態檔案:', error);
         res.sendFile(path.join(__dirname, 'landing.html'));
     }
+}
+
+// 首頁改為銷售頁
+app.get('/', publicLimiter, handleLandingPageRequest);
+
+// 銷售頁相容路徑
+app.get(['/landing', '/landing.html'], publicLimiter, handleLandingPageRequest);
+
+// 舊網址相容：/index.html 導向 /booking
+app.get('/index.html', (req, res) => {
+    res.redirect(302, '/booking');
 });
 
 // 管理後台登入頁面
