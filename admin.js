@@ -10319,6 +10319,7 @@ function switchLandingTab(tab) {
 
 let landingFacilityGalleryItems = [];
 let landingFeatureItems = [];
+let landingReviewItems = [];
 const DEFAULT_LANDING_FEATURE_ITEMS = [
     { id: 'feat_landscape', icon: 'landscape', title: '絕美山景', desc: '每間房間都能欣賞到壯闊的山巒美景', enabled: true, order: 1 },
     { id: 'feat_spa', icon: 'spa', title: '私人湯屋', desc: '獨立溫泉湯屋，24 小時供應天然溫泉', enabled: true, order: 2 },
@@ -10350,6 +10351,11 @@ const DEFAULT_LANDING_FACILITY_GALLERY_ITEMS = [
         enabled: true,
         order: 3
     }
+];
+const DEFAULT_LANDING_REVIEW_ITEMS = [
+    { id: 'review_default_1', name: '林小姐', date: '2026 年 1 月', rating: '5.0', text: '環境超棒！房間乾淨又舒適，主人非常親切熱情，早餐也很豐盛。下次還會再來！', tags: '環境優美,服務親切', enabled: true, order: 1 },
+    { id: 'review_default_2', name: '陳先生', date: '2026 年 1 月', rating: '5.0', text: '帶著家人一起入住，孩子們玩得很開心。設備齊全，地點方便，CP 值很高！', tags: '適合家庭,設備齊全', enabled: true, order: 2 },
+    { id: 'review_default_3', name: '王小姐', date: '2025 年 12 月', rating: '4.9', text: '位置很好找，房間寬敞明亮，窗外風景很美。整體住宿體驗非常棒，大力推薦！', tags: '景觀優美,交通方便', enabled: true, order: 3 }
 ];
 
 // 銷售頁設定欄位對應表
@@ -10389,21 +10395,7 @@ const landingFieldMap = {
     // 客戶評價
     landing_review_count: 'landingReviewCount',
     landing_review_score: 'landingReviewScore',
-    landing_review_1_name: 'landingReview1Name',
-    landing_review_1_date: 'landingReview1Date',
-    landing_review_1_rating: 'landingReview1Rating',
-    landing_review_1_text: 'landingReview1Text',
-    landing_review_1_tags: 'landingReview1Tags',
-    landing_review_2_name: 'landingReview2Name',
-    landing_review_2_date: 'landingReview2Date',
-    landing_review_2_rating: 'landingReview2Rating',
-    landing_review_2_text: 'landingReview2Text',
-    landing_review_2_tags: 'landingReview2Tags',
-    landing_review_3_name: 'landingReview3Name',
-    landing_review_3_date: 'landingReview3Date',
-    landing_review_3_rating: 'landingReview3Rating',
-    landing_review_3_text: 'landingReview3Text',
-    landing_review_3_tags: 'landingReview3Tags',
+    landing_reviews_items: 'landingReviewsItems',
     // 聯絡與社群
     landing_address: 'landingAddress',
     landing_driving: 'landingDriving',
@@ -10468,6 +10460,7 @@ async function loadLandingSettings() {
             }
             loadLandingFeaturesEditor(data);
             loadLandingFacilityGalleryEditor(data['landing_facility_gallery']);
+            loadLandingReviewsEditor(data);
             // 還原色系主題
             restoreLandingTheme(data['landing_theme']);
             console.log('✅ 銷售頁設定已載入');
@@ -10497,6 +10490,195 @@ function createFeatureItemsFromLegacySettings(data) {
         });
     }
     return items;
+}
+
+function createReviewItemsFromLegacySettings(data) {
+    const items = [];
+    for (let i = 1; i <= 3; i++) {
+        const name = String(data[`landing_review_${i}_name`] || '').trim();
+        const text = String(data[`landing_review_${i}_text`] || '').trim();
+        const date = String(data[`landing_review_${i}_date`] || '').trim();
+        const rating = String(data[`landing_review_${i}_rating`] || '').trim();
+        const tags = String(data[`landing_review_${i}_tags`] || '').trim();
+        if (!name && !text && !date && !rating && !tags) continue;
+        items.push({
+            id: `legacy_review_${i}`,
+            name,
+            date,
+            rating: rating || '5.0',
+            text,
+            tags,
+            enabled: true,
+            order: i
+        });
+    }
+    return items;
+}
+
+function loadLandingReviewsEditor(data) {
+    landingReviewItems = [];
+    const raw = data ? data['landing_reviews_items'] : null;
+    if (raw) {
+        try {
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            if (Array.isArray(parsed)) {
+                landingReviewItems = parsed.map((item, index) => ({
+                    id: item.id || `review_${Date.now()}_${index}`,
+                    name: String(item.name || '').trim(),
+                    date: String(item.date || '').trim(),
+                    rating: String(item.rating || '').trim() || '5.0',
+                    text: String(item.text || '').trim(),
+                    tags: String(item.tags || '').trim(),
+                    enabled: item.enabled !== false,
+                    order: Number(item.order) || (index + 1)
+                }));
+            }
+        } catch (error) {
+            console.warn('解析 landing_reviews_items 失敗，將嘗試舊版欄位:', error);
+        }
+    }
+
+    if (!landingReviewItems.length && data) {
+        landingReviewItems = createReviewItemsFromLegacySettings(data);
+    }
+    if (!landingReviewItems.length) {
+        landingReviewItems = DEFAULT_LANDING_REVIEW_ITEMS.map((item, index) => ({
+            ...item,
+            id: `${item.id}_${Date.now()}_${index}`
+        }));
+    }
+    normalizeLandingReviewOrder();
+    renderLandingReviewsEditor();
+}
+
+function normalizeLandingReviewOrder() {
+    landingReviewItems.forEach((item, index) => {
+        item.order = index + 1;
+    });
+}
+
+function renderLandingReviewsEditor() {
+    const container = document.getElementById('landingReviewsContainer');
+    if (!container) return;
+
+    if (!landingReviewItems.length) {
+        container.innerHTML = '<div style="color: #888; font-size: 13px;">尚未新增客戶評價</div>';
+        return;
+    }
+
+    container.innerHTML = landingReviewItems.map((item, index) => `
+        <div class="settings-card" style="margin: 0; border: 1px solid #dbe4ee;" data-review-item-id="${item.id}">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 10px;">
+                <h4 style="margin: 0; color: #2c3e50;">評價 ${index + 1}</h4>
+                <div style="display:flex; gap:6px;">
+                    <button type="button" class="facility-gallery-mini-btn" onclick="moveLandingReviewItem('${item.id}', -1)" ${index === 0 ? 'disabled' : ''}>上移</button>
+                    <button type="button" class="facility-gallery-mini-btn" onclick="moveLandingReviewItem('${item.id}', 1)" ${index === landingReviewItems.length - 1 ? 'disabled' : ''}>下移</button>
+                    <button type="button" class="facility-gallery-mini-btn danger" onclick="removeLandingReviewItem('${item.id}')">刪除</button>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 120px; gap: 15px;">
+                <div class="form-group">
+                    <label>評價者姓名</label>
+                    <input type="text" value="${escapeHtml(item.name)}" oninput="updateLandingReviewItem('${item.id}', 'name', this.value)" placeholder="例如：林小姐">
+                </div>
+                <div class="form-group">
+                    <label>日期</label>
+                    <input type="text" value="${escapeHtml(item.date)}" oninput="updateLandingReviewItem('${item.id}', 'date', this.value)" placeholder="例如：2026 年 1 月">
+                </div>
+                <div class="form-group">
+                    <label>評分</label>
+                    <input type="text" value="${escapeHtml(item.rating)}" oninput="updateLandingReviewItem('${item.id}', 'rating', this.value)" placeholder="5.0">
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 8px;">
+                <label>評價內容</label>
+                <textarea rows="3" oninput="updateLandingReviewItem('${item.id}', 'text', this.value)" placeholder="例如：環境超棒！房間乾淨舒適...">${escapeHtml(item.text)}</textarea>
+            </div>
+            <div class="form-group" style="margin-bottom: 8px;">
+                <label>標籤（以逗號分隔）</label>
+                <input type="text" value="${escapeHtml(item.tags)}" oninput="updateLandingReviewItem('${item.id}', 'tags', this.value)" placeholder="例如：環境優美,服務親切">
+            </div>
+            <label class="inline-slider-toggle">
+                <span class="inline-slider-switch">
+                    <input type="checkbox" ${item.enabled ? 'checked' : ''} onchange="updateLandingReviewItem('${item.id}', 'enabled', this.checked)">
+                    <span class="inline-slider-track"><span class="inline-slider-thumb"></span></span>
+                </span>
+                <span>啟用顯示</span>
+            </label>
+        </div>
+    `).join('');
+}
+
+function addLandingReviewItem() {
+    landingReviewItems.push({
+        id: `review_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        name: '',
+        date: '',
+        rating: '5.0',
+        text: '',
+        tags: '',
+        enabled: true,
+        order: landingReviewItems.length + 1
+    });
+    renderLandingReviewsEditor();
+}
+
+function updateLandingReviewItem(id, key, value) {
+    const item = landingReviewItems.find(x => x.id === id);
+    if (!item) return;
+    item[key] = value;
+}
+
+function removeLandingReviewItem(id) {
+    landingReviewItems = landingReviewItems.filter(x => x.id !== id);
+    normalizeLandingReviewOrder();
+    renderLandingReviewsEditor();
+}
+
+function moveLandingReviewItem(id, direction) {
+    const index = landingReviewItems.findIndex(x => x.id === id);
+    if (index < 0) return;
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= landingReviewItems.length) return;
+    const temp = landingReviewItems[index];
+    landingReviewItems[index] = landingReviewItems[targetIndex];
+    landingReviewItems[targetIndex] = temp;
+    normalizeLandingReviewOrder();
+    renderLandingReviewsEditor();
+}
+
+async function saveLandingReviewItems(silent = false) {
+    try {
+        const normalized = landingReviewItems.map((item, index) => ({
+            id: item.id || `review_${index + 1}`,
+            name: String(item.name || '').trim(),
+            date: String(item.date || '').trim(),
+            rating: String(item.rating || '').trim() || '5.0',
+            text: String(item.text || '').trim(),
+            tags: String(item.tags || '').trim(),
+            enabled: item.enabled !== false,
+            order: index + 1
+        })).filter(item => item.name || item.text);
+
+        const response = await adminFetch('/api/admin/settings/landing_reviews_items', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                value: JSON.stringify(normalized),
+                description: '銷售頁-客戶評價清單（JSON）'
+            })
+        });
+        const result = await response.json();
+        if (!result.success) {
+            if (!silent) showError('客戶評價儲存失敗：' + (result.message || ''));
+            return false;
+        }
+        return true;
+    } catch (error) {
+        console.error('❌ 儲存客戶評價錯誤:', error);
+        if (!silent) showError('客戶評價儲存失敗：' + error.message);
+        return false;
+    }
 }
 
 function loadLandingFeaturesEditor(data) {
@@ -11169,9 +11351,14 @@ async function saveLandingSettings(tab) {
             }
             return;
         case 'reviews':
-            keysToSave = Object.keys(landingFieldMap).filter(k =>
-                k.startsWith('landing_review_') || k === 'landing_review_count' || k === 'landing_review_score'
-            );
+            {
+                const reviewsSaved = await saveLandingReviewItems(true);
+                if (!reviewsSaved) {
+                    showError('客戶評價設定儲存失敗，請重試');
+                    return;
+                }
+                keysToSave = ['landing_review_count', 'landing_review_score'];
+            }
             break;
         case 'contact':
             keysToSave = Object.keys(landingFieldMap).filter(k =>

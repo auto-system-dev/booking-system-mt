@@ -1842,9 +1842,9 @@
                     <div id="landingTabReviewsContent" class="tab-content">
                         <div style="display: flex; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #f39c12;">
                             <span class="material-symbols-outlined" style="font-size: 24px; color: #f39c12; margin-right: 10px;">reviews</span>
-                            <h3 style="margin: 0; color: #2c3e50;">客戶好評（最多 3 則）</h3>
+                            <h3 style="margin: 0; color: #2c3e50;">客戶好評</h3>
                         </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 16px;">
                             <div class="form-group">
                                 <label>評價總數顯示</label>
                                 <input type="text" id="landingReviewCount" placeholder="例如：500+">
@@ -1854,84 +1854,16 @@
                                 <input type="text" id="landingReviewScore" placeholder="例如：4.9 / 5.0">
                             </div>
                         </div>
-                        <div id="landingReviewsContainer">
-                            <div class="settings-card" style="margin-bottom: 15px;" data-review="1">
-                                <h4 style="color: #2c3e50; margin-bottom: 15px;">評價 1</h4>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr 100px; gap: 15px;">
-                                    <div class="form-group">
-                                        <label>評價者姓名</label>
-                                        <input type="text" id="landingReview1Name" placeholder="例如：林小姐">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>日期</label>
-                                        <input type="text" id="landingReview1Date" placeholder="例如：2026 年 1 月">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>評分</label>
-                                        <input type="text" id="landingReview1Rating" placeholder="5.0">
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>評價內容</label>
-                                    <textarea id="landingReview1Text" rows="2" placeholder="例如：環境超棒！房間乾淨舒適..."></textarea>
-                                </div>
-                                <div class="form-group">
-                                    <label>標籤（以逗號分隔）</label>
-                                    <input type="text" id="landingReview1Tags" placeholder="例如：環境優美,服務親切">
-                                </div>
+                        <div style="display:flex; align-items:center; justify-content:space-between; margin: 4px 0 12px;">
+                            <div style="font-size: 13px; color: #0c4a6e; background-color: #ecfeff; border: 1px solid #bae6fd; padding: 8px 10px; border-radius: 8px;">
+                                可新增、排序、停用與刪除評價，前台僅顯示啟用項目。
                             </div>
-                            <div class="settings-card" style="margin-bottom: 15px;" data-review="2">
-                                <h4 style="color: #2c3e50; margin-bottom: 15px;">評價 2</h4>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr 100px; gap: 15px;">
-                                    <div class="form-group">
-                                        <label>評價者姓名</label>
-                                        <input type="text" id="landingReview2Name" placeholder="例如：陳先生">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>日期</label>
-                                        <input type="text" id="landingReview2Date" placeholder="例如：2026 年 1 月">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>評分</label>
-                                        <input type="text" id="landingReview2Rating" placeholder="5.0">
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>評價內容</label>
-                                    <textarea id="landingReview2Text" rows="2" placeholder="例如：帶著狗狗一起入住，民宿很貼心..."></textarea>
-                                </div>
-                                <div class="form-group">
-                                    <label>標籤（以逗號分隔）</label>
-                                    <input type="text" id="landingReview2Tags" placeholder="例如：寵物友善,溫泉推薦">
-                                </div>
-                            </div>
-                            <div class="settings-card" style="margin-bottom: 15px;" data-review="3">
-                                <h4 style="color: #2c3e50; margin-bottom: 15px;">評價 3</h4>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr 100px; gap: 15px;">
-                                    <div class="form-group">
-                                        <label>評價者姓名</label>
-                                        <input type="text" id="landingReview3Name" placeholder="例如：王小姐">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>日期</label>
-                                        <input type="text" id="landingReview3Date" placeholder="例如：2025 年 12 月">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>評分</label>
-                                        <input type="text" id="landingReview3Rating" placeholder="4.9">
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label>評價內容</label>
-                                    <textarea id="landingReview3Text" rows="2" placeholder="例如：位置很好找，民宿主人超級熱情..."></textarea>
-                                </div>
-                                <div class="form-group">
-                                    <label>標籤（以逗號分隔）</label>
-                                    <input type="text" id="landingReview3Tags" placeholder="例如：CP值高,主人熱情">
-                                </div>
-                            </div>
+                            <button type="button" class="btn-save" onclick="addLandingReviewItem()" style="margin: 0;">新增評價</button>
                         </div>
-                        <button class="btn-save" onclick="saveLandingSettings('reviews')" style="margin-top: 10px;">
+                        <div id="landingReviewsContainer" style="display: grid; gap: 10px;">
+                            <div style="color: #888; font-size: 13px;">尚未新增客戶評價</div>
+                        </div>
+                        <button class="btn-save" onclick="saveLandingSettings('reviews')" style="margin-top: 14px;">
                             <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: 5px;">save</span>
                             儲存客戶評價
                         </button>

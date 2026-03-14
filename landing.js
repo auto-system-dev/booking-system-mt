@@ -39,6 +39,11 @@ const DEFAULT_FACILITY_GALLERY_ITEMS = [
         order: 3
     }
 ];
+const DEFAULT_REVIEW_ITEMS = [
+    { name: '林小姐', date: '2026 年 1 月', rating: '5.0', text: '環境超棒！房間乾淨又舒適，主人非常親切熱情，早餐也很豐盛。下次還會再來！', tags: '環境優美,服務親切', enabled: true, order: 1 },
+    { name: '陳先生', date: '2026 年 1 月', rating: '5.0', text: '帶著家人一起入住，孩子們玩得很開心。設備齊全，地點方便，CP 值很高！', tags: '適合家庭,設備齊全', enabled: true, order: 2 },
+    { name: '王小姐', date: '2025 年 12 月', rating: '4.9', text: '位置很好找，房間寬敞明亮，窗外風景很美。整體住宿體驗非常棒，大力推薦！', tags: '景觀優美,交通方便', enabled: true, order: 3 }
+];
 
 // 預設配色主題定義
 const landingThemes = {
@@ -663,50 +668,63 @@ function renderRoomCards(cfg) {
     console.log('✅ 房型卡片已渲染，共', roomTypes.length, '張');
 }
 
+function resolveReviewItems(cfg) {
+    let items = [];
+    const raw = cfg ? cfg.landing_reviews_items : null;
+    if (raw) {
+        try {
+            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+            if (Array.isArray(parsed)) {
+                items = parsed.map((item, index) => ({
+                    name: String(item.name || '').trim(),
+                    date: String(item.date || '').trim(),
+                    rating: String(item.rating || '').trim() || '5.0',
+                    text: String(item.text || '').trim(),
+                    tags: String(item.tags || '').trim(),
+                    enabled: item.enabled !== false,
+                    order: Number(item.order) || (index + 1)
+                }));
+            }
+        } catch (error) {
+            console.warn('解析 landing_reviews_items 失敗，將嘗試舊版評價欄位:', error);
+        }
+    }
+
+    if (!items.length) {
+        for (let i = 1; i <= 3; i++) {
+            const name = String(cfg[`landing_review_${i}_name`] || '').trim();
+            const text = String(cfg[`landing_review_${i}_text`] || '').trim();
+            const date = String(cfg[`landing_review_${i}_date`] || '').trim();
+            const rating = String(cfg[`landing_review_${i}_rating`] || '').trim();
+            const tags = String(cfg[`landing_review_${i}_tags`] || '').trim();
+            if (!name && !text && !date && !rating && !tags) continue;
+            items.push({
+                name,
+                date,
+                rating: rating || '5.0',
+                text,
+                tags,
+                enabled: true,
+                order: i
+            });
+        }
+    }
+
+    if (!items.length) {
+        items = DEFAULT_REVIEW_ITEMS.map(item => ({ ...item }));
+    }
+
+    return items
+        .filter(item => item.enabled !== false)
+        .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+}
+
 // ===== 動態生成評價卡片 =====
 function renderReviewCards(cfg) {
     const grid = document.getElementById('reviewsGrid');
     if (!grid) return;
 
-    const reviews = [];
-    for (let i = 1; i <= 3; i++) {
-        const name = cfg[`landing_review_${i}_name`];
-        if (!name) continue;
-        reviews.push({
-            name,
-            date: cfg[`landing_review_${i}_date`] || '',
-            rating: cfg[`landing_review_${i}_rating`] || '5.0',
-            text: cfg[`landing_review_${i}_text`] || '',
-            tags: cfg[`landing_review_${i}_tags`] || ''
-        });
-    }
-
-    if (reviews.length === 0) {
-        const defaultReviews = [
-            { name: '林小姐', date: '2026 年 1 月', rating: '5.0', text: '環境超棒！房間乾淨又舒適，主人非常親切熱情，早餐也很豐盛。下次還會再來！', tags: '環境優美,服務親切' },
-            { name: '陳先生', date: '2026 年 1 月', rating: '5.0', text: '帶著家人一起入住，孩子們玩得很開心。設備齊全，地點方便，CP 值很高！', tags: '適合家庭,設備齊全' },
-            { name: '王小姐', date: '2025 年 12 月', rating: '4.9', text: '位置很好找，房間寬敞明亮，窗外風景很美。整體住宿體驗非常棒，大力推薦！', tags: '景觀優美,交通方便' }
-        ];
-        grid.innerHTML = defaultReviews.map(r => `
-            <div class="review-card">
-                <div class="review-header">
-                    <div class="reviewer-avatar">${r.name.charAt(0)}</div>
-                    <div class="reviewer-info">
-                        <span class="reviewer-name">${r.name}</span>
-                        <span class="review-date">${r.date}</span>
-                    </div>
-                    <div class="review-rating">
-                        <span class="material-symbols-outlined filled">star</span>
-                        <span>${r.rating}</span>
-                    </div>
-                </div>
-                <p class="review-text">「${r.text}」</p>
-                <div class="review-tags">${r.tags.split(',').map(t => `<span>${t.trim()}</span>`).join('')}</div>
-            </div>
-        `).join('');
-        return;
-    }
-
+    const reviews = resolveReviewItems(cfg);
     grid.innerHTML = reviews.map(review => {
         const avatar = review.name.charAt(0);
         const tagItems = review.tags
