@@ -1588,18 +1588,6 @@ function resolveLandingFeatureItems(cfg = {}) {
         .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
 }
 
-function buildLandingFeatureCardsHtml(cfg = {}) {
-    return resolveLandingFeatureItems(cfg).map((item) => `
-        <div class="feature-card">
-            <div class="feature-icon">
-                <span class="material-symbols-outlined">${escapeHtmlText(item.icon || 'check_circle')}</span>
-            </div>
-            <h3>${escapeHtmlText(item.title || '特色服務')}</h3>
-            <p>${escapeHtmlText(item.desc || '')}</p>
-        </div>
-    `).join('');
-}
-
 function hexToRgb(hex) {
     const normalized = String(hex || '').trim().replace('#', '');
     if (!/^[0-9a-fA-F]{6}$/.test(normalized)) {
@@ -1673,7 +1661,14 @@ function renderLandingTemplate(templateHtml, landingSettings, landingRoomTypes) 
 
     html = replaceElementContentById(html, 'featuresSectionTitle', cfg.landing_features_title);
     html = replaceElementContentById(html, 'featuresSectionSubtitle', cfg.landing_features_subtitle);
-    html = replaceElementContentById(html, 'featuresGrid', buildLandingFeatureCardsHtml(cfg), { allowHtml: true });
+    // SSR 階段先安全回填前 4 張預設卡位，完整動態數量交由前端 JS 渲染
+    const featureItems = resolveLandingFeatureItems(cfg);
+    for (let i = 1; i <= 4; i++) {
+        const item = featureItems[i - 1] || {};
+        html = replaceElementContentById(html, `featureIcon${i}`, item.icon || '');
+        html = replaceElementContentById(html, `featureTitle${i}`, item.title || '');
+        html = replaceElementContentById(html, `featureDesc${i}`, item.desc || '');
+    }
 
     html = replaceElementContentById(html, 'roomsSectionTitle', cfg.landing_rooms_title);
     html = replaceElementContentById(html, 'roomsSectionSubtitle', cfg.landing_rooms_subtitle);
