@@ -6051,8 +6051,11 @@ app.post('/api/email-templates/reset-to-default', requireAuth, checkPermission('
         .info-section-title { font-size: 20px; font-weight: bold; color: #2e7d32; margin: 0 0 15px 0; }
         .rating-section { background: #fff9c4; border: 2px solid #fbc02d; border-radius: 8px; padding: 25px; margin: 25px 0; text-align: center; }
         .rating-stars { font-size: 32px; margin: 15px 0; }
-        .google-review-btn { display: inline-block; background: #1a73e8; color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-size: 17px; font-weight: 700; margin-top: 15px; transition: background 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); letter-spacing: 0.5px; }
-        .google-review-btn:hover { background: #1557b0; box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        .google-review-btn,
+        .google-review-btn:link,
+        .google-review-btn:visited { display: inline-block; background: #1a73e8; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; padding: 14px 28px; border-radius: 6px; text-decoration: none !important; font-size: 17px; font-weight: 700; margin-top: 15px; transition: background 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); letter-spacing: 0.5px; }
+        .google-review-btn:hover,
+        .google-review-btn:active { background: #1557b0; box-shadow: 0 4px 8px rgba(0,0,0,0.3); color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; text-decoration: none !important; }
         
         /* 手機響應式設計 */
         @media only screen and (max-width: 600px) {
@@ -6115,7 +6118,7 @@ app.post('/api/email-templates/reset-to-default', requireAuth, checkPermission('
                 <p style="margin: 0 0 10px 0; font-size: 17px; font-weight: 600; color: #333;">請為我們的服務評分：</p>
                 <div class="rating-stars">⭐⭐⭐⭐⭐</div>
                 {{#if googleReviewUrl}}
-                <a href="{{googleReviewUrl}}" target="_blank" class="google-review-btn">在 Google 上給我們評價</a>
+                <a href="{{googleReviewUrl}}" target="_blank" class="google-review-btn" style="color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-decoration:none !important;">在 Google 上給我們評價</a>
                 {{/if}}
                 <p style="margin: 15px 0 0 0; font-size: 15px; color: #666; line-height: 1.6;">您的評價將幫助其他旅客做出更好的選擇，也讓我們能持續改進服務品質</p>
             </div>
@@ -7051,8 +7054,11 @@ app.get('/api/email-templates/:key/default', requireAuth, checkPermission('email
         .info-section-title { font-size: 20px; font-weight: bold; color: #2e7d32; margin: 0 0 15px 0; }
         .rating-section { background: #fff9c4; border: 2px solid #fbc02d; border-radius: 8px; padding: 25px; margin: 25px 0; text-align: center; }
         .rating-stars { font-size: 32px; margin: 15px 0; }
-        .google-review-btn { display: inline-block; background: #1a73e8; color: white; padding: 14px 28px; border-radius: 6px; text-decoration: none; font-size: 17px; font-weight: 700; margin-top: 15px; transition: background 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); letter-spacing: 0.5px; }
-        .google-review-btn:hover { background: #1557b0; box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+        .google-review-btn,
+        .google-review-btn:link,
+        .google-review-btn:visited { display: inline-block; background: #1a73e8; color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; padding: 14px 28px; border-radius: 6px; text-decoration: none !important; font-size: 17px; font-weight: 700; margin-top: 15px; transition: background 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); letter-spacing: 0.5px; }
+        .google-review-btn:hover,
+        .google-review-btn:active { background: #1557b0; box-shadow: 0 4px 8px rgba(0,0,0,0.3); color: #ffffff !important; -webkit-text-fill-color: #ffffff !important; text-decoration: none !important; }
 
         /* 手機響應式設計 */
         @media only screen and (max-width: 600px) {
@@ -7114,7 +7120,7 @@ app.get('/api/email-templates/:key/default', requireAuth, checkPermission('email
                 <div class="section-title" style="margin-top: 0; margin-bottom: 15px; color: #f57f17; justify-content: center;">您的寶貴意見對我們非常重要！</div>
                 <p style="margin: 0 0 10px 0; font-size: 17px; font-weight: 600; color: #333;">請為我們的服務評分：</p>
                 <div class="rating-stars">⭐⭐⭐⭐⭐</div>
-                <a href="https://www.google.com/maps/place/?q=place_id:YOUR_PLACE_ID" target="_blank" class="google-review-btn">在 Google 上給我們評價</a>
+                <a href="https://www.google.com/maps/place/?q=place_id:YOUR_PLACE_ID" target="_blank" class="google-review-btn" style="color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-decoration:none !important;">在 Google 上給我們評價</a>
                 <p style="margin: 15px 0 0 0; font-size: 15px; color: #666; line-height: 1.6;">您的評價將幫助其他旅客做出更好的選擇，也讓我們能持續改進服務品質</p>
             </div>
             
