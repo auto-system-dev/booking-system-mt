@@ -738,8 +738,8 @@ body {
 .inline-slider-track {
     position: absolute;
     inset: 0;
-    background-color: transparent;
-    border: 1px solid #cfd8e3;
+    background-color: #ccc;
+    border: none;
     border-radius: 26px;
     transition: 0.3s;
 }
@@ -750,19 +750,18 @@ body {
     width: 20px;
     left: 3px;
     bottom: 3px;
-    background-color: #b8c3cf;
+    background-color: #fff;
     border-radius: 50%;
     transition: 0.3s;
     transform: translateX(0);
 }
 
 .inline-slider-switch input:checked + .inline-slider-track {
-    background-color: transparent;
-    border-color: #27ae60;
+    background-color: #27ae60;
 }
 
 .inline-slider-switch input:checked + .inline-slider-track .inline-slider-thumb {
-    background-color: #27ae60;
+    background-color: #fff;
     transform: translateX(24px);
 }
 
