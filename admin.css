@@ -765,6 +765,37 @@ body {
     transform: translateX(24px);
 }
 
+/* 銷售頁管理：Hero 信任文案分區卡片 */
+.landing-trust-item-block {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    background: transparent;
+    padding: 12px 0;
+    margin: 0;
+}
+
+.landing-trust-item-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1f3b57;
+    margin-bottom: 10px;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.landing-trust-item-block .form-group {
+    margin-bottom: 10px;
+}
+
+.landing-trust-item-block .form-group:last-of-type {
+    margin-bottom: 8px;
+}
+
+.landing-trust-item-block:first-of-type {
+    border-top: none;
+    padding-top: 0;
+}
+
 /* 主要按鈕 */
 .btn-primary {
     padding: 10px 20px;
