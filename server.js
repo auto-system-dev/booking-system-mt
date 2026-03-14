@@ -8451,6 +8451,31 @@ function ensureAutoMailNotice(content) {
     return `${content}\n${noticeHtml}`;
 }
 
+function enforceGoogleReviewButtonStyle(content) {
+    if (!content || !/google-review-btn/i.test(content)) {
+        return content;
+    }
+
+    const requiredStyle = 'color:#ffffff !important; -webkit-text-fill-color:#ffffff !important; text-decoration:none !important;';
+
+    return content.replace(
+        /<a([^>]*class=["'][^"']*google-review-btn[^"']*["'][^>]*)>/gi,
+        (match, attrs) => {
+            if (/style\s*=\s*["']/i.test(attrs)) {
+                const merged = attrs.replace(
+                    /style\s*=\s*(['"])([\s\S]*?)\1/i,
+                    (_, quote, styleValue) => {
+                        const base = String(styleValue || '').trim().replace(/;?\s*$/, '; ');
+                        return `style=${quote}${base}${requiredStyle}${quote}`;
+                    }
+                );
+                return `<a${merged}>`;
+            }
+            return `<a${attrs} style="${requiredStyle}">`;
+        }
+    );
+}
+
 // 替換郵件模板中的變數
 async function replaceTemplateVariables(template, booking, bankInfo = null, additionalData = {}) {
     // 確保模板內容存在（支援多種欄位名稱）
@@ -9380,6 +9405,8 @@ ${htmlEnd}`;
         subject = subject.replace(new RegExp(key, 'g'), variables[key]);
     });
     
+    // 保險機制：即使 DB 內是舊模板，也強制 Google 評價按鈕白字
+    content = enforceGoogleReviewButtonStyle(content);
     content = ensureAutoMailNotice(content);
     return { subject, content };
 }
