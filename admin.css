@@ -767,11 +767,11 @@ body {
 
 /* 銷售頁管理：Hero 信任文案分區卡片 */
 .landing-trust-item-block {
-    border: none;
-    border-top: 1px solid #e5e7eb;
-    background: transparent;
-    padding: 12px 0;
-    margin: 0;
+    border: 1px solid #dbe4ee;
+    border-radius: 10px;
+    background: #f8fbff;
+    padding: 12px;
+    margin-bottom: 12px;
 }
 
 .landing-trust-item-title {
@@ -779,8 +779,8 @@ body {
     font-weight: 700;
     color: #1f3b57;
     margin-bottom: 10px;
-    padding-bottom: 0;
-    border-bottom: none;
+    padding-bottom: 8px;
+    border-bottom: 1px dashed #c8d8e8;
 }
 
 .landing-trust-item-block .form-group {
@@ -792,8 +792,7 @@ body {
 }
 
 .landing-trust-item-block:first-of-type {
-    border-top: none;
-    padding-top: 0;
+    margin-top: 0;
 }
 
 /* 主要按鈕 */
