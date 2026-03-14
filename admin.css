@@ -710,6 +710,17 @@ body {
     background: transparent;
 }
 
+/* 覆蓋全域 checkbox label 規則：此開關列維持透明、無外框 */
+.inline-slider-toggle,
+.inline-slider-toggle:has(input[type="checkbox"]:checked),
+.inline-slider-toggle:has(input[type="checkbox"]:not(:checked)),
+.inline-slider-toggle:has(input[type="checkbox"]:hover) {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
 .inline-slider-switch {
     position: relative;
     display: inline-block;
