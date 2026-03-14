@@ -5218,8 +5218,12 @@ async function loadSettings() {
                 settings.booking_notice_enabled === '1' || settings.booking_notice_enabled === 'true';
             document.getElementById('bookingNoticeRequireAgreement').checked =
                 settings.booking_notice_require_agreement === '1' || settings.booking_notice_require_agreement === 'true';
-            document.getElementById('bookingNoticeSummary').value = settings.booking_notice_summary || '';
-            document.getElementById('bookingNoticeContent').value = settings.booking_notice_content || '';
+            document.getElementById('bookingNoticeSummary').value =
+                settings.booking_notice_summary ||
+                '入住時間 15:00 後、退房 11:00 前；全館禁菸；不可攜帶寵物。';
+            document.getElementById('bookingNoticeContent').value =
+                settings.booking_notice_content ||
+                '1. 入住時間為 15:00 後，退房時間為 11:00 前。\n2. 全館禁菸，違者將酌收清潔費。\n3. 室內請降低音量，22:00 後請避免喧嘩。\n4. 若有加床、停車或特殊需求，請於入住前先聯繫客服。';
             document.getElementById('bookingCancellationPolicy').value = settings.booking_cancellation_policy || '1. 入住日 14 天（含）前取消：可全額退款。\n2. 入住日 7-13 天前取消：退還已付金額 70%。\n3. 入住日 3-6 天前取消：退還已付金額 50%。\n4. 入住日前 0-2 天取消或未入住：恕不退款。\n5. 如遇天災等不可抗力因素，依政府公告與業者規範彈性處理。';
             
             // LINE 官方帳號設定
