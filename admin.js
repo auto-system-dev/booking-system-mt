@@ -246,10 +246,22 @@ window.closeEmailTemplateModal = function() {
 // toggleEditorMode 和 toggleEmailPreview 已在檔案前面定義為 window 函數，此處無需佔位符
 
 // 檢查登入狀態
-async function checkAuthStatus() {
+async function checkAuthStatus(options = {}) {
+    const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 5000;
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+        try {
+            abortController.abort();
+        } catch (_e) {
+            // ignore
+        }
+    }, timeoutMs);
+
     try {
         console.log('🔐 檢查登入狀態...');
-        const response = await adminFetch('/api/admin/check-auth');
+        const response = await adminFetch('/api/admin/check-auth', {
+            signal: abortController.signal
+        });
         
         console.log('📡 API 回應狀態:', {
             ok: response?.ok,
@@ -290,8 +302,16 @@ async function checkAuthStatus() {
             return false;
         }
     } catch (error) {
+        if (error?.name === 'AbortError') {
+            console.warn(`⚠️ 檢查登入狀態逾時（>${timeoutMs}ms），先顯示登入頁避免白畫面`);
+            setAdminAuthHint(false);
+            showLoginPage();
+            return false;
+        }
         console.error('❌ 檢查登入狀態錯誤:', error);
         throw error;
+    } finally {
+        clearTimeout(timeoutId);
     }
 }
 
@@ -926,12 +946,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         // 不顯示啟動遮罩，直接根據登入狀態切換畫面
         setBootLoadingVisible(false);
 
-        // 檢查登入狀態（單次判斷）
+        // 檢查登入狀態（單次判斷，逾時即中止請求，避免分頁長時間轉圈）
         console.log('🔐 準備檢查登入狀態...');
-        const authenticated = await Promise.race([
-            checkAuthStatus(),
-            new Promise((resolve) => setTimeout(() => resolve(false), 2200))
-        ]);
+        const authenticated = await checkAuthStatus({ timeoutMs: 2200 });
         if (!authenticated) {
             showLoginPage();
         }
