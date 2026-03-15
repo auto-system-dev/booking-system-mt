@@ -691,6 +691,7 @@ let currentEmailStyle = 'card'; // 當前郵件樣式
 let isSimpleMode = false; // 簡化編輯模式：只編輯文字內容，保護 HTML 結構
 let opsDashboardRangeMode = 'month';
 let kpiHelpHideTimer = null;
+let dashboardRequestSeq = 0;
 
 const kpiHelpContentMap = {
     occupancy: {
@@ -1227,6 +1228,49 @@ function switchRoomTypeTab(tab) {
 
 // 載入儀表板數據
 async function loadDashboard(options = {}) {
+    const requestId = ++dashboardRequestSeq;
+
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    const isLatestRequest = () => requestId === dashboardRequestSeq;
+    const isDashboardAllZero = (data = {}) => {
+        const values = [
+            data.todayCheckIns,
+            data.todayCheckOuts,
+            data.todayTransferOrders,
+            data.todayCardOrders,
+            data.activeBookings,
+            data.reservedBookings,
+            data.cancelledBookings
+        ];
+        return values.every(v => (Number(v) || 0) === 0);
+    };
+
+    const fetchJsonWithRetry = async (url, maxAttempts = 3, baseDelayMs = 600) => {
+        let lastError = null;
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                const response = await adminFetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return await response.json();
+            } catch (error) {
+                lastError = error;
+                const isLastAttempt = attempt === maxAttempts;
+                if (!isLastAttempt) {
+                    const waitMs = baseDelayMs * attempt;
+                    console.warn(`⚠️ ${url} 第 ${attempt} 次載入失敗，${waitMs}ms 後重試:`, error.message || error);
+                    await sleep(waitMs);
+                    if (!isLatestRequest()) {
+                        // 已有新的 loadDashboard 請求，停止舊請求重試
+                        return null;
+                    }
+                }
+            }
+        }
+        throw lastError || new Error(`載入失敗：${url}`);
+    };
+
     try {
         const isCustom = !!options.isCustom;
         const rangeParams = isCustom
@@ -1238,16 +1282,26 @@ async function loadDashboard(options = {}) {
             endDate: rangeParams.endDate
         }).toString();
 
-        const dashboardResponse = await adminFetch('/api/dashboard');
-
-        if (!dashboardResponse.ok) {
-            throw new Error(`HTTP ${dashboardResponse.status}: ${dashboardResponse.statusText}`);
-        }
-
-        const result = await dashboardResponse.json();
+        let result = await fetchJsonWithRetry('/api/dashboard', 3, 700);
+        if (!result || !isLatestRequest()) return;
 
         if (result.success) {
-            const data = result.data || {};
+            let data = result.data || {};
+
+            // 首次載入若全為 0，通常是冷啟動或 Session 剛建立，補打一輪避免誤判
+            if (!options.__zeroBackfillDone && isDashboardAllZero(data)) {
+                try {
+                    await sleep(900);
+                    if (!isLatestRequest()) return;
+                    const retryResult = await fetchJsonWithRetry('/api/dashboard', 2, 800);
+                    if (retryResult && retryResult.success && !isDashboardAllZero(retryResult.data || {})) {
+                        data = retryResult.data || data;
+                        console.log('✅ 儀表板全 0 補查成功，已套用補查資料');
+                    }
+                } catch (retryError) {
+                    console.warn('儀表板全 0 補查失敗，保留首次結果:', retryError.message || retryError);
+                }
+            }
             
             // 更新今日房況
             document.getElementById('todayCheckIns').textContent = data.todayCheckIns || 0;
@@ -1264,11 +1318,8 @@ async function loadDashboard(options = {}) {
 
             // KPI 次要查詢：即使失敗也不影響上方儀表板顯示
             try {
-                const opsResponse = await adminFetch(`/api/dashboard/ops?${opsQuery}`);
-                if (!opsResponse.ok) {
-                    throw new Error(`HTTP ${opsResponse.status}: ${opsResponse.statusText}`);
-                }
-                const opsResult = await opsResponse.json();
+                const opsResult = await fetchJsonWithRetry(`/api/dashboard/ops?${opsQuery}`, 2, 600);
+                if (!opsResult || !isLatestRequest()) return;
 
                 if (opsResult.success && opsResult.data && opsResult.data.kpis) {
                     const kpis = opsResult.data.kpis;
