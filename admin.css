@@ -17,6 +17,15 @@ body {
     overflow-x: hidden;
 }
 
+html, body {
+    width: 100%;
+}
+
+body.login-page-active {
+    overflow: hidden;
+    background: #4ca3e8;
+}
+
 .boot-loading-overlay {
     position: fixed;
     inset: 0;
@@ -916,7 +925,8 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    width: 100%;
+    position: fixed;
+    inset: 0;
     min-height: 100vh;
     min-height: 100dvh;
     background-image: url('Background%20image.jpg');

@@ -319,6 +319,9 @@ async function checkAuthStatus(options = {}) {
 function showLoginPage() {
     const loginPage = document.getElementById('loginPage');
     const adminPage = document.getElementById('adminPage');
+    if (document.body) {
+        document.body.classList.add('login-page-active');
+    }
     
     if (adminPage) {
         adminPage.style.display = 'none';
@@ -399,6 +402,9 @@ function showAdminPage(admin) {
         console.log('🚀 開始顯示管理後台...');
         const loginPage = document.getElementById('loginPage');
         const adminPage = document.getElementById('adminPage');
+        if (document.body) {
+            document.body.classList.remove('login-page-active');
+        }
         
         if (!adminPage) {
             console.error('❌ 找不到 adminPage 元素');
