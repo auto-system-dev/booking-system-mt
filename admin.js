@@ -293,6 +293,7 @@ async function checkAuthStatus() {
         if (result.success && result.authenticated) {
             // 已登入，顯示管理後台
             console.log('✅ 已登入，顯示管理後台');
+            setAdminAuthHint(true);
             showAdminPage(result.admin);
             // 非阻塞預取 CSRF Token，讓後續寫入請求更快
             getCsrfToken().catch(err => {
@@ -301,6 +302,7 @@ async function checkAuthStatus() {
         } else {
             // 未登入，顯示登入頁面
             console.log('ℹ️ 未登入，顯示登入頁面');
+            setAdminAuthHint(false);
             showLoginPage();
         }
     } catch (error) {
@@ -325,6 +327,7 @@ function showLoginPage() {
         loginPage.style.display = 'flex';
         loginPage.style.visibility = 'visible';
     }
+    setAdminAuthHint(false);
 }
 
 function setLoginStatusMessage(message, isError = false) {
@@ -350,6 +353,24 @@ function setLoginStatusMessage(message, isError = false) {
         errorDiv.style.background = '#eef6ff';
         errorDiv.style.border = '1px solid #bcdcff';
         errorDiv.style.color = '#1e4f8f';
+    }
+}
+
+const ADMIN_AUTH_HINT_KEY = 'admin_auth_hint_v1';
+
+function getAdminAuthHint() {
+    try {
+        return localStorage.getItem(ADMIN_AUTH_HINT_KEY) === '1';
+    } catch (_e) {
+        return false;
+    }
+}
+
+function setAdminAuthHint(isAuthenticated) {
+    try {
+        localStorage.setItem(ADMIN_AUTH_HINT_KEY, isAuthenticated ? '1' : '0');
+    } catch (_e) {
+        // 忽略 localStorage 受限情況
     }
 }
 
@@ -388,6 +409,7 @@ function showAdminPage(admin) {
             loginPage.style.opacity = '0';
             console.log('✅ 登入頁面已隱藏');
         }
+        setAdminAuthHint(true);
         
         // 強制移除所有內聯樣式並設置顯示
         adminPage.removeAttribute('style');
@@ -531,6 +553,7 @@ async function handleLogout() {
         const result = await response.json();
         
         if (result.success) {
+            setAdminAuthHint(false);
             showLoginPage();
             // 清除表單
             const loginForm = document.getElementById('loginForm');
@@ -613,6 +636,7 @@ function handleUnauthorizedSession() {
         console.warn('⚠️ 偵測到 401，登入已過期，切回登入頁');
         lastUnauthorizedHandledAt = now;
     }
+    setAdminAuthHint(false);
     showLoginPage();
 }
 
@@ -911,8 +935,14 @@ document.addEventListener('DOMContentLoaded', async function() {
             adminPageDisplay: adminPage ? window.getComputedStyle(adminPage).display : 'N/A'
         });
 
-        // 先顯示啟動載入層，避免先閃登入頁再切後台
-        setBootLoadingVisible(true, '正在檢查登入狀態...');
+        // 未登入：直接顯示登入頁；已登入：直接顯示載入中
+        const authHint = getAdminAuthHint();
+        if (authHint) {
+            setBootLoadingVisible(true, '正在檢查登入狀態...');
+        } else {
+            showLoginPage();
+            setBootLoadingVisible(false);
+        }
         
         // 檢查登入狀態（含冷啟動提示與自動重試）
         console.log('🔐 準備檢查登入狀態...');
@@ -930,7 +960,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 }
             } catch (err) {
                 console.warn(`⚠️ checkAuthStatus 第 ${attempt} 次失敗:`, err?.message || err);
-                if (attempt === 1) {
+                if (attempt === 1 && authHint) {
                     setBootLoadingVisible(true, '服務喚醒中，正在嘗試連線...');
                 }
             }
