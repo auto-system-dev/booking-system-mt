@@ -733,6 +733,7 @@ body {
     color: #1f2937;
     line-height: 1.8;
     white-space: pre-line;
+    text-align: left;
 }
 
 .booking-notice-subtitle {
@@ -740,6 +741,30 @@ body {
     color: #374151;
     font-weight: 700;
     margin-bottom: 8px;
+}
+
+@media (max-width: 768px) {
+    /* 手機上改為整個彈窗可滑動，避免內容卡住 */
+    #bookingNoticeModal {
+        align-items: flex-start;
+        overflow-y: auto;
+        padding: 12px 0;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #bookingNoticeModal .booking-notice-dialog {
+        width: min(92%, 620px);
+        max-height: calc(100vh - 24px);
+        overflow-y: auto;
+        margin: 0 auto;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
+    }
+
+    #bookingNoticeModal .booking-notice-content {
+        max-height: none;
+        overflow: visible;
+    }
 }
 
 /* 成功訊息 */
@@ -776,6 +801,10 @@ body {
     width: 90%;
     text-align: center;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+
+.modal-dialog.booking-notice-dialog {
+    text-align: left;
 }
 
 .modal-icon {
