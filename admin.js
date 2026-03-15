@@ -4952,7 +4952,7 @@ async function saveHotelInfoSettings() {
         
         const allSuccess = results.every(r => r.success);
         if (allSuccess) {
-            showSuccess('民宿資訊已儲存');
+            showSuccess('旅宿資訊已儲存');
         } else {
             const errorMsg = results.find(r => !r.success)?.message || '請稍後再試';
             showError('儲存失敗：' + errorMsg);
@@ -10665,7 +10665,7 @@ async function loadLandingSettings() {
             }
             // 載入房型展示（從房型管理 + settings 合併）
             loadLandingRoomTypes(data);
-            // 還原民宿設施勾選
+            // 還原旅宿設施勾選
             if (data['landing_facilities']) {
                 const facilitiesInput = document.getElementById('landingFacilities');
                 if (facilitiesInput) {
@@ -11307,7 +11307,7 @@ async function loadLandingRoomTypes(landingData) {
             return;
         }
 
-        // checkbox 清單 HTML（僅床型 + 衛浴，空間/電器/其他已移到「民宿設施」分頁）
+        // checkbox 清單 HTML（僅床型 + 衛浴，空間/電器/其他已移到「旅宿設施」分頁）
         const checkboxGridHTML = (roomId) => `
             <input type="hidden" id="landingRoomFeatures_${roomId}" value="">
             <div class="room-features-checkbox-grid" data-target="landingRoomFeatures_${roomId}" onchange="syncFeatureCheckboxes(this)">
@@ -11442,7 +11442,7 @@ async function saveLandingRoomFeatures(silent = false) {
     }
 }
 
-// 儲存民宿設施設定
+// 儲存旅宿設施設定
 async function saveLandingFacilities(silent = false) {
     const hiddenInput = document.getElementById('landingFacilities');
     if (!hiddenInput) return false;
@@ -11451,17 +11451,17 @@ async function saveLandingFacilities(silent = false) {
         const response = await adminFetch('/api/admin/settings/landing_facilities', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ value: hiddenInput.value, description: '銷售頁-民宿設施' })
+            body: JSON.stringify({ value: hiddenInput.value, description: '銷售頁-旅宿設施' })
         });
         const result = await response.json();
         if (!result.success) {
             if (!silent) showError('儲存失敗：' + (result.message || ''));
             return false;
         }
-        if (!silent) showSuccess('民宿設施已儲存');
+        if (!silent) showSuccess('旅宿設施已儲存');
         return true;
     } catch (error) {
-        console.error('❌ 儲存民宿設施錯誤:', error);
+        console.error('❌ 儲存旅宿設施錯誤:', error);
         if (!silent) showError('儲存失敗：' + error.message);
         return false;
     }
@@ -11548,10 +11548,10 @@ async function saveLandingSettings(tab) {
             {
                 const facilitiesSaved = await saveLandingFacilities(true);
                 if (facilitiesSaved) {
-                    showSuccess('民宿設施已儲存');
+                    showSuccess('旅宿設施已儲存');
                     setTimeout(() => loadLandingSettings(), 300);
                 } else {
-                    showError('儲存失敗：請檢查民宿設施設定');
+                    showError('儲存失敗：請檢查旅宿設施設定');
                 }
             }
             return;
@@ -11597,7 +11597,7 @@ async function saveLandingSettings(tab) {
 
     try {
         const descMap = {
-            landing_name: '銷售頁-民宿名稱',
+            landing_name: '銷售頁-旅宿名稱',
             landing_title: '銷售頁-主標題',
             landing_subtitle: '銷售頁-副標題',
             landing_badge: '銷售頁-醒目標籤',

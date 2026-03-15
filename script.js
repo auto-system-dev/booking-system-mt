@@ -85,7 +85,7 @@ function trackInitiateCheckout() {
     if (typeof fbq !== 'undefined') {
         fbq('track', 'InitiateCheckout', {
             content_name: '訂房頁面',
-            content_category: '民宿訂房'
+            content_category: '旅宿訂房'
         });
         console.log('FB Pixel: InitiateCheckout event tracked');
     }
@@ -138,7 +138,7 @@ function trackSubmitApplication() {
     if (typeof fbq !== 'undefined') {
         fbq('track', 'SubmitApplication', {
             content_name: '訂房表單提交',
-            content_category: '民宿訂房'
+            content_category: '旅宿訂房'
         });
         console.log('FB Pixel: SubmitApplication event tracked');
     }

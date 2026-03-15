@@ -981,31 +981,31 @@
                 <div class="settings-container">
                     <!-- 基本設定分頁 -->
                     <div id="settingsTabBasicContent" class="tab-content active">
-                        <!-- 民宿資訊區塊 -->
+                        <!-- 旅宿資訊區塊 -->
                         <div style="margin-top: 0;">
                             <div style="display: flex; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #3498db;">
                                 <span class="material-symbols-outlined" style="font-size: 24px; color: #3498db; margin-right: 10px;">hotel</span>
-                                <h3 style="margin: 0; color: #2c3e50;">民宿資訊</h3>
+                                <h3 style="margin: 0; color: #2c3e50;">旅宿資訊</h3>
                             </div>
                             
                             <div class="settings-card" style="margin-top: 0;">
                                 <div class="form-group">
-                                    <label>民宿名稱</label>
-                                    <input type="text" id="hotelName" placeholder="例如：XX民宿">
-                                    <small>民宿名稱</small>
+                                    <label>旅宿名稱</label>
+                                    <input type="text" id="hotelName" placeholder="例如：XX旅宿">
+                                    <small>旅宿名稱</small>
                                 </div>
                                 <div class="form-group">
-                                    <label>民宿電話</label>
+                                    <label>旅宿電話</label>
                                     <input type="text" id="hotelPhone" placeholder="例如：02-1234-5678">
                                     <small>聯絡電話</small>
                                 </div>
                                 <div class="form-group">
-                                    <label>民宿地址</label>
+                                    <label>旅宿地址</label>
                                     <input type="text" id="hotelAddress" placeholder="例如：台北市信義區信義路五段7號">
                                     <small>完整地址</small>
                                 </div>
                                 <div class="form-group">
-                                    <label>民宿信箱</label>
+                                    <label>旅宿信箱</label>
                                     <input type="email" id="hotelEmail" placeholder="例如：service@hotel.com">
                                     <small>聯絡信箱</small>
                                 </div>
@@ -1199,7 +1199,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label>寄件顯示名稱</label>
-                                    <input type="text" id="resendSenderName" placeholder="例如：XX民宿">
+                                    <input type="text" id="resendSenderName" placeholder="例如：XX旅宿">
                                     <small>收件者看到的寄件人名稱</small>
                                 </div>
                                 <div style="display: flex; gap: 10px;">
@@ -1550,7 +1550,7 @@
                     </button>
                     <button class="tab-button" onclick="switchLandingTab('facilities')" id="landingTabFacilities">
                         <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">apartment</span>
-                        民宿設施
+                        旅宿設施
                     </button>
                     <button class="tab-button" onclick="switchLandingTab('reviews')" id="landingTabReviews">
                         <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">reviews</span>
@@ -1580,12 +1580,12 @@
                             </div>
                             <div class="settings-card" style="margin-top: 0;">
                                 <div class="form-group">
-                                    <label>民宿名稱</label>
-                                    <input type="text" id="landingName" placeholder="例如：XX民宿">
+                                    <label>旅宿名稱</label>
+                                    <input type="text" id="landingName" placeholder="例如：XX旅宿">
                                     <small>顯示在導航列和頁尾的品牌名稱</small>
                                 </div>
                                 <div class="form-group">
-                                    <label>Logo 圖片（顯示在民宿名稱前）</label>
+                                    <label>Logo 圖片（顯示在旅宿名稱前）</label>
                                     <input type="hidden" id="landingNavLogo" value="">
                                     <div id="landingNavLogoUploadArea" onclick="document.getElementById('landingNavLogoInput').click()" style="border: 2px dashed #d0d7de; border-radius: 8px; padding: 16px; text-align: center; cursor: pointer; background: #fafbfc;">
                                         <div id="landingNavLogoPreview">
@@ -1833,7 +1833,7 @@
                         </div>
                         <div style="background-color: #d1fae5; padding: 12px; border-radius: 8px; margin-bottom: 20px;">
                             <p style="margin: 0; color: #059669; font-size: 14px;">
-                                <strong>💡 提示：</strong>房型名稱、圖片、價格自動從「房型管理」同步。此處設定各房型的<strong>床型、衛浴</strong>和<strong>標籤</strong>。空間/電器/其他服務請到「民宿設施」分頁設定。
+                                <strong>💡 提示：</strong>房型名稱、圖片、價格自動從「房型管理」同步。此處設定各房型的<strong>床型、衛浴</strong>和<strong>標籤</strong>。空間/電器/其他服務請到「旅宿設施」分頁設定。
                             </p>
                         </div>
                         <div id="landingRoomsContainer">
@@ -1848,15 +1848,15 @@
                         </button>
                     </div>
 
-                    <!-- 民宿設施分頁 -->
+                    <!-- 旅宿設施分頁 -->
                     <div id="landingTabFacilitiesContent" class="tab-content">
                         <div style="display: flex; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #8b5cf6;">
                             <span class="material-symbols-outlined" style="font-size: 24px; color: #8b5cf6; margin-right: 10px;">apartment</span>
-                            <h3 style="margin: 0; color: #2c3e50;">民宿設施設定</h3>
+                            <h3 style="margin: 0; color: #2c3e50;">旅宿設施設定</h3>
                         </div>
                         <div style="background-color: #ede9fe; padding: 12px; border-radius: 8px; margin-bottom: 20px;">
                             <p style="margin: 0; color: #6d28d9; font-size: 14px;">
-                                <strong>💡 提示：</strong>勾選的設施會顯示在銷售頁的「完善設施」區塊，適用於整間民宿（非個別房型）。
+                                <strong>💡 提示：</strong>勾選的設施會顯示在銷售頁的「完善設施」區塊，適用於整間旅宿（非個別房型）。
                             </p>
                         </div>
                         <input type="hidden" id="landingFacilities" value="">
@@ -1888,7 +1888,7 @@
                         </div>
                         <button class="btn-save" onclick="saveLandingSettings('facilities')" style="margin-top: 20px;">
                             <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: 5px;">save</span>
-                            儲存民宿設施
+                            儲存旅宿設施
                         </button>
                     </div>
 
@@ -2064,7 +2064,7 @@
                             <div class="settings-card" style="margin-top: 0;">
                                 <div class="form-group">
                                     <label>頁面標題（Title）</label>
-                                    <input type="text" id="landingSeoTitle" placeholder="例如：XX民宿 | 遠離塵囂的完美假期">
+                                    <input type="text" id="landingSeoTitle" placeholder="例如：XX旅宿 | 遠離塵囂的完美假期">
                                     <small>顯示在瀏覽器分頁和搜尋引擎結果</small>
                                 </div>
                                 <div class="form-group">

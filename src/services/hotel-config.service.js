@@ -4,7 +4,7 @@ function createHotelConfigService(deps) {
     } = deps;
 
     const DEFAULT_HOTEL_SETTINGS = {
-        name: 'XX民宿',
+        name: 'XX旅宿',
         phone: '02-1234-5678',
         address: '台北市信義區信義路五段7號',
         email: 'service@hotel.com'

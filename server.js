@@ -1671,23 +1671,23 @@ function renderLandingTemplate(templateHtml, landingSettings, landingRoomTypes) 
     let html = templateHtml;
     const cfg = landingSettings || {};
     const landingName = cfg.landing_name || '';
-    const seoTitle = cfg.landing_seo_title || landingName || '民宿銷售頁';
+    const seoTitle = cfg.landing_seo_title || landingName || '旅宿銷售頁';
 
     html = replaceElementContentById(html, 'pageTitle', seoTitle);
     html = replaceElementContentById(html, 'navLogoText', landingName);
     if (cfg.landing_nav_logo) {
         html = replaceAttrById(html, 'navLogoImage', 'src', cfg.landing_nav_logo);
         html = html.replace(
-            /<img id="navLogoImage" class="nav-logo-image" src="" alt="民宿 Logo" style="display: none;">/,
-            `<img id="navLogoImage" class="nav-logo-image" src="${escapeHtmlAttr(cfg.landing_nav_logo)}" alt="民宿 Logo">`
+            /<img id="navLogoImage" class="nav-logo-image" src="" alt="旅宿 Logo" style="display: none;">/,
+            `<img id="navLogoImage" class="nav-logo-image" src="${escapeHtmlAttr(cfg.landing_nav_logo)}" alt="旅宿 Logo">`
         );
     }
     html = replaceElementContentById(html, 'footerBrandText', landingName);
     if (cfg.landing_nav_logo) {
         html = replaceAttrById(html, 'footerLogoImage', 'src', cfg.landing_nav_logo);
         html = html.replace(
-            /<img id="footerLogoImage" class="footer-logo-image" src="" alt="民宿 Logo" style="display: none;">/,
-            `<img id="footerLogoImage" class="footer-logo-image" src="${escapeHtmlAttr(cfg.landing_nav_logo)}" alt="民宿 Logo">`
+            /<img id="footerLogoImage" class="footer-logo-image" src="" alt="旅宿 Logo" style="display: none;">/,
+            `<img id="footerLogoImage" class="footer-logo-image" src="${escapeHtmlAttr(cfg.landing_nav_logo)}" alt="旅宿 Logo">`
         );
     }
 

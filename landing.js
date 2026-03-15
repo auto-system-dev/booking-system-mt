@@ -1,5 +1,5 @@
 /**
- * 悠然山居民宿 - 銷售頁腳本
+ * 悠然山居旅宿 - 銷售頁腳本
  * 從後台 API 動態載入設定，包含 Facebook 像素追蹤、倒數計時、導航互動等功能
  */
 
@@ -236,7 +236,7 @@ async function applyConfig(cfg) {
     setText('roomsSectionSubtitle', cfg.landing_rooms_subtitle);
     renderRoomCards(cfg);
 
-    // ===== 民宿設施 =====
+    // ===== 旅宿設施 =====
     renderAmenities(cfg);
     renderFacilityGallery(cfg);
 
@@ -473,14 +473,14 @@ const featureIconMap = {
     '無障礙設施': 'accessible', '機場接送': 'airport_shuttle'
 };
 
-// 民宿設施項目（不應顯示在個別房型卡片中）
+// 旅宿設施項目（不應顯示在個別房型卡片中）
 const propertyFacilities = new Set([
     '客廳空間', '小廚房', '和室空間', '庭院',
     '免費 WiFi', '冷暖空調', '智慧電視', '冰箱', '咖啡機', '電熱水壺', '吹風機', '洗衣機', '微波爐',
     '免費早餐', '免費停車', '寵物友善', '保險箱', '行李寄放', '嬰兒床', '無障礙設施', '機場接送'
 ]);
 
-// 將逗號分隔的設施字串轉為帶圖示的 HTML（自動過濾掉民宿設施）
+// 將逗號分隔的設施字串轉為帶圖示的 HTML（自動過濾掉旅宿設施）
 function buildFeatureHTML(featuresStr) {
     if (!featuresStr || !featuresStr.trim()) return '';
     return featuresStr.split(',')
@@ -493,7 +493,7 @@ function buildFeatureHTML(featuresStr) {
         .join('');
 }
 
-// ===== 動態生成民宿設施區塊 =====
+// ===== 動態生成旅宿設施區塊 =====
 function renderAmenities(cfg) {
     const grid = document.getElementById('amenitiesGrid');
     if (!grid) return;
@@ -801,7 +801,7 @@ function trackBookingClick() {
     if (typeof fbq !== 'undefined') {
         fbq('track', 'Lead', {
             content_name: '銷售頁 - 點擊訂房按鈕',
-            content_category: '民宿訂房'
+            content_category: '旅宿訂房'
         });
         console.log('FB Pixel: Lead event tracked');
     }
@@ -834,7 +834,7 @@ function trackInitiateCheckout() {
     if (typeof fbq !== 'undefined') {
         fbq('track', 'InitiateCheckout', {
             content_name: '銷售頁 - 最終 CTA',
-            content_category: '民宿訂房',
+            content_category: '旅宿訂房',
             num_items: 1
         });
         console.log('FB Pixel: InitiateCheckout event tracked');
