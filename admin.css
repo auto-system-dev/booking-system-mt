@@ -14,6 +14,7 @@ body {
     font-family: 'Noto Sans TC', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: #f5f5f5;
     color: #333;
+    overflow-x: hidden;
 }
 
 .boot-loading-overlay {
@@ -915,12 +916,15 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
+    width: 100%;
     min-height: 100vh;
+    min-height: 100dvh;
     background-image: url('Background%20image.jpg');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
-    background-attachment: fixed;
+    background-color: #4ca3e8;
+    background-attachment: scroll;
     padding: 20px;
 }
 
