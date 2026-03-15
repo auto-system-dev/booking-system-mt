@@ -120,27 +120,10 @@ if (typeof window !== 'undefined') {
 
                 const adminPage = document.getElementById('adminPage');
                 const isAdminVisible = adminPage && window.getComputedStyle(adminPage).display !== 'none';
-                if (isAdminVisible) {
-                    console.log('📊 認證確認完成，開始載入資料...');
-                    const loadPromises = [];
-                    if (typeof loadBookings === 'function') {
-                        loadPromises.push(loadBookings().catch(err => {
-                            console.error('❌ 載入訂房記錄失敗:', err);
-                        }));
-                    }
-                    if (typeof loadStatistics === 'function') {
-                        loadPromises.push(loadStatistics().catch(err => {
-                            console.error('❌ 載入統計資料失敗:', err);
-                        }));
-                    }
-
-                    Promise.all(loadPromises).then(() => {
-                        console.log('✅ 資料載入完成');
-                    }).catch(err => {
-                        console.error('❌ 資料載入過程中有錯誤:', err);
-                    });
-                } else {
+                if (!isAdminVisible) {
                     console.warn('⚠️ 登入後認證檢查未通過，維持登入頁面');
+                } else {
+                    console.log('✅ 認證確認完成，已切換後台畫面');
                 }
             } else {
                 // 登入失敗
@@ -507,6 +490,11 @@ function showAdminPage(admin) {
         
         // 立即載入初始資料（不等待，讓頁面先顯示）
         const loadPromises = [];
+        if (typeof loadDashboard === 'function') {
+            loadPromises.push(loadDashboard().catch(err => {
+                console.error('❌ 載入儀表板失敗:', err);
+            }));
+        }
         if (typeof loadBookings === 'function') {
             loadPromises.push(loadBookings().catch(err => {
                 console.error('❌ 載入訂房記錄失敗:', err);
