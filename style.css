@@ -741,6 +741,7 @@ body {
     color: #374151;
     font-weight: 700;
     margin-bottom: 8px;
+    text-align: center;
 }
 
 @media (max-width: 768px) {
