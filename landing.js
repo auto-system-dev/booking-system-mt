@@ -503,6 +503,8 @@ function buildFeatureHTML(featuresStr) {
 }
 
 // ===== 動態生成旅宿設施區塊 =====
+const hiddenAmenities = new Set(['電熱水壺', '吹風機']);
+
 function renderAmenities(cfg) {
     const grid = document.getElementById('amenitiesGrid');
     if (!grid) return;
@@ -515,7 +517,15 @@ function renderAmenities(cfg) {
         return;
     }
 
-    const items = facilitiesStr.split(',').map(f => f.trim()).filter(f => f.length > 0);
+    const items = facilitiesStr
+        .split(',')
+        .map(f => f.trim())
+        .filter(f => f.length > 0 && !hiddenAmenities.has(f));
+    if (!items.length) {
+        const section = document.getElementById('amenities');
+        if (section) section.style.display = 'none';
+        return;
+    }
     grid.innerHTML = items.map(name => {
         const icon = featureIconMap[name] || 'check_circle';
         return `<div class="amenity-item">
