@@ -3889,11 +3889,6 @@ function showRoomTypeModal(room) {
                 <input type="number" name="display_order" value="${isEdit ? room.display_order : 0}" min="0" step="1">
             </div>
             <div class="form-group">
-                <label>銷售頁顯示</label>
-                <input type="hidden" name="show_on_landing" value="${isEdit ? (room.show_on_landing === 1 ? 1 : 0) : 1}">
-                <small>請改到「銷售頁管理 → 房型展示設定」中的「銷售頁啟用」滑動開關設定。</small>
-            </div>
-            <div class="form-group">
                 <label>狀態</label>
                 <select name="is_active" required>
                     <option value="1" ${isEdit && room.is_active === 1 ? 'selected' : ''}>啟用</option>
@@ -4094,6 +4089,7 @@ async function saveRoomType(event, id) {
     event.preventDefault();
     
     const formData = new FormData(event.target);
+    const editingRoom = id ? allRoomTypes.find(r => Number(r.id) === Number(id)) : null;
     const data = {
         name: formData.get('name'),
         display_name: formData.get('display_name'),
@@ -4104,7 +4100,7 @@ async function saveRoomType(event, id) {
         extra_beds: parseInt(formData.get('extra_beds')) || 0,
         icon: formData.get('icon') || '🏠',
         image_url: formData.get('image_url') || null,
-        show_on_landing: Number(formData.get('show_on_landing')) === 1 ? 1 : 0,
+        show_on_landing: editingRoom ? (Number(editingRoom.show_on_landing) === 1 ? 1 : 0) : 1,
         display_order: parseInt(formData.get('display_order')) || 0,
         is_active: parseInt(formData.get('is_active'))
     };
