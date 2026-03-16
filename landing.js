@@ -464,7 +464,7 @@ const featureIconMap = {
     '獨立衛浴': 'bathtub', '共用衛浴': 'shower', '浴缸': 'bathtub',
     '淋浴設備': 'shower', '免治馬桶': 'wash', '私人湯池': 'hot_tub',
     '私人陽台': 'balcony', '客廳空間': 'living', '小廚房': 'countertops',
-    '和室空間': 'floor', '兒童遊戲區': 'toys', '餐廳空間': 'restaurant',
+    '和室空間': 'floor', 'Mini Bar': 'local_bar', '兒童遊戲區': 'toys', '餐廳空間': 'restaurant',
     '庭院': 'yard', '山景視野': 'landscape',
     '海景視野': 'water', '庭園景觀': 'park',
     '免費 WiFi': 'wifi', '冷暖空調': 'ac_unit', '智慧電視': 'tv',
@@ -484,7 +484,7 @@ const featureIconMap = {
 
 // 旅宿設施項目（不應顯示在個別房型卡片中）
 const propertyFacilities = new Set([
-    '客廳空間', '小廚房', '和室空間', '兒童遊戲區', '餐廳空間', '庭院',
+    '客廳空間', '小廚房', '和室空間', 'Mini Bar', '兒童遊戲區', '餐廳空間', '庭院',
     '飲水機', '自動販賣機', '電動車充電設備', '洗衣機', '微波爐',
     '免費早餐', '免費停車', '寵物友善', '保險箱', '行李寄放', '嬰兒床', '嬰兒澡盆', '電梯', '燒烤設備', '卡拉OK', '麻將桌', '電動麻將桌', '桌遊', '廚房用具', '無障礙設施', '機場接送'
 ]);
