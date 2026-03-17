@@ -116,6 +116,7 @@ body {
 }
 
 .nights-display {
+    display: none;
     text-align: center;
     padding: 12px;
     background: #f5f5f5;
@@ -124,6 +125,10 @@ body {
     color: #333;
     font-weight: 600;
     margin-top: 10px;
+}
+
+.nights-display:not(:empty) {
+    display: block;
 }
 .date-range-info {
     text-align: center;
