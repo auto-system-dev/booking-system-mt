@@ -406,7 +406,15 @@ function updateRoomSelectButtons() {
         const btn = optionEl.querySelector('.room-select-btn');
         if (!radio || !btn) return;
 
+        if (radio.disabled) {
+            btn.classList.remove('is-selected');
+            btn.classList.add('is-unavailable');
+            btn.textContent = '滿房';
+            return;
+        }
+
         const selected = !!radio.checked;
+        btn.classList.remove('is-unavailable');
         btn.classList.toggle('is-selected', selected);
         btn.textContent = selected ? '已選取' : '選取房型';
     });
@@ -708,6 +716,10 @@ async function renderRoomTypes() {
             name: displayName,
             images: galleryImages
         };
+
+        const selectBtnText = isUnavailable ? '滿房' : '選取房型';
+        const selectBtnClass = isUnavailable ? 'room-select-btn is-unavailable' : 'room-select-btn';
+        const selectBtnAction = isUnavailable ? '' : `onclick='selectRoomTypeByName(event, ${JSON.stringify(room.name)})'`;
         
         return `
         <div class="${roomOptionClass}" 
@@ -719,15 +731,16 @@ async function renderRoomTypes() {
              data-extra-beds="${room.extra_beds != null ? room.extra_beds : 0}">
             <input type="radio" id="room-${room.name}" name="roomType" value="${room.name}" ${disabledAttr}>
             <label for="room-${room.name}">
+                <div class="room-name">${escapeRoomText(displayName)}</div>
                 <div class="room-card-layout">
                     <div class="room-card-left">
-                        <div class="room-name">${escapeRoomText(displayName)}</div>
                         ${room.image_url 
                             ? `<div class="room-icon room-icon-image">
                                 <img src="${room.image_url}" alt="${escapeRoomText(displayName)}" loading="lazy" ${galleryImages.length > 0 ? `onclick="openRoomGallery(event, '${roomId}')"` : ''}>
                                 ${galleryImages.length > 1 ? `<span class="room-gallery-hint"><span class="material-symbols-outlined">photo_library</span> ${galleryImages.length} 張照片</span>` : ''}
                             </div>` 
                             : `<div class="room-icon">${room.icon || '🏠'}</div>`}
+                        ${includedItems.length > 0 ? `<div class="room-meta-item room-meta-item-included room-meta-item-under-photo"><strong>方案包含：</strong>${escapeRoomText(includedItems.join('、'))}</div>` : ''}
                     </div>
                     <div class="room-card-right">
                         <div class="room-basic-info">
@@ -738,13 +751,12 @@ async function renderRoomTypes() {
                         ${roomFacilities.length > 0
                             ? `<div class="room-meta-item room-meta-item-facilities"><strong>房型設施：</strong></div><div id="roomFacilitiesBlock-${roomId}" class="room-facilities-block">${buildRoomFacilitiesBlock(roomId)}</div>`
                             : ''}
-                        ${includedItems.length > 0 ? `<div class="room-meta-item room-meta-item-included"><strong>方案包含：</strong>${escapeRoomText(includedItems.join('、'))}</div>` : ''}
                         <div class="room-card-bottom">
                             <div class="room-price ${isUnavailable ? 'unavailable-price' : ''}">
                                 ${priceDisplay}
                             </div>
                             <div class="room-option-actions">
-                                <button type="button" class="room-select-btn" onclick='selectRoomTypeByName(event, ${JSON.stringify(room.name)})'>選取房型</button>
+                                <button type="button" class="${selectBtnClass}" ${selectBtnAction}>${selectBtnText}</button>
                             </div>
                         </div>
                     </div>
