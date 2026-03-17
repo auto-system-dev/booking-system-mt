@@ -728,13 +728,13 @@ async function renderRoomTypes() {
                                 ${galleryImages.length > 1 ? `<span class="room-gallery-hint"><span class="material-symbols-outlined">photo_library</span> ${galleryImages.length} 張照片</span>` : ''}
                             </div>` 
                             : `<div class="room-icon">${room.icon || '🏠'}</div>`}
+                    </div>
+                    <div class="room-card-right">
                         <div class="room-basic-info">
                             <div class="room-meta-item"><strong>床型：</strong>${escapeRoomText(bedConfig || '依現場安排')}</div>
                             <div class="room-meta-item"><strong>入住人數：</strong>${maxOccupancy} 人</div>
                             <div class="room-meta-item"><strong>可加床數：</strong>${extraBeds} 人</div>
                         </div>
-                    </div>
-                    <div class="room-card-right">
                         ${roomFacilities.length > 0
                             ? `<div class="room-meta-item room-meta-item-facilities"><strong>房型設施：</strong></div><div id="roomFacilitiesBlock-${roomId}" class="room-facilities-block">${buildRoomFacilitiesBlock(roomId)}</div>`
                             : ''}
