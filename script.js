@@ -1389,7 +1389,7 @@ async function calculatePrice() {
     const roomSelections = getSelectedRoomSelections();
     const roomsCount = getTotalSelectedRoomCount() || getRoomCount();
     if (roomSelections.length === 0) {
-        updatePriceDisplay(0, 0, 0, 0, 'deposit', 0, 0, null, 0, 0, 0, roomsCount);
+        updatePriceDisplay(0, 0, 0, 0, 'deposit', 0, 0, null, 0, 0, 0, roomsCount, []);
         return;
     }
 
@@ -1444,7 +1444,7 @@ async function calculatePrice() {
         const paymentType = paymentAmount === 'deposit' ? depositRate : 1;
         const finalAmount = totalAmount * paymentType;
         
-        updatePriceDisplay(pricePerNight, nights, originalTotal, totalDiscount, paymentAmount, finalAmount, addonsTotal, null, memberDiscountAmount, ebDiscountAmount, promoDiscountAmount, roomsCount);
+        updatePriceDisplay(pricePerNight, nights, originalTotal, totalDiscount, paymentAmount, finalAmount, addonsTotal, null, memberDiscountAmount, ebDiscountAmount, promoDiscountAmount, roomsCount, roomSelections);
     }
     
     if (!checkInDate || !checkOutDate) {
@@ -1684,14 +1684,22 @@ function calculatePromoCodeDiscount(promoCode, totalAmount) {
 }
 
 // 更新價格顯示
-function updatePriceDisplay(pricePerNight, nights, totalAmount, discountAmount = 0, paymentType, finalAmount = 0, addonsTotal = 0, depositPercent = null, memberAmount = 0, earlyBirdAmount = 0, promoAmount = 0, roomsCount = 1) {
+function updatePriceDisplay(pricePerNight, nights, totalAmount, discountAmount = 0, paymentType, finalAmount = 0, addonsTotal = 0, depositPercent = null, memberAmount = 0, earlyBirdAmount = 0, promoAmount = 0, roomsCount = 1, roomSelections = []) {
     // 如果沒有提供 depositPercent，使用全域變數
     if (depositPercent === null) {
         depositPercent = depositPercentage;
     }
     
+    const normalizedSelections = Array.isArray(roomSelections)
+        ? roomSelections.filter((room) => room && Number(room.quantity || 0) > 0)
+        : [];
     const roomUnitText = roomsCount > 1 ? ` x ${roomsCount} 間` : '';
-    document.getElementById('roomPricePerNight').textContent = `NT$ ${pricePerNight.toLocaleString()}${roomUnitText}`;
+    const roomPriceText = normalizedSelections.length > 1
+        ? normalizedSelections
+            .map((room) => `NT$ ${Number(room.price || 0).toLocaleString()} x ${Number(room.quantity || 0)} 間`)
+            .join(' + ')
+        : `NT$ ${pricePerNight.toLocaleString()}${roomUnitText}`;
+    document.getElementById('roomPricePerNight').textContent = roomPriceText;
     document.getElementById('nightsCount').textContent = roomsCount > 1 ? `${nights} 晚 x ${roomsCount} 間` : `${nights} 晚`;
     
     // 顯示總金額（包含折扣明細）
