@@ -3922,6 +3922,11 @@ function showRoomTypeModal(room) {
                 <small>最多可加床人數</small>
             </div>
             <div class="form-group">
+                <label>加床費用（每人）</label>
+                <input type="number" name="extra_bed_price" value="${isEdit ? (room.extra_bed_price ?? 0) : 0}" min="0" step="1" required>
+                <small>此房型每加 1 床（人）加收金額</small>
+            </div>
+            <div class="form-group">
                 <label>床型設定</label>
                 <input type="text" name="bed_config" value="${isEdit ? escapeHtml(room.bed_config || '') : ''}" placeholder="例如：雙人床*1, 單人床*2">
                 <small>支援自由文字，建議格式：床型*數量（例如：雙人床*1, 單人床*2）</small>
@@ -4206,6 +4211,7 @@ async function saveRoomType(event, id) {
         holiday_surcharge: parseInt(formData.get('holiday_surcharge')) || 0,
         max_occupancy: parseInt(formData.get('max_occupancy')) || 0,
         extra_beds: parseInt(formData.get('extra_beds')) || 0,
+        extra_bed_price: parseInt(formData.get('extra_bed_price')) || 0,
         bed_config: (formData.get('bed_config') || '').trim(),
         booking_badge: (formData.get('booking_badge') || '').trim(),
         included_items: (formData.get('included_items') || '').trim(),

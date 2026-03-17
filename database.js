@@ -300,6 +300,7 @@ async function initPostgreSQL() {
                     holiday_surcharge INTEGER DEFAULT 0,
                     max_occupancy INTEGER DEFAULT 0,
                     extra_beds INTEGER DEFAULT 0,
+                    extra_bed_price INTEGER DEFAULT 0,
                     bed_config TEXT DEFAULT '',
                     included_items TEXT DEFAULT '',
                     booking_badge TEXT DEFAULT '',
@@ -319,6 +320,7 @@ async function initPostgreSQL() {
                 { name: 'holiday_surcharge', type: 'INTEGER', default: '0' },
                 { name: 'max_occupancy', type: 'INTEGER', default: '0' },
                 { name: 'extra_beds', type: 'INTEGER', default: '0' },
+                { name: 'extra_bed_price', type: 'INTEGER', default: '0' },
                 { name: 'bed_config', type: 'TEXT', default: "''" },
                 { name: 'included_items', type: 'TEXT', default: "''" },
                 { name: 'booking_badge', type: 'TEXT', default: "''" },
@@ -467,8 +469,8 @@ async function initPostgreSQL() {
                 
                 for (const room of defaultRooms) {
                     await query(
-                        'INSERT INTO room_types (name, display_name, price, max_occupancy, extra_beds, icon, image_url, display_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-                        room
+                        'INSERT INTO room_types (name, display_name, price, max_occupancy, extra_beds, extra_bed_price, icon, image_url, display_order) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+                        [room[0], room[1], room[2], room[3], room[4], 0, room[5], room[6], room[7]]
                     );
                 }
                 console.log('✅ 預設房型已初始化');
@@ -2163,6 +2165,7 @@ function initSQLite() {
                                 holiday_surcharge INTEGER DEFAULT 0,
                                 max_occupancy INTEGER DEFAULT 0,
                                 extra_beds INTEGER DEFAULT 0,
+                                extra_bed_price INTEGER DEFAULT 0,
                                 bed_config TEXT DEFAULT '',
                                 included_items TEXT DEFAULT '',
                                 booking_badge TEXT DEFAULT '',
@@ -2201,6 +2204,14 @@ function initSQLite() {
                                             } else {
                                                 console.log('✅ 已添加 extra_beds 欄位');
                                             }
+
+                                            db.run(`ALTER TABLE room_types ADD COLUMN extra_bed_price INTEGER DEFAULT 0`, (err) => {
+                                                if (err && !err.message.includes('duplicate column')) {
+                                                    console.warn('⚠️  添加 extra_bed_price 欄位時發生錯誤:', err.message);
+                                                } else {
+                                                    console.log('✅ 已添加 extra_bed_price 欄位');
+                                                }
+                                            });
 
                                             db.run(`ALTER TABLE room_types ADD COLUMN bed_config TEXT DEFAULT ''`, (err) => {
                                                 if (err && !err.message.includes('duplicate column')) {
@@ -2382,9 +2393,9 @@ function initSQLite() {
                                                     ['family', '家庭四人房', 4500, 4, 0, '👨‍👩‍👧‍👦', 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=800&q=80', 4]
                                                 ];
                                                 
-                                                const stmt = db.prepare('INSERT INTO room_types (name, display_name, price, max_occupancy, extra_beds, icon, image_url, display_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+                                                const stmt = db.prepare('INSERT INTO room_types (name, display_name, price, max_occupancy, extra_beds, extra_bed_price, icon, image_url, display_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
                                                 defaultRooms.forEach(room => {
-                                                    stmt.run(room);
+                                                    stmt.run(room[0], room[1], room[2], room[3], room[4], 0, room[5], room[6], room[7]);
                                                 });
                                                 stmt.finalize();
                                                 console.log('✅ 預設房型已初始化');
@@ -5163,12 +5174,12 @@ async function getRoomTypeById(id) {
 async function createRoomType(roomData) {
     try {
         const sql = usePostgreSQL ? `
-            INSERT INTO room_types (name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+            INSERT INTO room_types (name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             RETURNING id
         ` : `
-            INSERT INTO room_types (name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO room_types (name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const values = [
@@ -5179,6 +5190,7 @@ async function createRoomType(roomData) {
             roomData.holiday_surcharge !== undefined ? roomData.holiday_surcharge : 0,
             roomData.max_occupancy !== undefined ? roomData.max_occupancy : 0,
             roomData.extra_beds !== undefined ? roomData.extra_beds : 0,
+            roomData.extra_bed_price !== undefined ? roomData.extra_bed_price : 0,
             roomData.bed_config !== undefined ? roomData.bed_config : '',
             roomData.included_items !== undefined ? roomData.included_items : '',
             roomData.booking_badge !== undefined ? roomData.booking_badge : '',
@@ -5204,11 +5216,11 @@ async function updateRoomType(id, roomData) {
     try {
         const sql = usePostgreSQL ? `
             UPDATE room_types 
-            SET display_name = $1, price = $2, original_price = $3, holiday_surcharge = $4, max_occupancy = $5, extra_beds = $6, bed_config = $7, included_items = $8, booking_badge = $9, icon = $10, image_url = $11, show_on_landing = $12, display_order = $13, is_active = $14, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $15
+            SET display_name = $1, price = $2, original_price = $3, holiday_surcharge = $4, max_occupancy = $5, extra_beds = $6, extra_bed_price = $7, bed_config = $8, included_items = $9, booking_badge = $10, icon = $11, image_url = $12, show_on_landing = $13, display_order = $14, is_active = $15, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $16
         ` : `
             UPDATE room_types 
-            SET display_name = ?, price = ?, original_price = ?, holiday_surcharge = ?, max_occupancy = ?, extra_beds = ?, bed_config = ?, included_items = ?, booking_badge = ?, icon = ?, image_url = ?, show_on_landing = ?, display_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+            SET display_name = ?, price = ?, original_price = ?, holiday_surcharge = ?, max_occupancy = ?, extra_beds = ?, extra_bed_price = ?, bed_config = ?, included_items = ?, booking_badge = ?, icon = ?, image_url = ?, show_on_landing = ?, display_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `;
         
@@ -5219,6 +5231,7 @@ async function updateRoomType(id, roomData) {
             roomData.holiday_surcharge !== undefined ? roomData.holiday_surcharge : 0,
             roomData.max_occupancy !== undefined ? roomData.max_occupancy : 0,
             roomData.extra_beds !== undefined ? roomData.extra_beds : 0,
+            roomData.extra_bed_price !== undefined ? roomData.extra_bed_price : 0,
             roomData.bed_config !== undefined ? roomData.bed_config : '',
             roomData.included_items !== undefined ? roomData.included_items : '',
             roomData.booking_badge !== undefined ? roomData.booking_badge : '',

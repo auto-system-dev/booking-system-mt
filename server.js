@@ -424,6 +424,12 @@ const validateRoomType = createValidationMiddleware([
             return validateNumberRange(req.body.max_guests, 1, 20, '最大人數');
         }
         return { valid: true };
+    },
+    (req) => {
+        if (req.body.extra_bed_price !== undefined) {
+            return validateNumberRange(req.body.extra_bed_price, 0, 1000000, '加床費用');
+        }
+        return { valid: true };
     }
 ]);
 
