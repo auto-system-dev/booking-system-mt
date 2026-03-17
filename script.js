@@ -580,6 +580,18 @@ function changeAddonQuantity(addonName, change) {
     calculatePrice();
 }
 
+function getExtraBedCapacityFromAddons() {
+    if (!enableAddons || !Array.isArray(selectedAddons) || selectedAddons.length === 0) return 0;
+    return selectedAddons.reduce((sum, addon) => {
+        const name = String(addon.name || '').trim();
+        const displayName = String(addon.display_name || '').trim();
+        const quantity = Number(addon.quantity || 0);
+        const isExtraBed = name === 'extra_bed' || /加床/.test(displayName) || /加床/.test(name);
+        if (!isExtraBed || quantity <= 0) return sum;
+        return sum + quantity;
+    }, 0);
+}
+
 // 檢查日期是否為假日（週末）
 // 注意：此函數已被後端 API 取代，保留以向後兼容
 function isWeekend(dateString) {
@@ -1969,13 +1981,16 @@ document.getElementById('bookingForm').addEventListener('submit', async function
     const children = parseInt(document.getElementById('children').value) || 0;
     const totalGuests = adults + children;
     // 選取的房型與容量檢查
-    const totalCapacity = roomSelections.reduce((sum, room) => {
+    const baseCapacity = roomSelections.reduce((sum, room) => {
         const cap = (room.maxOccupancy || 0) + (room.extraBeds || 0);
         return sum + (cap * room.quantity);
     }, 0);
+    const addonExtraBedCapacity = getExtraBedCapacityFromAddons();
+    const totalCapacity = baseCapacity + addonExtraBedCapacity;
     
     if (totalCapacity > 0 && totalGuests > totalCapacity) {
-        showSectionError('roomTypeGrid', `目前選擇 ${roomsCount} 間房，總容納上限為 ${totalCapacity} 人（含可加床），請調整客房數、房型或入住人數`);
+        const addonInfo = addonExtraBedCapacity > 0 ? `（含加購加床 +${addonExtraBedCapacity} 人）` : '';
+        showSectionError('roomTypeGrid', `目前選擇 ${roomsCount} 間房，總容納上限為 ${totalCapacity} 人${addonInfo}，請調整客房數、房型或入住人數`);
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<span>確認訂房</span>';
         return;

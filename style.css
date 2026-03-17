@@ -252,7 +252,8 @@ body {
     position: relative;
 }
 
-.room-option input[type="radio"] {
+.room-option input[type="radio"],
+.room-option input[type="checkbox"] {
     position: absolute;
     opacity: 0;
     pointer-events: none;
@@ -284,7 +285,9 @@ body {
     min-width: 0;
 }
 
-.room-option input[type="radio"]:checked + label {
+.room-option input[type="radio"]:checked + label,
+.room-option input[type="checkbox"]:checked + label,
+.room-option.selected-room label {
     border-color: #2C8EC4;
     background: rgba(44, 142, 196, 0.1);
     transform: translateY(-2px);
@@ -335,7 +338,9 @@ body {
     transform: scale(1.05);
 }
 
-.room-option input[type="radio"]:checked + label .room-icon.room-icon-image img {
+.room-option input[type="radio"]:checked + label .room-icon.room-icon-image img,
+.room-option input[type="checkbox"]:checked + label .room-icon.room-icon-image img,
+.room-option.selected-room label .room-icon.room-icon-image img {
     box-shadow: 0 2px 8px rgba(44, 142, 196, 0.3);
 }
 
@@ -558,7 +563,8 @@ body {
     pointer-events: none;
 }
 
-.room-option.unavailable input[type="radio"]:disabled + label {
+.room-option.unavailable input[type="radio"]:disabled + label,
+.room-option.unavailable input[type="checkbox"]:disabled + label {
     cursor: not-allowed !important;
     pointer-events: none;
 }
@@ -568,7 +574,8 @@ body {
     font-weight: bold;
 }
 
-.room-option.unavailable input[type="radio"]:disabled {
+.room-option.unavailable input[type="radio"]:disabled,
+.room-option.unavailable input[type="checkbox"]:disabled {
     cursor: not-allowed !important;
 }
 
