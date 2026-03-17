@@ -859,8 +859,8 @@ async function renderRoomTypes() {
                             <div class="room-meta-item"><strong>入住人數：</strong>${maxOccupancy} 人</div>
                             <div class="room-meta-item"><strong>可加床數：</strong>${extraBeds} 人</div>
                         </div>
-                        ${safeQty > 0 && roomExtraBedLimit > 0 ? `
-                            <div class="room-extra-bed-control">
+                        ${extraBeds > 0 ? `
+                            <div class="room-extra-bed-control" ${safeQty > 0 ? '' : 'style="display:none;"'}>
                                 <span class="room-extra-bed-label">房型加床${extraBedUnitPrice > 0 ? `（NT$ ${extraBedUnitPrice.toLocaleString()}/人）` : ''}</span>
                                 <div class="room-extra-bed-actions">
                                     <button type="button" class="room-extra-bed-btn" onclick='event.preventDefault(); event.stopPropagation(); changeRoomExtraBed(${JSON.stringify(room.name)}, -1)' ${selectedExtraBedQty <= 0 ? 'disabled' : ''}>−</button>
@@ -1113,8 +1113,10 @@ function syncRoomSelectionCard(roomName) {
     const checkbox = option.querySelector('input[name="roomType"]');
     const qtyEl = option.querySelector('.room-qty-value');
     const minusBtn = option.querySelector('.room-qty-btn-minus');
+    const extraBedControlEl = option.querySelector('.room-extra-bed-control');
     const extraBedValueEl = option.querySelector('.room-extra-bed-value');
     const extraBedButtons = option.querySelectorAll('.room-extra-bed-btn');
+    const extraBedLimitEl = option.querySelector('.room-extra-bed-limit');
     const qty = parseInt(selectedRoomQuantities[roomName] || '0', 10) || 0;
     const roomDef = roomTypes.find((room) => room.name === roomName);
     const extraBedLimit = Math.max(0, Number(roomDef?.extra_beds || 0) * qty);
@@ -1126,7 +1128,9 @@ function syncRoomSelectionCard(roomName) {
     if (checkbox) checkbox.checked = qty > 0;
     if (qtyEl) qtyEl.textContent = String(qty);
     if (minusBtn) minusBtn.disabled = qty <= 0;
+    if (extraBedControlEl) extraBedControlEl.style.display = qty > 0 && extraBedLimit > 0 ? '' : 'none';
     if (extraBedValueEl) extraBedValueEl.textContent = String(currentExtraBed);
+    if (extraBedLimitEl) extraBedLimitEl.textContent = `/ ${extraBedLimit}`;
     if (extraBedButtons.length >= 2) {
         const [minus, plus] = extraBedButtons;
         if (minus) minus.disabled = currentExtraBed <= 0;
