@@ -73,6 +73,7 @@ let lineUserId = null; // LINE User ID（如果從 LIFF 開啟）
 let appliedPromoCode = null; // 已套用的優惠代碼
 let earlyBirdDiscount = null; // 已偵測的早鳥優惠
 let memberLevelDiscount = null; // 已偵測的會員折扣
+let roomCountConfig = { min: 1, max: 1 };
 let bookingNoticeConfig = {
     enabled: true,
     requireAgreement: true,
@@ -80,6 +81,34 @@ let bookingNoticeConfig = {
     content: '1. 入住時間為 15:00 後，退房時間為 11:00 前。\n2. 全館禁菸，違者將酌收清潔費。\n3. 室內請降低音量，22:00 後請避免喧嘩。\n4. 若有加床、停車或特殊需求，請於入住前先聯繫客服。',
     cancellationPolicy: '1. 入住日 14 天（含）前取消：可全額退款。\n2. 入住日 7-13 天前取消：退還已付金額 70%。\n3. 入住日 3-6 天前取消：退還已付金額 50%。\n4. 入住日前 0-2 天取消或未入住：恕不退款。\n5. 如遇天災等不可抗力因素，依政府公告與業者規範彈性處理。'
 };
+
+function parsePositiveIntSetting(value, fallback = 1) {
+    const n = parseInt(String(value ?? ''), 10);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function applyRoomCountSettings(settings) {
+    const minRoomCount = parsePositiveIntSetting(settings?.min_room_count, 1);
+    const maxRoomCountRaw = parsePositiveIntSetting(settings?.max_room_count, 1);
+    const maxRoomCount = Math.max(minRoomCount, maxRoomCountRaw);
+    roomCountConfig = { min: minRoomCount, max: maxRoomCount };
+
+    const roomsInput = document.getElementById('rooms');
+    const roomsDisplay = document.getElementById('roomsDisplay');
+    const roomCounterButtons = document.querySelectorAll('.booking-capacity-rooms .guest-counter .guest-counter-btn');
+    const fixedRoomCount = minRoomCount === maxRoomCount;
+
+    if (roomsInput && roomsDisplay) {
+        const current = parseInt(roomsInput.value || String(minRoomCount), 10) || minRoomCount;
+        const clamped = Math.min(maxRoomCount, Math.max(minRoomCount, current));
+        roomsInput.value = String(clamped);
+        roomsDisplay.textContent = String(clamped);
+    }
+
+    roomCounterButtons.forEach((btn) => {
+        btn.style.display = fixedRoomCount ? 'none' : '';
+    });
+}
 
 // ===== Facebook Pixel 追蹤函數 =====
 
@@ -225,6 +254,7 @@ async function loadRoomTypesAndSettings() {
         const roomTypesResult = await roomTypesResponse.json();
         const addonsResult = await addonsResponse.json();
         const settingsResult = await settingsResponse.json();
+        applyRoomCountSettings(settingsResult.success ? settingsResult.data : null);
         
         roomTypes = roomTypesResult.success ? (roomTypesResult.data || []) : [];
         renderRoomTypes();
@@ -1072,16 +1102,22 @@ function toggleRoomTypeSelection(roomName, checked) {
 
 function getRoomCount() {
     const roomsInput = document.getElementById('rooms');
-    const rooms = parseInt(roomsInput?.value || '1', 10);
-    return Number.isFinite(rooms) && rooms > 0 ? rooms : 1;
+    const fallback = roomCountConfig.min || 1;
+    const rooms = parseInt(roomsInput?.value || String(fallback), 10);
+    return Number.isFinite(rooms) && rooms > 0 ? rooms : fallback;
 }
 
 function changeRoomCount(delta) {
     const roomsInput = document.getElementById('rooms');
     const roomsDisplay = document.getElementById('roomsDisplay');
     if (!roomsInput || !roomsDisplay) return;
-    const current = parseInt(roomsInput.value || '1', 10) || 1;
-    const next = Math.min(20, Math.max(1, current + delta));
+    if (roomCountConfig.min === roomCountConfig.max) {
+        roomsInput.value = String(roomCountConfig.min);
+        roomsDisplay.textContent = String(roomCountConfig.min);
+        return;
+    }
+    const current = parseInt(roomsInput.value || String(roomCountConfig.min), 10) || roomCountConfig.min;
+    const next = Math.min(roomCountConfig.max, Math.max(roomCountConfig.min, current + delta));
     roomsInput.value = String(next);
     roomsDisplay.textContent = String(next);
     Object.keys(selectedRoomQuantities).forEach((roomName) => syncRoomSelectionCard(roomName));

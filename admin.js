@@ -3809,18 +3809,84 @@ function syncIncludedItemsEditor() {
 // 載入房型列表
 async function loadRoomTypes() {
     try {
-        const response = await adminFetch('/api/admin/room-types');
-        const result = await response.json();
+        const [roomTypesResponse, settingsResponse] = await Promise.all([
+            adminFetch('/api/admin/room-types'),
+            adminFetch('/api/settings')
+        ]);
+        const result = await roomTypesResponse.json();
+        const settingsResult = await settingsResponse.json();
         
         if (result.success) {
             allRoomTypes = result.data || [];
             renderRoomTypes();
+            if (settingsResult.success) {
+                loadRoomTypeBookingConfig(settingsResult.data);
+            }
         } else {
             showError('載入房型列表失敗：' + (result.message || '未知錯誤'));
         }
     } catch (error) {
         console.error('載入房型列表錯誤:', error);
         showError('載入房型列表時發生錯誤：' + error.message);
+    }
+}
+
+function loadRoomTypeBookingConfig(settings = {}) {
+    const minInput = document.getElementById('minRoomCount');
+    const maxInput = document.getElementById('maxRoomCount');
+    if (!minInput || !maxInput) return;
+    minInput.value = parseInt(settings.min_room_count || '1', 10) || 1;
+    maxInput.value = parseInt(settings.max_room_count || '1', 10) || 1;
+}
+
+async function saveRoomTypeBookingConfig() {
+    const minInput = document.getElementById('minRoomCount');
+    const maxInput = document.getElementById('maxRoomCount');
+    if (!minInput || !maxInput) return;
+    const minRoomCount = parseInt(minInput.value || '1', 10) || 1;
+    const maxRoomCount = parseInt(maxInput.value || '1', 10) || 1;
+
+    if (minRoomCount < 1 || maxRoomCount < 1) {
+        showError('客房數最小值與最大值都必須大於或等於 1');
+        return;
+    }
+    if (minRoomCount > maxRoomCount) {
+        showError('客房數最小值不可大於最大值');
+        return;
+    }
+
+    try {
+        const [minResponse, maxResponse] = await Promise.all([
+            adminFetch('/api/admin/settings/min_room_count', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    value: String(minRoomCount),
+                    description: '前台客房數最小值（預設 1）'
+                })
+            }),
+            adminFetch('/api/admin/settings/max_room_count', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    value: String(maxRoomCount),
+                    description: '前台客房數最大值（預設 1）'
+                })
+            })
+        ]);
+        const [minResult, maxResult] = await Promise.all([minResponse.json(), maxResponse.json()]);
+        if (minResult.success && maxResult.success) {
+            showSuccess('訂房詳情設定已儲存');
+        } else {
+            showError('儲存失敗：' + (minResult.message || maxResult.message || '請稍後再試'));
+        }
+    } catch (error) {
+        console.error('儲存訂房詳情設定錯誤:', error);
+        showError('儲存時發生錯誤：' + error.message);
     }
 }
 
@@ -4723,7 +4789,7 @@ async function savePaymentSettings() {
         showError('請輸入有效的訂金百分比（0-100）');
         return;
     }
-    
+
     // 驗證：如果啟用線上刷卡，必須填寫綠界設定
     const ecpayMerchantID = document.getElementById('ecpayMerchantID').value;
     const ecpayHashKey = document.getElementById('ecpayHashKey').value;
