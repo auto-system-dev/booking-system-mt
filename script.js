@@ -73,7 +73,8 @@ let lineUserId = null; // LINE User ID（如果從 LIFF 開啟）
 let appliedPromoCode = null; // 已套用的優惠代碼
 let earlyBirdDiscount = null; // 已偵測的早鳥優惠
 let memberLevelDiscount = null; // 已偵測的會員折扣
-let roomCountConfig = { min: 1, max: 1 };
+let roomCountConfig = { min: 1, max: 20 };
+let roomTypeSupplyLimit = 1;
 let bookingNoticeConfig = {
     enabled: true,
     requireAgreement: true,
@@ -103,23 +104,19 @@ function updateTopRoomCounterButtonState() {
 }
 
 function applyRoomCountSettings(settings) {
-    const minRoomCount = parsePositiveIntSetting(settings?.min_room_count, 1);
-    const maxRoomCountRaw = parsePositiveIntSetting(settings?.max_room_count, 1);
-    const maxRoomCount = Math.max(minRoomCount, maxRoomCountRaw);
-    roomCountConfig = { min: minRoomCount, max: maxRoomCount };
+    roomTypeSupplyLimit = parsePositiveIntSetting(settings?.max_room_count, 1);
 
     const roomsInput = document.getElementById('rooms');
     const roomsDisplay = document.getElementById('roomsDisplay');
-    const fixedRoomCount = minRoomCount === maxRoomCount;
 
     if (roomsInput && roomsDisplay) {
-        const current = parseInt(roomsInput.value || String(minRoomCount), 10) || minRoomCount;
-        const clamped = Math.min(maxRoomCount, Math.max(minRoomCount, current));
+        const current = parseInt(roomsInput.value || String(roomCountConfig.min), 10) || roomCountConfig.min;
+        const clamped = Math.min(roomCountConfig.max, Math.max(roomCountConfig.min, current));
         roomsInput.value = String(clamped);
         roomsDisplay.textContent = String(clamped);
     }
 
-    forceRoomCounterButtonsVisibility(fixedRoomCount);
+    forceRoomCounterButtonsVisibility(roomTypeSupplyLimit <= 1);
     updateTopRoomCounterButtonState();
 }
 
@@ -466,11 +463,12 @@ function updateRoomSelectButtons() {
         }
 
         const roomName = optionEl.dataset.room;
-        const selected = (parseInt(selectedRoomQuantities[roomName] || '0', 10) || 0) > 0;
+        const qty = parseInt(selectedRoomQuantities[roomName] || '0', 10) || 0;
+        const selected = qty > 0;
         btn.classList.remove('is-unavailable');
         btn.classList.toggle('is-selected', selected);
         btn.textContent = selected ? '已加入' : '加入客房';
-        if (plusBtn) plusBtn.disabled = !canAddMoreRooms;
+        if (plusBtn) plusBtn.disabled = !canAddMoreRooms || qty >= roomTypeSupplyLimit;
     });
 }
 
@@ -741,7 +739,7 @@ async function renderRoomTypes() {
     roomGalleryData = {};
     roomFacilitiesData = {};
 
-    const showRoomQtyControl = (roomCountConfig.max || 1) > 1;
+    const showRoomQtyControl = roomTypeSupplyLimit > 1;
     grid.innerHTML = roomTypes.map((room, index) => {
         const isUnavailable = hasDates && unavailableRooms.includes(room.name);
         const roomOptionClass = isUnavailable ? 'room-option unavailable' : 'room-option';
@@ -1081,7 +1079,7 @@ function changeRoomTypeQuantity(roomName, delta) {
             updateRoomSelectButtons();
             return;
         }
-        next = Math.min(20, current + Math.min(delta, remaining));
+        next = Math.min(roomTypeSupplyLimit, current + Math.min(delta, remaining));
     } else {
         next = Math.max(0, current + delta);
     }
@@ -1127,11 +1125,6 @@ function changeRoomCount(delta) {
     const roomsInput = document.getElementById('rooms');
     const roomsDisplay = document.getElementById('roomsDisplay');
     if (!roomsInput || !roomsDisplay) return;
-    if (roomCountConfig.min === roomCountConfig.max) {
-        roomsInput.value = String(roomCountConfig.min);
-        roomsDisplay.textContent = String(roomCountConfig.min);
-        return;
-    }
     const current = parseInt(roomsInput.value || String(roomCountConfig.min), 10) || roomCountConfig.min;
     const next = Math.min(roomCountConfig.max, Math.max(roomCountConfig.min, current + delta));
     roomsInput.value = String(next);
