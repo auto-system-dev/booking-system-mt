@@ -18,6 +18,10 @@ body {
     align-items: center;
 }
 
+.hidden {
+    display: none !important;
+}
+
 .container {
     width: 100%;
     max-width: 800px;
