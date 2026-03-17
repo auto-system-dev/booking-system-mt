@@ -2556,7 +2556,6 @@ function showBookingModal(booking) {
             <span class="detail-label">房型</span>
             <span class="detail-value">${booking.room_type}</span>
         </div>
-        ${addonsRowsHtml}
         <div class="detail-row">
             <span class="detail-label">人數</span>
             <span class="detail-value">成人：${booking.adults || 0} 人，孩童：${booking.children || 0} 人</span>
@@ -2577,6 +2576,7 @@ function showBookingModal(booking) {
             <span class="detail-label">每晚房價</span>
             <span class="detail-value">NT$ ${booking.price_per_night.toLocaleString()}</span>
         </div>
+        ${addonsRowsHtml}
         <div class="detail-row">
             <span class="detail-label">總金額</span>
             <span class="detail-value">NT$ ${(booking.original_amount || booking.total_amount).toLocaleString()}</span>
