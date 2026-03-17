@@ -3832,7 +3832,7 @@ function renderRoomTypes() {
     const filteredRoomTypes = allRoomTypes;
     
     if (filteredRoomTypes.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="loading">沒有房型資料</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="loading">沒有房型資料</td></tr>';
         return;
     }
     
@@ -3848,6 +3848,7 @@ function renderRoomTypes() {
             <td>${room.display_name}</td>
             <td>${room.max_occupancy ?? 0}</td>
             <td>${room.extra_beds ?? 0}</td>
+            <td>NT$ ${(Number(room.extra_bed_price) || 0).toLocaleString()}</td>
             <td>NT$ ${room.price.toLocaleString()}${room.original_price ? `<br><small style="color:#aaa;text-decoration:line-through;">NT$ ${room.original_price.toLocaleString()}</small>` : ''}</td>
             <td>${room.holiday_surcharge ? (room.holiday_surcharge > 0 ? '+' : '') + 'NT$ ' + room.holiday_surcharge.toLocaleString() : 'NT$ 0'}</td>
             <td>
