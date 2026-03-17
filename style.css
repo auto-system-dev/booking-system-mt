@@ -274,8 +274,8 @@ body {
 .room-card-layout {
     width: 100%;
     display: grid;
-    grid-template-columns: minmax(280px, 1.1fr) minmax(260px, 1fr);
-    gap: 18px;
+    grid-template-columns: minmax(280px, 1.15fr) minmax(280px, 1fr);
+    gap: 20px;
     align-items: start;
 }
 
@@ -405,7 +405,8 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 14px;
+    padding-top: 6px;
 }
 
 .room-facilities-block {
@@ -450,6 +451,7 @@ body {
     display: flex;
     justify-content: flex-end;
     margin-top: 0;
+    flex-shrink: 0;
 }
 
 .room-select-btn {
@@ -461,6 +463,9 @@ body {
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
+    white-space: nowrap;
+    word-break: keep-all;
+    min-width: 88px;
 }
 
 .room-select-btn:hover {
