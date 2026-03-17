@@ -65,6 +65,8 @@ let datePicker = null; // 日期區間選擇器
 let guestCounts = { adults: 2, children: 0 };
 let capacityModalData = { capacity: 0, totalGuests: 0 };
 let roomGalleryData = {};
+let roomFacilitiesData = {};
+let roomFacilitiesExpandedState = {};
 let currentRoomGallery = { images: [], index: 0, title: '' };
 let lineUserId = null; // LINE User ID（如果從 LIFF 開啟）
 let appliedPromoCode = null; // 已套用的優惠代碼
@@ -321,6 +323,95 @@ function escapeRoomText(value) {
         .replace(/'/g, '&#39;');
 }
 
+const roomFeatureIconMap = {
+    '單人床': 'single_bed', '雙人床': 'king_bed', '加大雙人床': 'king_bed',
+    '特大雙人床': 'king_bed', '上下鋪': 'single_bed', '和式床墊': 'airline_seat_flat',
+    '沙發床': 'weekend',
+    '獨立衛浴': 'bathtub', '共用衛浴': 'shower', '浴缸': 'bathtub',
+    '淋浴設備': 'shower', '免治馬桶': 'wash', '私人湯池': 'hot_tub',
+    '私人陽台': 'balcony', '客廳空間': 'living', '小廚房': 'countertops',
+    '和室空間': 'floor', 'Mini Bar': 'local_bar', '兒童遊戲區': 'toys', '餐廳空間': 'restaurant',
+    '庭院': 'yard', '山景視野': 'landscape', '海景視野': 'water', '庭園景觀': 'park',
+    '免費 WiFi': 'wifi', '冷暖空調': 'ac_unit', '智慧電視': 'tv',
+    '冰箱': 'kitchen', '咖啡機': 'coffee_maker', '電熱水壺': 'kettle',
+    '飲水機': 'water_drop', '自動販賣機': 'local_drink', '電動車充電設備': 'ev_station',
+    '吹風機': 'air', '洗衣機': 'local_laundry_service', '微波爐': 'microwave',
+    '書桌': 'desk', '化粧桌': 'table_restaurant', '梳妝台': 'table_restaurant', '沙發': 'weekend', '小桌椅': 'table_restaurant',
+    '寢具用品': 'bed', '毛巾': 'dry_cleaning', '浴巾': 'dry_cleaning', '牙刷/牙膏': 'brush',
+    '盥洗用品': 'soap', '洗髮精': 'sanitizer', '潤髮乳': 'sanitizer', '香皂/沐浴乳': 'sanitizer', '拖鞋': 'footprint',
+    '免費早餐': 'restaurant', '免費停車': 'local_parking', '寵物友善': 'pets',
+    '保險箱': 'lock', '行李寄放': 'luggage', '嬰兒床': 'crib',
+    '嬰兒澡盆': 'bathtub', '電梯': 'elevator', '燒烤設備': 'outdoor_grill',
+    '卡拉OK': 'mic', '麻將桌': 'table_restaurant', '電動麻將桌': 'electric_bolt',
+    '桌遊': 'casino', '廚房用具': 'kitchen', '無障礙設施': 'accessible', '機場接送': 'airport_shuttle'
+};
+
+function buildRoomFacilitiesBlock(roomId) {
+    const facilities = roomFacilitiesData[String(roomId)] || [];
+    if (!facilities.length) return '';
+
+    const expanded = !!roomFacilitiesExpandedState[String(roomId)];
+    const maxVisible = 6;
+    const visibleFacilities = expanded ? facilities : facilities.slice(0, maxVisible);
+
+    const chipsHtml = visibleFacilities.map((facility) => {
+        const icon = roomFeatureIconMap[facility] || 'check_circle';
+        return `
+            <span class="room-facility-chip">
+                <span class="material-symbols-outlined">${icon}</span>
+                ${escapeRoomText(facility)}
+            </span>
+        `;
+    }).join('');
+
+    const toggleHtml = facilities.length > maxVisible
+        ? `<button type="button" class="room-facility-toggle" onclick="toggleRoomFacilities(event, '${String(roomId)}')">${expanded ? '收合' : `顯示全部（${facilities.length}）`}</button>`
+        : '';
+
+    return `
+        <div class="room-facilities-wrap">
+            ${chipsHtml}
+        </div>
+        ${toggleHtml}
+    `;
+}
+
+function toggleRoomFacilities(event, roomId) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    const id = String(roomId);
+    roomFacilitiesExpandedState[id] = !roomFacilitiesExpandedState[id];
+    const container = document.getElementById(`roomFacilitiesBlock-${id}`);
+    if (container) {
+        container.innerHTML = buildRoomFacilitiesBlock(id);
+    }
+}
+
+function selectRoomTypeByName(event, roomName) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    const radio = document.getElementById(`room-${roomName}`);
+    if (!radio || radio.disabled) return;
+    radio.checked = true;
+    radio.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function updateRoomSelectButtons() {
+    document.querySelectorAll('.room-option').forEach((optionEl) => {
+        const radio = optionEl.querySelector('input[name="roomType"]');
+        const btn = optionEl.querySelector('.room-select-btn');
+        if (!radio || !btn) return;
+
+        const selected = !!radio.checked;
+        btn.classList.toggle('is-selected', selected);
+        btn.textContent = selected ? '已選取' : '選取房型';
+    });
+}
+
 function openRoomGallery(event, roomId) {
     if (event) {
         event.preventDefault();
@@ -377,6 +468,26 @@ function renderRoomGallery() {
     const hideNav = total <= 1;
     prevBtn.style.display = hideNav ? 'none' : '';
     nextBtn.style.display = hideNav ? 'none' : '';
+
+    const thumbsEl = document.getElementById('roomGalleryThumbs');
+    if (thumbsEl) {
+        thumbsEl.innerHTML = images.map((imgUrl, thumbIndex) => `
+            <button type="button" class="room-gallery-thumb ${thumbIndex === index ? 'active' : ''}" onclick="selectRoomGalleryImage(event, ${thumbIndex})" aria-label="選擇第 ${thumbIndex + 1} 張">
+                <img src="${imgUrl}" alt="縮圖 ${thumbIndex + 1}">
+            </button>
+        `).join('');
+    }
+}
+
+function selectRoomGalleryImage(event, index) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    const total = currentRoomGallery.images.length;
+    if (!total) return;
+    currentRoomGallery.index = Math.max(0, Math.min(index, total - 1));
+    renderRoomGallery();
 }
 
 // 渲染加購商品
@@ -554,6 +665,7 @@ async function renderRoomTypes() {
     }
     
     roomGalleryData = {};
+    roomFacilitiesData = {};
 
     grid.innerHTML = roomTypes.map((room, index) => {
         const isUnavailable = hasDates && unavailableRooms.includes(room.name);
@@ -581,9 +693,7 @@ async function renderRoomTypes() {
         const extraBeds = room.extra_beds != null ? Number(room.extra_beds) : 0;
         const roomFacilities = Array.isArray(room.room_facilities) ? room.room_facilities.filter(Boolean) : [];
         const includedItems = Array.isArray(room.included_items_list) ? room.included_items_list.filter(Boolean) : [];
-        const facilitySummary = roomFacilities.length > 0
-            ? roomFacilities.slice(0, 4).join('、') + (roomFacilities.length > 4 ? ` 等${roomFacilities.length}項` : '')
-            : '';
+        roomFacilitiesData[roomId] = roomFacilities;
 
         const galleryImages = [];
         if (room.image_url) galleryImages.push(room.image_url);
@@ -611,8 +721,8 @@ async function renderRoomTypes() {
             <label for="room-${room.name}">
                 ${room.image_url 
                     ? `<div class="room-icon room-icon-image">
-                        <img src="${room.image_url}" alt="${escapeRoomText(displayName)}" loading="lazy">
-                        ${galleryImages.length > 1 ? `<button type="button" class="room-gallery-btn" onclick="openRoomGallery(event, '${roomId}')">查看 ${galleryImages.length} 張</button>` : ''}
+                        <img src="${room.image_url}" alt="${escapeRoomText(displayName)}" loading="lazy" ${galleryImages.length > 0 ? `onclick="openRoomGallery(event, '${roomId}')"` : ''}>
+                        ${galleryImages.length > 0 ? `<button type="button" class="room-gallery-btn" onclick="openRoomGallery(event, '${roomId}')">選取照片（${galleryImages.length}）</button>` : ''}
                     </div>` 
                     : `<div class="room-icon">${room.icon || '🏠'}</div>`}
                 <div class="room-name">${escapeRoomText(displayName)}</div>
@@ -623,8 +733,13 @@ async function renderRoomTypes() {
                     <div class="room-meta-item"><strong>床型：</strong>${escapeRoomText(bedConfig || '依現場安排')}</div>
                     <div class="room-meta-item"><strong>入住人數：</strong>${maxOccupancy} 人</div>
                     <div class="room-meta-item"><strong>可加床數：</strong>${extraBeds} 人</div>
-                    ${facilitySummary ? `<div class="room-meta-item"><strong>房型設施：</strong>${escapeRoomText(facilitySummary)}</div>` : ''}
+                    ${roomFacilities.length > 0
+                        ? `<div class="room-meta-item room-meta-item-facilities"><strong>房型設施：</strong></div><div id="roomFacilitiesBlock-${roomId}" class="room-facilities-block">${buildRoomFacilitiesBlock(roomId)}</div>`
+                        : ''}
                     ${includedItems.length > 0 ? `<div class="room-meta-item room-meta-item-included"><strong>方案包含：</strong>${escapeRoomText(includedItems.join('、'))}</div>` : ''}
+                </div>
+                <div class="room-option-actions">
+                    <button type="button" class="room-select-btn" onclick='selectRoomTypeByName(event, ${JSON.stringify(room.name)})'>選取房型</button>
                 </div>
             </label>
         </div>
@@ -636,6 +751,7 @@ async function renderRoomTypes() {
         radio.addEventListener('change', function () {
             // 清除房型選擇錯誤訊息
             clearSectionError('roomTypeGrid');
+            updateRoomSelectButtons();
             calculatePrice();
             // 如果已套用優惠代碼，重新驗證
             if (appliedPromoCode) {
@@ -643,6 +759,8 @@ async function renderRoomTypes() {
             }
         });
     });
+
+    updateRoomSelectButtons();
 }
 
 function initDatePicker() {
