@@ -594,6 +594,25 @@ body {
     gap: 15px;
 }
 
+.booking-capacity-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 15px;
+    align-items: start;
+}
+
+.booking-capacity-row .form-group {
+    margin-bottom: 0;
+}
+
+.booking-capacity-guests .guest-count-row {
+    margin-top: 0;
+}
+
+.booking-capacity-rooms .guest-counter-wrapper {
+    width: 100%;
+}
+
 .guest-count-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1256,6 +1275,10 @@ body {
     }
 
     .form-row {
+        grid-template-columns: 1fr;
+    }
+
+    .booking-capacity-row {
         grid-template-columns: 1fr;
     }
 
