@@ -3933,16 +3933,8 @@ async function showRoomTypeModal(room) {
                 <input type="text" name="display_name" value="${isEdit ? escapeHtml(room.display_name) : ''}" required>
             </div>
             <div class="form-group">
-                <div class="form-row">
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label>客房數最小值</label>
-                        <input type="number" name="min_room_count" value="${roomBookingConfig.minRoomCount}" min="1" step="1" required>
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0;">
-                        <label>客房數最大值</label>
-                        <input type="number" name="max_room_count" value="${roomBookingConfig.maxRoomCount}" min="1" step="1" required>
-                    </div>
-                </div>
+                <label>客房可提供間數</label>
+                <input type="number" name="room_count_limit" value="${roomBookingConfig.maxRoomCount}" min="1" step="1" required>
             </div>
             <div class="form-group">
                 <label>入住人數</label>
@@ -4229,15 +4221,9 @@ async function saveRoomType(event, id) {
     event.preventDefault();
     
     const formData = new FormData(event.target);
-    const minRoomCount = parseInt(formData.get('min_room_count') || '1', 10) || 1;
-    const maxRoomCountRaw = parseInt(formData.get('max_room_count') || '1', 10) || 1;
-    const maxRoomCount = Math.max(minRoomCount, maxRoomCountRaw);
-    if (minRoomCount < 1 || maxRoomCount < 1) {
-        showError('客房數最小值與最大值都必須大於或等於 1');
-        return;
-    }
-    if (minRoomCount > maxRoomCount) {
-        showError('客房數最小值不可大於最大值');
+    const roomCountLimit = parseInt(formData.get('room_count_limit') || '1', 10) || 1;
+    if (roomCountLimit < 1) {
+        showError('客房可提供間數必須大於或等於 1');
         return;
     }
 
@@ -4280,16 +4266,16 @@ async function saveRoomType(event, id) {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        value: String(minRoomCount),
-                        description: '前台客房數最小值（預設 1）'
+                        value: '1',
+                        description: '前台客房數最小值（固定為 1）'
                     })
                 }),
                 adminFetch('/api/admin/settings/max_room_count', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        value: String(maxRoomCount),
-                        description: '前台客房數最大值（預設 1）'
+                        value: String(roomCountLimit),
+                        description: '前台客房數最大值（由客房可提供間數設定）'
                     })
                 })
             ]);
@@ -4298,7 +4284,7 @@ async function saveRoomType(event, id) {
                 showError('房型已儲存，但客房數設定更新失敗，請重試');
                 return;
             }
-            roomBookingConfig = { minRoomCount, maxRoomCount };
+            roomBookingConfig = { minRoomCount: 1, maxRoomCount: roomCountLimit };
             showSuccess(id ? '房型已更新' : '房型已新增');
             closeModal();
             await loadRoomTypes();

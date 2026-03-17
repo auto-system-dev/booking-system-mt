@@ -87,6 +87,19 @@ function parsePositiveIntSetting(value, fallback = 1) {
     return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
+function forceRoomCounterButtonsVisibility(fixedRoomCount) {
+    const roomCounterSection = document.querySelector('.booking-capacity-rooms');
+    const roomCounterButtons = document.querySelectorAll('.booking-capacity-rooms .guest-counter .guest-counter-btn');
+    if (roomCounterSection) {
+        roomCounterSection.classList.toggle('is-fixed-room-count', fixedRoomCount);
+    }
+    document.body.classList.toggle('fixed-room-count', fixedRoomCount);
+    roomCounterButtons.forEach((btn) => {
+        btn.style.display = fixedRoomCount ? 'none' : '';
+        btn.disabled = fixedRoomCount;
+    });
+}
+
 function applyRoomCountSettings(settings) {
     const minRoomCount = parsePositiveIntSetting(settings?.min_room_count, 1);
     const maxRoomCountRaw = parsePositiveIntSetting(settings?.max_room_count, 1);
@@ -95,8 +108,6 @@ function applyRoomCountSettings(settings) {
 
     const roomsInput = document.getElementById('rooms');
     const roomsDisplay = document.getElementById('roomsDisplay');
-    const roomCounterSection = document.querySelector('.booking-capacity-rooms');
-    const roomCounterButtons = document.querySelectorAll('.booking-capacity-rooms .guest-counter .guest-counter-btn');
     const fixedRoomCount = minRoomCount === maxRoomCount;
 
     if (roomsInput && roomsDisplay) {
@@ -106,14 +117,7 @@ function applyRoomCountSettings(settings) {
         roomsDisplay.textContent = String(clamped);
     }
 
-    if (roomCounterSection) {
-        roomCounterSection.classList.toggle('is-fixed-room-count', fixedRoomCount);
-    }
-    document.body.classList.toggle('fixed-room-count', fixedRoomCount);
-    roomCounterButtons.forEach((btn) => {
-        btn.style.display = fixedRoomCount ? 'none' : '';
-        btn.disabled = fixedRoomCount;
-    });
+    forceRoomCounterButtonsVisibility(fixedRoomCount);
 }
 
 // ===== Facebook Pixel 追蹤函數 =====
@@ -1139,6 +1143,7 @@ loadRoomTypesAndSettings();
 
 // 頁面載入後，如果有日期，檢查房間可用性
 document.addEventListener('DOMContentLoaded', async function() {
+    forceRoomCounterButtonsVisibility(true);
     // 初始化時檢查入住日期，如果為今天則禁用匯款選項
     setTimeout(() => {
         checkPaymentMethodForCheckInDate();
