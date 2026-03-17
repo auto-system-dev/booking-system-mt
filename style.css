@@ -624,6 +624,10 @@ body {
     display: none;
 }
 
+body.fixed-room-count .booking-capacity-rooms .guest-counter .guest-counter-btn {
+    display: none !important;
+}
+
 .guest-count-row {
     display: grid;
     grid-template-columns: 1fr 1fr;

@@ -109,8 +109,10 @@ function applyRoomCountSettings(settings) {
     if (roomCounterSection) {
         roomCounterSection.classList.toggle('is-fixed-room-count', fixedRoomCount);
     }
+    document.body.classList.toggle('fixed-room-count', fixedRoomCount);
     roomCounterButtons.forEach((btn) => {
         btn.style.display = fixedRoomCount ? 'none' : '';
+        btn.disabled = fixedRoomCount;
     });
 }
 
@@ -248,6 +250,7 @@ async function initLIFF() {
 // 載入房型資料和系統設定
 async function loadRoomTypesAndSettings() {
     try {
+        applyRoomCountSettings(null);
         // 同時載入房型、加購商品和設定
         const [roomTypesResponse, addonsResponse, settingsResponse] = await Promise.all([
             fetch('/api/room-types'),
@@ -294,6 +297,7 @@ async function loadRoomTypesAndSettings() {
         calculatePrice();
     } catch (error) {
         console.error('載入房型和設定錯誤:', error);
+        applyRoomCountSettings(null);
         document.getElementById('roomTypeGrid').innerHTML = '<div class="error">載入房型失敗，請重新整理頁面</div>';
         document.getElementById('addonsGrid').innerHTML = '<div class="error">載入加購商品失敗</div>';
     }

@@ -3933,18 +3933,16 @@ async function showRoomTypeModal(room) {
                 <input type="text" name="display_name" value="${isEdit ? escapeHtml(room.display_name) : ''}" required>
             </div>
             <div class="form-group">
-                <label style="font-size: 15px; color: #111827; font-weight: 700;">訂房詳情</label>
                 <div class="form-row">
-                    <div>
-                        <label style="font-size: 13px; color: #4b5563;">客房數最小值</label>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>客房數最小值</label>
                         <input type="number" name="min_room_count" value="${roomBookingConfig.minRoomCount}" min="1" step="1" required>
                     </div>
-                    <div>
-                        <label style="font-size: 13px; color: #4b5563;">客房數最大值</label>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>客房數最大值</label>
                         <input type="number" name="max_room_count" value="${roomBookingConfig.maxRoomCount}" min="1" step="1" required>
                     </div>
                 </div>
-                <small>這是全站設定。若最小值與最大值都為 1，前台客房數的 +/- 會自動隱藏。</small>
             </div>
             <div class="form-group">
                 <label>入住人數</label>
