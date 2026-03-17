@@ -2507,6 +2507,33 @@ function handleCalendarCellClick(cellElement, roomTypeName, dateStr) {
 function showBookingModal(booking) {
     const modal = document.getElementById('bookingModal');
     const modalBody = document.getElementById('modalBody');
+    let parsedAddons = [];
+    if (booking?.addons) {
+        if (Array.isArray(booking.addons)) {
+            parsedAddons = booking.addons;
+        } else if (typeof booking.addons === 'string') {
+            try {
+                const parsed = JSON.parse(booking.addons);
+                if (Array.isArray(parsed)) parsedAddons = parsed;
+            } catch (e) {
+                console.warn('解析加購商品失敗:', e);
+            }
+        }
+    }
+    const addonsDetailText = parsedAddons
+        .map((addon) => `${addon.display_name || addon.name || '加購項目'} x${Number(addon.quantity || 1)}`)
+        .join('、');
+    const addonsTotalAmount = Number(booking?.addons_total || 0);
+    const addonsRowsHtml = parsedAddons.length > 0 ? `
+        <div class="detail-row">
+            <span class="detail-label">加購商品</span>
+            <span class="detail-value">${escapeHtml(addonsDetailText)}</span>
+        </div>
+        <div class="detail-row">
+            <span class="detail-label">加購金額</span>
+            <span class="detail-value">NT$ ${addonsTotalAmount.toLocaleString()}</span>
+        </div>
+    ` : '';
     
     modalBody.innerHTML = `
         <div class="detail-row">
@@ -2529,6 +2556,7 @@ function showBookingModal(booking) {
             <span class="detail-label">房型</span>
             <span class="detail-value">${booking.room_type}</span>
         </div>
+        ${addonsRowsHtml}
         <div class="detail-row">
             <span class="detail-label">人數</span>
             <span class="detail-value">成人：${booking.adults || 0} 人，孩童：${booking.children || 0} 人</span>
