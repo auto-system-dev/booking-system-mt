@@ -88,16 +88,8 @@ function parsePositiveIntSetting(value, fallback = 1) {
 }
 
 function forceRoomCounterButtonsVisibility(fixedRoomCount) {
-    const roomCounterSection = document.querySelector('.booking-capacity-rooms');
-    const roomCounterButtons = document.querySelectorAll('.booking-capacity-rooms .guest-counter .guest-counter-btn');
-    if (roomCounterSection) {
-        roomCounterSection.classList.toggle('is-fixed-room-count', fixedRoomCount);
-    }
-    document.body.classList.toggle('fixed-room-count', fixedRoomCount);
-    roomCounterButtons.forEach((btn) => {
-        btn.style.display = fixedRoomCount ? 'none' : '';
-        btn.disabled = fixedRoomCount;
-    });
+    // 上方「客房數」控制器永遠顯示 +/-；固定房數只影響房型卡片右下角數量控制器
+    return fixedRoomCount;
 }
 
 function applyRoomCountSettings(settings) {
@@ -738,6 +730,7 @@ async function renderRoomTypes() {
     roomGalleryData = {};
     roomFacilitiesData = {};
 
+    const showRoomQtyControl = (roomCountConfig.max || 1) > 1;
     grid.innerHTML = roomTypes.map((room, index) => {
         const isUnavailable = hasDates && unavailableRooms.includes(room.name);
         const roomOptionClass = isUnavailable ? 'room-option unavailable' : 'room-option';
@@ -829,11 +822,11 @@ async function renderRoomTypes() {
                             </div>
                             <div class="room-option-actions">
                                 <button type="button" class="${selectBtnClass}" ${selectBtnAction}>${selectBtnText}</button>
-                                <div class="room-qty-control">
+                                ${showRoomQtyControl ? `<div class="room-qty-control">
                                     <button type="button" class="room-qty-btn room-qty-btn-minus" onclick='event.preventDefault(); event.stopPropagation(); changeRoomTypeQuantity(${JSON.stringify(room.name)}, -1)' ${safeQty <= 0 ? 'disabled' : ''}>−</button>
                                     <span class="room-qty-value">${safeQty}</span>
                                     <button type="button" class="room-qty-btn room-qty-btn-plus" onclick='event.preventDefault(); event.stopPropagation(); changeRoomTypeQuantity(${JSON.stringify(room.name)}, 1)'>+</button>
-                                </div>
+                                </div>` : ''}
                             </div>
                         </div>
                     </div>
