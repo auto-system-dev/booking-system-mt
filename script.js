@@ -85,8 +85,19 @@ let appliedPromoCode = null; // 已套用的優惠代碼
 let earlyBirdDiscount = null; // 已偵測的早鳥優惠
 let memberLevelDiscount = null; // 已偵測的會員折扣
 let roomCountConfig = { min: 1, max: 20 };
+const DEFAULT_BOOKING_NOTICE_REQUIRED_LINES = [
+    '4. 現場若核對入住人數或年齡與預訂資料不符，旅宿得依規範加收費用或保留入住安排權。',
+    '5. 若需提前入住或延後退房，請提前告知，實際安排與費用依現場公告為準。',
+    '6. 請妥善保管個人物品，離房時請再次確認；若有遺失請儘速聯繫櫃檯協助。'
+];
+const DEFAULT_BOOKING_NOTICE_CONTENT = [
+    '1. 入住時間為 15:00 後，退房時間為 11:00 前。',
+    '2. 全館禁菸，違者將酌收清潔費。',
+    '3. 室內請降低音量，22:00 後請避免喧嘩。',
+    ...DEFAULT_BOOKING_NOTICE_REQUIRED_LINES
+].join('\n');
 let bookingNoticeConfig = {
-    content: '1. 入住時間為 15:00 後，退房時間為 11:00 前。\n2. 全館禁菸，違者將酌收清潔費。\n3. 室內請降低音量，22:00 後請避免喧嘩。\n4. 現場若核對入住人數或年齡與預訂資料不符，旅宿得依規範加收費用或保留入住安排權。'
+    content: DEFAULT_BOOKING_NOTICE_CONTENT
 };
 let bookingTermsConfig = {
     enabled: true,
@@ -347,10 +358,13 @@ function normalizeBookingNoticeContent(content) {
         .filter(Boolean)
         .filter((line) => !line.includes('若有加床、停車或特殊需求，請於入住前先聯繫客服'));
 
-    const hasNewNotice = lines.some((line) => line.includes('入住人數或年齡與預訂資料不符'));
-    if (!hasNewNotice) {
-        lines.push(NEW_NOTICE_LINE);
-    }
+    DEFAULT_BOOKING_NOTICE_REQUIRED_LINES.forEach((requiredLine, index) => {
+        const shouldUseLegacyFallback = index === 0;
+        const hasLine = shouldUseLegacyFallback
+            ? lines.some((line) => line.includes('入住人數或年齡與預訂資料不符'))
+            : lines.some((line) => line.includes(requiredLine));
+        if (!hasLine) lines.push(requiredLine);
+    });
 
     return lines.join('\n').replace(OLD_NOTICE_LINE, NEW_NOTICE_LINE);
 }

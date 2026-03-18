@@ -4932,6 +4932,35 @@ async function saveEcpaySettings() {
     }
 }
 
+const ADMIN_BOOKING_NOTICE_LEGACY_LINE = '4. 若有加床、停車或特殊需求，請於入住前先聯繫客服。';
+const ADMIN_BOOKING_NOTICE_REQUIRED_LINES = [
+    '4. 現場若核對入住人數或年齡與預訂資料不符，旅宿得依規範加收費用或保留入住安排權。',
+    '5. 若需提前入住或延後退房，請提前告知，實際安排與費用依現場公告為準。',
+    '6. 請妥善保管個人物品，離房時請再次確認；若有遺失請儘速聯繫櫃檯協助。'
+];
+const ADMIN_DEFAULT_BOOKING_NOTICE_CONTENT = [
+    '1. 入住時間為 15:00 後，退房時間為 11:00 前。',
+    '2. 全館禁菸，違者將酌收清潔費。',
+    '3. 室內請降低音量，22:00 後請避免喧嘩。',
+    ...ADMIN_BOOKING_NOTICE_REQUIRED_LINES
+].join('\n');
+
+function normalizeBookingNoticeContentForAdmin(content) {
+    const lines = String(content || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .filter((line) => line !== ADMIN_BOOKING_NOTICE_LEGACY_LINE);
+
+    ADMIN_BOOKING_NOTICE_REQUIRED_LINES.forEach((requiredLine) => {
+        if (!lines.some((line) => line.includes(requiredLine))) {
+            lines.push(requiredLine);
+        }
+    });
+
+    return lines.join('\n').replace(ADMIN_BOOKING_NOTICE_LEGACY_LINE, ADMIN_BOOKING_NOTICE_REQUIRED_LINES[0]);
+}
+
 // 儲存旅館資訊設定
 async function saveHotelInfoSettings() {
     const hotelName = document.getElementById('hotelName').value;
@@ -4939,7 +4968,9 @@ async function saveHotelInfoSettings() {
     const hotelAddress = document.getElementById('hotelAddress').value;
     const hotelEmail = document.getElementById('hotelEmail').value;
     const adminEmail = document.getElementById('adminEmail').value;
-    const bookingNoticeContent = document.getElementById('bookingNoticeContent').value.trim();
+    const bookingNoticeContent = normalizeBookingNoticeContentForAdmin(
+        document.getElementById('bookingNoticeContent').value.trim() || ADMIN_DEFAULT_BOOKING_NOTICE_CONTENT
+    );
     const bookingTermsEnabled = document.getElementById('bookingTermsEnabled').checked ? '1' : '0';
     const bookingTermsRequireCheckbox = document.getElementById('bookingTermsRequireCheckbox').checked ? '1' : '0';
     const bookingTermsAgreementText = document.getElementById('bookingTermsAgreementText').value.trim();
@@ -5478,8 +5509,7 @@ async function loadSettings() {
             
             // 訂房頁訂房須知設定
             document.getElementById('bookingNoticeContent').value =
-                settings.booking_notice_content ||
-                '1. 入住時間為 15:00 後，退房時間為 11:00 前。\n2. 全館禁菸，違者將酌收清潔費。\n3. 室內請降低音量，22:00 後請避免喧嘩。\n4. 現場若核對入住人數或年齡與預訂資料不符，旅宿得依規範加收費用或保留入住安排權。';
+                normalizeBookingNoticeContentForAdmin(settings.booking_notice_content || ADMIN_DEFAULT_BOOKING_NOTICE_CONTENT);
             document.getElementById('bookingTermsEnabled').checked =
                 settings.booking_terms_enabled === undefined || settings.booking_terms_enabled === null || settings.booking_terms_enabled === ''
                     ? true
