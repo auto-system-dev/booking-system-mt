@@ -389,8 +389,7 @@ function applyBookingTermsSettings(settings) {
     const sectionEl = document.getElementById('bookingTermsSection');
     const checkboxEl = document.getElementById('bookingTermsAgree');
     const textEl = document.getElementById('bookingTermsAgreementText');
-    const requiredHintEl = document.getElementById('bookingTermsRequiredHint');
-    if (!sectionEl || !checkboxEl || !textEl || !requiredHintEl) return;
+    if (!sectionEl || !checkboxEl || !textEl) return;
 
     const agreementText = String(settings?.booking_terms_agreement_text || '').trim();
     const normalizedAgreementText = agreementText === OLD_TERMS_AGREEMENT_TEXT
@@ -405,7 +404,6 @@ function applyBookingTermsSettings(settings) {
     textEl.textContent = bookingTermsConfig.agreementText;
     checkboxEl.checked = false;
     checkboxEl.required = bookingTermsConfig.enabled && bookingTermsConfig.requireCheckbox;
-    requiredHintEl.textContent = '（必填）';
     sectionEl.classList.toggle('hidden', !bookingTermsConfig.enabled);
     clearSectionError('bookingTermsSection');
 }
