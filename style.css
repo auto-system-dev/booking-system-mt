@@ -1013,8 +1013,8 @@ body {
 
 .booking-notice-section.form-section {
     border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 0;
-    margin-bottom: 16px;
+    padding-bottom: 24px;
+    margin-bottom: 24px;
 }
 
 .booking-notice-summary {
