@@ -3,68 +3,106 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>使用條款</title>
+    <title>使用條款 - 線上訂房系統</title>
+    <link rel="preload" href="Background%20image.jpg" as="image">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <style>
-        body {
-            margin: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", Arial, sans-serif;
-            background: #f5f7fa;
-            color: #1f2937;
-        }
-        .container {
+        .terms-container {
             max-width: 900px;
-            margin: 28px auto;
-            padding: 0 16px;
+            margin: 0 auto;
+            padding: 20px;
         }
-        .card {
-            background: #fff;
-            border: 1px solid #e5e7eb;
-            border-radius: 14px;
+        .terms-card {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             overflow: hidden;
+            animation: slideUp 0.5s ease-out;
         }
-        .header {
-            padding: 20px 22px;
-            border-bottom: 1px solid #e5e7eb;
-            background: #f8fafc;
+        .terms-header {
+            background: #262A33;
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
         }
-        .header h1 {
-            margin: 0;
-            font-size: 26px;
-            color: #111827;
+        .terms-header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
         }
-        .content {
-            padding: 22px;
-            line-height: 1.9;
-            font-size: 16px;
+        .terms-content {
+            padding: 40px;
+            line-height: 1.8;
+            color: #333;
         }
-        h2 {
-            margin: 22px 0 8px;
-            font-size: 20px;
-            color: #111827;
+        .terms-content h2 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #262A33;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e0e0e0;
         }
-        p, li {
-            color: #374151;
+        .terms-content h2:first-of-type {
+            margin-top: 0;
         }
-        ul {
-            margin: 8px 0 0 22px;
-            padding: 0;
+        .terms-content p {
+            margin-bottom: 15px;
+            text-align: justify;
+        }
+        .terms-content li {
+            margin-bottom: 10px;
+        }
+        .terms-content ul {
+            margin-left: 30px;
+            margin-bottom: 15px;
         }
         .note {
-            margin-top: 18px;
-            padding: 12px 14px;
+            margin-top: 24px;
+            padding: 14px 16px;
             border-left: 4px solid #2c8ec4;
             background: #f0f9ff;
-            color: #0f172a;
+            color: #1e293b;
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #2C8EC4;
+            text-decoration: none;
+            margin-top: 30px;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+        .back-link:hover {
+            color: #1a6a9a;
+        }
+        @media (max-width: 768px) {
+            .terms-content {
+                padding: 30px 20px;
+            }
+            .terms-header {
+                padding: 30px 20px;
+            }
+            .terms-content h2 {
+                font-size: 20px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="card">
-            <div class="header">
+    <div class="terms-container">
+        <div class="terms-card">
+            <div class="terms-header">
                 <h1>使用條款</h1>
+                <p class="subtitle">Terms of Service</p>
             </div>
-            <div class="content">
+            <div class="terms-content">
                 <p>歡迎使用本訂房系統。當您瀏覽或使用本網站服務，即表示您已閱讀、瞭解並同意遵守本使用條款及相關規範。</p>
 
                 <h2>一、服務內容</h2>
@@ -98,6 +136,11 @@
                 <div class="note">
                     若您對本條款有任何疑問，請透過網站公告之聯絡方式與我們聯繫。
                 </div>
+
+                <a href="/" class="back-link">
+                    <span class="material-symbols-outlined">arrow_back</span>
+                    返回訂房系統
+                </a>
             </div>
         </div>
     </div>
