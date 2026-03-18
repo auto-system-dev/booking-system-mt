@@ -2251,6 +2251,7 @@ document.getElementById('bookingForm').addEventListener('submit', async function
     }
     
     // 收集表單資料（使用驗證後清理過的資料）
+    const specialRequest = String(document.getElementById('specialRequest')?.value || '').trim().slice(0, 300);
     const formData = {
         checkInDate: document.getElementById('checkInDate').value,
         checkOutDate: document.getElementById('checkOutDate').value,
@@ -2266,6 +2267,7 @@ document.getElementById('bookingForm').addEventListener('submit', async function
         roomSelections,
         paymentAmount: document.querySelector('input[name="paymentAmount"]:checked').value,
         paymentMethod: paymentMethod.value,
+        specialRequest,
         bookingNoticeAgreed: true,
         bookingTermsAgreed: !!document.getElementById('bookingTermsAgree')?.checked
     };

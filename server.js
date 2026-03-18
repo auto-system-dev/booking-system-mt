@@ -768,7 +768,8 @@ async function handleCreateBooking(req, res) {
             children,
             promoCode, // 優惠代碼（選填）
             bookingNoticeAgreed,
-            bookingTermsAgreed
+            bookingTermsAgreed,
+            specialRequest
         } = req.body;
 
         // 驗證必填欄位
@@ -933,7 +934,8 @@ async function handleCreateBooking(req, res) {
             paymentMethodCode: paymentMethod, // 原始付款方式代碼（transfer 或 card）
             addons: addons || null, // 加購商品陣列
             addonsTotal: addonsTotal || 0, // 加購商品總金額
-            addonsList: addonsList // 加購商品顯示字串（用於郵件）
+            addonsList: addonsList, // 加購商品顯示字串（用於郵件）
+            specialRequest: String(specialRequest || '').trim().slice(0, 300)
         };
 
         // 取得匯款提醒模板的保留天數（用於計算到期日期）

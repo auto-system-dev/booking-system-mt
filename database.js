@@ -177,6 +177,7 @@ async function initPostgreSQL() {
                     guest_name VARCHAR(255) NOT NULL,
                     guest_phone VARCHAR(255) NOT NULL,
                     guest_email VARCHAR(255) NOT NULL,
+                    special_request TEXT,
                     adults INTEGER DEFAULT 0,
                     children INTEGER DEFAULT 0,
                     payment_amount VARCHAR(255) NOT NULL,
@@ -251,6 +252,7 @@ async function initPostgreSQL() {
                 { name: 'addons_total', type: 'INTEGER', default: '0' },
                 { name: 'adults', type: 'INTEGER', default: '0' },
                 { name: 'children', type: 'INTEGER', default: '0' },
+                { name: 'special_request', type: 'TEXT', default: null },
                 { name: 'payment_deadline', type: 'TEXT', default: null },
                 { name: 'days_reserved', type: 'INTEGER', default: null },
                 { name: 'discount_amount', type: 'DECIMAL(10,2)', default: '0' },
@@ -2100,6 +2102,7 @@ function initSQLite() {
                     guest_name TEXT NOT NULL,
                     guest_phone TEXT NOT NULL,
                     guest_email TEXT NOT NULL,
+                    special_request TEXT,
                     adults INTEGER DEFAULT 0,
                     children INTEGER DEFAULT 0,
                     payment_amount TEXT NOT NULL,
@@ -2386,6 +2389,11 @@ function initSQLite() {
                                                     db.run(`ALTER TABLE bookings ADD COLUMN days_reserved INTEGER`, (err) => {
                                                         if (err && !err.message.includes('duplicate column')) {
                                                             console.warn('⚠️  新增 days_reserved 欄位時發生錯誤:', err.message);
+                                                        }
+                                                    });
+                                                    db.run(`ALTER TABLE bookings ADD COLUMN special_request TEXT`, (err) => {
+                                                        if (err && !err.message.includes('duplicate column')) {
+                                                            console.warn('⚠️  新增 special_request 欄位時發生錯誤:', err.message);
                                                         }
                                                     });
                                                 });
@@ -2778,26 +2786,26 @@ async function saveBooking(bookingData) {
         const sql = usePostgreSQL ? `
             INSERT INTO bookings (
                 booking_id, check_in_date, check_out_date, room_type,
-                guest_name, guest_phone, guest_email,
+                guest_name, guest_phone, guest_email, special_request,
                 adults, children,
                 payment_amount, payment_method,
                 price_per_night, nights, total_amount, final_amount,
                 booking_date, email_sent, payment_status, status, addons, addons_total,
                 payment_deadline, days_reserved, line_user_id,
                 discount_amount, discount_description
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
             RETURNING id
         ` : `
             INSERT INTO bookings (
                 booking_id, check_in_date, check_out_date, room_type,
-                guest_name, guest_phone, guest_email,
+                guest_name, guest_phone, guest_email, special_request,
                 adults, children,
                 payment_amount, payment_method,
                 price_per_night, nights, total_amount, final_amount,
                 booking_date, email_sent, payment_status, status, addons, addons_total,
                 payment_deadline, days_reserved, line_user_id,
                 discount_amount, discount_description
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const addonsJson = bookingData.addons ? JSON.stringify(bookingData.addons) : null;
@@ -2821,6 +2829,7 @@ async function saveBooking(bookingData) {
             bookingData.guestName,
             bookingData.guestPhone,
             bookingData.guestEmail,
+            bookingData.specialRequest || null,
             bookingData.adults || 0,
             bookingData.children || 0,
             bookingData.paymentAmount,
@@ -3052,7 +3061,7 @@ async function getBookingsByLineUserId(lineUserId) {
 async function updateBooking(bookingId, updateData) {
     try {
         const allowedFields = [
-            'guest_name', 'guest_phone', 'guest_email', 'room_type',
+            'guest_name', 'guest_phone', 'guest_email', 'special_request', 'room_type',
             'check_in_date', 'check_out_date', 'payment_status',
             'payment_method', 'payment_amount', 'price_per_night',
             'nights', 'total_amount', 'final_amount', 'status'
