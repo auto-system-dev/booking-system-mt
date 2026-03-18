@@ -308,10 +308,10 @@ function createEmailFallbackTemplatesService(deps) {
                         <span class="info-label">Email</span>
                         <span class="info-value">${data.guestEmail}</span>
                     </div>
-                    ${data.special_request ? `
+                    ${data.specialRequest ? `
                     <div class="info-row">
                         <span class="info-label">特殊需求</span>
-                        <span class="info-value">${data.special_request}</span>
+                        <span class="info-value">${data.specialRequest}</span>
                     </div>
                     ` : ''}
                     <div class="info-row">

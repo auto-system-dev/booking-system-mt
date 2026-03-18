@@ -2829,7 +2829,7 @@ async function saveBooking(bookingData) {
             bookingData.guestName,
             bookingData.guestPhone,
             bookingData.guestEmail,
-            bookingData.special_request || null,
+            bookingData.specialRequest || null,
             bookingData.adults || 0,
             bookingData.children || 0,
             bookingData.paymentAmount,
