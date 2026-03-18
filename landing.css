@@ -1198,6 +1198,39 @@ section {
 }
 
 @media (max-width: 768px) {
+    .navbar {
+        padding: 14px 0;
+    }
+
+    .nav-container {
+        padding: 0 16px;
+        gap: 12px;
+    }
+
+    .nav-logo {
+        font-size: 20px;
+        letter-spacing: 1px;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .nav-logo-image {
+        width: 32px;
+        height: 32px;
+    }
+
+    .nav-logo #navLogoText {
+        display: inline-block;
+        max-width: min(58vw, 240px);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .nav-toggle {
+        margin-left: auto;
+    }
+
     .hero-scroll {
         display: none;
     }
@@ -1289,6 +1322,23 @@ section {
 }
 
 @media (max-width: 480px) {
+    .navbar {
+        padding: 12px 0;
+    }
+
+    .nav-container {
+        padding: 0 14px;
+    }
+
+    .nav-logo {
+        font-size: 19px;
+        gap: 10px;
+    }
+
+    .nav-logo #navLogoText {
+        max-width: min(52vw, 210px);
+    }
+
     section {
         padding: 60px 0;
     }
