@@ -1081,13 +1081,12 @@ body {
 
 .booking-notice-content-with-policy {
     position: relative;
-    padding-top: 48px;
+    padding-top: 8px;
 }
 
 .booking-cancellation-policy-btn {
-    position: absolute;
-    top: 10px;
-    right: 12px;
+    position: static;
+    float: right;
     border: 1px solid #cbd5e1;
     background: #ffffff;
     color: #334155;
@@ -1096,6 +1095,7 @@ body {
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
+    margin: 0 0 10px 10px;
 }
 
 .booking-cancellation-policy-btn:hover {
@@ -1105,6 +1105,10 @@ body {
 
 .booking-cancellation-dialog {
     max-width: 620px;
+}
+
+#bookingNoticeContent {
+    clear: both;
 }
 
 .booking-terms-section {
