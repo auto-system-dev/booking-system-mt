@@ -1074,6 +1074,10 @@ body {
     text-align: left;
 }
 
+.booking-notice-content-inline {
+    max-height: none;
+}
+
 .booking-notice-subtitle {
     font-size: 14px;
     color: #374151;
