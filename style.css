@@ -1079,6 +1079,34 @@ body {
     max-height: none;
 }
 
+.booking-notice-content-with-policy {
+    position: relative;
+    padding-top: 48px;
+}
+
+.booking-cancellation-policy-btn {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #334155;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.booking-cancellation-policy-btn:hover {
+    border-color: #2c8ec4;
+    color: #2c8ec4;
+}
+
+.booking-cancellation-dialog {
+    max-width: 620px;
+}
+
 .booking-terms-section {
     border: 1px solid #93d5f7;
     border-radius: 14px;

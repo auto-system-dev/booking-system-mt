@@ -4933,10 +4933,11 @@ async function saveEcpaySettings() {
 }
 
 const ADMIN_BOOKING_NOTICE_LEGACY_LINE = '4. 若有加床、停車或特殊需求，請於入住前先聯繫客服。';
+const ADMIN_BOOKING_NOTICE_MISMATCH_KEYWORD = '入住人數或年齡與預訂資料不符';
 const ADMIN_BOOKING_NOTICE_REQUIRED_LINES = [
-    '4. 現場若核對入住人數或年齡與預訂資料不符，旅宿得依規範加收費用或保留入住安排權。',
-    '5. 若需提前入住或延後退房，請提前告知，實際安排與費用依現場公告為準。',
-    '6. 請妥善保管個人物品，離房時請再次確認；若有遺失請儘速聯繫櫃檯協助。'
+    '4. 若需提前入住或延後退房，請提前告知，實際安排與費用依現場公告為準。',
+    '5. 請妥善保管個人物品，離房時請再次確認；若有遺失請儘速聯繫櫃檯協助。',
+    '6. 現場若核對入住人數或年齡與預訂資料不符，旅宿得依規範加收費用或保留入住安排權。'
 ];
 const ADMIN_DEFAULT_BOOKING_NOTICE_CONTENT = [
     '1. 入住時間為 15:00 後，退房時間為 11:00 前。',
@@ -4944,13 +4945,21 @@ const ADMIN_DEFAULT_BOOKING_NOTICE_CONTENT = [
     '3. 室內請降低音量，22:00 後請避免喧嘩。',
     ...ADMIN_BOOKING_NOTICE_REQUIRED_LINES
 ].join('\n');
+const ADMIN_DEFAULT_BOOKING_CANCELLATION_POLICY = [
+    '1. 入住日 14 天（含）前取消：可全額退款。',
+    '2. 入住日 7-13 天前取消：退還已付金額 70%。',
+    '3. 入住日 3-6 天前取消：退還已付金額 50%。',
+    '4. 入住日前 0-2 天取消或未入住：恕不退款。',
+    '5. 如遇天災等不可抗力因素，依政府公告與業者規範彈性處理。'
+].join('\n');
 
 function normalizeBookingNoticeContentForAdmin(content) {
     const lines = String(content || '')
         .split('\n')
         .map((line) => line.trim())
         .filter(Boolean)
-        .filter((line) => line !== ADMIN_BOOKING_NOTICE_LEGACY_LINE);
+        .filter((line) => line !== ADMIN_BOOKING_NOTICE_LEGACY_LINE)
+        .filter((line) => !line.includes(ADMIN_BOOKING_NOTICE_MISMATCH_KEYWORD));
 
     ADMIN_BOOKING_NOTICE_REQUIRED_LINES.forEach((requiredLine) => {
         if (!lines.some((line) => line.includes(requiredLine))) {
@@ -4958,7 +4967,7 @@ function normalizeBookingNoticeContentForAdmin(content) {
         }
     });
 
-    return lines.join('\n').replace(ADMIN_BOOKING_NOTICE_LEGACY_LINE, ADMIN_BOOKING_NOTICE_REQUIRED_LINES[0]);
+    return lines.join('\n').replace(ADMIN_BOOKING_NOTICE_LEGACY_LINE, ADMIN_BOOKING_NOTICE_REQUIRED_LINES[2]);
 }
 
 // 儲存旅館資訊設定
@@ -4971,6 +4980,7 @@ async function saveHotelInfoSettings() {
     const bookingNoticeContent = normalizeBookingNoticeContentForAdmin(
         document.getElementById('bookingNoticeContent').value.trim() || ADMIN_DEFAULT_BOOKING_NOTICE_CONTENT
     );
+    const bookingCancellationPolicy = String(document.getElementById('bookingCancellationPolicy')?.value || '').trim() || ADMIN_DEFAULT_BOOKING_CANCELLATION_POLICY;
     const bookingTermsEnabled = document.getElementById('bookingTermsEnabled').checked ? '1' : '0';
     const bookingTermsRequireCheckbox = document.getElementById('bookingTermsRequireCheckbox').checked ? '1' : '0';
     const bookingTermsAgreementText = document.getElementById('bookingTermsAgreementText').value.trim();
@@ -4991,7 +5001,7 @@ async function saveHotelInfoSettings() {
     try {
         const [
             hotelNameResponse, hotelPhoneResponse, hotelAddressResponse, hotelEmailResponse, adminEmailResponse,
-            bookingNoticeEnabledResponse, bookingNoticeRequireAgreementResponse, bookingNoticeContentResponse,
+            bookingNoticeEnabledResponse, bookingNoticeRequireAgreementResponse, bookingNoticeContentResponse, bookingCancellationPolicyResponse,
             bookingTermsEnabledResponse, bookingTermsRequireResponse, bookingTermsTextResponse
         ] = await Promise.all([
             adminFetch('/api/admin/settings/hotel_name', {
@@ -5074,6 +5084,16 @@ async function saveHotelInfoSettings() {
                     description: '訂房須知內容（前台直接顯示）'
                 })
             }),
+            adminFetch('/api/admin/settings/booking_cancellation_policy', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    value: bookingCancellationPolicy,
+                    description: '取消政策內容（前台彈窗顯示）'
+                })
+            }),
             adminFetch('/api/admin/settings/booking_terms_enabled', {
                 method: 'PUT',
                 headers: {
@@ -5115,6 +5135,7 @@ async function saveHotelInfoSettings() {
             bookingNoticeEnabledResponse.json(),
             bookingNoticeRequireAgreementResponse.json(),
             bookingNoticeContentResponse.json(),
+            bookingCancellationPolicyResponse.json(),
             bookingTermsEnabledResponse.json(),
             bookingTermsRequireResponse.json(),
             bookingTermsTextResponse.json()
@@ -5510,6 +5531,10 @@ async function loadSettings() {
             // 訂房頁訂房須知設定
             document.getElementById('bookingNoticeContent').value =
                 normalizeBookingNoticeContentForAdmin(settings.booking_notice_content || ADMIN_DEFAULT_BOOKING_NOTICE_CONTENT);
+            const bookingCancellationPolicyInput = document.getElementById('bookingCancellationPolicy');
+            if (bookingCancellationPolicyInput) {
+                bookingCancellationPolicyInput.value = settings.booking_cancellation_policy || ADMIN_DEFAULT_BOOKING_CANCELLATION_POLICY;
+            }
             document.getElementById('bookingTermsEnabled').checked =
                 settings.booking_terms_enabled === undefined || settings.booking_terms_enabled === null || settings.booking_terms_enabled === ''
                     ? true

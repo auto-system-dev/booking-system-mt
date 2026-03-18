@@ -86,9 +86,9 @@ let earlyBirdDiscount = null; // 已偵測的早鳥優惠
 let memberLevelDiscount = null; // 已偵測的會員折扣
 let roomCountConfig = { min: 1, max: 20 };
 const DEFAULT_BOOKING_NOTICE_REQUIRED_LINES = [
-    '4. 現場若核對入住人數或年齡與預訂資料不符，旅宿得依規範加收費用或保留入住安排權。',
-    '5. 若需提前入住或延後退房，請提前告知，實際安排與費用依現場公告為準。',
-    '6. 請妥善保管個人物品，離房時請再次確認；若有遺失請儘速聯繫櫃檯協助。'
+    '4. 若需提前入住或延後退房，請提前告知，實際安排與費用依現場公告為準。',
+    '5. 請妥善保管個人物品，離房時請再次確認；若有遺失請儘速聯繫櫃檯協助。',
+    '6. 現場若核對入住人數或年齡與預訂資料不符，旅宿得依規範加收費用或保留入住安排權。'
 ];
 const DEFAULT_BOOKING_NOTICE_CONTENT = [
     '1. 入住時間為 15:00 後，退房時間為 11:00 前。',
@@ -104,9 +104,13 @@ let bookingTermsConfig = {
     requireCheckbox: true,
     agreementText: '我已閱讀並同意以上內容'
 };
+let bookingCancellationConfig = {
+    content: '1. 入住日 14 天（含）前取消：可全額退款。\n2. 入住日 7-13 天前取消：退還已付金額 70%。\n3. 入住日 3-6 天前取消：退還已付金額 50%。\n4. 入住日前 0-2 天取消或未入住：恕不退款。\n5. 如遇天災等不可抗力因素，依政府公告與業者規範彈性處理。'
+};
 
 const OLD_NOTICE_LINE = '4. 若有加床、停車或特殊需求，請於入住前先聯繫客服。';
-const NEW_NOTICE_LINE = '4. 現場若核對入住人數或年齡與預訂資料不符，旅宿得依規範加收費用或保留入住安排權。';
+const NEW_NOTICE_LINE = '6. 現場若核對入住人數或年齡與預訂資料不符，旅宿得依規範加收費用或保留入住安排權。';
+const NOTICE_MISMATCH_KEYWORD = '入住人數或年齡與預訂資料不符';
 const OLD_TERMS_AGREEMENT_TEXT = '若現場核對入住人數或年齡與預訂資訊不符，旅宿得依規範加收費用或保留入住安排權利。';
 const NEW_TERMS_AGREEMENT_TEXT = '我已閱讀並同意以上內容';
 
@@ -313,6 +317,7 @@ async function loadRoomTypesAndSettings() {
         }
         
         applyBookingNoticeSettings(settingsResult.success ? settingsResult.data : null);
+        applyBookingCancellationSettings(settingsResult.success ? settingsResult.data : null);
         applyBookingTermsSettings(settingsResult.success ? settingsResult.data : null);
         
         // 更新訂金百分比顯示
@@ -351,19 +356,30 @@ function applyBookingNoticeSettings(settings) {
     clearSectionError('bookingNoticeSection');
 }
 
+function applyBookingCancellationSettings(settings) {
+    const contentEl = document.getElementById('bookingCancellationPolicyContent');
+    const openBtnEl = document.getElementById('bookingCancellationPolicyBtn');
+    if (!contentEl || !openBtnEl) return;
+
+    const policyContent = String(settings?.booking_cancellation_policy || '').trim();
+    bookingCancellationConfig.content = policyContent || bookingCancellationConfig.content;
+    contentEl.textContent = bookingCancellationConfig.content;
+    openBtnEl.classList.toggle('hidden', !bookingCancellationConfig.content);
+}
+
 function normalizeBookingNoticeContent(content) {
     const lines = String(content || '')
         .split('\n')
         .map((line) => line.trim())
         .filter(Boolean)
-        .filter((line) => !line.includes('若有加床、停車或特殊需求，請於入住前先聯繫客服'));
+        .filter((line) => !line.includes('若有加床、停車或特殊需求，請於入住前先聯繫客服'))
+        .filter((line) => !line.includes(NOTICE_MISMATCH_KEYWORD));
 
-    DEFAULT_BOOKING_NOTICE_REQUIRED_LINES.forEach((requiredLine, index) => {
-        const shouldUseLegacyFallback = index === 0;
-        const hasLine = shouldUseLegacyFallback
-            ? lines.some((line) => line.includes('入住人數或年齡與預訂資料不符'))
-            : lines.some((line) => line.includes(requiredLine));
-        if (!hasLine) lines.push(requiredLine);
+    DEFAULT_BOOKING_NOTICE_REQUIRED_LINES.forEach((requiredLine) => {
+        const hasLine = lines.some((line) => line.includes(requiredLine));
+        if (!hasLine) {
+            lines.push(requiredLine);
+        }
     });
 
     return lines.join('\n').replace(OLD_NOTICE_LINE, NEW_NOTICE_LINE);
@@ -394,14 +410,14 @@ function applyBookingTermsSettings(settings) {
     clearSectionError('bookingTermsSection');
 }
 
-function openBookingNoticeModal() {
-    const modal = document.getElementById('bookingNoticeModal');
+function openBookingCancellationModal() {
+    const modal = document.getElementById('bookingCancellationModal');
     if (!modal) return;
     modal.classList.remove('hidden');
 }
 
-function closeBookingNoticeModal() {
-    const modal = document.getElementById('bookingNoticeModal');
+function closeBookingCancellationModal() {
+    const modal = document.getElementById('bookingCancellationModal');
     if (!modal) return;
     modal.classList.add('hidden');
 }
@@ -1311,6 +1327,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmBtn = document.getElementById('capacityConfirmBtn');
     const addonDetailCloseBtn = document.getElementById('addonDetailCloseBtn');
     const addonDetailModal = document.getElementById('addonDetailModal');
+    const bookingCancellationPolicyBtn = document.getElementById('bookingCancellationPolicyBtn');
+    const bookingCancellationCloseBtn = document.getElementById('bookingCancellationCloseBtn');
+    const bookingCancellationModal = document.getElementById('bookingCancellationModal');
     const bookingTermsAgree = document.getElementById('bookingTermsAgree');
     const roomGalleryModal = document.getElementById('roomGalleryModal');
     const roomGalleryCloseBtn = document.getElementById('roomGalleryCloseBtn');
@@ -1341,6 +1360,19 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    if (bookingCancellationPolicyBtn) {
+        bookingCancellationPolicyBtn.addEventListener('click', openBookingCancellationModal);
+    }
+    if (bookingCancellationCloseBtn) {
+        bookingCancellationCloseBtn.addEventListener('click', closeBookingCancellationModal);
+    }
+    if (bookingCancellationModal) {
+        bookingCancellationModal.addEventListener('click', (event) => {
+            if (event.target === bookingCancellationModal) {
+                closeBookingCancellationModal();
+            }
+        });
+    }
     if (roomGalleryCloseBtn) {
         roomGalleryCloseBtn.addEventListener('click', hideRoomGalleryModal);
     }
@@ -1367,6 +1399,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             hideAddonDetailModal();
+            closeBookingCancellationModal();
             hideRoomGalleryModal();
         } else if (event.key === 'ArrowLeft') {
             if (roomGalleryModal && !roomGalleryModal.classList.contains('hidden')) {

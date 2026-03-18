@@ -202,7 +202,10 @@
                         <span class="material-symbols-outlined">gavel</span>
                         訂房須知
                     </h2>
-                    <div id="bookingNoticeContent" class="booking-notice-content booking-notice-content-inline"></div>
+                    <div class="booking-notice-content booking-notice-content-inline booking-notice-content-with-policy">
+                        <button type="button" id="bookingCancellationPolicyBtn" class="booking-cancellation-policy-btn">取消政策</button>
+                        <div id="bookingNoticeContent"></div>
+                    </div>
                 </div>
 
                 <!-- 價格摘要區 -->
@@ -275,6 +278,17 @@
                     <div id="addonDetailBody" class="addon-detail-body"></div>
                     <div class="modal-actions">
                         <button type="button" id="addonDetailCloseBtn" class="modal-btn modal-btn-primary">關閉</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 取消政策彈窗 -->
+            <div id="bookingCancellationModal" class="modal-overlay hidden">
+                <div class="modal-dialog booking-cancellation-dialog">
+                    <h3 class="modal-title">取消政策</h3>
+                    <div id="bookingCancellationPolicyContent" class="booking-notice-content"></div>
+                    <div class="modal-actions">
+                        <button type="button" id="bookingCancellationCloseBtn" class="modal-btn modal-btn-primary">關閉</button>
                     </div>
                 </div>
             </div>
