@@ -86,13 +86,18 @@ let earlyBirdDiscount = null; // 已偵測的早鳥優惠
 let memberLevelDiscount = null; // 已偵測的會員折扣
 let roomCountConfig = { min: 1, max: 20 };
 let bookingNoticeConfig = {
-    content: '1. 入住時間為 15:00 後，退房時間為 11:00 前。\n2. 全館禁菸，違者將酌收清潔費。\n3. 室內請降低音量，22:00 後請避免喧嘩。\n4. 若有加床、停車或特殊需求，請於入住前先聯繫客服。'
+    content: '1. 入住時間為 15:00 後，退房時間為 11:00 前。\n2. 全館禁菸，違者將酌收清潔費。\n3. 室內請降低音量，22:00 後請避免喧嘩。\n4. 現場若核對入住人數或年齡與預訂資料不符，旅宿得依規範加收費用或保留入住安排權。'
 };
 let bookingTermsConfig = {
     enabled: true,
     requireCheckbox: true,
-    agreementText: '若現場核對入住人數或年齡與預訂資訊不符，旅宿得依規範加收費用或保留入住安排權利。'
+    agreementText: '我已閱讀並同意以上內容'
 };
+
+const OLD_NOTICE_LINE = '4. 若有加床、停車或特殊需求，請於入住前先聯繫客服。';
+const NEW_NOTICE_LINE = '4. 現場若核對入住人數或年齡與預訂資料不符，旅宿得依規範加收費用或保留入住安排權。';
+const OLD_TERMS_AGREEMENT_TEXT = '若現場核對入住人數或年齡與預訂資訊不符，旅宿得依規範加收費用或保留入住安排權利。';
+const NEW_TERMS_AGREEMENT_TEXT = '我已閱讀並同意以上內容';
 
 function parsePositiveIntSetting(value, fallback = 1) {
     const n = parseInt(String(value ?? ''), 10);
@@ -329,10 +334,25 @@ function applyBookingNoticeSettings(settings) {
     if (!contentEl || !sectionEl) return;
 
     const content = String(settings?.booking_notice_content || '').trim();
-    bookingNoticeConfig.content = content || bookingNoticeConfig.content;
+    bookingNoticeConfig.content = normalizeBookingNoticeContent(content || bookingNoticeConfig.content);
     contentEl.textContent = bookingNoticeConfig.content;
     sectionEl.style.display = bookingNoticeConfig.content ? '' : 'none';
     clearSectionError('bookingNoticeSection');
+}
+
+function normalizeBookingNoticeContent(content) {
+    const lines = String(content || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .filter((line) => !line.includes('若有加床、停車或特殊需求，請於入住前先聯繫客服'));
+
+    const hasNewNotice = lines.some((line) => line.includes('入住人數或年齡與預訂資料不符'));
+    if (!hasNewNotice) {
+        lines.push(NEW_NOTICE_LINE);
+    }
+
+    return lines.join('\n').replace(OLD_NOTICE_LINE, NEW_NOTICE_LINE);
 }
 
 function applyBookingTermsSettings(settings) {
@@ -343,10 +363,13 @@ function applyBookingTermsSettings(settings) {
     if (!sectionEl || !checkboxEl || !textEl || !requiredHintEl) return;
 
     const agreementText = String(settings?.booking_terms_agreement_text || '').trim();
+    const normalizedAgreementText = agreementText === OLD_TERMS_AGREEMENT_TEXT
+        ? NEW_TERMS_AGREEMENT_TEXT
+        : (agreementText || NEW_TERMS_AGREEMENT_TEXT);
     bookingTermsConfig = {
         enabled: isSettingEnabled(settings?.booking_terms_enabled, true),
         requireCheckbox: isSettingEnabled(settings?.booking_terms_require_checkbox, true),
-        agreementText: agreementText || bookingTermsConfig.agreementText
+        agreementText: normalizedAgreementText
     };
 
     textEl.textContent = bookingTermsConfig.agreementText;

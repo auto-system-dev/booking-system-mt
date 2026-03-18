@@ -5479,7 +5479,7 @@ async function loadSettings() {
             // 訂房頁訂房須知設定
             document.getElementById('bookingNoticeContent').value =
                 settings.booking_notice_content ||
-                '1. 入住時間為 15:00 後，退房時間為 11:00 前。\n2. 全館禁菸，違者將酌收清潔費。\n3. 室內請降低音量，22:00 後請避免喧嘩。\n4. 若有加床、停車或特殊需求，請於入住前先聯繫客服。';
+                '1. 入住時間為 15:00 後，退房時間為 11:00 前。\n2. 全館禁菸，違者將酌收清潔費。\n3. 室內請降低音量，22:00 後請避免喧嘩。\n4. 現場若核對入住人數或年齡與預訂資料不符，旅宿得依規範加收費用或保留入住安排權。';
             document.getElementById('bookingTermsEnabled').checked =
                 settings.booking_terms_enabled === undefined || settings.booking_terms_enabled === null || settings.booking_terms_enabled === ''
                     ? true
@@ -5489,8 +5489,9 @@ async function loadSettings() {
                     ? true
                     : (settings.booking_terms_require_checkbox === '1' || settings.booking_terms_require_checkbox === 'true');
             document.getElementById('bookingTermsAgreementText').value =
-                settings.booking_terms_agreement_text ||
-                '若現場核對入住人數或年齡與預訂資訊不符，旅宿得依規範加收費用或保留入住安排權利。';
+                (settings.booking_terms_agreement_text === '若現場核對入住人數或年齡與預訂資訊不符，旅宿得依規範加收費用或保留入住安排權利。'
+                    ? '我已閱讀並同意以上內容'
+                    : (settings.booking_terms_agreement_text || '我已閱讀並同意以上內容'));
             
             // LINE 官方帳號設定
             document.getElementById('lineChannelAccessToken').value = settings.line_channel_access_token || '';
