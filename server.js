@@ -769,7 +769,6 @@ async function handleCreateBooking(req, res) {
             promoCode, // 優惠代碼（選填）
             bookingNoticeAgreed,
             bookingTermsAgreed,
-            specialRequest,
             special_request
         } = req.body;
 
@@ -912,7 +911,7 @@ async function handleCreateBooking(req, res) {
             }
         }
         
-        const normalizedSpecialRequest = String(specialRequest || special_request || '').trim().slice(0, 300);
+        const normalizedSpecialRequest = String(special_request || '').trim().slice(0, 300);
 
         // 儲存訂房資料（這裡可以連接資料庫）
         const bookingData = {
@@ -938,7 +937,7 @@ async function handleCreateBooking(req, res) {
             addons: addons || null, // 加購商品陣列
             addonsTotal: addonsTotal || 0, // 加購商品總金額
             addonsList: addonsList, // 加購商品顯示字串（用於郵件）
-            specialRequest: normalizedSpecialRequest
+            special_request: normalizedSpecialRequest
         };
 
         // 取得匯款提醒模板的保留天數（用於計算到期日期）
@@ -8691,8 +8690,8 @@ function enforceGoogleReviewButtonStyle(content) {
     );
 }
 
-function injectSpecialRequestRowForLegacyTemplate(content, specialRequest) {
-    const requestText = String(specialRequest || '').trim();
+function injectSpecialRequestRowForLegacyTemplate(content, specialRequestText) {
+    const requestText = String(specialRequestText || '').trim();
     if (!requestText || !content) return content;
     if (content.includes('特殊需求')) return content;
     const escapedRequestText = requestText
@@ -8736,6 +8735,22 @@ function injectSpecialRequestRowForLegacyTemplate(content, specialRequest) {
         return content.replace(/<\/body>/i, `${fallbackBlock}\n</body>`);
     }
     return `${content}\n${fallbackBlock}`;
+}
+
+function ensureCustomerBookingClosing(content, templateKey) {
+    if (templateKey !== 'booking_confirmation' || !content) return content;
+    const hasThankYou = /感謝您的預訂/.test(content);
+    const hasAutoNotice = /此為系統自動發送郵件，請勿直接回覆/.test(content);
+    if (hasThankYou && hasAutoNotice) return content;
+
+    const closingHtml = `
+<p style="margin-top: 35px; font-size: 17px; font-weight: 500;">感謝您的預訂，期待為您服務！</p>
+<p style="text-align: center; margin-top: 30px; color: #666; font-size: 14px; padding-top: 20px; border-top: 1px solid #e0e0e0;">此為系統自動發送郵件，請勿直接回覆</p>`;
+
+    if (/<\/body>/i.test(content)) {
+        return content.replace(/<\/body>/i, `${closingHtml}\n</body>`);
+    }
+    return `${content}\n${closingHtml}`;
 }
 
 // 替換郵件模板中的變數
@@ -9346,7 +9361,7 @@ ${htmlEnd}`;
     const roomType = booking.room_type || booking.roomType || '';
     const guestPhone = booking.guest_phone || booking.guestPhone || '';
     const guestEmail = booking.guest_email || booking.guestEmail || '';
-    const specialRequest = booking.special_request || booking.specialRequest || '';
+    const specialRequest = booking.special_request || '';
 
     // 入住提醒區塊內容與顯示開關
     const defaultBookingInfoContent = `<div class="info-row">
@@ -9663,6 +9678,9 @@ ${htmlEnd}`;
     if (templateKey === 'booking_confirmation') {
         content = content.replace(/\{\{specialRequest\}\}/g, '');
     }
+
+    // 客戶確認信保底：若模板被改動而缺少結尾文字，自動補回
+    content = ensureCustomerBookingClosing(content, templateKey);
     
     // 確保模板主題存在（支援多種欄位名稱）
     let subject = template.subject || template.template_subject || '';
