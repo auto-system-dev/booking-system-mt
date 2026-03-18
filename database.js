@@ -1998,6 +1998,17 @@ async function initEmailTemplates() {
                     console.log('⚠️ 訂房確認模板缺少匯款後官方 LINE 提示，需要更新');
                 }
             }
+
+            // 檢查訂房確認模板是否缺少結尾文案
+            let needsUpdateForBookingFooterText = false;
+            if (template.key === 'booking_confirmation' && existing && existing.content && existing.content.trim() !== '') {
+                const hasThanksText = existing.content.includes('感謝您的預訂，期待為您服務！');
+                const hasAutoNoticeText = existing.content.includes('此為系統自動發送郵件，請勿直接回覆');
+                if (!hasThanksText || !hasAutoNoticeText) {
+                    needsUpdateForBookingFooterText = true;
+                    console.log('⚠️ 訂房確認模板缺少結尾文案，需要更新');
+                }
+            }
             
             // 檢查付款完成模板是否缺少聯絡資訊區塊（電話 / Email / 官方 LINE）
             let needsUpdateForPaymentCompletedContactInfo = false;
@@ -2021,7 +2032,7 @@ async function initEmailTemplates() {
                 }
             }
             
-            if (!existing || !existing.content || existing.content.trim() === '' || existing.template_name !== template.name || isContentTooShort || needsUpdateForHtmlStructure || forceUpdateCheckinReminder || forceUpdatePaymentReminder || needsUpdateForPaymentReminder || needsUpdateForFeedbackResponsive || needsUpdateForFeedbackOfficialLine || needsUpdateForFeedbackContactStyle || needsUpdateForFeedbackContactTextColorAndSpacing || needsUpdateForBookingContactInfo || needsUpdateForBookingTransferLineNotice || needsUpdateForPaymentCompletedContactInfo || needsUpdateForCancelNotificationOfficialLine) {
+            if (!existing || !existing.content || existing.content.trim() === '' || existing.template_name !== template.name || isContentTooShort || needsUpdateForHtmlStructure || forceUpdateCheckinReminder || forceUpdatePaymentReminder || needsUpdateForPaymentReminder || needsUpdateForFeedbackResponsive || needsUpdateForFeedbackOfficialLine || needsUpdateForFeedbackContactStyle || needsUpdateForFeedbackContactTextColorAndSpacing || needsUpdateForBookingContactInfo || needsUpdateForBookingTransferLineNotice || needsUpdateForBookingFooterText || needsUpdateForPaymentCompletedContactInfo || needsUpdateForCancelNotificationOfficialLine) {
                 if (usePostgreSQL) {
                     await query(
                         `INSERT INTO email_templates (template_key, template_name, subject, content, is_enabled, days_before_checkin, send_hour_checkin, days_after_checkout, send_hour_feedback, days_reserved, send_hour_payment_reminder)
@@ -2073,6 +2084,8 @@ async function initEmailTemplates() {
                     console.log(`✅ 已還原郵件模板 ${template.key} 的完整內容（原內容長度: ${existing.content.length}, 新內容長度: ${template.content.length}）`);
                 } else if (needsUpdateForHtmlStructure) {
                     console.log(`✅ 已更新入住提醒模板為完整的圖卡格式（包含完整的 HTML 和 CSS）`);
+                } else if (needsUpdateForBookingFooterText) {
+                    console.log(`✅ 已補齊訂房確認模板中的結尾文案`);
                 } else if (!existing) {
                     console.log(`✅ 已建立新的郵件模板 ${template.key}`);
                 }
