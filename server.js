@@ -1158,6 +1158,7 @@ async function handleCreateBooking(req, res) {
                 guestName: bookingData.guestName,
                 guestPhone: bookingData.guestPhone,
                 guestEmail: bookingData.guestEmail,
+                specialRequest: bookingData.specialRequest || '',
                 adults: bookingData.adults || 0,
                 children: bookingData.children || 0,
                 paymentAmount: bookingData.paymentAmount,
