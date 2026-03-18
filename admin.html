@@ -1036,6 +1036,29 @@
                                     <textarea id="bookingNoticeContent" rows="8" placeholder="例如：&#10;1. 入住時間為 15:00 後，退房時間為 11:00 前。&#10;2. 全館禁菸，違者將酌收清潔費。&#10;3. 取消規則與延期規則請詳閱本說明。"></textarea>
                                     <small>可使用換行，前台會顯示在「優惠代碼」下方。</small>
                                 </div>
+                                <div class="form-group">
+                                    <label class="inline-slider-toggle">
+                                        <span class="inline-slider-switch">
+                                            <input type="checkbox" id="bookingTermsEnabled">
+                                            <span class="inline-slider-track"><span class="inline-slider-thumb"></span></span>
+                                        </span>
+                                        <span>顯示「使用條款與隱私政策」同意區塊</span>
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label class="inline-slider-toggle">
+                                        <span class="inline-slider-switch">
+                                            <input type="checkbox" id="bookingTermsRequireCheckbox">
+                                            <span class="inline-slider-track"><span class="inline-slider-thumb"></span></span>
+                                        </span>
+                                        <span>送出訂房前必須勾選同意</span>
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label>同意區塊提示文字</label>
+                                    <textarea id="bookingTermsAgreementText" rows="3" placeholder="例如：若現場核對入住人數或年齡與預訂資訊不符，旅宿得依規範加收費用或保留入住安排權利。"></textarea>
+                                    <small>前台會自動在句尾加上「使用條款」與「隱私政策」連結。</small>
+                                </div>
                                 <button class="btn-save" onclick="saveHotelInfoSettings()">儲存設定</button>
                             </div>
                         </div>

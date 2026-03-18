@@ -88,6 +88,11 @@ let roomCountConfig = { min: 1, max: 20 };
 let bookingNoticeConfig = {
     content: '1. 入住時間為 15:00 後，退房時間為 11:00 前。\n2. 全館禁菸，違者將酌收清潔費。\n3. 室內請降低音量，22:00 後請避免喧嘩。\n4. 若有加床、停車或特殊需求，請於入住前先聯繫客服。'
 };
+let bookingTermsConfig = {
+    enabled: true,
+    requireCheckbox: true,
+    agreementText: '若現場核對入住人數或年齡與預訂資訊不符，旅宿得依規範加收費用或保留入住安排權利。'
+};
 
 function parsePositiveIntSetting(value, fallback = 1) {
     const n = parseInt(String(value ?? ''), 10);
@@ -292,6 +297,7 @@ async function loadRoomTypesAndSettings() {
         }
         
         applyBookingNoticeSettings(settingsResult.success ? settingsResult.data : null);
+        applyBookingTermsSettings(settingsResult.success ? settingsResult.data : null);
         
         // 更新訂金百分比顯示
         updateDepositLabel();
@@ -327,6 +333,28 @@ function applyBookingNoticeSettings(settings) {
     contentEl.textContent = bookingNoticeConfig.content;
     sectionEl.style.display = bookingNoticeConfig.content ? '' : 'none';
     clearSectionError('bookingNoticeSection');
+}
+
+function applyBookingTermsSettings(settings) {
+    const sectionEl = document.getElementById('bookingTermsSection');
+    const checkboxEl = document.getElementById('bookingTermsAgree');
+    const textEl = document.getElementById('bookingTermsAgreementText');
+    const requiredHintEl = document.getElementById('bookingTermsRequiredHint');
+    if (!sectionEl || !checkboxEl || !textEl || !requiredHintEl) return;
+
+    const agreementText = String(settings?.booking_terms_agreement_text || '').trim();
+    bookingTermsConfig = {
+        enabled: isSettingEnabled(settings?.booking_terms_enabled, true),
+        requireCheckbox: isSettingEnabled(settings?.booking_terms_require_checkbox, true),
+        agreementText: agreementText || bookingTermsConfig.agreementText
+    };
+
+    textEl.textContent = bookingTermsConfig.agreementText;
+    checkboxEl.checked = false;
+    checkboxEl.required = bookingTermsConfig.enabled && bookingTermsConfig.requireCheckbox;
+    requiredHintEl.textContent = bookingTermsConfig.requireCheckbox ? '（必填）' : '（選填）';
+    sectionEl.classList.toggle('hidden', !bookingTermsConfig.enabled);
+    clearSectionError('bookingTermsSection');
 }
 
 function openBookingNoticeModal() {
@@ -1246,6 +1274,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmBtn = document.getElementById('capacityConfirmBtn');
     const addonDetailCloseBtn = document.getElementById('addonDetailCloseBtn');
     const addonDetailModal = document.getElementById('addonDetailModal');
+    const bookingTermsAgree = document.getElementById('bookingTermsAgree');
     const roomGalleryModal = document.getElementById('roomGalleryModal');
     const roomGalleryCloseBtn = document.getElementById('roomGalleryCloseBtn');
     const roomGalleryPrevBtn = document.getElementById('roomGalleryPrevBtn');
@@ -1288,6 +1317,13 @@ document.addEventListener('DOMContentLoaded', function() {
         roomGalleryModal.addEventListener('click', (event) => {
             if (event.target === roomGalleryModal) {
                 hideRoomGalleryModal();
+            }
+        });
+    }
+    if (bookingTermsAgree) {
+        bookingTermsAgree.addEventListener('change', () => {
+            if (bookingTermsAgree.checked) {
+                clearSectionError('bookingTermsSection');
             }
         });
     }
@@ -2112,6 +2148,16 @@ document.getElementById('bookingForm').addEventListener('submit', async function
             return;
         }
     }
+
+    // 8. 條款同意驗證（由後台設定控制）
+    if (bookingTermsConfig.enabled && bookingTermsConfig.requireCheckbox) {
+        const bookingTermsAgree = document.getElementById('bookingTermsAgree');
+        if (!bookingTermsAgree || !bookingTermsAgree.checked) {
+            showSectionError('bookingTermsSection', '送出訂房前，請先勾選同意使用條款與隱私政策');
+            return;
+        }
+        clearSectionError('bookingTermsSection');
+    }
     
     // 所有驗證通過，開始提交
     submitBtn.disabled = true;
@@ -2151,7 +2197,8 @@ document.getElementById('bookingForm').addEventListener('submit', async function
         roomSelections,
         paymentAmount: document.querySelector('input[name="paymentAmount"]:checked').value,
         paymentMethod: paymentMethod.value,
-        bookingNoticeAgreed: true
+        bookingNoticeAgreed: true,
+        bookingTermsAgreed: !!document.getElementById('bookingTermsAgree')?.checked
     };
     
     // 計算價格資訊（考慮假日）

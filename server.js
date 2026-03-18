@@ -767,7 +767,8 @@ async function handleCreateBooking(req, res) {
             adults,
             children,
             promoCode, // 優惠代碼（選填）
-            bookingNoticeAgreed
+            bookingNoticeAgreed,
+            bookingTermsAgreed
         } = req.body;
 
         // 驗證必填欄位
@@ -793,6 +794,26 @@ async function handleCreateBooking(req, res) {
             }
         } catch (noticeError) {
             console.warn('訂房須知同意檢查失敗，沿用前端驗證:', noticeError.message);
+        }
+
+        // 驗證使用條款與隱私政策同意（由後台設定控制）
+        try {
+            const [termsEnabledSetting, termsRequireSetting] = await Promise.all([
+                db.getSetting('booking_terms_enabled'),
+                db.getSetting('booking_terms_require_checkbox')
+            ]);
+            const termsEnabled = termsEnabledSetting === null || termsEnabledSetting === undefined || termsEnabledSetting === ''
+                ? true
+                : ['1', 'true', 'yes', 'on'].includes(String(termsEnabledSetting).trim().toLowerCase());
+            const termsRequireCheckbox = termsRequireSetting === null || termsRequireSetting === undefined || termsRequireSetting === ''
+                ? true
+                : ['1', 'true', 'yes', 'on'].includes(String(termsRequireSetting).trim().toLowerCase());
+            const termsAgreed = ['1', 'true', 'yes', 'on'].includes(String(bookingTermsAgreed).trim().toLowerCase());
+            if (termsEnabled && termsRequireCheckbox && !termsAgreed) {
+                return res.status(400).json({ message: '送出訂房前，請先勾選同意使用條款與隱私政策' });
+            }
+        } catch (termsError) {
+            console.warn('使用條款同意檢查失敗，沿用前端驗證:', termsError.message);
         }
 
         // 驗證：如果入住日期是今天，不允許選擇匯款
@@ -1481,6 +1502,11 @@ app.get('/booking', (req, res) => {
 // 隱私權政策頁面
 app.get('/privacy', (req, res) => {
     res.sendFile(path.join(__dirname, 'privacy.html'));
+});
+
+// 使用條款頁面
+app.get('/terms', (req, res) => {
+    res.sendFile(path.join(__dirname, 'terms.html'));
 });
 
 // 個資保護頁面

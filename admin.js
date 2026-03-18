@@ -4940,6 +4940,9 @@ async function saveHotelInfoSettings() {
     const hotelEmail = document.getElementById('hotelEmail').value;
     const adminEmail = document.getElementById('adminEmail').value;
     const bookingNoticeContent = document.getElementById('bookingNoticeContent').value.trim();
+    const bookingTermsEnabled = document.getElementById('bookingTermsEnabled').checked ? '1' : '0';
+    const bookingTermsRequireCheckbox = document.getElementById('bookingTermsRequireCheckbox').checked ? '1' : '0';
+    const bookingTermsAgreementText = document.getElementById('bookingTermsAgreementText').value.trim();
     
     // 驗證管理員信箱
     if (!adminEmail) {
@@ -4957,7 +4960,8 @@ async function saveHotelInfoSettings() {
     try {
         const [
             hotelNameResponse, hotelPhoneResponse, hotelAddressResponse, hotelEmailResponse, adminEmailResponse,
-            bookingNoticeEnabledResponse, bookingNoticeRequireAgreementResponse, bookingNoticeContentResponse
+            bookingNoticeEnabledResponse, bookingNoticeRequireAgreementResponse, bookingNoticeContentResponse,
+            bookingTermsEnabledResponse, bookingTermsRequireResponse, bookingTermsTextResponse
         ] = await Promise.all([
             adminFetch('/api/admin/settings/hotel_name', {
                 method: 'PUT',
@@ -5038,6 +5042,36 @@ async function saveHotelInfoSettings() {
                     value: bookingNoticeContent,
                     description: '訂房須知內容（前台直接顯示）'
                 })
+            }),
+            adminFetch('/api/admin/settings/booking_terms_enabled', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    value: bookingTermsEnabled,
+                    description: '前台是否顯示使用條款與隱私政策同意區塊（1=顯示，0=隱藏）'
+                })
+            }),
+            adminFetch('/api/admin/settings/booking_terms_require_checkbox', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    value: bookingTermsRequireCheckbox,
+                    description: '送出訂房前是否必須勾選同意（1=必須，0=不必）'
+                })
+            }),
+            adminFetch('/api/admin/settings/booking_terms_agreement_text', {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    value: bookingTermsAgreementText,
+                    description: '前台同意區塊提示文字'
+                })
             })
         ]);
         
@@ -5049,7 +5083,10 @@ async function saveHotelInfoSettings() {
             adminEmailResponse.json(),
             bookingNoticeEnabledResponse.json(),
             bookingNoticeRequireAgreementResponse.json(),
-            bookingNoticeContentResponse.json()
+            bookingNoticeContentResponse.json(),
+            bookingTermsEnabledResponse.json(),
+            bookingTermsRequireResponse.json(),
+            bookingTermsTextResponse.json()
         ]);
         
         const allSuccess = results.every(r => r.success);
@@ -5443,6 +5480,17 @@ async function loadSettings() {
             document.getElementById('bookingNoticeContent').value =
                 settings.booking_notice_content ||
                 '1. 入住時間為 15:00 後，退房時間為 11:00 前。\n2. 全館禁菸，違者將酌收清潔費。\n3. 室內請降低音量，22:00 後請避免喧嘩。\n4. 若有加床、停車或特殊需求，請於入住前先聯繫客服。';
+            document.getElementById('bookingTermsEnabled').checked =
+                settings.booking_terms_enabled === undefined || settings.booking_terms_enabled === null || settings.booking_terms_enabled === ''
+                    ? true
+                    : (settings.booking_terms_enabled === '1' || settings.booking_terms_enabled === 'true');
+            document.getElementById('bookingTermsRequireCheckbox').checked =
+                settings.booking_terms_require_checkbox === undefined || settings.booking_terms_require_checkbox === null || settings.booking_terms_require_checkbox === ''
+                    ? true
+                    : (settings.booking_terms_require_checkbox === '1' || settings.booking_terms_require_checkbox === 'true');
+            document.getElementById('bookingTermsAgreementText').value =
+                settings.booking_terms_agreement_text ||
+                '若現場核對入住人數或年齡與預訂資訊不符，旅宿得依規範加收費用或保留入住安排權利。';
             
             // LINE 官方帳號設定
             document.getElementById('lineChannelAccessToken').value = settings.line_channel_access_token || '';
