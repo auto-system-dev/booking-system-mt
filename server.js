@@ -769,8 +769,14 @@ async function handleCreateBooking(req, res) {
             promoCode, // 優惠代碼（選填）
             bookingNoticeAgreed,
             bookingTermsAgreed,
-            specialRequest
+            specialRequest,
+            utm_source,
+            utm_medium,
+            utm_campaign,
+            booking_source,
+            referrer
         } = req.body;
+        const lineUserId = req.body.lineUserId || req.query.lineUserId;
 
         // 驗證必填欄位
         if (!checkInDate || !checkOutDate || !roomType || !guestName || !guestPhone || !guestEmail) {
@@ -929,6 +935,13 @@ async function handleCreateBooking(req, res) {
         }
         
         const normalizedSpecialRequest = String(specialRequest || '').trim().slice(0, 300);
+        const normalizedUtmSource = String(utm_source || req.body.utmSource || '').trim().slice(0, 120);
+        const normalizedUtmMedium = String(utm_medium || req.body.utmMedium || '').trim().slice(0, 120);
+        const normalizedUtmCampaign = String(utm_campaign || req.body.utmCampaign || '').trim().slice(0, 160);
+        const inferredSource = normalizedUtmSource
+            || String(booking_source || req.body.bookingSource || '').trim().toLowerCase().slice(0, 120)
+            || (lineUserId ? 'line' : 'direct');
+        const normalizedReferrer = String(referrer || req.body.referrer || '').trim().slice(0, 500);
 
         // 儲存訂房資料（這裡可以連接資料庫）
         const bookingData = {
@@ -954,7 +967,12 @@ async function handleCreateBooking(req, res) {
             addons: addons || null, // 加購商品陣列
             addonsTotal: addonsTotal || 0, // 加購商品總金額
             addonsList: addonsList, // 加購商品顯示字串（用於郵件）
-            specialRequest: normalizedSpecialRequest
+            specialRequest: normalizedSpecialRequest,
+            utmSource: normalizedUtmSource,
+            utmMedium: normalizedUtmMedium,
+            utmCampaign: normalizedUtmCampaign,
+            bookingSource: inferredSource,
+            referrer: normalizedReferrer
         };
 
         // 取得匯款提醒模板的保留天數（用於計算到期日期）
@@ -1115,7 +1133,6 @@ async function handleCreateBooking(req, res) {
 
         // 發送 LINE 訊息（如果有提供 LINE User ID 且付款方式為匯款轉帳）
         // 線上刷卡會在付款成功後才發送 LINE 訊息
-        const lineUserId = req.body.lineUserId || req.query.lineUserId;
         if (lineUserId && paymentMethod === 'transfer') {
             try {
                 // 確保 LINE Bot 設定是最新的（從資料庫重新載入）
@@ -1190,7 +1207,12 @@ async function handleCreateBooking(req, res) {
                 status: bookingStatus,
                 addons: bookingData.addons || null,
                 addonsTotal: bookingData.addonsTotal || 0,
-                lineUserId: lineUserId || null
+                lineUserId: lineUserId || null,
+                utmSource: bookingData.utmSource || null,
+                utmMedium: bookingData.utmMedium || null,
+                utmCampaign: bookingData.utmCampaign || null,
+                bookingSource: bookingData.bookingSource || null,
+                referrer: bookingData.referrer || null
             });
             
             console.log('✅ 訂房資料已成功儲存到資料庫 (ID:', savedId, ')');

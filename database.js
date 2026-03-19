@@ -190,6 +190,11 @@ async function initPostgreSQL() {
                     email_sent VARCHAR(255) DEFAULT '0',
                     payment_status VARCHAR(255) DEFAULT 'pending',
                     status VARCHAR(255) DEFAULT 'active',
+                    utm_source VARCHAR(120),
+                    utm_medium VARCHAR(120),
+                    utm_campaign VARCHAR(160),
+                    booking_source VARCHAR(120),
+                    referrer TEXT,
                     discount_amount DECIMAL(10,2) DEFAULT 0,
                     discount_description TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -255,6 +260,11 @@ async function initPostgreSQL() {
                 { name: 'special_request', type: 'TEXT', default: null },
                 { name: 'payment_deadline', type: 'TEXT', default: null },
                 { name: 'days_reserved', type: 'INTEGER', default: null },
+                { name: 'utm_source', type: 'VARCHAR(120)', default: null },
+                { name: 'utm_medium', type: 'VARCHAR(120)', default: null },
+                { name: 'utm_campaign', type: 'VARCHAR(160)', default: null },
+                { name: 'booking_source', type: 'VARCHAR(120)', default: null },
+                { name: 'referrer', type: 'TEXT', default: null },
                 { name: 'discount_amount', type: 'DECIMAL(10,2)', default: '0' },
                 { name: 'discount_description', type: 'TEXT', default: null }
             ];
@@ -2155,6 +2165,11 @@ function initSQLite() {
                     email_sent VARCHAR(255) DEFAULT '0',
                     payment_status TEXT DEFAULT 'pending',
                     status TEXT DEFAULT 'active',
+                    utm_source TEXT,
+                    utm_medium TEXT,
+                    utm_campaign TEXT,
+                    booking_source TEXT,
+                    referrer TEXT,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                 )
             `, (err) => {
@@ -2434,6 +2449,31 @@ function initSQLite() {
                                                     db.run(`ALTER TABLE bookings ADD COLUMN special_request TEXT`, (err) => {
                                                         if (err && !err.message.includes('duplicate column')) {
                                                             console.warn('⚠️  新增 special_request 欄位時發生錯誤:', err.message);
+                                                        }
+                                                    });
+                                                    db.run(`ALTER TABLE bookings ADD COLUMN utm_source TEXT`, (err) => {
+                                                        if (err && !err.message.includes('duplicate column')) {
+                                                            console.warn('⚠️  新增 utm_source 欄位時發生錯誤:', err.message);
+                                                        }
+                                                    });
+                                                    db.run(`ALTER TABLE bookings ADD COLUMN utm_medium TEXT`, (err) => {
+                                                        if (err && !err.message.includes('duplicate column')) {
+                                                            console.warn('⚠️  新增 utm_medium 欄位時發生錯誤:', err.message);
+                                                        }
+                                                    });
+                                                    db.run(`ALTER TABLE bookings ADD COLUMN utm_campaign TEXT`, (err) => {
+                                                        if (err && !err.message.includes('duplicate column')) {
+                                                            console.warn('⚠️  新增 utm_campaign 欄位時發生錯誤:', err.message);
+                                                        }
+                                                    });
+                                                    db.run(`ALTER TABLE bookings ADD COLUMN booking_source TEXT`, (err) => {
+                                                        if (err && !err.message.includes('duplicate column')) {
+                                                            console.warn('⚠️  新增 booking_source 欄位時發生錯誤:', err.message);
+                                                        }
+                                                    });
+                                                    db.run(`ALTER TABLE bookings ADD COLUMN referrer TEXT`, (err) => {
+                                                        if (err && !err.message.includes('duplicate column')) {
+                                                            console.warn('⚠️  新增 referrer 欄位時發生錯誤:', err.message);
                                                         }
                                                     });
                                                 });
@@ -2832,8 +2872,9 @@ async function saveBooking(bookingData) {
                 price_per_night, nights, total_amount, final_amount,
                 booking_date, email_sent, payment_status, status, addons, addons_total,
                 payment_deadline, days_reserved, line_user_id,
+                utm_source, utm_medium, utm_campaign, booking_source, referrer,
                 discount_amount, discount_description
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32)
             RETURNING id
         ` : `
             INSERT INTO bookings (
@@ -2844,8 +2885,9 @@ async function saveBooking(bookingData) {
                 price_per_night, nights, total_amount, final_amount,
                 booking_date, email_sent, payment_status, status, addons, addons_total,
                 payment_deadline, days_reserved, line_user_id,
+                utm_source, utm_medium, utm_campaign, booking_source, referrer,
                 discount_amount, discount_description
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const addonsJson = bookingData.addons ? JSON.stringify(bookingData.addons) : null;
@@ -2887,6 +2929,11 @@ async function saveBooking(bookingData) {
             bookingData.paymentDeadline || null,
             bookingData.daysReserved || null,
             bookingData.lineUserId || null,
+            bookingData.utmSource || null,
+            bookingData.utmMedium || null,
+            bookingData.utmCampaign || null,
+            bookingData.bookingSource || null,
+            bookingData.referrer || null,
             bookingData.discountAmount || 0,
             discountDesc || null
         ];

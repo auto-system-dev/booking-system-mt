@@ -85,6 +85,8 @@ let appliedPromoCode = null; // 已套用的優惠代碼
 let earlyBirdDiscount = null; // 已偵測的早鳥優惠
 let memberLevelDiscount = null; // 已偵測的會員折扣
 let roomCountConfig = { min: 1, max: 20 };
+const BOOKING_ATTRIBUTION_STORAGE_KEY = 'booking_attribution_v1';
+const bookingAttribution = initBookingAttribution();
 const DEFAULT_BOOKING_NOTICE_REQUIRED_LINES = [
     '4. 若需提前入住或延後退房，請提前告知，實際安排與費用依現場公告為準。',
     '5. 請妥善保管個人物品，離房時請再次確認；若有遺失請儘速聯繫櫃檯協助。',
@@ -117,6 +119,52 @@ const NEW_TERMS_AGREEMENT_TEXT = '我已閱讀並同意以上內容';
 function parsePositiveIntSetting(value, fallback = 1) {
     const n = parseInt(String(value ?? ''), 10);
     return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+function classifyReferrerSource(referrer) {
+    const ref = String(referrer || '').toLowerCase();
+    if (!ref) return 'direct';
+    if (ref.includes('line.me') || ref.includes('liff.line')) return 'line';
+    if (ref.includes('facebook.com') || ref.includes('fb.')) return 'facebook';
+    if (ref.includes('instagram.com')) return 'instagram';
+    if (ref.includes('google.')) return 'google';
+    if (ref.includes('youtube.')) return 'youtube';
+    if (ref.includes('booking-system') || ref.includes(location.hostname.toLowerCase())) return 'direct';
+    return 'referral';
+}
+
+function initBookingAttribution() {
+    const urlParams = new URLSearchParams(window.location.search || '');
+
+    let stored = {};
+    try {
+        const raw = localStorage.getItem(BOOKING_ATTRIBUTION_STORAGE_KEY);
+        if (raw) stored = JSON.parse(raw) || {};
+    } catch (error) {
+        console.warn('⚠️  讀取來源追蹤快取失敗:', error.message);
+    }
+
+    const utmSource = String(urlParams.get('utm_source') || '').trim().toLowerCase();
+    const utmMedium = String(urlParams.get('utm_medium') || '').trim().toLowerCase();
+    const utmCampaign = String(urlParams.get('utm_campaign') || '').trim();
+    const currentReferrer = String(document.referrer || '').trim();
+    const inferredSource = classifyReferrerSource(currentReferrer);
+
+    const merged = {
+        utm_source: utmSource || String(stored.utm_source || '').trim().toLowerCase() || '',
+        utm_medium: utmMedium || String(stored.utm_medium || '').trim().toLowerCase() || '',
+        utm_campaign: utmCampaign || String(stored.utm_campaign || '').trim() || '',
+        booking_source: utmSource || String(stored.booking_source || '').trim().toLowerCase() || inferredSource || 'direct',
+        referrer: currentReferrer || String(stored.referrer || '').trim() || ''
+    };
+
+    try {
+        localStorage.setItem(BOOKING_ATTRIBUTION_STORAGE_KEY, JSON.stringify(merged));
+    } catch (error) {
+        console.warn('⚠️  儲存來源追蹤快取失敗:', error.message);
+    }
+
+    return merged;
 }
 
 function forceRoomCounterButtonsVisibility(fixedRoomCount) {
@@ -2295,7 +2343,12 @@ document.getElementById('bookingForm').addEventListener('submit', async function
         paymentMethod: paymentMethod.value,
         specialRequest,
         bookingNoticeAgreed: true,
-        bookingTermsAgreed: !!document.getElementById('bookingTermsAgree')?.checked
+        bookingTermsAgreed: !!document.getElementById('bookingTermsAgree')?.checked,
+        utm_source: bookingAttribution.utm_source || '',
+        utm_medium: bookingAttribution.utm_medium || '',
+        utm_campaign: bookingAttribution.utm_campaign || '',
+        booking_source: bookingAttribution.booking_source || 'direct',
+        referrer: bookingAttribution.referrer || ''
     };
     
     // 計算價格資訊（考慮假日）
