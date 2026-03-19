@@ -860,6 +860,140 @@ function applyCustomOpsRange() {
     loadDashboard({ startDate, endDate, isCustom: true });
 }
 
+function setOpsKpiDelta(elementId, currentValue, previousValue, options = {}) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    const {
+        type = 'percent',
+        inverseGood = false
+    } = options;
+
+    const current = Number(currentValue) || 0;
+    const previous = Number(previousValue) || 0;
+    const diff = current - previous;
+
+    el.classList.remove('up', 'down');
+    if (Math.abs(diff) < 0.0001) {
+        el.textContent = '較上期 --';
+        return;
+    }
+
+    const isGood = inverseGood ? diff < 0 : diff > 0;
+    el.classList.add(isGood ? 'up' : 'down');
+
+    if (type === 'currency') {
+        const sign = diff >= 0 ? '+' : '-';
+        el.textContent = `較上期 ${sign}NT$ ${Math.abs(Math.round(diff)).toLocaleString()}`;
+        return;
+    }
+
+    const sign = diff >= 0 ? '+' : '-';
+    el.textContent = `較上期 ${sign}${Math.abs(diff).toFixed(1)}%`;
+}
+
+function renderOpsTrendChart(trendData = {}) {
+    const container = document.getElementById('opsTrendChart');
+    if (!container) return;
+
+    const labels = Array.isArray(trendData.labels) ? trendData.labels : [];
+    const orders = Array.isArray(trendData.orders) ? trendData.orders.map(v => Number(v) || 0) : [];
+    const revenue = Array.isArray(trendData.revenue) ? trendData.revenue.map(v => Number(v) || 0) : [];
+
+    if (!labels.length || (!orders.length && !revenue.length)) {
+        container.innerHTML = '<div class="ops-empty-state">目前沒有可顯示的趨勢資料</div>';
+        return;
+    }
+
+    const width = Math.max(620, container.clientWidth || 620);
+    const height = 240;
+    const left = 36;
+    const right = 18;
+    const top = 14;
+    const bottom = 30;
+    const innerW = width - left - right;
+    const innerH = height - top - bottom;
+
+    const maxOrders = Math.max(1, ...orders);
+    const maxRevenue = Math.max(1, ...revenue);
+    const stepX = labels.length > 1 ? innerW / (labels.length - 1) : innerW;
+
+    const ordersPoints = orders.map((value, idx) => {
+        const x = left + stepX * idx;
+        const y = top + innerH - (value / maxOrders) * innerH;
+        return `${x.toFixed(2)},${y.toFixed(2)}`;
+    }).join(' ');
+
+    const revenuePoints = revenue.map((value, idx) => {
+        const x = left + stepX * idx;
+        const y = top + innerH - (value / maxRevenue) * innerH;
+        return `${x.toFixed(2)},${y.toFixed(2)}`;
+    }).join(' ');
+
+    const firstLabel = labels[0] || '';
+    const lastLabel = labels[labels.length - 1] || '';
+
+    container.innerHTML = `
+        <svg class="ops-trend-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="近30天訂單與營收趨勢">
+            <line x1="${left}" y1="${top + innerH}" x2="${width - right}" y2="${top + innerH}" stroke="#dbe5ef" stroke-width="1"/>
+            <line x1="${left}" y1="${top}" x2="${left}" y2="${top + innerH}" stroke="#dbe5ef" stroke-width="1"/>
+            <polyline points="${ordersPoints}" fill="none" stroke="#2C8EC4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="${revenuePoints}" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <text x="${left}" y="${height - 8}" fill="#9aa6b2" font-size="11">${escapeHtml(firstLabel)}</text>
+            <text x="${width - right - 72}" y="${height - 8}" fill="#9aa6b2" font-size="11">${escapeHtml(lastLabel)}</text>
+        </svg>
+        <div class="ops-trend-legend">
+            <span><span class="ops-trend-dot orders"></span> 訂單數</span>
+            <span><span class="ops-trend-dot revenue"></span> 營收（NT$）</span>
+        </div>
+    `;
+}
+
+function renderOpsTopSources(sources = []) {
+    const container = document.getElementById('opsTopSources');
+    if (!container) return;
+
+    const sourceLabelMap = {
+        direct: '直接流量',
+        line: 'LINE',
+        google: 'Google',
+        facebook: 'Facebook',
+        fb: 'Facebook',
+        instagram: 'Instagram',
+        ig: 'Instagram'
+    };
+
+    if (!Array.isArray(sources) || !sources.length) {
+        container.innerHTML = '<div class="ops-empty-state">尚無來源資料</div>';
+        return;
+    }
+
+    container.innerHTML = sources.map((source) => `
+        <div class="ops-source-row">
+            <div class="ops-source-name">${escapeHtml(sourceLabelMap[String(source.source || '').toLowerCase()] || String(source.source || '未分類'))}</div>
+            <div class="ops-source-orders">${Number(source.orders || 0).toLocaleString()} 筆</div>
+            <div class="ops-source-share">${(Number(source.share || 0)).toFixed(1)}%</div>
+        </div>
+    `).join('');
+}
+
+function renderOpsTodoList(todos = []) {
+    const container = document.getElementById('opsTodoList');
+    if (!container) return;
+
+    if (!Array.isArray(todos) || !todos.length) {
+        container.innerHTML = '<div class="ops-empty-state">目前沒有需要優先處理的提醒</div>';
+        return;
+    }
+
+    container.innerHTML = todos.map((todo) => `
+        <div class="ops-todo-item ${escapeHtml(todo.severity || '')}">
+            <div class="ops-todo-title">${escapeHtml(todo.title || '待辦')}</div>
+            <div class="ops-todo-value">${escapeHtml(String(todo.value || 0))}</div>
+        </div>
+    `).join('');
+}
+
 function hideKpiHelpPopover() {
     const popover = document.getElementById('kpiHelpPopover');
     if (!popover) return;
@@ -1424,6 +1558,7 @@ async function loadDashboard(options = {}) {
 
                 if (opsResult.success && opsResult.data && opsResult.data.kpis) {
                     const kpis = opsResult.data.kpis;
+                    const previousKpis = opsResult.data.previousKpis || {};
                     const formatPercent = (v) => `${(Number(v) || 0).toFixed(1)}%`;
                     const formatCurrency = (v) => `NT$ ${Math.round(Number(v) || 0).toLocaleString()}`;
 
@@ -1441,6 +1576,16 @@ async function loadDashboard(options = {}) {
 
                     const cancellationEl = document.getElementById('opsCancellationRate');
                     if (cancellationEl) cancellationEl.textContent = formatPercent(kpis.cancellationRate);
+
+                    setOpsKpiDelta('opsOccupancyDelta', kpis.occupancyRate, previousKpis.occupancyRate, { type: 'percent' });
+                    setOpsKpiDelta('opsAdrDelta', kpis.averageRoomRate, previousKpis.averageRoomRate, { type: 'currency' });
+                    setOpsKpiDelta('opsConversionDelta', kpis.conversionRate, previousKpis.conversionRate, { type: 'percent' });
+                    setOpsKpiDelta('opsPaymentDelta', kpis.paymentSuccessRate, previousKpis.paymentSuccessRate, { type: 'percent' });
+                    setOpsKpiDelta('opsCancellationDelta', kpis.cancellationRate, previousKpis.cancellationRate, { type: 'percent', inverseGood: true });
+
+                    renderOpsTrendChart(opsResult.data.trend || {});
+                    renderOpsTopSources(opsResult.data.sources || []);
+                    renderOpsTodoList(opsResult.data.todos || []);
 
                     if (!isCustom && opsResult.data.range) {
                         setOpsDateInputs(opsResult.data.range.startDate, opsResult.data.range.endDate);

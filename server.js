@@ -4085,58 +4085,161 @@ app.get('/api/dashboard/ops', adminLimiter, async (req, res) => {
             return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
         };
 
-        // 口徑統一：以入住日落在區間內作為 KPI 計算母體
-        const inRangeByCheckInDate = allBookings.filter((booking) => {
-            const checkIn = normalizeDay(booking.check_in_date);
-            if (!checkIn) return false;
-            return checkIn >= start && checkIn <= end;
-        });
+        const calculateKpisByRange = (rangeStart, rangeEnd) => {
+            const rangeDayCount = Math.max(1, Math.floor((rangeEnd - rangeStart) / (24 * 60 * 60 * 1000)) + 1);
 
-        let occupiedRoomNights = 0;
-        let activeReservedRevenue = 0;
-        let activeReservedNights = 0;
+            const inRangeByCheckInDate = allBookings.filter((booking) => {
+                const checkIn = normalizeDay(booking.check_in_date);
+                if (!checkIn) return false;
+                return checkIn >= rangeStart && checkIn <= rangeEnd;
+            });
+
+            let occupiedRoomNights = 0;
+            let activeReservedRevenue = 0;
+            let activeReservedNights = 0;
+
+            allBookings.forEach((booking) => {
+                if (!isActiveStatus(booking.status) && !isReservedStatus(booking.status)) return;
+
+                const checkIn = normalizeDay(booking.check_in_date);
+                const checkOut = normalizeDay(booking.check_out_date);
+                if (!checkIn || !checkOut || checkOut <= checkIn) return;
+
+                // 住房夜計算：入住日含、退房日不含
+                const overlapStart = checkIn > rangeStart ? checkIn : rangeStart;
+                const overlapEndExclusive = checkOut <= new Date(rangeEnd.getTime() + 24 * 60 * 60 * 1000)
+                    ? checkOut
+                    : new Date(rangeEnd.getTime() + 24 * 60 * 60 * 1000);
+
+                if (overlapEndExclusive <= overlapStart) return;
+
+                const overlapNights = Math.floor((overlapEndExclusive - overlapStart) / (24 * 60 * 60 * 1000));
+                if (overlapNights <= 0) return;
+
+                occupiedRoomNights += overlapNights;
+
+                const totalNights = Math.max(1, Math.floor((checkOut - checkIn) / (24 * 60 * 60 * 1000)));
+                const finalAmount = parseFloat(booking.final_amount || 0) || 0;
+                const perNightRevenue = finalAmount / totalNights;
+                activeReservedRevenue += perNightRevenue * overlapNights;
+                activeReservedNights += overlapNights;
+            });
+
+            const conversionNumerator = inRangeByCheckInDate.filter((b) => isActiveStatus(b.status) || isReservedStatus(b.status)).length;
+            const conversionDenominator = inRangeByCheckInDate.length;
+
+            const paymentNumerator = inRangeByCheckInDate.filter((b) => isPaid(b.payment_status)).length;
+            const paymentDenominator = inRangeByCheckInDate.filter((b) => isPaid(b.payment_status) || isPending(b.payment_status) || isFailed(b.payment_status)).length;
+
+            const cancellationNumerator = inRangeByCheckInDate.filter((b) => isCancelledStatus(b.status)).length;
+            const cancellationDenominator = inRangeByCheckInDate.length;
+
+            const occupancyRate = (occupiedRoomNights / (totalRoomTypes * rangeDayCount)) * 100;
+            const averageRoomRate = activeReservedNights > 0 ? (activeReservedRevenue / activeReservedNights) : 0;
+            const conversionRate = conversionDenominator > 0 ? (conversionNumerator / conversionDenominator) * 100 : 0;
+            const paymentSuccessRate = paymentDenominator > 0 ? (paymentNumerator / paymentDenominator) * 100 : 0;
+            const cancellationRate = cancellationDenominator > 0 ? (cancellationNumerator / cancellationDenominator) * 100 : 0;
+
+            return {
+                occupancyRate,
+                averageRoomRate,
+                conversionRate,
+                paymentSuccessRate,
+                cancellationRate
+            };
+        };
+
+        const currentKpis = calculateKpisByRange(start, end);
+
+        const previousEnd = new Date(start.getTime() - 24 * 60 * 60 * 1000);
+        previousEnd.setHours(0, 0, 0, 0);
+        const previousStart = new Date(previousEnd.getTime() - (dayCount - 1) * 24 * 60 * 60 * 1000);
+        previousStart.setHours(0, 0, 0, 0);
+        const previousKpis = calculateKpisByRange(previousStart, previousEnd);
+
+        // 30 天趨勢（口徑：下單日）
+        const trendEnd = new Date(end);
+        trendEnd.setHours(0, 0, 0, 0);
+        const trendStart = new Date(trendEnd.getTime() - 29 * 24 * 60 * 60 * 1000);
+        const trendLabels = [];
+        const trendMap = new Map();
+        for (let i = 0; i < 30; i += 1) {
+            const d = new Date(trendStart.getTime() + i * 24 * 60 * 60 * 1000);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            trendLabels.push(key);
+            trendMap.set(key, { orders: 0, revenue: 0 });
+        }
 
         allBookings.forEach((booking) => {
-            if (!isActiveStatus(booking.status) && !isReservedStatus(booking.status)) return;
-
-            const checkIn = normalizeDay(booking.check_in_date);
-            const checkOut = normalizeDay(booking.check_out_date);
-            if (!checkIn || !checkOut || checkOut <= checkIn) return;
-
-            // 住房夜計算：入住日含、退房日不含
-            const overlapStart = checkIn > start ? checkIn : start;
-            const overlapEndExclusive = checkOut <= new Date(end.getTime() + 24 * 60 * 60 * 1000)
-                ? checkOut
-                : new Date(end.getTime() + 24 * 60 * 60 * 1000);
-
-            if (overlapEndExclusive <= overlapStart) return;
-
-            const overlapNights = Math.floor((overlapEndExclusive - overlapStart) / (24 * 60 * 60 * 1000));
-            if (overlapNights <= 0) return;
-
-            occupiedRoomNights += overlapNights;
-
-            const totalNights = Math.max(1, Math.floor((checkOut - checkIn) / (24 * 60 * 60 * 1000)));
-            const finalAmount = parseFloat(booking.final_amount || 0) || 0;
-            const perNightRevenue = finalAmount / totalNights;
-            activeReservedRevenue += perNightRevenue * overlapNights;
-            activeReservedNights += overlapNights;
+            const created = normalizeDay(booking.created_at || booking.booking_date);
+            if (!created || created < trendStart || created > trendEnd) return;
+            const key = `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, '0')}-${String(created.getDate()).padStart(2, '0')}`;
+            const item = trendMap.get(key);
+            if (!item) return;
+            item.orders += 1;
+            item.revenue += Number(booking.final_amount || 0) || 0;
         });
 
-        const conversionNumerator = inRangeByCheckInDate.filter((b) => isActiveStatus(b.status) || isReservedStatus(b.status)).length;
-        const conversionDenominator = inRangeByCheckInDate.length;
+        // 來源 Top5（口徑：下單日在目前查詢區間）
+        const sourceMap = new Map();
+        const sourceBookings = allBookings.filter((booking) => {
+            const created = normalizeDay(booking.created_at || booking.booking_date);
+            return created && created >= start && created <= end;
+        });
 
-        const paymentNumerator = inRangeByCheckInDate.filter((b) => isPaid(b.payment_status)).length;
-        const paymentDenominator = inRangeByCheckInDate.filter((b) => isPaid(b.payment_status) || isPending(b.payment_status) || isFailed(b.payment_status)).length;
+        const resolveSource = (booking) => {
+            const sourceCandidate = booking.utm_source || booking.booking_source || booking.order_source || booking.source || booking.channel || '';
+            const normalized = String(sourceCandidate || '').trim().toLowerCase();
+            if (normalized) return normalized;
+            if (booking.line_user_id) return 'line';
+            return 'direct';
+        };
 
-        const cancellationNumerator = inRangeByCheckInDate.filter((b) => isCancelledStatus(b.status)).length;
-        const cancellationDenominator = inRangeByCheckInDate.length;
+        sourceBookings.forEach((booking) => {
+            const source = resolveSource(booking);
+            sourceMap.set(source, (sourceMap.get(source) || 0) + 1);
+        });
 
-        const occupancyRate = (occupiedRoomNights / (totalRoomTypes * dayCount)) * 100;
-        const averageRoomRate = activeReservedNights > 0 ? (activeReservedRevenue / activeReservedNights) : 0;
-        const conversionRate = conversionDenominator > 0 ? (conversionNumerator / conversionDenominator) * 100 : 0;
-        const paymentSuccessRate = paymentDenominator > 0 ? (paymentNumerator / paymentDenominator) * 100 : 0;
-        const cancellationRate = cancellationDenominator > 0 ? (cancellationNumerator / cancellationDenominator) * 100 : 0;
+        const sourceTotal = sourceBookings.length || 1;
+        const sources = Array.from(sourceMap.entries())
+            .map(([source, orders]) => ({ source, orders, share: (orders / sourceTotal) * 100 }))
+            .sort((a, b) => b.orders - a.orders)
+            .slice(0, 5);
+
+        // 待辦提醒
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const nextTwoDays = new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000);
+        const nextThreeDays = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+        let pendingDueSoon = 0;
+        let overdueUnpaid = 0;
+        let upcomingCheckIns = 0;
+
+        allBookings.forEach((booking) => {
+            const paymentDeadline = normalizeDay(booking.payment_deadline);
+            if (isPending(booking.payment_status) && paymentDeadline) {
+                if (paymentDeadline < today) overdueUnpaid += 1;
+                if (paymentDeadline >= today && paymentDeadline <= nextTwoDays) pendingDueSoon += 1;
+            }
+
+            const checkIn = normalizeDay(booking.check_in_date);
+            if (checkIn && checkIn >= today && checkIn <= nextThreeDays && (isActiveStatus(booking.status) || isReservedStatus(booking.status))) {
+                upcomingCheckIns += 1;
+            }
+        });
+
+        const todos = [
+            { key: 'pending_due', title: '2 日內待付款到期', value: pendingDueSoon, severity: pendingDueSoon > 0 ? 'warn' : '' },
+            { key: 'overdue_unpaid', title: '已逾期未付款', value: overdueUnpaid, severity: overdueUnpaid > 0 ? 'alert' : '' },
+            { key: 'upcoming_checkins', title: '3 日內即將入住', value: upcomingCheckIns, severity: '' },
+            {
+                key: 'cancel_rate',
+                title: '取消率預警',
+                value: `${(Number(currentKpis.cancellationRate) || 0).toFixed(1)}%`,
+                severity: (Number(currentKpis.cancellationRate) || 0) >= 20 ? 'alert' : ''
+            }
+        ];
 
         res.json({
             success: true,
@@ -4146,13 +4249,20 @@ app.get('/api/dashboard/ops', adminLimiter, async (req, res) => {
                     endDate: `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`,
                     dayCount
                 },
-                kpis: {
-                    occupancyRate,
-                    averageRoomRate,
-                    conversionRate,
-                    paymentSuccessRate,
-                    cancellationRate
-                }
+                kpis: currentKpis,
+                previousRange: {
+                    startDate: `${previousStart.getFullYear()}-${String(previousStart.getMonth() + 1).padStart(2, '0')}-${String(previousStart.getDate()).padStart(2, '0')}`,
+                    endDate: `${previousEnd.getFullYear()}-${String(previousEnd.getMonth() + 1).padStart(2, '0')}-${String(previousEnd.getDate()).padStart(2, '0')}`,
+                    dayCount
+                },
+                previousKpis,
+                trend: {
+                    labels: trendLabels,
+                    orders: trendLabels.map((label) => trendMap.get(label)?.orders || 0),
+                    revenue: trendLabels.map((label) => trendMap.get(label)?.revenue || 0)
+                },
+                sources,
+                todos
             }
         });
     } catch (error) {
