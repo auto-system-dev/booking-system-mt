@@ -3858,7 +3858,7 @@ function renderRoomTypes() {
             <td>${room.extra_beds ?? 0}</td>
             <td>NT$ ${(Number(room.extra_bed_price) || 0).toLocaleString()}</td>
             <td>NT$ ${room.price.toLocaleString()}${room.original_price ? `<br><small style="color:#aaa;text-decoration:line-through;">NT$ ${room.original_price.toLocaleString()}</small>` : ''}</td>
-            <td>NT$ ${((Number(room.price) || 0) + (Number(room.holiday_surcharge) || 0)).toLocaleString()}</td>
+            <td>NT$ ${((Number(room.price) || 0) + (Number(room.holiday_surcharge) || 0)).toLocaleString()}${room.original_price ? `<br><small style="color:#aaa;text-decoration:line-through;">NT$ ${(Number(room.original_price) + (Number(room.holiday_surcharge) || 0)).toLocaleString()}</small>` : ''}</td>
             <td>
                 <span class="status-badge ${room.is_active === 1 ? 'status-sent' : 'status-unsent'}">
                     ${room.is_active === 1 ? '啟用' : '停用'}
