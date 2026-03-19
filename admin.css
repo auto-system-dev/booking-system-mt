@@ -1354,11 +1354,31 @@ body.login-page-active {
     font-size: 14px;
     font-weight: 700;
     color: #1e3a8a;
-    margin-bottom: 6px;
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.ops-utm-guide-title::-webkit-details-marker {
+    display: none;
 }
 
 .ops-utm-guide-title .material-symbols-outlined {
     font-size: 18px;
+}
+
+.ops-utm-guide-chevron {
+    margin-left: auto;
+    color: #64748b;
+    transition: transform 0.2s ease;
+}
+
+.ops-utm-guide[open] .ops-utm-guide-chevron {
+    transform: rotate(180deg);
+}
+
+.ops-utm-guide-content {
+    margin-top: 6px;
 }
 
 .ops-utm-guide-text {

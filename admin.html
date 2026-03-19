@@ -268,23 +268,26 @@
                             <small>口徑：訂單來源欄位</small>
                         </div>
                         <div id="opsTopSources" class="ops-top-sources-list"></div>
-                        <div class="ops-utm-guide">
-                            <div class="ops-utm-guide-title">
+                        <details class="ops-utm-guide">
+                            <summary class="ops-utm-guide-title">
                                 <span class="material-symbols-outlined">campaign</span>
-                                UTM 使用說明（給業者）
+                                UTM 使用說明
+                                <span class="ops-utm-guide-chevron material-symbols-outlined">expand_more</span>
+                            </summary>
+                            <div class="ops-utm-guide-content">
+                                <div class="ops-utm-guide-text">把下列參數加在外部導流連結後方，訂單進來就會自動顯示在來源報表。</div>
+                                <ul class="ops-utm-guide-list">
+                                    <li><code>utm_source</code>：來源平台（例如：facebook、google、line）</li>
+                                    <li><code>utm_medium</code>：投放方式（例如：cpc、social、message）</li>
+                                    <li><code>utm_campaign</code>：活動名稱（例如：summer_sale、double11）</li>
+                                </ul>
+                                <div class="ops-utm-guide-example-title">範例連結：</div>
+                                <div class="ops-utm-guide-code">https://你的網域/booking?utm_source=facebook&utm_medium=cpc&utm_campaign=summer_sale</div>
+                                <div class="ops-utm-guide-code">https://你的網域/booking?utm_source=google&utm_medium=cpc&utm_campaign=brand_search</div>
+                                <div class="ops-utm-guide-code">https://你的網域/booking?utm_source=line&utm_medium=message&utm_campaign=line_broadcast</div>
+                                <div class="ops-utm-guide-tip">建議每次行銷活動都改 <code>utm_campaign</code> 名稱，後台才容易比較成效。</div>
                             </div>
-                            <div class="ops-utm-guide-text">把下列參數加在外部導流連結後方，訂單進來就會自動顯示在來源報表。</div>
-                            <ul class="ops-utm-guide-list">
-                                <li><code>utm_source</code>：來源平台（例如：facebook、google、line）</li>
-                                <li><code>utm_medium</code>：投放方式（例如：cpc、social、message）</li>
-                                <li><code>utm_campaign</code>：活動名稱（例如：summer_sale、double11）</li>
-                            </ul>
-                            <div class="ops-utm-guide-example-title">範例連結：</div>
-                            <div class="ops-utm-guide-code">https://你的網域/booking?utm_source=facebook&utm_medium=cpc&utm_campaign=summer_sale</div>
-                            <div class="ops-utm-guide-code">https://你的網域/booking?utm_source=google&utm_medium=cpc&utm_campaign=brand_search</div>
-                            <div class="ops-utm-guide-code">https://你的網域/booking?utm_source=line&utm_medium=message&utm_campaign=line_broadcast</div>
-                            <div class="ops-utm-guide-tip">建議每次行銷活動都改 <code>utm_campaign</code> 名稱，後台才容易比較成效。</div>
-                        </div>
+                        </details>
                     </div>
                 </div>
 
