@@ -3858,7 +3858,7 @@ function renderRoomTypes() {
             <td>${room.extra_beds ?? 0}</td>
             <td>NT$ ${(Number(room.extra_bed_price) || 0).toLocaleString()}</td>
             <td>NT$ ${room.price.toLocaleString()}${room.original_price ? `<br><small style="color:#aaa;text-decoration:line-through;">NT$ ${room.original_price.toLocaleString()}</small>` : ''}</td>
-            <td>${room.holiday_surcharge ? (room.holiday_surcharge > 0 ? '+' : '') + 'NT$ ' + room.holiday_surcharge.toLocaleString() : 'NT$ 0'}</td>
+            <td>NT$ ${((Number(room.price) || 0) + (Number(room.holiday_surcharge) || 0)).toLocaleString()}</td>
             <td>
                 <span class="status-badge ${room.is_active === 1 ? 'status-sent' : 'status-unsent'}">
                     ${room.is_active === 1 ? '啟用' : '停用'}
@@ -3960,14 +3960,14 @@ function showRoomTypeModal(room) {
                 <small>平日（週一至週五）的基礎價格</small>
             </div>
             <div class="form-group">
+                <label>假日價格（每晚）</label>
+                <input type="number" name="holiday_price" value="${isEdit ? ((Number(room.price) || 0) + (Number(room.holiday_surcharge) || 0)) : ''}" min="0" step="1">
+                <small>假日（週六、週日及手動設定的假日）的每晚價格。留空時會套用平日價格</small>
+            </div>
+            <div class="form-group">
                 <label>原價（每晚）</label>
                 <input type="number" name="original_price" value="${isEdit ? (room.original_price || 0) : 0}" min="0" step="1">
                 <small>銷售頁顯示的原始定價（會以刪除線顯示），設為 0 則不顯示原價</small>
-            </div>
-            <div class="form-group">
-                <label>假日加價（每晚）</label>
-                <input type="number" name="holiday_surcharge" value="${isEdit ? (room.holiday_surcharge || 0) : 0}" min="-999999" step="1">
-                <small>假日（週六、週日及手動設定的假日）的加價金額。可為正數（加價）或負數（折扣），0 表示假日價格與平日相同</small>
             </div>
             <div class="form-group">
                 <label>房型照片</label>
@@ -4210,14 +4210,19 @@ async function saveRoomType(event, id) {
     event.preventDefault();
     
     const formData = new FormData(event.target);
+    const basePrice = parseInt(formData.get('price')) || 0;
+    const holidayPriceRaw = formData.get('holiday_price');
+    const holidayPrice = (holidayPriceRaw === null || holidayPriceRaw === '')
+        ? basePrice
+        : (parseInt(holidayPriceRaw) || 0);
 
     const editingRoom = id ? allRoomTypes.find(r => Number(r.id) === Number(id)) : null;
     const data = {
         name: formData.get('name'),
         display_name: formData.get('display_name'),
-        price: parseInt(formData.get('price')),
+        price: basePrice,
         original_price: parseInt(formData.get('original_price')) || 0,
-        holiday_surcharge: parseInt(formData.get('holiday_surcharge')) || 0,
+        holiday_surcharge: holidayPrice - basePrice,
         max_occupancy: parseInt(formData.get('max_occupancy')) || 0,
         extra_beds: parseInt(formData.get('extra_beds')) || 0,
         extra_bed_price: parseInt(formData.get('extra_bed_price')) || 0,
