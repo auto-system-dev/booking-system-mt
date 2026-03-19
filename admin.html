@@ -218,39 +218,42 @@
                 </div>
                 <div class="dashboard-grid dashboard-ops-grid">
                     <div class="dashboard-card dashboard-kpi-card">
-                        <div class="dashboard-card-icon"><span class="material-symbols-outlined">hotel_class</span></div>
-                        <div class="dashboard-card-title">每日入住率</div>
-                        <div class="dashboard-card-subtitle kpi-help-trigger" data-kpi-help-key="occupancy" title="點擊查看計算說明">已售房晚 / 可售房晚 ⓘ</div>
-                        <div class="dashboard-kpi-value" id="opsOccupancyRate">0.0%</div>
-                        <div class="dashboard-kpi-delta" id="opsOccupancyDelta">較上期 --</div>
+                        <div class="dashboard-card-icon"><span class="material-symbols-outlined">shopping_bag</span></div>
+                        <div class="dashboard-card-title">今日訂單數</div>
+                        <div class="dashboard-card-subtitle">口徑：下單日</div>
+                        <div class="dashboard-kpi-value" id="opsTodayOrders">0</div>
                     </div>
                     <div class="dashboard-card dashboard-kpi-card">
                         <div class="dashboard-card-icon"><span class="material-symbols-outlined">attach_money</span></div>
-                        <div class="dashboard-card-title">平均房價（ADR）</div>
-                        <div class="dashboard-card-subtitle kpi-help-trigger" data-kpi-help-key="adr" title="點擊查看計算說明">每房晚平均收入 ⓘ</div>
-                        <div class="dashboard-kpi-value" id="opsAverageRoomRate">NT$ 0</div>
-                        <div class="dashboard-kpi-delta" id="opsAdrDelta">較上期 --</div>
+                        <div class="dashboard-card-title">今日營收</div>
+                        <div class="dashboard-card-subtitle">口徑：下單日</div>
+                        <div class="dashboard-kpi-value" id="opsTodayRevenue">NT$ 0</div>
                     </div>
                     <div class="dashboard-card dashboard-kpi-card">
-                        <div class="dashboard-card-icon"><span class="material-symbols-outlined">conversion_path</span></div>
-                        <div class="dashboard-card-title">轉換率</div>
-                        <div class="dashboard-card-subtitle kpi-help-trigger" data-kpi-help-key="conversion" title="點擊查看計算說明">入住日在區間內的有效/保留占比 ⓘ</div>
-                        <div class="dashboard-kpi-value" id="opsConversionRate">0.0%</div>
-                        <div class="dashboard-kpi-delta" id="opsConversionDelta">較上期 --</div>
+                        <div class="dashboard-card-icon"><span class="material-symbols-outlined">calendar_month</span></div>
+                        <div class="dashboard-card-title">本月訂單數</div>
+                        <div class="dashboard-card-subtitle">口徑：下單日（MTD）</div>
+                        <div class="dashboard-kpi-value" id="opsMonthOrders">0</div>
+                        <div class="dashboard-kpi-delta" id="opsMonthOrdersMoM">MoM --</div>
                     </div>
                     <div class="dashboard-card dashboard-kpi-card">
-                        <div class="dashboard-card-icon"><span class="material-symbols-outlined">credit_score</span></div>
-                        <div class="dashboard-card-title">付款成功率</div>
-                        <div class="dashboard-card-subtitle kpi-help-trigger" data-kpi-help-key="payment" title="點擊查看計算說明">入住日在區間內的已付款占比 ⓘ</div>
-                        <div class="dashboard-kpi-value" id="opsPaymentSuccessRate">0.0%</div>
-                        <div class="dashboard-kpi-delta" id="opsPaymentDelta">較上期 --</div>
+                        <div class="dashboard-card-icon"><span class="material-symbols-outlined">payments</span></div>
+                        <div class="dashboard-card-title">本月營收</div>
+                        <div class="dashboard-card-subtitle">口徑：下單日（MTD）</div>
+                        <div class="dashboard-kpi-value" id="opsMonthRevenue">NT$ 0</div>
+                        <div class="dashboard-kpi-delta" id="opsMonthRevenueMoM">MoM --</div>
+                    </div>
+                    <div class="dashboard-card dashboard-kpi-card">
+                        <div class="dashboard-card-icon"><span class="material-symbols-outlined">hotel_class</span></div>
+                        <div class="dashboard-card-title">入住率</div>
+                        <div class="dashboard-card-subtitle kpi-help-trigger" data-kpi-help-key="occupancy" title="點擊查看計算說明">已售房晚 / 可售房晚 ⓘ</div>
+                        <div class="dashboard-kpi-value" id="opsOccupancyRate">0.0%</div>
                     </div>
                     <div class="dashboard-card dashboard-kpi-card">
                         <div class="dashboard-card-icon"><span class="material-symbols-outlined">event_busy</span></div>
                         <div class="dashboard-card-title">取消率</div>
                         <div class="dashboard-card-subtitle kpi-help-trigger" data-kpi-help-key="cancellation" title="點擊查看計算說明">入住日在區間內的取消占比 ⓘ</div>
                         <div class="dashboard-kpi-value" id="opsCancellationRate">0.0%</div>
-                        <div class="dashboard-kpi-delta" id="opsCancellationDelta">較上期 --</div>
                     </div>
                 </div>
 

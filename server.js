@@ -4179,6 +4179,48 @@ app.get('/api/dashboard/ops', adminLimiter, async (req, res) => {
         previousStart.setHours(0, 0, 0, 0);
         const previousKpis = calculateKpisByRange(previousStart, previousEnd);
 
+        // 今日 / 本月（口徑：下單日 created_at）
+        const aggregateByCreatedRange = (rangeStart, rangeEnd) => {
+            let orders = 0;
+            let revenue = 0;
+            allBookings.forEach((booking) => {
+                const created = normalizeDay(booking.created_at || booking.booking_date);
+                if (!created || created < rangeStart || created > rangeEnd) return;
+                orders += 1;
+                revenue += Number(booking.final_amount || 0) || 0;
+            });
+            return { orders, revenue };
+        };
+
+        const calcMoM = (currentValue, previousValue) => {
+            const current = Number(currentValue) || 0;
+            const previous = Number(previousValue) || 0;
+            if (previous <= 0) return current > 0 ? 100 : 0;
+            return ((current - previous) / previous) * 100;
+        };
+
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayStats = aggregateByCreatedRange(todayStart, todayStart);
+
+        const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
+        const monthStats = aggregateByCreatedRange(monthStart, todayStart);
+
+        const previousMonthStart = new Date(todayStart.getFullYear(), todayStart.getMonth() - 1, 1);
+        const previousMonthLastDay = new Date(todayStart.getFullYear(), todayStart.getMonth(), 0).getDate();
+        const comparableDay = Math.min(todayStart.getDate(), previousMonthLastDay);
+        const previousMonthEndComparable = new Date(previousMonthStart.getFullYear(), previousMonthStart.getMonth(), comparableDay);
+        const previousMonthStats = aggregateByCreatedRange(previousMonthStart, previousMonthEndComparable);
+
+        const overview = {
+            todayOrders: todayStats.orders,
+            todayRevenue: todayStats.revenue,
+            monthOrders: monthStats.orders,
+            monthRevenue: monthStats.revenue,
+            monthOrdersMoM: calcMoM(monthStats.orders, previousMonthStats.orders),
+            monthRevenueMoM: calcMoM(monthStats.revenue, previousMonthStats.revenue)
+        };
+
         // 30 天趨勢（口徑：下單日）
         const trendEnd = new Date(end);
         trendEnd.setHours(0, 0, 0, 0);
@@ -4278,6 +4320,7 @@ app.get('/api/dashboard/ops', adminLimiter, async (req, res) => {
                     dayCount
                 },
                 previousKpis,
+                overview,
                 trend: {
                     labels: trendLabels,
                     orders: trendLabels.map((label) => trendMap.get(label)?.orders || 0),

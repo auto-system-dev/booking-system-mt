@@ -892,6 +892,28 @@ function setOpsKpiDelta(elementId, currentValue, previousValue, options = {}) {
     el.textContent = `較上期 ${sign}${Math.abs(diff).toFixed(1)}%`;
 }
 
+function setOpsMomDelta(elementId, momValue) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+
+    const value = Number(momValue);
+    el.classList.remove('up', 'down');
+
+    if (!Number.isFinite(value) || Math.abs(value) < 0.0001) {
+        el.textContent = 'MoM --';
+        return;
+    }
+
+    if (value > 0) {
+        el.classList.add('up');
+        el.textContent = `MoM ▲ ${Math.abs(value).toFixed(1)}%`;
+        return;
+    }
+
+    el.classList.add('down');
+    el.textContent = `MoM ▼ ${Math.abs(value).toFixed(1)}%`;
+}
+
 function renderOpsTrendChart(trendData = {}) {
     const container = document.getElementById('opsTrendChart');
     if (!container) return;
@@ -1745,30 +1767,31 @@ async function loadDashboard(options = {}) {
 
                 if (opsResult.success && opsResult.data && opsResult.data.kpis) {
                     const kpis = opsResult.data.kpis;
-                    const previousKpis = opsResult.data.previousKpis || {};
+                    const overview = opsResult.data.overview || {};
                     const formatPercent = (v) => `${(Number(v) || 0).toFixed(1)}%`;
                     const formatCurrency = (v) => `NT$ ${Math.round(Number(v) || 0).toLocaleString()}`;
+                    const formatInteger = (v) => Math.round(Number(v) || 0).toLocaleString();
+
+                    const todayOrdersEl = document.getElementById('opsTodayOrders');
+                    if (todayOrdersEl) todayOrdersEl.textContent = formatInteger(overview.todayOrders);
+
+                    const todayRevenueEl = document.getElementById('opsTodayRevenue');
+                    if (todayRevenueEl) todayRevenueEl.textContent = formatCurrency(overview.todayRevenue);
+
+                    const monthOrdersEl = document.getElementById('opsMonthOrders');
+                    if (monthOrdersEl) monthOrdersEl.textContent = formatInteger(overview.monthOrders);
+
+                    const monthRevenueEl = document.getElementById('opsMonthRevenue');
+                    if (monthRevenueEl) monthRevenueEl.textContent = formatCurrency(overview.monthRevenue);
+
+                    setOpsMomDelta('opsMonthOrdersMoM', overview.monthOrdersMoM);
+                    setOpsMomDelta('opsMonthRevenueMoM', overview.monthRevenueMoM);
 
                     const occupancyEl = document.getElementById('opsOccupancyRate');
                     if (occupancyEl) occupancyEl.textContent = formatPercent(kpis.occupancyRate);
 
-                    const adrEl = document.getElementById('opsAverageRoomRate');
-                    if (adrEl) adrEl.textContent = formatCurrency(kpis.averageRoomRate);
-
-                    const conversionEl = document.getElementById('opsConversionRate');
-                    if (conversionEl) conversionEl.textContent = formatPercent(kpis.conversionRate);
-
-                    const paymentEl = document.getElementById('opsPaymentSuccessRate');
-                    if (paymentEl) paymentEl.textContent = formatPercent(kpis.paymentSuccessRate);
-
                     const cancellationEl = document.getElementById('opsCancellationRate');
                     if (cancellationEl) cancellationEl.textContent = formatPercent(kpis.cancellationRate);
-
-                    setOpsKpiDelta('opsOccupancyDelta', kpis.occupancyRate, previousKpis.occupancyRate, { type: 'percent' });
-                    setOpsKpiDelta('opsAdrDelta', kpis.averageRoomRate, previousKpis.averageRoomRate, { type: 'currency' });
-                    setOpsKpiDelta('opsConversionDelta', kpis.conversionRate, previousKpis.conversionRate, { type: 'percent' });
-                    setOpsKpiDelta('opsPaymentDelta', kpis.paymentSuccessRate, previousKpis.paymentSuccessRate, { type: 'percent' });
-                    setOpsKpiDelta('opsCancellationDelta', kpis.cancellationRate, previousKpis.cancellationRate, { type: 'percent', inverseGood: true });
 
                     renderOpsTrendChart(opsResult.data.trend || {});
                     renderOpsTopSources(opsResult.data.sources || []);
