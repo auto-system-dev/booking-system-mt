@@ -1339,6 +1339,69 @@ body.login-page-active {
     font-weight: 700;
 }
 
+.ops-utm-guide {
+    margin-top: 14px;
+    padding: 12px;
+    border: 1px solid #dbeafe;
+    background: #f8fbff;
+    border-radius: 10px;
+}
+
+.ops-utm-guide-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e3a8a;
+    margin-bottom: 6px;
+}
+
+.ops-utm-guide-title .material-symbols-outlined {
+    font-size: 18px;
+}
+
+.ops-utm-guide-text {
+    font-size: 13px;
+    color: #475569;
+    line-height: 1.6;
+}
+
+.ops-utm-guide-list {
+    margin: 8px 0;
+    padding-left: 18px;
+    color: #334155;
+    font-size: 13px;
+    line-height: 1.7;
+}
+
+.ops-utm-guide-example-title {
+    margin-top: 8px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #334155;
+}
+
+.ops-utm-guide-code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 12px;
+    color: #0f172a;
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 8px;
+    line-height: 1.5;
+    word-break: break-all;
+    margin-bottom: 6px;
+}
+
+.ops-utm-guide-tip {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #475569;
+}
+
 .dashboard-todo-panel {
     margin-top: 20px;
 }
@@ -1517,6 +1580,10 @@ body.login-page-active {
 
     .dashboard-panel {
         padding: 14px;
+    }
+
+    .ops-utm-guide {
+        padding: 10px;
     }
 
     .ops-trend-chart {
