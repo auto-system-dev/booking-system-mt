@@ -4179,7 +4179,7 @@ app.get('/api/dashboard/ops', adminLimiter, async (req, res) => {
         previousStart.setHours(0, 0, 0, 0);
         const previousKpis = calculateKpisByRange(previousStart, previousEnd);
 
-        // 今日 / 本月（口徑：入住日 check_in_date；營收使用總金額 total_amount）
+        // 區間總覽（口徑：入住日 check_in_date；營收使用總金額 total_amount）
         const aggregateByCheckInRange = (rangeStart, rangeEnd) => {
             let orders = 0;
             let revenue = 0;
@@ -4199,26 +4199,14 @@ app.get('/api/dashboard/ops', adminLimiter, async (req, res) => {
             return ((current - previous) / previous) * 100;
         };
 
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
-        const todayStats = aggregateByCheckInRange(todayStart, todayStart);
-
-        const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
-        const monthStats = aggregateByCheckInRange(monthStart, todayStart);
-
-        const previousMonthStart = new Date(todayStart.getFullYear(), todayStart.getMonth() - 1, 1);
-        const previousMonthLastDay = new Date(todayStart.getFullYear(), todayStart.getMonth(), 0).getDate();
-        const comparableDay = Math.min(todayStart.getDate(), previousMonthLastDay);
-        const previousMonthEndComparable = new Date(previousMonthStart.getFullYear(), previousMonthStart.getMonth(), comparableDay);
-        const previousMonthStats = aggregateByCheckInRange(previousMonthStart, previousMonthEndComparable);
+        const currentRangeStats = aggregateByCheckInRange(start, end);
+        const previousRangeStats = aggregateByCheckInRange(previousStart, previousEnd);
 
         const overview = {
-            todayOrders: todayStats.orders,
-            todayRevenue: todayStats.revenue,
-            monthOrders: monthStats.orders,
-            monthRevenue: monthStats.revenue,
-            monthOrdersMoM: calcMoM(monthStats.orders, previousMonthStats.orders),
-            monthRevenueMoM: calcMoM(monthStats.revenue, previousMonthStats.revenue)
+            monthOrders: currentRangeStats.orders,
+            monthRevenue: currentRangeStats.revenue,
+            monthOrdersMoM: calcMoM(currentRangeStats.orders, previousRangeStats.orders),
+            monthRevenueMoM: calcMoM(currentRangeStats.revenue, previousRangeStats.revenue)
         };
 
         // 30 天趨勢（口徑：入住日；營收使用總金額）
