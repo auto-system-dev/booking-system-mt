@@ -1000,7 +1000,7 @@ function renderOpsTrendChart(trendData = {}) {
         </svg>
         <div id="opsTrendTooltip" class="ops-trend-tooltip" style="display:none;"></div>
         <div class="ops-trend-legend">
-            <span><span class="ops-trend-dot orders"></span> 訂單數</span>
+            <span><span class="ops-trend-dot orders"></span> 訂房數</span>
             <span><span class="ops-trend-dot revenue"></span> 營收（NT$）</span>
         </div>
     `;
