@@ -138,10 +138,10 @@
                     </button>
                 </div>
 
-                <div class="section-header" style="margin-top: 26px; align-items: flex-end;">
+                <div class="section-header" style="margin-top: 26px; align-items: flex-start; flex-direction: column; gap: 12px;">
                     <h3 id="opsDashboardTitle" style="font-size: 22px; margin: 0;">
                         <span class="material-symbols-outlined" style="font-size: 24px; vertical-align: middle; margin-right: 6px;">monitoring</span>
-                        營運 KPI（近 30 天）
+                        營運 KPI
                     </h3>
                     <div class="ops-kpi-controls">
                         <div class="ops-today-pill-group">
@@ -149,7 +149,7 @@
                             <span class="ops-today-pill">今日退房 <strong id="todayCheckOuts">0</strong></span>
                         </div>
                         <div class="ops-kpi-toggle">
-                            <button type="button" id="opsRangeWeekBtn" class="btn-secondary" onclick="setOpsDashboardRange('week')">本週</button>
+                            <button type="button" id="opsRangeWeekBtn" class="btn-secondary" onclick="setOpsDashboardRange('week')">上月</button>
                             <button type="button" id="opsRangeMonthBtn" class="btn-secondary" onclick="setOpsDashboardRange('month')">本月</button>
                         </div>
                         <div class="ops-kpi-dates">
@@ -164,16 +164,16 @@
                     <div class="dashboard-card dashboard-kpi-card">
                         <div class="dashboard-card-icon"><span class="material-symbols-outlined">calendar_month</span></div>
                         <div class="dashboard-card-title">訂單數</div>
-                        <div class="dashboard-card-subtitle">口徑：入住日（目前區間）</div>
+                        <div class="dashboard-card-subtitle">口徑：入住日</div>
                         <div class="dashboard-kpi-value" id="opsMonthOrders">0</div>
-                        <div class="dashboard-kpi-delta" id="opsMonthOrdersMoM">MoM --</div>
+                        <div class="dashboard-kpi-delta" id="opsMonthOrdersMoM">--</div>
                     </div>
                     <div class="dashboard-card dashboard-kpi-card">
                         <div class="dashboard-card-icon"><span class="material-symbols-outlined">payments</span></div>
                         <div class="dashboard-card-title">總營收</div>
-                        <div class="dashboard-card-subtitle">口徑：入住日（目前區間），總金額</div>
+                        <div class="dashboard-card-subtitle">口徑：入住日，總金額</div>
                         <div class="dashboard-kpi-value" id="opsMonthRevenue">NT$ 0</div>
-                        <div class="dashboard-kpi-delta" id="opsMonthRevenueMoM">MoM --</div>
+                        <div class="dashboard-kpi-delta" id="opsMonthRevenueMoM">--</div>
                     </div>
                     <div class="dashboard-card dashboard-kpi-card">
                         <div class="dashboard-card-icon"><span class="material-symbols-outlined">hotel_class</span></div>

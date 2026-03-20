@@ -800,12 +800,12 @@ function setOpsDateInputs(startDate, endDate) {
     if (endInput) endInput.value = endDate;
 }
 
-function setOpsDashboardTitle(suffixText) {
+function setOpsDashboardTitle() {
     const title = document.getElementById('opsDashboardTitle');
     if (!title) return;
     title.innerHTML = `
         <span class="material-symbols-outlined" style="font-size: 24px; vertical-align: middle; margin-right: 6px;">monitoring</span>
-        營運 KPI（${suffixText}）`;
+        營運 KPI`;
 }
 
 function getOpsRangeParams() {
@@ -817,14 +817,14 @@ function getOpsRangeParams() {
     let endDate = new Date(today);
 
     if (opsDashboardRangeMode === 'week') {
-        startDate = new Date(today);
-        startDate.setDate(startDate.getDate() - 6);
-        setOpsDashboardTitle('本週');
+        startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+        setOpsDashboardTitle();
     } else {
         startDate = new Date(today.getFullYear(), today.getMonth(), 1);
         // 本月口徑改為「1 號到月底」，符合月報檢視習慣
         endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        setOpsDashboardTitle('本月');
+        setOpsDashboardTitle();
     }
 
     const startStr = formatDateYmd(startDate);
@@ -856,7 +856,7 @@ function applyCustomOpsRange() {
 
     opsDashboardRangeMode = 'custom';
     updateOpsRangeButtons();
-    setOpsDashboardTitle(`${startDate} ~ ${endDate}`);
+    setOpsDashboardTitle();
     loadDashboard({ startDate, endDate, isCustom: true });
 }
 
@@ -900,18 +900,18 @@ function setOpsMomDelta(elementId, momValue) {
     el.classList.remove('up', 'down');
 
     if (!Number.isFinite(value) || Math.abs(value) < 0.0001) {
-        el.textContent = 'MoM --';
+        el.textContent = '--';
         return;
     }
 
     if (value > 0) {
         el.classList.add('up');
-        el.textContent = `MoM ▲ ${Math.abs(value).toFixed(1)}%`;
+        el.textContent = `▲ ${Math.abs(value).toFixed(1)}%`;
         return;
     }
 
     el.classList.add('down');
-    el.textContent = `MoM ▼ ${Math.abs(value).toFixed(1)}%`;
+    el.textContent = `▼ ${Math.abs(value).toFixed(1)}%`;
 }
 
 function renderOpsTrendChart(trendData = {}) {
