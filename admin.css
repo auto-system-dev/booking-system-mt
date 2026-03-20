@@ -1210,6 +1210,11 @@ body.login-page-active {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+.dashboard-sources-panel {
+    display: flex;
+    flex-direction: column;
+}
+
 .dashboard-panel-header {
     display: flex;
     align-items: center;
@@ -1345,6 +1350,11 @@ body.login-page-active {
     border: 1px solid #dbeafe;
     background: #f8fbff;
     border-radius: 10px;
+    margin-bottom: 0;
+}
+
+.dashboard-sources-panel .ops-utm-guide {
+    margin-top: auto;
 }
 
 .ops-utm-guide-title {

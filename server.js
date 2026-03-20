@@ -4179,15 +4179,15 @@ app.get('/api/dashboard/ops', adminLimiter, async (req, res) => {
         previousStart.setHours(0, 0, 0, 0);
         const previousKpis = calculateKpisByRange(previousStart, previousEnd);
 
-        // 今日 / 本月（口徑：下單日 created_at）
-        const aggregateByCreatedRange = (rangeStart, rangeEnd) => {
+        // 今日 / 本月（口徑：入住日 check_in_date；營收使用總金額 total_amount）
+        const aggregateByCheckInRange = (rangeStart, rangeEnd) => {
             let orders = 0;
             let revenue = 0;
             allBookings.forEach((booking) => {
-                const created = normalizeDay(booking.created_at || booking.booking_date);
-                if (!created || created < rangeStart || created > rangeEnd) return;
+                const checkIn = normalizeDay(booking.check_in_date);
+                if (!checkIn || checkIn < rangeStart || checkIn > rangeEnd) return;
                 orders += 1;
-                revenue += Number(booking.final_amount || 0) || 0;
+                revenue += Number(booking.total_amount || 0) || 0;
             });
             return { orders, revenue };
         };
@@ -4201,16 +4201,16 @@ app.get('/api/dashboard/ops', adminLimiter, async (req, res) => {
 
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
-        const todayStats = aggregateByCreatedRange(todayStart, todayStart);
+        const todayStats = aggregateByCheckInRange(todayStart, todayStart);
 
         const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
-        const monthStats = aggregateByCreatedRange(monthStart, todayStart);
+        const monthStats = aggregateByCheckInRange(monthStart, todayStart);
 
         const previousMonthStart = new Date(todayStart.getFullYear(), todayStart.getMonth() - 1, 1);
         const previousMonthLastDay = new Date(todayStart.getFullYear(), todayStart.getMonth(), 0).getDate();
         const comparableDay = Math.min(todayStart.getDate(), previousMonthLastDay);
         const previousMonthEndComparable = new Date(previousMonthStart.getFullYear(), previousMonthStart.getMonth(), comparableDay);
-        const previousMonthStats = aggregateByCreatedRange(previousMonthStart, previousMonthEndComparable);
+        const previousMonthStats = aggregateByCheckInRange(previousMonthStart, previousMonthEndComparable);
 
         const overview = {
             todayOrders: todayStats.orders,
@@ -4221,7 +4221,7 @@ app.get('/api/dashboard/ops', adminLimiter, async (req, res) => {
             monthRevenueMoM: calcMoM(monthStats.revenue, previousMonthStats.revenue)
         };
 
-        // 30 天趨勢（口徑：下單日）
+        // 30 天趨勢（口徑：入住日；營收使用總金額）
         const trendEnd = new Date(end);
         trendEnd.setHours(0, 0, 0, 0);
         const trendStart = new Date(trendEnd.getTime() - 29 * 24 * 60 * 60 * 1000);
@@ -4235,20 +4235,20 @@ app.get('/api/dashboard/ops', adminLimiter, async (req, res) => {
         }
 
         allBookings.forEach((booking) => {
-            const created = normalizeDay(booking.created_at || booking.booking_date);
-            if (!created || created < trendStart || created > trendEnd) return;
-            const key = `${created.getFullYear()}-${String(created.getMonth() + 1).padStart(2, '0')}-${String(created.getDate()).padStart(2, '0')}`;
+            const checkIn = normalizeDay(booking.check_in_date);
+            if (!checkIn || checkIn < trendStart || checkIn > trendEnd) return;
+            const key = `${checkIn.getFullYear()}-${String(checkIn.getMonth() + 1).padStart(2, '0')}-${String(checkIn.getDate()).padStart(2, '0')}`;
             const item = trendMap.get(key);
             if (!item) return;
             item.orders += 1;
-            item.revenue += Number(booking.final_amount || 0) || 0;
+            item.revenue += Number(booking.total_amount || 0) || 0;
         });
 
-        // 來源 Top5（口徑：下單日在目前查詢區間）
+        // 來源 Top5（口徑：入住日在目前查詢區間）
         const sourceMap = new Map();
         const sourceBookings = allBookings.filter((booking) => {
-            const created = normalizeDay(booking.created_at || booking.booking_date);
-            return created && created >= start && created <= end;
+            const checkIn = normalizeDay(booking.check_in_date);
+            return checkIn && checkIn >= start && checkIn <= end;
         });
 
         const resolveSource = (booking) => {

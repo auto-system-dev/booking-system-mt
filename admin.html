@@ -220,14 +220,14 @@
                     <div class="dashboard-card dashboard-kpi-card">
                         <div class="dashboard-card-icon"><span class="material-symbols-outlined">calendar_month</span></div>
                         <div class="dashboard-card-title">本月訂單數</div>
-                        <div class="dashboard-card-subtitle">口徑：下單日（MTD）</div>
+                        <div class="dashboard-card-subtitle">口徑：入住日（MTD）</div>
                         <div class="dashboard-kpi-value" id="opsMonthOrders">0</div>
                         <div class="dashboard-kpi-delta" id="opsMonthOrdersMoM">MoM --</div>
                     </div>
                     <div class="dashboard-card dashboard-kpi-card">
                         <div class="dashboard-card-icon"><span class="material-symbols-outlined">payments</span></div>
                         <div class="dashboard-card-title">本月營收</div>
-                        <div class="dashboard-card-subtitle">口徑：下單日（MTD）</div>
+                        <div class="dashboard-card-subtitle">口徑：入住日（MTD），總金額</div>
                         <div class="dashboard-kpi-value" id="opsMonthRevenue">NT$ 0</div>
                         <div class="dashboard-kpi-delta" id="opsMonthRevenueMoM">MoM --</div>
                     </div>
@@ -255,14 +255,14 @@
                     <div class="dashboard-panel dashboard-trend-panel">
                         <div class="dashboard-panel-header">
                             <h4><span class="material-symbols-outlined">insights</span> 近 30 天訂單/營收趨勢</h4>
-                            <small>口徑：下單日</small>
+                            <small>口徑：入住日（營收=總金額）</small>
                         </div>
                         <div id="opsTrendChart" class="ops-trend-chart"></div>
                     </div>
                     <div class="dashboard-panel dashboard-sources-panel">
                         <div class="dashboard-panel-header">
                             <h4><span class="material-symbols-outlined">hub</span> 來源 Top 5</h4>
-                            <small>口徑：訂單來源欄位</small>
+                            <small>口徑：入住日＋訂單來源欄位</small>
                         </div>
                         <div id="opsTopSources" class="ops-top-sources-list"></div>
                         <details class="ops-utm-guide">
