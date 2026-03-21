@@ -697,20 +697,12 @@ body.login-page-active {
     background: var(--report-accent);
 }
 
-.report-page .report-kpi-card--bookings::before {
-    background: linear-gradient(180deg, #2C8EC4, #1d6a94);
-}
-
-.report-page .report-kpi-card--revenue::before {
-    background: linear-gradient(180deg, #0d9488, #0f766e);
-}
-
-.report-page .report-kpi-card--transfer::before {
-    background: linear-gradient(180deg, #6366f1, #4f46e5);
-}
-
+/* 四張 KPI 左側直條與「總訂房數」相同藍色漸層 */
+.report-page .report-kpi-card--bookings::before,
+.report-page .report-kpi-card--revenue::before,
+.report-page .report-kpi-card--transfer::before,
 .report-page .report-kpi-card--cardpay::before {
-    background: linear-gradient(180deg, #f59e0b, #d97706);
+    background: linear-gradient(180deg, #2C8EC4, #1d6a94);
 }
 
 .report-page .report-kpi-card:hover {
@@ -750,7 +742,7 @@ body.login-page-active {
 .report-page .report-kpi-value {
     font-size: clamp(26px, 4vw, 32px);
     font-weight: 800;
-    color: var(--report-accent);
+    color: var(--report-text);
     margin-bottom: 10px;
     letter-spacing: -0.03em;
     line-height: 1.15;
