@@ -3554,7 +3554,7 @@ function renderRoomStats(roomStats) {
     const container = document.getElementById('roomStatsList');
 
     if (roomStats.length === 0) {
-        container.innerHTML = '<div class="report-panel-empty">目前沒有房型統計資料</div>';
+        container.innerHTML = '<div class="report-panel-empty">目前沒有房型分析資料</div>';
         return;
     }
 
