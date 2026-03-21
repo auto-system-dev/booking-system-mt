@@ -733,6 +733,8 @@ let currentBookingView = 'list';
 let calendarStartDate = null;
 let sortColumn = null; // 當前排序欄位
 let sortDirection = 'asc'; // 排序方向：'asc' 或 'desc'
+/** 訂房列表快速篩選（與儀表板今日住房/退房口徑一致）：null | 'today_checkin' | 'today_checkout' */
+let bookingListQuickFilter = null;
 
 let isHtmlMode = false;
 let isPreviewVisible = false; // 預覽是否顯示
@@ -1739,11 +1741,11 @@ async function loadDashboard(options = {}) {
                 }
             }
             
-            // 更新今日房況（僅顯示今日住房/退房）
+            // 更新今日房況（僅顯示今日住房/退房）；僅當筆數 > 0 時數字可點擊
             const todayCheckInsEl = document.getElementById('todayCheckIns');
-            if (todayCheckInsEl) todayCheckInsEl.textContent = data.todayCheckIns || 0;
+            updateTodayStayCountPill(todayCheckInsEl, data.todayCheckIns || 0, 'checkin');
             const todayCheckOutsEl = document.getElementById('todayCheckOuts');
-            if (todayCheckOutsEl) todayCheckOutsEl.textContent = data.todayCheckOuts || 0;
+            updateTodayStayCountPill(todayCheckOutsEl, data.todayCheckOuts || 0, 'checkout');
 
             // KPI 次要查詢：即使失敗也不影響上方儀表板顯示
             try {
@@ -1901,6 +1903,9 @@ function reloadCurrentBookingView() {
     if (roomTypeFilter) roomTypeFilter.value = '';
     if (statusFilter) statusFilter.value = '';
     if (checkInDateFilter) checkInDateFilter.value = '';
+
+    bookingListQuickFilter = null;
+    updateBookingQuickFilterBanner();
 
     // 重設排序狀態（回到預設）
     sortColumn = null;
@@ -2738,6 +2743,137 @@ function changePage(page) {
     }
 }
 
+function getTodayYmdLocal() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function updateTodayStayCountPill(el, count, mode) {
+    if (!el) return;
+    const n = Math.max(0, Math.floor(Number(count) || 0));
+    el.textContent = String(n);
+    const enabled = n > 0;
+    el.classList.toggle('ops-today-pill-count--disabled', !enabled);
+    if (enabled) {
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('role', 'link');
+        el.removeAttribute('aria-disabled');
+        el.title = mode === 'checkout' ? '點擊查看今日退房列表' : '點擊查看今日住房列表';
+    } else {
+        el.setAttribute('tabindex', '-1');
+        el.removeAttribute('role');
+        el.setAttribute('aria-disabled', 'true');
+        el.removeAttribute('title');
+    }
+}
+
+function normalizeBookingStatusForQuickFilter(status) {
+    return String(status || '').trim().toLowerCase();
+}
+
+function bookingMatchesQuickFilter(booking) {
+    if (!bookingListQuickFilter) return true;
+    const todayStr = getTodayYmdLocal();
+    const s = normalizeBookingStatusForQuickFilter(booking.status);
+    const isActive = s === 'active' || s === '有效' || s === '已確認' || s === 'confirmed';
+    const isReserved = s === 'reserved' || s === '保留' || s === '保留中';
+    if (bookingListQuickFilter === 'today_checkin') {
+        return booking.check_in_date === todayStr && (isActive || isReserved);
+    }
+    if (bookingListQuickFilter === 'today_checkout') {
+        return booking.check_out_date === todayStr && isActive;
+    }
+    return true;
+}
+
+function updateBookingQuickFilterBanner() {
+    const banner = document.getElementById('bookingQuickFilterBanner');
+    const textEl = document.getElementById('bookingQuickFilterBannerText');
+    if (!banner || !textEl) return;
+    if (!bookingListQuickFilter) {
+        banner.style.display = 'none';
+        return;
+    }
+    const labels = {
+        today_checkin: '目前篩選：今日住房（入住日為今天，狀態為有效或保留；與儀表板口徑一致）',
+        today_checkout: '目前篩選：今日退房（退房日為今天，狀態為有效；與儀表板口徑一致）'
+    };
+    textEl.textContent = labels[bookingListQuickFilter] || '';
+    banner.style.display = 'flex';
+}
+
+function clearBookingListQuickFilter() {
+    bookingListQuickFilter = null;
+    const checkInDateFilter = document.getElementById('checkInDateFilter');
+    if (checkInDateFilter) checkInDateFilter.value = '';
+    updateBookingQuickFilterBanner();
+    applyFiltersAndSort();
+}
+
+function prepareBookingsListViewForQuickFilter() {
+    currentBookingView = 'list';
+    document.querySelectorAll('#bookings-section .view-tab').forEach((tab) => tab.classList.remove('active'));
+    const listTab = document.querySelector('#bookings-section .view-tab[data-view="list"]');
+    if (listTab) listTab.classList.add('active');
+    const listView = document.getElementById('bookingListView');
+    const calendarView = document.getElementById('bookingCalendarView');
+    if (listView) listView.style.display = 'block';
+    if (calendarView) calendarView.style.display = 'none';
+}
+
+function openDashboardTodayCheckInsList(event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    const countEl = document.getElementById('todayCheckIns');
+    if (!countEl || countEl.classList.contains('ops-today-pill-count--disabled')) return;
+    if ((Number(countEl.textContent) || 0) <= 0) return;
+    if (typeof hasPermission === 'function' && !hasPermission('bookings.view')) {
+        showError('您沒有權限查看訂房管理');
+        return;
+    }
+    bookingListQuickFilter = 'today_checkin';
+    const todayStr = getTodayYmdLocal();
+    const searchInput = document.getElementById('searchInput');
+    const roomTypeFilter = document.getElementById('roomTypeFilter');
+    const statusFilter = document.getElementById('statusFilter');
+    const checkInDateFilter = document.getElementById('checkInDateFilter');
+    if (searchInput) searchInput.value = '';
+    if (roomTypeFilter) roomTypeFilter.value = '';
+    if (statusFilter) statusFilter.value = '';
+    if (checkInDateFilter) checkInDateFilter.value = todayStr;
+
+    prepareBookingsListViewForQuickFilter();
+    switchSection('bookings');
+}
+
+function openDashboardTodayCheckOutsList(event) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    const countEl = document.getElementById('todayCheckOuts');
+    if (!countEl || countEl.classList.contains('ops-today-pill-count--disabled')) return;
+    if ((Number(countEl.textContent) || 0) <= 0) return;
+    if (typeof hasPermission === 'function' && !hasPermission('bookings.view')) {
+        showError('您沒有權限查看訂房管理');
+        return;
+    }
+    bookingListQuickFilter = 'today_checkout';
+    const searchInput = document.getElementById('searchInput');
+    const roomTypeFilter = document.getElementById('roomTypeFilter');
+    const statusFilter = document.getElementById('statusFilter');
+    const checkInDateFilter = document.getElementById('checkInDateFilter');
+    if (searchInput) searchInput.value = '';
+    if (roomTypeFilter) roomTypeFilter.value = '';
+    if (statusFilter) statusFilter.value = '';
+    if (checkInDateFilter) checkInDateFilter.value = '';
+
+    prepareBookingsListViewForQuickFilter();
+    switchSection('bookings');
+}
+
 // 篩選訂房記錄
 // 應用篩選和排序
 function applyFiltersAndSort() {
@@ -2746,7 +2882,7 @@ function applyFiltersAndSort() {
     const paymentStatus = document.getElementById('statusFilter').value;
     const checkInDate = document.getElementById('checkInDateFilter').value;
     
-    console.log('🔍 篩選條件:', { searchTerm, roomType, paymentStatus, checkInDate });
+    console.log('🔍 篩選條件:', { searchTerm, roomType, paymentStatus, checkInDate, bookingListQuickFilter });
     
     filteredBookings = allBookings.filter(booking => {
         const matchSearch = !searchTerm || 
@@ -2761,7 +2897,7 @@ function applyFiltersAndSort() {
         
         const matchCheckInDate = !checkInDate || booking.check_in_date === checkInDate;
         
-        return matchSearch && matchRoomType && matchPaymentStatus && matchCheckInDate;
+        return matchSearch && matchRoomType && matchPaymentStatus && matchCheckInDate && bookingMatchesQuickFilter(booking);
     });
     
     // 如果有排序，應用排序
@@ -2772,6 +2908,7 @@ function applyFiltersAndSort() {
     console.log(`✅ 篩選結果: ${filteredBookings.length} 筆訂房記錄`);
     currentPage = 1;
     updateSortIcon();
+    updateBookingQuickFilterBanner();
     renderBookings();
 }
 

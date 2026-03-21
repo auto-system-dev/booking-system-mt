@@ -141,8 +141,8 @@
                 <div class="section-header" style="margin-top: 26px; margin-bottom: 16px;">
                     <div class="ops-kpi-controls">
                         <div class="ops-today-pill-group">
-                            <span class="ops-today-pill">今日住房 <strong id="todayCheckIns">0</strong></span>
-                            <span class="ops-today-pill">今日退房 <strong id="todayCheckOuts">0</strong></span>
+                            <span class="ops-today-pill">今日住房 <strong id="todayCheckIns" class="ops-today-pill-count ops-today-pill-count--disabled" tabindex="-1" aria-disabled="true" onclick="openDashboardTodayCheckInsList(event)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDashboardTodayCheckInsList(event);}">0</strong></span>
+                            <span class="ops-today-pill">今日退房 <strong id="todayCheckOuts" class="ops-today-pill-count ops-today-pill-count--disabled" tabindex="-1" aria-disabled="true" onclick="openDashboardTodayCheckOutsList(event)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDashboardTodayCheckOutsList(event);}">0</strong></span>
                         </div>
                         <div class="ops-kpi-right-controls">
                             <div class="ops-kpi-toggle">
@@ -266,6 +266,10 @@
 
                 <!-- 列表視圖 -->
                 <div id="bookingListView" class="booking-view">
+                <div id="bookingQuickFilterBanner" class="booking-quick-filter-banner" style="display: none;" aria-live="polite">
+                    <span id="bookingQuickFilterBannerText"></span>
+                    <button type="button" class="btn-secondary" onclick="clearBookingListQuickFilter()">清除篩選</button>
+                </div>
                 <!-- 搜尋和篩選 -->
                 <div class="filter-bar" id="bookingListFilters">
                     <div class="search-box">

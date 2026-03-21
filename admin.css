@@ -1222,6 +1222,49 @@ body.login-page-active {
     line-height: 1;
 }
 
+.ops-today-pill-count {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    transition: text-decoration-color 0.15s ease;
+}
+
+.ops-today-pill-count:hover,
+.ops-today-pill-count:focus {
+    text-decoration-color: currentColor;
+    outline: none;
+}
+
+.ops-today-pill-count--disabled {
+    cursor: default;
+    pointer-events: none;
+    text-decoration: none;
+    opacity: 0.65;
+}
+
+.ops-today-pill-count--disabled:hover,
+.ops-today-pill-count--disabled:focus {
+    text-decoration: none;
+}
+
+.booking-quick-filter-banner {
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    background: #e8f4fc;
+    border: 1px solid #b8d9f0;
+    border-radius: 8px;
+    font-size: 14px;
+    color: #1f2d3d;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.booking-quick-filter-banner .btn-secondary {
+    flex-shrink: 0;
+}
+
 .dashboard-insights-grid {
     display: grid;
     grid-template-columns: 1.8fr 1fr;
