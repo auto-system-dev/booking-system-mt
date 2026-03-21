@@ -3379,44 +3379,78 @@ async function loadStatistics() {
         
         if (result.success) {
             const stats = result.data;
-            
-            // 總訂房數（細分：已入住/未入住）
-            document.getElementById('totalBookings').textContent = stats.totalBookings || 0;
+
+            const footEl = document.getElementById('reportPeriodFootnote');
+            if (footEl) {
+                if (stats.period && stats.period.startDate && stats.period.endDate) {
+                    footEl.textContent = `資料範圍：${stats.period.startDate} ～ ${stats.period.endDate}。口徑：入住日落在此區間、排除已取消；金額為訂單總金額（total_amount）。`;
+                } else {
+                    footEl.textContent = '資料範圍：全部期間。口徑：入住日、排除已取消；金額為訂單總金額（total_amount）。';
+                }
+            }
+
+            const totalBk = Number(stats.totalBookings) || 0;
+            const totalRev = Number(stats.totalRevenue) || 0;
+            const transferTotal = Number(stats.transferBookings?.total) || 0;
+            const cardTotal = Number(stats.cardBookings?.total) || 0;
+            const revenuePaid = Number(stats.totalRevenueDetail?.paid) || 0;
+            const revenueUnpaid = Number(stats.totalRevenueDetail?.unpaid) || 0;
+            const revPaidUnpaid = revenuePaid + revenueUnpaid;
+
+            const setSummary = (id, text) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = text;
+            };
+
+            if (totalBk > 0 && totalRev >= 0) {
+                setSummary('reportSummaryAvgOrder', `NT$ ${Math.round(totalRev / totalBk).toLocaleString()}`);
+            } else {
+                setSummary('reportSummaryAvgOrder', '—');
+            }
+
+            if (totalRev > 0) {
+                setSummary('reportSummaryTransferShare', `${((transferTotal / totalRev) * 100).toFixed(1)}%`);
+                setSummary('reportSummaryCardShare', `${((cardTotal / totalRev) * 100).toFixed(1)}%`);
+            } else {
+                setSummary('reportSummaryTransferShare', '—');
+                setSummary('reportSummaryCardShare', '—');
+            }
+
+            if (revPaidUnpaid > 0) {
+                setSummary('reportSummaryPaidRate', `${((revenuePaid / revPaidUnpaid) * 100).toFixed(1)}%`);
+            } else {
+                setSummary('reportSummaryPaidRate', '—');
+            }
+
+            document.getElementById('totalBookings').textContent = String(totalBk);
             const checkedIn = stats.totalBookingsDetail?.checkedIn || 0;
             const notCheckedIn = stats.totalBookingsDetail?.notCheckedIn || 0;
-            document.getElementById('totalBookingsDetail').textContent = `已入住: ${checkedIn} / 未入住: ${notCheckedIn}`;
-            
-            // 總營收（細分：已付款/未付款）
-            document.getElementById('totalRevenue').textContent = `NT$ ${(stats.totalRevenue || 0).toLocaleString()}`;
-            const revenuePaid = stats.totalRevenueDetail?.paid || 0;
-            const revenueUnpaid = stats.totalRevenueDetail?.unpaid || 0;
-            document.getElementById('totalRevenueDetail').textContent = `已付款: NT$ ${revenuePaid.toLocaleString()} / 未付款: NT$ ${revenueUnpaid.toLocaleString()}`;
-            
-            // 匯款轉帳（細分：已付款/未付款）
-            const transferCount = stats.transferBookings?.count || 0;
-            const transferTotal = stats.transferBookings?.total || 0;
+            document.getElementById('totalBookingsDetail').textContent =
+                `入住日已到：${checkedIn} 筆 · 入住日未到：${notCheckedIn} 筆（相對於今天；不含已取消）`;
+
+            document.getElementById('totalRevenue').textContent = `NT$ ${totalRev.toLocaleString()}`;
+            document.getElementById('totalRevenueDetail').textContent =
+                `已付款 NT$ ${revenuePaid.toLocaleString()} · 待付款 NT$ ${revenueUnpaid.toLocaleString()}（含付款狀態為待付款之訂單總額）`;
+
             const transferLabel = document.getElementById('transferBookingsLabel');
-            if (transferLabel) {
-                transferLabel.textContent = '匯款轉帳';
-            }
+            if (transferLabel) transferLabel.textContent = '匯款轉帳';
+
             document.getElementById('transferBookings').textContent = `NT$ ${transferTotal.toLocaleString()}`;
             const transferPaidCount = stats.transferBookings?.paid?.count || 0;
             const transferPaidTotal = stats.transferBookings?.paid?.total || 0;
             const transferUnpaidCount = stats.transferBookings?.unpaid?.count || 0;
             const transferUnpaidTotal = stats.transferBookings?.unpaid?.total || 0;
-            document.getElementById('transferBookingsDetail').textContent = `已付款: ${transferPaidCount} 筆 / NT$ ${transferPaidTotal.toLocaleString()} | 未付款: ${transferUnpaidCount} 筆 / NT$ ${transferUnpaidTotal.toLocaleString()}`;
-            
-            // 線上刷卡（細分：已付款/未付款）
-            const cardCount = stats.cardBookings?.count || 0;
-            const cardTotal = stats.cardBookings?.total || 0;
+            document.getElementById('transferBookingsDetail').textContent =
+                `已付 ${transferPaidCount} 筆／NT$ ${Number(transferPaidTotal).toLocaleString()} · 待付 ${transferUnpaidCount} 筆／NT$ ${Number(transferUnpaidTotal).toLocaleString()}（付款方式含「匯款」）`;
+
             document.getElementById('cardBookings').textContent = `NT$ ${cardTotal.toLocaleString()}`;
             const cardPaidCount = stats.cardBookings?.paid?.count || 0;
             const cardPaidTotal = stats.cardBookings?.paid?.total || 0;
             const cardUnpaidCount = stats.cardBookings?.unpaid?.count || 0;
             const cardUnpaidTotal = stats.cardBookings?.unpaid?.total || 0;
-            document.getElementById('cardBookingsDetail').textContent = `已付款: ${cardPaidCount} 筆 / NT$ ${cardPaidTotal.toLocaleString()} | 未付款: ${cardUnpaidCount} 筆 / NT$ ${cardUnpaidTotal.toLocaleString()}`;
-            
-            // 渲染房型統計
+            document.getElementById('cardBookingsDetail').textContent =
+                `已付 ${cardPaidCount} 筆／NT$ ${Number(cardPaidTotal).toLocaleString()} · 待付 ${cardUnpaidCount} 筆／NT$ ${Number(cardUnpaidTotal).toLocaleString()}（線上／刷卡）`;
+
             renderRoomStats(stats.byRoomType || []);
             
             // 載入月度統計資料
@@ -3490,6 +3524,14 @@ function renderMonthlyStats(stats) {
             </div>
         </div>`;
 
+    const rowAvgOrder = (bookingCount, totalRevenue) => {
+        const n = Number(bookingCount) || 0;
+        const rev = Number(totalRevenue) || 0;
+        const avg = n > 0 ? Math.round(rev / n) : 0;
+        const html = n > 0 ? `NT$ ${avg.toLocaleString()}` : '—';
+        return rowPlain('平均訂單金額', html);
+    };
+
     const rowOcc = (label, pct) => `
         <div class="report-month-row">
             <div class="report-month-row__top">
@@ -3514,10 +3556,11 @@ function renderMonthlyStats(stats) {
                 <h4 class="report-month-card__title">${monthNames[currentMonth]}</h4>
             </header>
             <div class="report-month-card__body">
-                ${rowPlain('訂房數', String(thisMonth.bookingCount || 0))}
+                ${rowPlain('訂房筆數', String(thisMonth.bookingCount || 0))}
                 ${rowRevenue('總營收', thisMonth.totalRevenue)}
-                ${rowOcc('平日住房率', thisMonth.weekdayOccupancy)}
-                ${rowOcc('假日住房率', thisMonth.weekendOccupancy)}
+                ${rowAvgOrder(thisMonth.bookingCount, thisMonth.totalRevenue)}
+                ${rowOcc('平日住房率（曆月房晚）', thisMonth.weekdayOccupancy)}
+                ${rowOcc('假日住房率（曆月房晚）', thisMonth.weekendOccupancy)}
             </div>
         </div>
         <div class="report-month-card report-month-card--prev">
@@ -3526,10 +3569,11 @@ function renderMonthlyStats(stats) {
                 <h4 class="report-month-card__title">${monthNames[lastMonthNum]}</h4>
             </header>
             <div class="report-month-card__body">
-                ${rowPlain('訂房數', String(lastMonth.bookingCount || 0))}
+                ${rowPlain('訂房筆數', String(lastMonth.bookingCount || 0))}
                 ${rowRevenue('總營收', lastMonth.totalRevenue)}
-                ${rowOcc('平日住房率', lastMonth.weekdayOccupancy)}
-                ${rowOcc('假日住房率', lastMonth.weekendOccupancy)}
+                ${rowAvgOrder(lastMonth.bookingCount, lastMonth.totalRevenue)}
+                ${rowOcc('平日住房率（曆月房晚）', lastMonth.weekdayOccupancy)}
+                ${rowOcc('假日住房率（曆月房晚）', lastMonth.weekendOccupancy)}
             </div>
         </div>
     `;
@@ -3554,20 +3598,27 @@ function renderRoomStats(roomStats) {
     const container = document.getElementById('roomStatsList');
 
     if (roomStats.length === 0) {
-        container.innerHTML = '<div class="report-panel-empty">目前沒有房型統計資料</div>';
+        container.innerHTML = '<div class="report-panel-empty">此期間內尚無房型統計（或皆為已取消）</div>';
         return;
     }
 
-    const rows = roomStats.map((stat) => `
+    const sorted = [...roomStats].sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0));
+    const total = sorted.reduce((s, r) => s + (Number(r.count) || 0), 0);
+
+    const rows = sorted.map((stat) => {
+        const c = Number(stat.count) || 0;
+        const pct = total > 0 ? ((c / total) * 100).toFixed(1) : '0.0';
+        return `
         <div class="report-room-row">
             <span class="report-room-name">${escapeHtml(stat.room_type || '')}</span>
-            <span class="report-room-count">${Number(stat.count) || 0} 筆</span>
-        </div>
-    `).join('');
+            <span class="report-room-count">${c} 筆</span>
+            <span class="report-room-share">${pct}%</span>
+        </div>`;
+    }).join('');
 
     container.innerHTML = `
         <div class="report-room-table">
-            <div class="report-room-thead"><span>房型名稱</span><span>訂房筆數</span></div>
+            <div class="report-room-thead"><span>房型名稱</span><span>訂房筆數</span><span>佔筆數比</span></div>
             ${rows}
         </div>
     `;

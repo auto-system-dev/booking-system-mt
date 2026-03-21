@@ -470,7 +470,7 @@
                             <span class="material-symbols-outlined report-page-title-icon">monitoring</span>
                             營運報表
                         </h2>
-                        <p class="report-page-desc">上方 KPI 依您選擇的期間匯總；下方「上月與本月」為曆月自然月對照。</p>
+                        <p class="report-page-desc">KPI 與房型統計依上方<strong>期間篩選</strong>（未選則為全部期間）；「上月與本月」固定為<strong>曆月自然月</strong>對照，不受期間欄位影響。</p>
                     </div>
                     <div class="report-toolbar" role="group" aria-label="報表期間與匯出">
                         <div class="report-toolbar-dates">
@@ -495,7 +495,7 @@
                     <article class="stat-card report-kpi-card report-kpi-card--bookings">
                         <div class="report-kpi-card-head">
                             <div class="stat-icon report-kpi-icon"><span class="material-symbols-outlined">event_note</span></div>
-                            <span class="stat-label report-kpi-label">總訂房數</span>
+                            <span class="stat-label report-kpi-label">訂房筆數</span>
                         </div>
                         <div class="stat-value report-kpi-value" id="totalBookings">-</div>
                         <div class="stat-detail report-kpi-detail" id="totalBookingsDetail">-</div>
@@ -503,7 +503,7 @@
                     <article class="stat-card report-kpi-card report-kpi-card--revenue">
                         <div class="report-kpi-card-head">
                             <div class="stat-icon report-kpi-icon"><span class="material-symbols-outlined">money_bag</span></div>
-                            <span class="stat-label report-kpi-label">總營收</span>
+                            <span class="stat-label report-kpi-label">總營收<span class="report-kpi-label-hint">（訂單總金額）</span></span>
                         </div>
                         <div class="stat-value report-kpi-value" id="totalRevenue">-</div>
                         <div class="stat-detail report-kpi-detail" id="totalRevenueDetail">-</div>
@@ -526,12 +526,37 @@
                     </article>
                 </div>
 
+                <p class="report-kpi-footnote" id="reportPeriodFootnote" aria-live="polite"></p>
+
+                <div class="report-summary-row" id="reportSummaryRow" aria-label="期間摘要指標">
+                    <div class="report-summary-item">
+                        <span class="report-summary-label">平均訂單金額</span>
+                        <strong class="report-summary-value" id="reportSummaryAvgOrder">—</strong>
+                        <span class="report-summary-hint">總營收 ÷ 訂房筆數</span>
+                    </div>
+                    <div class="report-summary-item">
+                        <span class="report-summary-label">匯款占總營收</span>
+                        <strong class="report-summary-value" id="reportSummaryTransferShare">—</strong>
+                        <span class="report-summary-hint">匯款金額 ÷ 總營收</span>
+                    </div>
+                    <div class="report-summary-item">
+                        <span class="report-summary-label">刷卡占總營收</span>
+                        <strong class="report-summary-value" id="reportSummaryCardShare">—</strong>
+                        <span class="report-summary-hint">線上刷卡金額 ÷ 總營收</span>
+                    </div>
+                    <div class="report-summary-item">
+                        <span class="report-summary-label">營收已收款比例</span>
+                        <strong class="report-summary-value" id="reportSummaryPaidRate">—</strong>
+                        <span class="report-summary-hint">已付款金額 ÷（已付+待付）</span>
+                    </div>
+                </div>
+
                 <section class="report-panel report-panel-monthly" aria-labelledby="report-monthly-heading">
                     <div class="report-panel-head" id="report-monthly-heading">
                         <span class="material-symbols-outlined report-panel-head-icon">calendar_month</span>
                         <div>
                             <h3 class="report-panel-title">上月與本月統計</h3>
-                            <p class="report-panel-sub">自然月對照 · 訂房數與營收</p>
+                            <p class="report-panel-sub">曆月自然月 · 入住日口徑 · 不含已取消</p>
                         </div>
                     </div>
                     <div class="monthly-stats-grid" id="monthlyStatsGrid">
@@ -544,7 +569,7 @@
                         <span class="material-symbols-outlined report-panel-head-icon">king_bed</span>
                         <div>
                             <h3 class="report-panel-title">房型統計</h3>
-                            <p class="report-panel-sub">依所選期間內之訂房筆數</p>
+                            <p class="report-panel-sub">依期間篩選 · 入住日落在區間內 · 不含已取消</p>
                         </div>
                     </div>
                     <div class="room-stats-list report-room-list" id="roomStatsList">
