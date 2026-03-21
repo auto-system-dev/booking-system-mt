@@ -123,6 +123,9 @@ if (typeof window !== 'undefined') {
                 if (!isAdminVisible) {
                     console.warn('⚠️ 登入後認證檢查未通過，維持登入頁面');
                 } else {
+                    if (typeof loadInitialAdminRoute === 'function') {
+                        loadInitialAdminRoute();
+                    }
                     console.log('✅ 認證確認完成，已切換後台畫面');
                 }
             } else {
@@ -514,30 +517,7 @@ function showAdminPage(admin) {
             updateSidebarByPermissions();
         }
         
-        // 立即載入初始資料（不等待，讓頁面先顯示）
-        const loadPromises = [];
-        if (typeof loadDashboard === 'function') {
-            loadPromises.push(loadDashboard().catch(err => {
-                console.error('❌ 載入儀表板失敗:', err);
-            }));
-        }
-        if (typeof loadBookings === 'function') {
-            loadPromises.push(loadBookings().catch(err => {
-                console.error('❌ 載入訂房記錄失敗:', err);
-            }));
-        }
-        if (typeof loadStatistics === 'function') {
-            loadPromises.push(loadStatistics().catch(err => {
-                console.error('❌ 載入統計資料失敗:', err);
-            }));
-        }
-        
-        // 不等待載入完成
-        Promise.all(loadPromises).then(() => {
-            console.log('✅ 初始資料載入完成');
-        }).catch(err => {
-            console.error('❌ 初始資料載入過程中有錯誤:', err);
-        });
+        // 不在此預載訂房／營運報表（改由 loadInitialAdminRoute 依當前區塊 lazy load，減少登入時同時打多支重 API）
         
     } catch (error) {
         console.error('❌ 顯示管理後台時發生錯誤:', error);
@@ -1321,69 +1301,18 @@ document.addEventListener('DOMContentLoaded', async function() {
             });
         }
 
-        // 載入資料（只有在已登入時才載入）
-        // 重用上面已聲明的 adminPage 變數
-        if (adminPage && adminPage.style.display !== 'none') {
-            console.log('📊 載入初始資料...');
-            loadBookings();
-            loadStatistics();
+        // 僅載入目前路由對應區塊（不重複打訂房列表／營運報表等重 API）
+        if (isAdminPageVisible()) {
+            console.log('📊 依網址載入目前區塊…');
+            loadInitialAdminRoute();
         } else {
-            console.log('ℹ️ 未登入或頁面未顯示，跳過資料載入');
+            console.log('ℹ️ 未登入，跳過資料載入');
         }
     } catch (error) {
         console.error('❌ 初始化錯誤:', error);
         // 即使出錯也嘗試顯示登入頁面
         showLoginPage();
         setBootLoadingVisible(false);
-    }
-    
-    // 根據 URL hash 載入對應區塊（僅在已登入時執行，避免登入頁持續背景請求）
-    if (isAdminPageVisible()) {
-        const urlHash = window.location.hash;
-        if (urlHash === '#dashboard') {
-            switchSection('dashboard');
-            loadDashboard();
-        } else if (urlHash === '#bookings') {
-            switchSection('bookings');
-            if (currentBookingView === 'calendar') {
-                loadBookingCalendar();
-            } else {
-                loadBookings();
-            }
-        } else if (urlHash === '#room-types') {
-            switchSection('room-types');
-            // loadRoomTypes() 會在 switchSection 中根據分頁狀態決定是否載入
-        } else if (urlHash === '#settings') {
-            switchSection('settings');
-            loadSettings();
-            loadHolidays();
-        } else if (urlHash === '#addons') {
-            switchSection('addons');
-            loadAddons();
-        } else if (urlHash === '#promotions') {
-            switchSection('promotions');
-        } else if (urlHash === '#promo-codes') {
-            switchSection('promotions');
-            switchPromotionTab('promo-codes');
-        } else if (urlHash === '#early-bird') {
-            switchSection('promotions');
-            switchPromotionTab('early-bird');
-        } else if (urlHash === '#holidays') {
-            switchSection('holidays');
-            loadHolidays();
-        } else if (urlHash === '#email-templates') {
-            switchSection('email-templates');
-            loadEmailTemplates();
-        } else if (urlHash === '#statistics') {
-            switchSection('statistics');
-            loadStatistics();
-        } else if (!urlHash) {
-            // 如果沒有 URL hash，預設顯示儀表板
-            switchSection('dashboard');
-            loadDashboard();
-        }
-    } else {
-        console.log('ℹ️ 未登入，略過 URL hash 初始化資料請求');
     }
 
     // 點擊模態框外部關閉
@@ -1523,6 +1452,57 @@ function switchSection(section) {
         loadLandingSettings();
         const savedTab = localStorage.getItem('landingTab') || 'basic';
         switchLandingTab(savedTab);
+    }
+}
+
+/**
+ * 登入或重新整理後，依 URL hash 只載入「目前要看」的區塊資料。
+ * 避免同時請求儀表板 + 全量訂房 + 營運報表（後者含區間比較，後端極重）。
+ */
+function loadInitialAdminRoute() {
+    if (typeof isAdminPageVisible !== 'function' || !isAdminPageVisible()) {
+        console.log('ℹ️ 未登入，略過初始路由資料載入');
+        return;
+    }
+    const urlHash = window.location.hash;
+    if (urlHash === '#dashboard') {
+        switchSection('dashboard');
+    } else if (urlHash === '#bookings') {
+        switchSection('bookings');
+    } else if (urlHash === '#room-types') {
+        switchSection('room-types');
+    } else if (urlHash === '#settings') {
+        switchSection('settings');
+        if (typeof loadHolidays === 'function') loadHolidays();
+    } else if (urlHash === '#addons') {
+        switchSection('addons');
+    } else if (urlHash === '#promotions') {
+        switchSection('promotions');
+    } else if (urlHash === '#promo-codes') {
+        switchSection('promotions');
+        switchPromotionTab('promo-codes');
+    } else if (urlHash === '#early-bird') {
+        switchSection('promotions');
+        switchPromotionTab('early-bird');
+    } else if (urlHash === '#holidays') {
+        switchSection('holidays');
+        if (typeof loadHolidays === 'function') loadHolidays();
+    } else if (urlHash === '#email-templates') {
+        switchSection('email-templates');
+    } else if (urlHash === '#statistics') {
+        switchSection('statistics');
+    } else if (urlHash === '#customers') {
+        switchSection('customers');
+    } else if (urlHash === '#admin-management') {
+        switchSection('admin-management');
+    } else if (urlHash === '#logs') {
+        switchSection('logs');
+    } else if (urlHash === '#backups') {
+        switchSection('backups');
+    } else if (urlHash === '#landing-page') {
+        switchSection('landing-page');
+    } else if (!urlHash) {
+        switchSection('dashboard');
     }
 }
 
