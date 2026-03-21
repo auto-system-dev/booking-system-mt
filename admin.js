@@ -1685,22 +1685,61 @@ async function loadDashboard(options = {}) {
             startDate: rangeParams.startDate,
             endDate: rangeParams.endDate
         }).toString();
+        const bundleUrl = `/api/dashboard/bundle?${opsQuery}`;
 
-        let result = await fetchJsonWithRetry('/api/dashboard', 3, 700);
-        if (!result || !isLatestRequest()) return;
+        let data;
+        /** 若後端支援 bundle，與摘要同一輪回傳，避免重複 getAllBookings */
+        let embeddedOps = null;
+        let bundleWorkedInitially = false;
 
-        if (result.success) {
-            let data = result.data || {};
+        try {
+            const bundleRes = await fetchJsonWithRetry(bundleUrl, 3, 700);
+            if (
+                bundleRes &&
+                bundleRes.success &&
+                bundleRes.data &&
+                bundleRes.data.summary &&
+                bundleRes.data.ops
+            ) {
+                data = bundleRes.data.summary;
+                embeddedOps = bundleRes.data.ops;
+                bundleWorkedInitially = true;
+            }
+        } catch (bundleErr) {
+            console.warn('儀表板 bundle 載入失敗，改為舊版 API:', bundleErr.message || bundleErr);
+        }
 
+        if (data === undefined) {
+            const dashRes = await fetchJsonWithRetry('/api/dashboard', 3, 700);
+            if (!dashRes || !isLatestRequest()) return;
+            if (!dashRes.success) {
+                showError('載入儀表板數據失敗：' + (dashRes.message || '未知錯誤'));
+                return;
+            }
+            data = dashRes.data || {};
+        }
+
+        if (!isLatestRequest()) return;
+
+        {
             // 首次載入若全為 0，通常是冷啟動或 Session 剛建立，補打一輪避免誤判
             if (!options.__zeroBackfillDone && isDashboardAllZero(data)) {
                 try {
-                    await sleep(900);
+                    await sleep(400);
                     if (!isLatestRequest()) return;
-                    const retryResult = await fetchJsonWithRetry('/api/dashboard', 2, 800);
-                    if (retryResult && retryResult.success && !isDashboardAllZero(retryResult.data || {})) {
-                        data = retryResult.data || data;
-                        console.log('✅ 儀表板全 0 補查成功，已套用補查資料');
+                    const retryUrl = bundleWorkedInitially ? bundleUrl : '/api/dashboard';
+                    const retryResult = await fetchJsonWithRetry(retryUrl, 2, 800);
+                    if (retryResult && retryResult.success) {
+                        if (bundleWorkedInitially && retryResult.data?.summary) {
+                            if (!isDashboardAllZero(retryResult.data.summary)) {
+                                data = retryResult.data.summary;
+                                embeddedOps = retryResult.data.ops || embeddedOps;
+                                console.log('✅ 儀表板全 0 補查成功，已套用補查資料');
+                            }
+                        } else if (retryResult.data && !isDashboardAllZero(retryResult.data)) {
+                            data = retryResult.data;
+                            console.log('✅ 儀表板全 0 補查成功，已套用補查資料');
+                        }
                     }
                 } catch (retryError) {
                     console.warn('儀表板全 0 補查失敗，保留首次結果:', retryError.message || retryError);
@@ -1730,14 +1769,21 @@ async function loadDashboard(options = {}) {
             const todayCheckOutsEl = document.getElementById('todayCheckOuts');
             updateTodayStayCountPill(todayCheckOutsEl, data.todayCheckOuts || 0, 'checkout');
 
-            // KPI 次要查詢：即使失敗也不影響上方儀表板顯示
+            // KPI：bundle 已帶入時不再重複請求 /api/dashboard/ops
             try {
-                const opsResult = await fetchJsonWithRetry(`/api/dashboard/ops?${opsQuery}`, 2, 600);
-                if (!opsResult || !isLatestRequest()) return;
+                let opsData = embeddedOps;
+                if (!opsData) {
+                    const opsResult = await fetchJsonWithRetry(`/api/dashboard/ops?${opsQuery}`, 2, 600);
+                    if (!opsResult || !isLatestRequest()) return;
+                    opsData = opsResult.success ? opsResult.data : null;
+                    if (!opsResult.success) {
+                        console.warn('營運 KPI 載入失敗:', opsResult.message || '未知錯誤');
+                    }
+                }
 
-                if (opsResult.success && opsResult.data && opsResult.data.kpis) {
-                    const kpis = opsResult.data.kpis;
-                    const overview = opsResult.data.overview || {};
+                if (opsData && opsData.kpis) {
+                    const kpis = opsData.kpis;
+                    const overview = opsData.overview || {};
                     const formatPercent = (v) => `${(Number(v) || 0).toFixed(1)}%`;
                     const formatCurrency = (v) => `NT$ ${Math.round(Number(v) || 0).toLocaleString()}`;
                     const formatInteger = (v) => Math.round(Number(v) || 0).toLocaleString();
@@ -1756,7 +1802,7 @@ async function loadDashboard(options = {}) {
                     setOpsKpiDelta(
                         'opsOccupancyRateDelta',
                         kpis.occupancyRate,
-                        opsResult.data?.previousKpis?.occupancyRate
+                        opsData?.previousKpis?.occupancyRate
                     );
 
                     const paymentEl = document.getElementById('opsPaymentSuccessRate');
@@ -1764,7 +1810,7 @@ async function loadDashboard(options = {}) {
                     setOpsKpiDelta(
                         'opsPaymentSuccessRateDelta',
                         kpis.paymentSuccessRate,
-                        opsResult.data?.previousKpis?.paymentSuccessRate
+                        opsData?.previousKpis?.paymentSuccessRate
                     );
 
                     const cancellationEl = document.getElementById('opsCancellationRate');
@@ -1772,25 +1818,21 @@ async function loadDashboard(options = {}) {
                     setOpsKpiDelta(
                         'opsCancellationRateDelta',
                         kpis.cancellationRate,
-                        opsResult.data?.previousKpis?.cancellationRate,
+                        opsData?.previousKpis?.cancellationRate,
                         { inverseGood: true }
                     );
 
-                    renderOpsTrendChart(opsResult.data.trend || {});
-                    renderOpsTopSources(opsResult.data.sources || []);
-                    renderOpsTodoList(opsResult.data.todos || []);
+                    renderOpsTrendChart(opsData.trend || {});
+                    renderOpsTopSources(opsData.sources || []);
+                    renderOpsTodoList(opsData.todos || []);
 
-                    if (!isCustom && opsResult.data.range) {
-                        setOpsDateInputs(opsResult.data.range.startDate, opsResult.data.range.endDate);
+                    if (!isCustom && opsData.range) {
+                        setOpsDateInputs(opsData.range.startDate, opsData.range.endDate);
                     }
-                } else {
-                    console.warn('營運 KPI 載入失敗:', opsResult.message || '未知錯誤');
                 }
             } catch (opsError) {
                 console.warn('營運 KPI API 暫不可用，不影響基本儀表板顯示:', opsError.message);
             }
-        } else {
-            showError('載入儀表板數據失敗：' + (result.message || '未知錯誤'));
         }
     } catch (error) {
         console.error('載入儀表板數據錯誤:', error);

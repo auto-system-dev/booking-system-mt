@@ -25,6 +25,11 @@ const session = require('express-session');
 const pgSession = require('connect-pg-simple')(session);
 const rateLimit = require('express-rate-limit');
 const db = require('./database');
+const {
+    computeDashboardSummaryFromBookings,
+    parseOpsDashboardQuery,
+    buildDashboardOpsPayload
+} = require('./dashboard-helpers');
 const payment = require('./src/payments/ecpay.client');
 const cron = require('node-cron');
 const backup = require('./backup');
@@ -4001,81 +4006,46 @@ app.get('/api/statistics/period-comparison', requireAuth, checkPermission('stati
     }
 });
 
-// API: 儀表板數據
+// API: 儀表板數據（僅摘要；與 ops 同頁載入請優先使用 /api/dashboard/bundle）
 app.get('/api/dashboard', adminLimiter, async (req, res) => {
     try {
-        const normalizeStatus = (status) => String(status || '').trim().toLowerCase();
-        const isActiveStatus = (status) => {
-            const s = normalizeStatus(status);
-            return s === 'active' || s === '有效' || s === '已確認' || s === 'confirmed';
-        };
-        const isReservedStatus = (status) => {
-            const s = normalizeStatus(status);
-            return s === 'reserved' || s === '保留' || s === '保留中';
-        };
-        const isCancelledStatus = (status) => {
-            const s = normalizeStatus(status);
-            return s === 'cancelled' || s === '已取消' || s === '取消';
-        };
-
-        // 獲取今天的日期（YYYY-MM-DD）
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-        const todayStr = `${year}-${month}-${day}`;
-        
-        // 獲取所有訂房記錄
         const allBookings = await db.getAllBookings();
-        
-        // 計算今日房況
-        const todayCheckIns = allBookings.filter(booking => 
-            booking.check_in_date === todayStr && 
-            (isActiveStatus(booking.status) || isReservedStatus(booking.status))
-        ).length;
-        
-        const todayCheckOuts = allBookings.filter(booking => 
-            booking.check_out_date === todayStr && 
-            isActiveStatus(booking.status)
-        ).length;
-        
-        // 計算今日訂單（訂購日為今日）
-        const todayBookings = allBookings.filter(booking => {
-            const bookingDate = new Date(booking.created_at || booking.booking_date);
-            const bookingDateStr = `${bookingDate.getFullYear()}-${String(bookingDate.getMonth() + 1).padStart(2, '0')}-${String(bookingDate.getDate()).padStart(2, '0')}`;
-            return bookingDateStr === todayStr;
-        });
-        
-        const todayTransferOrders = todayBookings.filter(booking => 
-            booking.payment_method && booking.payment_method.includes('匯款')
-        ).length;
-        
-        const todayCardOrders = todayBookings.filter(booking => 
-            booking.payment_method && (booking.payment_method.includes('線上') || booking.payment_method.includes('卡'))
-        ).length;
-        
-        // 計算訂房狀態
-        const activeBookings = allBookings.filter(booking => isActiveStatus(booking.status)).length;
-        const reservedBookings = allBookings.filter(booking => isReservedStatus(booking.status)).length;
-        const cancelledBookings = allBookings.filter(booking => isCancelledStatus(booking.status)).length;
-        
         res.json({
             success: true,
-            data: {
-                todayCheckIns,
-                todayCheckOuts,
-                todayTransferOrders,
-                todayCardOrders,
-                activeBookings,
-                reservedBookings,
-                cancelledBookings
-            }
+            data: computeDashboardSummaryFromBookings(allBookings)
         });
     } catch (error) {
         console.error('查詢儀表板數據錯誤:', error);
-        res.status(500).json({ 
-            success: false, 
+        res.status(500).json({
+            success: false,
             message: '查詢儀表板數據失敗：' + error.message
+        });
+    }
+});
+
+// API: 儀表板摘要 + 營運 KPI 單次查詢（重新整理時避免重複 getAllBookings）
+app.get('/api/dashboard/bundle', adminLimiter, async (req, res) => {
+    try {
+        const parsed = parseOpsDashboardQuery(req.query);
+        if (!parsed.ok) {
+            return res.status(400).json({
+                success: false,
+                message: parsed.message
+            });
+        }
+        const [allBookings, roomTypes] = await Promise.all([db.getAllBookings(), db.getAllRoomTypes()]);
+        res.json({
+            success: true,
+            data: {
+                summary: computeDashboardSummaryFromBookings(allBookings),
+                ops: buildDashboardOpsPayload(allBookings, roomTypes, parsed.start, parsed.end)
+            }
+        });
+    } catch (error) {
+        console.error('查詢儀表板 bundle 錯誤:', error);
+        res.status(500).json({
+            success: false,
+            message: '查詢儀表板 bundle 失敗：' + error.message
         });
     }
 });
@@ -4083,292 +4053,17 @@ app.get('/api/dashboard', adminLimiter, async (req, res) => {
 // API: 營運儀表板 Phase 1 指標（同頁整合）
 app.get('/api/dashboard/ops', adminLimiter, async (req, res) => {
     try {
-        const normalizeStatus = (status) => String(status || '').trim().toLowerCase();
-        const isActiveStatus = (status) => {
-            const s = normalizeStatus(status);
-            return s === 'active' || s === '有效' || s === '已確認' || s === 'confirmed';
-        };
-        const isReservedStatus = (status) => {
-            const s = normalizeStatus(status);
-            return s === 'reserved' || s === '保留' || s === '保留中';
-        };
-        const isCancelledStatus = (status) => {
-            const s = normalizeStatus(status);
-            return s === 'cancelled' || s === '已取消' || s === '取消';
-        };
-        const normalizePaymentStatus = (status) => String(status || '').trim().toLowerCase();
-        const isPaid = (status) => {
-            const s = normalizePaymentStatus(status);
-            return s === 'paid' || s === '已付款' || s === '付款完成';
-        };
-        const isPending = (status) => {
-            const s = normalizePaymentStatus(status);
-            return s === 'pending' || s === '未付款' || s === '待付款';
-        };
-        const isFailed = (status) => {
-            const s = normalizePaymentStatus(status);
-            return s === 'failed' || s === '付款失敗' || s === '失敗';
-        };
-
-        const end = req.query.endDate ? new Date(`${req.query.endDate}T00:00:00`) : new Date();
-        end.setHours(0, 0, 0, 0);
-
-        const start = req.query.startDate
-            ? new Date(`${req.query.startDate}T00:00:00`)
-            : new Date(end.getTime() - 29 * 24 * 60 * 60 * 1000); // 預設近 30 天
-        start.setHours(0, 0, 0, 0);
-
-        if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
+        const parsed = parseOpsDashboardQuery(req.query);
+        if (!parsed.ok) {
             return res.status(400).json({
                 success: false,
-                message: '日期區間格式不正確'
+                message: parsed.message
             });
         }
-
-        const allBookings = await db.getAllBookings();
-        const roomTypes = await db.getAllRoomTypes();
-
-        const dayCount = Math.max(1, Math.floor((end - start) / (24 * 60 * 60 * 1000)) + 1);
-        const totalRoomTypes = Math.max(1, (roomTypes || []).length);
-
-        const normalizeDay = (value) => {
-            if (!value) return null;
-
-            // PostgreSQL 有機會回傳 Date 物件，先標準化成當地日期 00:00
-            if (value instanceof Date) {
-                if (isNaN(value.getTime())) return null;
-                return new Date(value.getFullYear(), value.getMonth(), value.getDate());
-            }
-
-            const raw = String(value).trim();
-            if (!raw) return null;
-
-            // 優先解析常見格式：YYYY-MM-DD / YYYY/MM/DD（可帶時間）
-            const ymdMatch = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-            if (ymdMatch) {
-                const year = Number(ymdMatch[1]);
-                const month = Number(ymdMatch[2]) - 1;
-                const day = Number(ymdMatch[3]);
-                const d = new Date(year, month, day);
-                return isNaN(d.getTime()) ? null : d;
-            }
-
-            // 後備：讓 JS 嘗試解析，成功後再截成日期
-            const fallback = new Date(raw);
-            if (isNaN(fallback.getTime())) return null;
-            return new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
-        };
-
-        const calculateKpisByRange = (rangeStart, rangeEnd) => {
-            const rangeDayCount = Math.max(1, Math.floor((rangeEnd - rangeStart) / (24 * 60 * 60 * 1000)) + 1);
-
-            const inRangeByCheckInDate = allBookings.filter((booking) => {
-                const checkIn = normalizeDay(booking.check_in_date);
-                if (!checkIn) return false;
-                return checkIn >= rangeStart && checkIn <= rangeEnd;
-            });
-
-            let occupiedRoomNights = 0;
-            let activeReservedRevenue = 0;
-            let activeReservedNights = 0;
-
-            allBookings.forEach((booking) => {
-                if (!isActiveStatus(booking.status) && !isReservedStatus(booking.status)) return;
-
-                const checkIn = normalizeDay(booking.check_in_date);
-                const checkOut = normalizeDay(booking.check_out_date);
-                if (!checkIn || !checkOut || checkOut <= checkIn) return;
-
-                // 住房夜計算：入住日含、退房日不含
-                const overlapStart = checkIn > rangeStart ? checkIn : rangeStart;
-                const overlapEndExclusive = checkOut <= new Date(rangeEnd.getTime() + 24 * 60 * 60 * 1000)
-                    ? checkOut
-                    : new Date(rangeEnd.getTime() + 24 * 60 * 60 * 1000);
-
-                if (overlapEndExclusive <= overlapStart) return;
-
-                const overlapNights = Math.floor((overlapEndExclusive - overlapStart) / (24 * 60 * 60 * 1000));
-                if (overlapNights <= 0) return;
-
-                occupiedRoomNights += overlapNights;
-
-                const totalNights = Math.max(1, Math.floor((checkOut - checkIn) / (24 * 60 * 60 * 1000)));
-                const finalAmount = parseFloat(booking.final_amount || 0) || 0;
-                const perNightRevenue = finalAmount / totalNights;
-                activeReservedRevenue += perNightRevenue * overlapNights;
-                activeReservedNights += overlapNights;
-            });
-
-            const conversionNumerator = inRangeByCheckInDate.filter((b) => isActiveStatus(b.status) || isReservedStatus(b.status)).length;
-            const conversionDenominator = inRangeByCheckInDate.length;
-
-            const paymentNumerator = inRangeByCheckInDate.filter((b) => isPaid(b.payment_status)).length;
-            const paymentDenominator = inRangeByCheckInDate.filter((b) => isPaid(b.payment_status) || isPending(b.payment_status) || isFailed(b.payment_status)).length;
-
-            const cancellationNumerator = inRangeByCheckInDate.filter((b) => isCancelledStatus(b.status)).length;
-            const cancellationDenominator = inRangeByCheckInDate.length;
-
-            const occupancyRate = (occupiedRoomNights / (totalRoomTypes * rangeDayCount)) * 100;
-            const averageRoomRate = activeReservedNights > 0 ? (activeReservedRevenue / activeReservedNights) : 0;
-            const conversionRate = conversionDenominator > 0 ? (conversionNumerator / conversionDenominator) * 100 : 0;
-            const paymentSuccessRate = paymentDenominator > 0 ? (paymentNumerator / paymentDenominator) * 100 : 0;
-            const cancellationRate = cancellationDenominator > 0 ? (cancellationNumerator / cancellationDenominator) * 100 : 0;
-
-            return {
-                occupancyRate,
-                averageRoomRate,
-                conversionRate,
-                paymentSuccessRate,
-                cancellationRate
-            };
-        };
-
-        const currentKpis = calculateKpisByRange(start, end);
-
-        const previousEnd = new Date(start.getTime() - 24 * 60 * 60 * 1000);
-        previousEnd.setHours(0, 0, 0, 0);
-        const previousStart = new Date(previousEnd.getTime() - (dayCount - 1) * 24 * 60 * 60 * 1000);
-        previousStart.setHours(0, 0, 0, 0);
-        const previousKpis = calculateKpisByRange(previousStart, previousEnd);
-
-        // 區間總覽（口徑：入住日 check_in_date；營收使用總金額 total_amount）
-        const aggregateByCheckInRange = (rangeStart, rangeEnd) => {
-            let orders = 0;
-            let revenue = 0;
-            allBookings.forEach((booking) => {
-                const checkIn = normalizeDay(booking.check_in_date);
-                if (!checkIn || checkIn < rangeStart || checkIn > rangeEnd) return;
-                orders += 1;
-                revenue += Number(booking.total_amount || 0) || 0;
-            });
-            return { orders, revenue };
-        };
-
-        const calcMoM = (currentValue, previousValue) => {
-            const current = Number(currentValue) || 0;
-            const previous = Number(previousValue) || 0;
-            if (previous <= 0) return current > 0 ? 100 : 0;
-            return ((current - previous) / previous) * 100;
-        };
-
-        const currentRangeStats = aggregateByCheckInRange(start, end);
-        const previousRangeStats = aggregateByCheckInRange(previousStart, previousEnd);
-
-        const overview = {
-            monthOrders: currentRangeStats.orders,
-            monthRevenue: currentRangeStats.revenue,
-            monthOrdersMoM: calcMoM(currentRangeStats.orders, previousRangeStats.orders),
-            monthRevenueMoM: calcMoM(currentRangeStats.revenue, previousRangeStats.revenue)
-        };
-
-        // 30 天趨勢（口徑：入住日；營收使用總金額）
-        const trendEnd = new Date(end);
-        trendEnd.setHours(0, 0, 0, 0);
-        const trendStart = new Date(trendEnd.getTime() - 29 * 24 * 60 * 60 * 1000);
-        const trendLabels = [];
-        const trendMap = new Map();
-        for (let i = 0; i < 30; i += 1) {
-            const d = new Date(trendStart.getTime() + i * 24 * 60 * 60 * 1000);
-            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-            trendLabels.push(key);
-            trendMap.set(key, { orders: 0, revenue: 0 });
-        }
-
-        allBookings.forEach((booking) => {
-            const checkIn = normalizeDay(booking.check_in_date);
-            if (!checkIn || checkIn < trendStart || checkIn > trendEnd) return;
-            const key = `${checkIn.getFullYear()}-${String(checkIn.getMonth() + 1).padStart(2, '0')}-${String(checkIn.getDate()).padStart(2, '0')}`;
-            const item = trendMap.get(key);
-            if (!item) return;
-            item.orders += 1;
-            item.revenue += Number(booking.total_amount || 0) || 0;
-        });
-
-        // 來源 Top5（口徑：入住日在目前查詢區間）
-        const sourceMap = new Map();
-        const sourceBookings = allBookings.filter((booking) => {
-            const checkIn = normalizeDay(booking.check_in_date);
-            return checkIn && checkIn >= start && checkIn <= end;
-        });
-
-        const resolveSource = (booking) => {
-            const sourceCandidate = booking.utm_source || booking.booking_source || booking.order_source || booking.source || booking.channel || '';
-            const normalized = String(sourceCandidate || '').trim().toLowerCase();
-            if (normalized) return normalized;
-            if (booking.line_user_id) return 'line';
-            return 'direct';
-        };
-
-        sourceBookings.forEach((booking) => {
-            const source = resolveSource(booking);
-            sourceMap.set(source, (sourceMap.get(source) || 0) + 1);
-        });
-
-        const sourceTotal = sourceBookings.length || 1;
-        const sources = Array.from(sourceMap.entries())
-            .map(([source, orders]) => ({ source, orders, share: (orders / sourceTotal) * 100 }))
-            .sort((a, b) => b.orders - a.orders)
-            .slice(0, 5);
-
-        // 待辦提醒
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const nextTwoDays = new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000);
-        const nextThreeDays = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000);
-
-        let pendingDueSoon = 0;
-        let overdueUnpaid = 0;
-        let upcomingCheckIns = 0;
-
-        allBookings.forEach((booking) => {
-            const paymentDeadline = normalizeDay(booking.payment_deadline);
-            if (isPending(booking.payment_status) && paymentDeadline) {
-                if (paymentDeadline < today) overdueUnpaid += 1;
-                if (paymentDeadline >= today && paymentDeadline <= nextTwoDays) pendingDueSoon += 1;
-            }
-
-            const checkIn = normalizeDay(booking.check_in_date);
-            if (checkIn && checkIn >= today && checkIn <= nextThreeDays && (isActiveStatus(booking.status) || isReservedStatus(booking.status))) {
-                upcomingCheckIns += 1;
-            }
-        });
-
-        const todos = [
-            { key: 'pending_due', title: '2 日內待付款到期', value: pendingDueSoon, severity: pendingDueSoon > 0 ? 'warn' : '' },
-            { key: 'overdue_unpaid', title: '已逾期未付款', value: overdueUnpaid, severity: overdueUnpaid > 0 ? 'alert' : '' },
-            { key: 'upcoming_checkins', title: '3 日內即將入住', value: upcomingCheckIns, severity: '' },
-            {
-                key: 'cancel_rate',
-                title: '取消率預警',
-                value: `${(Number(currentKpis.cancellationRate) || 0).toFixed(1)}%`,
-                severity: (Number(currentKpis.cancellationRate) || 0) >= 20 ? 'alert' : ''
-            }
-        ];
-
+        const [allBookings, roomTypes] = await Promise.all([db.getAllBookings(), db.getAllRoomTypes()]);
         res.json({
             success: true,
-            data: {
-                range: {
-                    startDate: `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`,
-                    endDate: `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`,
-                    dayCount
-                },
-                kpis: currentKpis,
-                previousRange: {
-                    startDate: `${previousStart.getFullYear()}-${String(previousStart.getMonth() + 1).padStart(2, '0')}-${String(previousStart.getDate()).padStart(2, '0')}`,
-                    endDate: `${previousEnd.getFullYear()}-${String(previousEnd.getMonth() + 1).padStart(2, '0')}-${String(previousEnd.getDate()).padStart(2, '0')}`,
-                    dayCount
-                },
-                previousKpis,
-                overview,
-                trend: {
-                    labels: trendLabels,
-                    orders: trendLabels.map((label) => trendMap.get(label)?.orders || 0),
-                    revenue: trendLabels.map((label) => trendMap.get(label)?.revenue || 0)
-                },
-                sources,
-                todos
-            }
+            data: buildDashboardOpsPayload(allBookings, roomTypes, parsed.start, parsed.end)
         });
     } catch (error) {
         console.error('查詢營運儀表板指標錯誤:', error);
