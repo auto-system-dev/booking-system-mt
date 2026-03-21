@@ -3334,6 +3334,9 @@ function closeModal() {
 }
 
 // —— 營運報表：快捷期間（週一至週日為「本週」）——
+/** 預設為本月；選「全部期間」為 all；自訂套用為 custom */
+let reportStatsPeriodMode = 'month';
+
 function formatLocalYMDFromDate(d) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -3385,6 +3388,7 @@ function setStatisticsPreset(preset) {
     if (!startInput || !endInput) return;
 
     if (preset === 'all') {
+        reportStatsPeriodMode = 'all';
         startInput.value = '';
         endInput.value = '';
         setReportPresetButtonsActive('all');
@@ -3398,6 +3402,7 @@ function setStatisticsPreset(preset) {
     else if (preset === 'year') r = getReportRangeThisYear();
     else return;
 
+    reportStatsPeriodMode = preset;
     startInput.value = r.start;
     endInput.value = r.end;
     setReportPresetButtonsActive(preset);
@@ -3407,9 +3412,16 @@ function setStatisticsPreset(preset) {
 // 依目前日期篩選載入統計資料
 async function loadStatistics() {
     try {
-        // 讀取日期區間（如果兩個都有填才套用）
         const startInput = document.getElementById('statsStartDate');
         const endInput = document.getElementById('statsEndDate');
+        // 預設顯示「本月」（未選日期且非「全部期間」模式時自動帶入當月）
+        if (startInput && endInput && (!startInput.value || !endInput.value) && reportStatsPeriodMode === 'month') {
+            const r = getReportRangeThisMonth();
+            startInput.value = r.start;
+            endInput.value = r.end;
+            setReportPresetButtonsActive('month');
+        }
+
         const startDate = startInput?.value;
         const endDate = endInput?.value;
 
@@ -3618,6 +3630,7 @@ function renderPeriodComparisonStats(data) {
 
 // 套用統計日期篩選
 function applyStatisticsFilter() {
+    reportStatsPeriodMode = 'custom';
     setReportPresetButtonsActive(null);
     loadStatistics();
 }

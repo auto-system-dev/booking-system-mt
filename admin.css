@@ -750,26 +750,10 @@ body.login-page-active {
 .report-page .report-kpi-value {
     font-size: clamp(26px, 4vw, 32px);
     font-weight: 800;
-    color: var(--report-text);
+    color: var(--report-accent);
     margin-bottom: 10px;
     letter-spacing: -0.03em;
     line-height: 1.15;
-}
-
-.report-page .report-kpi-card--bookings .report-kpi-value {
-    color: var(--report-text);
-}
-
-.report-page .report-kpi-card--revenue .report-kpi-value {
-    color: #0f766e;
-}
-
-.report-page .report-kpi-card--transfer .report-kpi-value {
-    color: #4f46e5;
-}
-
-.report-page .report-kpi-card--cardpay .report-kpi-value {
-    color: #c2410c;
 }
 
 .report-kpi-detail {
