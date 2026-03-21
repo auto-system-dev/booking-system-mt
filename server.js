@@ -3873,12 +3873,20 @@ app.get('/api/admin/statistics/export', requireAuth, checkPermission('statistics
             ['刷卡未付款金額', stats.cardBookings?.unpaid?.total || 0],
         ];
         
-        // 加入各房型統計
+        // 加入各房型統計（與後台房型統計表格欄位一致）
         if (stats.byRoomType && stats.byRoomType.length > 0) {
             rows.push(['']);
-            rows.push(['--- 房型統計 ---', '']);
+            rows.push(['--- 房型統計 ---', '', '', '', '', '']);
+            rows.push(['房型名稱', '訂房筆數', '營收', '平均房價', '取消率(%)', '佔總營收比(%)']);
             for (const rt of stats.byRoomType) {
-                rows.push([rt.room_type, rt.count]);
+                rows.push([
+                    rt.room_type,
+                    rt.count ?? 0,
+                    rt.revenue ?? 0,
+                    rt.avg_price ?? 0,
+                    (Number(rt.cancel_rate) || 0).toFixed(1),
+                    (Number(rt.revenue_share) || 0).toFixed(1)
+                ]);
             }
         }
         

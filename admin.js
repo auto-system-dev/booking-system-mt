@@ -3558,17 +3558,34 @@ function renderRoomStats(roomStats) {
         return;
     }
 
-    const rows = roomStats.map((stat) => `
+    const fmtPct = (n) => `${(Number(n) || 0).toFixed(1)}%`;
+    const rows = roomStats.map((stat) => {
+        const revenue = Number(stat.revenue) || 0;
+        const avgPrice = Number(stat.avg_price) || 0;
+        return `
         <div class="report-room-row">
             <span class="report-room-name">${escapeHtml(stat.room_type || '')}</span>
-            <span class="report-room-count">${Number(stat.count) || 0} 筆</span>
-        </div>
-    `).join('');
+            <span class="report-room-num report-room-count">${Number(stat.count) || 0} 筆</span>
+            <span class="report-room-num report-room-revenue">NT$ ${revenue.toLocaleString()}</span>
+            <span class="report-room-num report-room-avg">NT$ ${avgPrice.toLocaleString()}</span>
+            <span class="report-room-num report-room-pct">${fmtPct(stat.cancel_rate)}</span>
+            <span class="report-room-num report-room-pct">${fmtPct(stat.revenue_share)}</span>
+        </div>`;
+    }).join('');
 
     container.innerHTML = `
+        <div class="report-room-table-wrap">
         <div class="report-room-table">
-            <div class="report-room-thead"><span>房型名稱</span><span>訂房筆數</span></div>
+            <div class="report-room-thead">
+                <span>房型名稱</span>
+                <span>訂房筆數</span>
+                <span>營收</span>
+                <span>平均房價</span>
+                <span>取消率</span>
+                <span>佔總營收比</span>
+            </div>
             ${rows}
+        </div>
         </div>
     `;
 }

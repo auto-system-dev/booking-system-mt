@@ -3286,7 +3286,28 @@ async function getStatistics(startDate, endDate) {
                 : ` WHERE payment_status = 'pending' AND status != 'cancelled'`;
             revenueUnpaidSql = `SELECT SUM(total_amount) as total FROM bookings${revenueUnpaidWhereClause}`;
             
-            byRoomTypeSql = `SELECT room_type, COUNT(*) as count FROM bookings${baseWhereClause} GROUP BY room_type`;
+            // 房型：入住日於區間內（含已取消）計算取消率；有效訂單（非取消）計算筆數與營收
+            byRoomTypeSql = hasRange
+                ? `SELECT 
+                        COALESCE(NULLIF(TRIM(BOTH FROM COALESCE(room_type::text, '')), ''), '(未指定)') AS room_type,
+                        COUNT(*) FILTER (WHERE COALESCE(status, '') != 'cancelled') AS active_count,
+                        COALESCE(SUM(CASE WHEN COALESCE(status, '') != 'cancelled' THEN total_amount ELSE 0 END), 0)::bigint AS revenue,
+                        COUNT(*)::bigint AS total_in_range,
+                        COUNT(*) FILTER (WHERE COALESCE(status, '') = 'cancelled')::bigint AS cancelled_count
+                    FROM bookings
+                    WHERE check_in_date::date BETWEEN $1::date AND $2::date
+                    GROUP BY 1
+                    ORDER BY active_count DESC, revenue DESC`
+                : `SELECT 
+                        COALESCE(NULLIF(TRIM(BOTH FROM COALESCE(room_type::text, '')), ''), '(未指定)') AS room_type,
+                        COUNT(*) FILTER (WHERE COALESCE(status, '') != 'cancelled') AS active_count,
+                        COALESCE(SUM(CASE WHEN COALESCE(status, '') != 'cancelled' THEN total_amount ELSE 0 END), 0)::bigint AS revenue,
+                        COUNT(*)::bigint AS total_in_range,
+                        COUNT(*) FILTER (WHERE COALESCE(status, '') = 'cancelled')::bigint AS cancelled_count
+                    FROM bookings
+                    WHERE TRUE
+                    GROUP BY 1
+                    ORDER BY active_count DESC, revenue DESC`;
             
             // 匯款轉帳統計
             const transferBaseWhereClause = hasRange 
@@ -3363,7 +3384,28 @@ async function getStatistics(startDate, endDate) {
                 : ` WHERE payment_status = 'pending' AND status != 'cancelled'`;
             revenueUnpaidSql = `SELECT SUM(total_amount) as total FROM bookings${revenueUnpaidWhereClause}`;
             
-            byRoomTypeSql = `SELECT room_type, COUNT(*) as count FROM bookings${baseWhereClause} GROUP BY room_type`;
+            // 房型（SQLite）：入住日於區間內（含已取消）計算取消率
+            byRoomTypeSql = hasRange
+                ? `SELECT 
+                        CASE WHEN TRIM(COALESCE(room_type, '')) = '' THEN '(未指定)' ELSE TRIM(room_type) END AS room_type,
+                        SUM(CASE WHEN IFNULL(status, '') != 'cancelled' THEN 1 ELSE 0 END) AS active_count,
+                        COALESCE(SUM(CASE WHEN IFNULL(status, '') != 'cancelled' THEN total_amount ELSE 0 END), 0) AS revenue,
+                        COUNT(*) AS total_in_range,
+                        SUM(CASE WHEN IFNULL(status, '') = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_count
+                    FROM bookings
+                    WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?)
+                    GROUP BY CASE WHEN TRIM(COALESCE(room_type, '')) = '' THEN '(未指定)' ELSE TRIM(room_type) END
+                    ORDER BY active_count DESC, revenue DESC`
+                : `SELECT 
+                        CASE WHEN TRIM(COALESCE(room_type, '')) = '' THEN '(未指定)' ELSE TRIM(room_type) END AS room_type,
+                        SUM(CASE WHEN IFNULL(status, '') != 'cancelled' THEN 1 ELSE 0 END) AS active_count,
+                        COALESCE(SUM(CASE WHEN IFNULL(status, '') != 'cancelled' THEN total_amount ELSE 0 END), 0) AS revenue,
+                        COUNT(*) AS total_in_range,
+                        SUM(CASE WHEN IFNULL(status, '') = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_count
+                    FROM bookings
+                    WHERE 1=1
+                    GROUP BY CASE WHEN TRIM(COALESCE(room_type, '')) = '' THEN '(未指定)' ELSE TRIM(room_type) END
+                    ORDER BY active_count DESC, revenue DESC`;
             
             // 匯款轉帳統計
             const transferBaseWhereClause = hasRange
@@ -3430,6 +3472,26 @@ async function getStatistics(startDate, endDate) {
             transferResult, transferPaidResult, transferUnpaidResult,
             cardResult, cardPaidResult, cardUnpaidResult
         ] = await Promise.all(promises);
+
+        const totalRev = parseInt(revenueResult?.total || 0, 10);
+        const rawRoomRows = byRoomTypeResult.rows || [];
+        const byRoomType = rawRoomRows.map((r) => {
+            const activeCount = parseInt(r.active_count ?? r.count ?? 0, 10);
+            const revenue = parseInt(r.revenue || 0, 10);
+            const totalInRange = parseInt(r.total_in_range || 0, 10);
+            const cancelledCount = parseInt(r.cancelled_count || 0, 10);
+            const cancelRate = totalInRange > 0 ? (cancelledCount / totalInRange) * 100 : 0;
+            const avgPrice = activeCount > 0 ? Math.round(revenue / activeCount) : 0;
+            const revenueShare = totalRev > 0 ? (revenue / totalRev) * 100 : 0;
+            return {
+                room_type: r.room_type,
+                count: activeCount,
+                revenue,
+                avg_price: avgPrice,
+                cancel_rate: cancelRate,
+                revenue_share: revenueShare
+            };
+        });
         
         return {
             totalBookings: parseInt(totalResult?.count || 0),
@@ -3437,12 +3499,12 @@ async function getStatistics(startDate, endDate) {
                 checkedIn: parseInt(totalCheckedInResult?.count || 0),
                 notCheckedIn: parseInt(totalNotCheckedInResult?.count || 0)
             },
-            totalRevenue: parseInt(revenueResult?.total || 0),
+            totalRevenue: totalRev,
             totalRevenueDetail: {
                 paid: parseInt(revenuePaidResult?.total || 0),
                 unpaid: parseInt(revenueUnpaidResult?.total || 0)
             },
-            byRoomType: byRoomTypeResult.rows || [],
+            byRoomType,
             // 匯款轉帳統計
             transferBookings: {
                 count: parseInt(transferResult?.count || 0),
