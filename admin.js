@@ -3416,8 +3416,10 @@ async function loadStatistics() {
             const cardUnpaidTotal = stats.cardBookings?.unpaid?.total || 0;
             document.getElementById('cardBookingsDetail').textContent = `已付款: ${cardPaidCount} 筆 / NT$ ${cardPaidTotal.toLocaleString()} | 未付款: ${cardUnpaidCount} 筆 / NT$ ${cardUnpaidTotal.toLocaleString()}`;
             
-            // 渲染房型統計
+            // 渲染房型分析
             renderRoomStats(stats.byRoomType || []);
+            // 渲染來源分析
+            renderSourceAnalysis(stats.bySource || []);
             
             // 載入月度統計資料
             loadMonthlyStats();
@@ -3547,6 +3549,63 @@ function resetStatisticsFilter() {
     if (startInput) startInput.value = '';
     if (endInput) endInput.value = '';
     loadStatistics();
+}
+
+/** 營運報表：來源 slug → 顯示名稱（與營運儀表來源 Top5 對齊） */
+function reportSourceDisplayLabel(slug) {
+    const key = String(slug || '').toLowerCase();
+    const map = {
+        direct: '直接流量',
+        line: 'LINE',
+        google: 'Google',
+        facebook: 'Facebook',
+        fb: 'Facebook',
+        instagram: 'Instagram',
+        ig: 'Instagram'
+    };
+    return map[key] || (slug ? String(slug) : '未分類');
+}
+
+// 渲染來源分析（營運報表）
+function renderSourceAnalysis(sourceStats) {
+    const container = document.getElementById('sourceStatsList');
+    if (!container) return;
+
+    if (sourceStats.length === 0) {
+        container.innerHTML = '<div class="report-panel-empty">目前沒有來源分析資料</div>';
+        return;
+    }
+
+    const fmtPct = (n) => `${(Number(n) || 0).toFixed(1)}%`;
+    const rows = sourceStats.map((stat) => {
+        const revenue = Number(stat.revenue) || 0;
+        const label = reportSourceDisplayLabel(stat.source);
+        return `
+        <div class="report-source-row">
+            <span class="report-source-name">${escapeHtml(label)}</span>
+            <span class="report-source-num report-source-count">${Number(stat.count) || 0} 筆</span>
+            <span class="report-source-num report-source-revenue">NT$ ${revenue.toLocaleString()}</span>
+            <span class="report-source-num report-source-pct">${fmtPct(stat.payment_success_rate)}</span>
+            <span class="report-source-num report-source-pct-muted">${fmtPct(stat.cancel_rate)}</span>
+            <span class="report-source-num report-source-pct">${fmtPct(stat.revenue_share)}</span>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="report-source-table-wrap">
+        <div class="report-source-table">
+            <div class="report-source-thead">
+                <span>來源</span>
+                <span>訂房數</span>
+                <span>營收</span>
+                <span>付款成功率</span>
+                <span>取消率</span>
+                <span>佔總營收比</span>
+            </div>
+            ${rows}
+        </div>
+        </div>
+    `;
 }
 
 // 渲染房型統計（營運報表版面）

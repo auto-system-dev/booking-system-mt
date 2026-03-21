@@ -3246,6 +3246,7 @@ async function getStatistics(startDate, endDate) {
         let totalSql, totalCheckedInSql, totalNotCheckedInSql;
         let revenueSql, revenuePaidSql, revenueUnpaidSql;
         let byRoomTypeSql;
+        let bySourceSql;
         let transferSql, transferPaidSql, transferUnpaidSql;
         let cardSql, cardPaidSql, cardUnpaidSql;
         let params = [];
@@ -3307,6 +3308,60 @@ async function getStatistics(startDate, endDate) {
                     FROM bookings
                     WHERE TRUE
                     GROUP BY 1
+                    ORDER BY active_count DESC, revenue DESC`;
+            
+            // 來源分析（與營運儀表 resolveSource 口徑一致：utm_source → booking_source → line → direct）
+            bySourceSql = hasRange
+                ? `SELECT 
+                        src AS booking_source,
+                        COUNT(*) FILTER (WHERE COALESCE(status, '') != 'cancelled')::bigint AS active_count,
+                        COALESCE(SUM(CASE WHEN COALESCE(status, '') != 'cancelled' THEN total_amount ELSE 0 END), 0)::bigint AS revenue,
+                        COUNT(*)::bigint AS total_in_range,
+                        COUNT(*) FILTER (WHERE COALESCE(status, '') = 'cancelled')::bigint AS cancelled_count,
+                        COUNT(*) FILTER (WHERE COALESCE(status, '') != 'cancelled' AND payment_status = 'paid')::bigint AS paid_active_count
+                    FROM (
+                        SELECT 
+                            status,
+                            payment_status,
+                            total_amount,
+                            COALESCE(
+                                NULLIF(LOWER(TRIM(BOTH FROM COALESCE(utm_source::text, ''))), ''),
+                                NULLIF(LOWER(TRIM(BOTH FROM COALESCE(booking_source::text, ''))), ''),
+                                CASE 
+                                    WHEN line_user_id IS NOT NULL AND TRIM(BOTH FROM COALESCE(line_user_id::text, '')) <> '' THEN 'line'
+                                    ELSE NULL
+                                END,
+                                'direct'
+                            ) AS src
+                        FROM bookings
+                        WHERE check_in_date::date BETWEEN $1::date AND $2::date
+                    ) b
+                    GROUP BY src
+                    ORDER BY active_count DESC, revenue DESC`
+                : `SELECT 
+                        src AS booking_source,
+                        COUNT(*) FILTER (WHERE COALESCE(status, '') != 'cancelled')::bigint AS active_count,
+                        COALESCE(SUM(CASE WHEN COALESCE(status, '') != 'cancelled' THEN total_amount ELSE 0 END), 0)::bigint AS revenue,
+                        COUNT(*)::bigint AS total_in_range,
+                        COUNT(*) FILTER (WHERE COALESCE(status, '') = 'cancelled')::bigint AS cancelled_count,
+                        COUNT(*) FILTER (WHERE COALESCE(status, '') != 'cancelled' AND payment_status = 'paid')::bigint AS paid_active_count
+                    FROM (
+                        SELECT 
+                            status,
+                            payment_status,
+                            total_amount,
+                            COALESCE(
+                                NULLIF(LOWER(TRIM(BOTH FROM COALESCE(utm_source::text, ''))), ''),
+                                NULLIF(LOWER(TRIM(BOTH FROM COALESCE(booking_source::text, ''))), ''),
+                                CASE 
+                                    WHEN line_user_id IS NOT NULL AND TRIM(BOTH FROM COALESCE(line_user_id::text, '')) <> '' THEN 'line'
+                                    ELSE NULL
+                                END,
+                                'direct'
+                            ) AS src
+                        FROM bookings
+                    ) b
+                    GROUP BY src
                     ORDER BY active_count DESC, revenue DESC`;
             
             // 匯款轉帳統計
@@ -3407,6 +3462,60 @@ async function getStatistics(startDate, endDate) {
                     GROUP BY CASE WHEN TRIM(COALESCE(room_type, '')) = '' THEN '(未指定)' ELSE TRIM(room_type) END
                     ORDER BY active_count DESC, revenue DESC`;
             
+            // 來源分析（SQLite）
+            bySourceSql = hasRange
+                ? `SELECT 
+                        src AS booking_source,
+                        SUM(CASE WHEN IFNULL(status, '') != 'cancelled' THEN 1 ELSE 0 END) AS active_count,
+                        COALESCE(SUM(CASE WHEN IFNULL(status, '') != 'cancelled' THEN total_amount ELSE 0 END), 0) AS revenue,
+                        COUNT(*) AS total_in_range,
+                        SUM(CASE WHEN IFNULL(status, '') = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_count,
+                        SUM(CASE WHEN IFNULL(status, '') != 'cancelled' AND payment_status = 'paid' THEN 1 ELSE 0 END) AS paid_active_count
+                    FROM (
+                        SELECT 
+                            status,
+                            payment_status,
+                            total_amount,
+                            COALESCE(
+                                NULLIF(LOWER(TRIM(COALESCE(utm_source, ''))), ''),
+                                NULLIF(LOWER(TRIM(COALESCE(booking_source, ''))), ''),
+                                CASE 
+                                    WHEN line_user_id IS NOT NULL AND TRIM(COALESCE(line_user_id, '')) != '' THEN 'line'
+                                    ELSE NULL
+                                END,
+                                'direct'
+                            ) AS src
+                        FROM bookings
+                        WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?)
+                    ) b
+                    GROUP BY src
+                    ORDER BY active_count DESC, revenue DESC`
+                : `SELECT 
+                        src AS booking_source,
+                        SUM(CASE WHEN IFNULL(status, '') != 'cancelled' THEN 1 ELSE 0 END) AS active_count,
+                        COALESCE(SUM(CASE WHEN IFNULL(status, '') != 'cancelled' THEN total_amount ELSE 0 END), 0) AS revenue,
+                        COUNT(*) AS total_in_range,
+                        SUM(CASE WHEN IFNULL(status, '') = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_count,
+                        SUM(CASE WHEN IFNULL(status, '') != 'cancelled' AND payment_status = 'paid' THEN 1 ELSE 0 END) AS paid_active_count
+                    FROM (
+                        SELECT 
+                            status,
+                            payment_status,
+                            total_amount,
+                            COALESCE(
+                                NULLIF(LOWER(TRIM(COALESCE(utm_source, ''))), ''),
+                                NULLIF(LOWER(TRIM(COALESCE(booking_source, ''))), ''),
+                                CASE 
+                                    WHEN line_user_id IS NOT NULL AND TRIM(COALESCE(line_user_id, '')) != '' THEN 'line'
+                                    ELSE NULL
+                                END,
+                                'direct'
+                            ) AS src
+                        FROM bookings
+                    ) b
+                    GROUP BY src
+                    ORDER BY active_count DESC, revenue DESC`;
+            
             // 匯款轉帳統計
             const transferBaseWhereClause = hasRange
                 ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_method LIKE '%匯款%' AND status != 'cancelled'`
@@ -3457,6 +3566,7 @@ async function getStatistics(startDate, endDate) {
             hasRange ? queryOne(revenuePaidSql, params) : queryOne(revenuePaidSql),
             hasRange ? queryOne(revenueUnpaidSql, params) : queryOne(revenueUnpaidSql),
             hasRange ? query(byRoomTypeSql, params) : query(byRoomTypeSql),
+            hasRange ? query(bySourceSql, params) : query(bySourceSql),
             hasRange ? queryOne(transferSql, params) : queryOne(transferSql),
             hasRange ? queryOne(transferPaidSql, params) : queryOne(transferPaidSql),
             hasRange ? queryOne(transferUnpaidSql, params) : queryOne(transferUnpaidSql),
@@ -3469,11 +3579,13 @@ async function getStatistics(startDate, endDate) {
             totalResult, totalCheckedInResult, totalNotCheckedInResult,
             revenueResult, revenuePaidResult, revenueUnpaidResult,
             byRoomTypeResult,
+            bySourceResult,
             transferResult, transferPaidResult, transferUnpaidResult,
             cardResult, cardPaidResult, cardUnpaidResult
         ] = await Promise.all(promises);
 
         const totalRev = parseInt(revenueResult?.total || 0, 10);
+        const totalActiveBookings = parseInt(totalResult?.count || 0, 10);
         const rawRoomRows = byRoomTypeResult.rows || [];
         const byRoomType = rawRoomRows.map((r) => {
             const activeCount = parseInt(r.active_count ?? r.count ?? 0, 10);
@@ -3492,9 +3604,29 @@ async function getStatistics(startDate, endDate) {
                 revenue_share: revenueShare
             };
         });
+
+        const rawSourceRows = bySourceResult.rows || [];
+        const bySource = rawSourceRows.map((r) => {
+            const activeCount = parseInt(r.active_count ?? 0, 10);
+            const revenue = parseInt(r.revenue || 0, 10);
+            const totalInRange = parseInt(r.total_in_range || 0, 10);
+            const cancelledCount = parseInt(r.cancelled_count || 0, 10);
+            const paidActive = parseInt(r.paid_active_count ?? 0, 10);
+            const cancelRate = totalInRange > 0 ? (cancelledCount / totalInRange) * 100 : 0;
+            const paymentSuccessRate = activeCount > 0 ? (paidActive / activeCount) * 100 : 0;
+            const revenueShare = totalRev > 0 ? (revenue / totalRev) * 100 : 0;
+            return {
+                source: r.booking_source,
+                count: activeCount,
+                revenue,
+                payment_success_rate: paymentSuccessRate,
+                cancel_rate: cancelRate,
+                revenue_share: revenueShare
+            };
+        });
         
         return {
-            totalBookings: parseInt(totalResult?.count || 0),
+            totalBookings: totalActiveBookings,
             totalBookingsDetail: {
                 checkedIn: parseInt(totalCheckedInResult?.count || 0),
                 notCheckedIn: parseInt(totalNotCheckedInResult?.count || 0)
@@ -3505,6 +3637,7 @@ async function getStatistics(startDate, endDate) {
                 unpaid: parseInt(revenueUnpaidResult?.total || 0)
             },
             byRoomType,
+            bySource,
             // 匯款轉帳統計
             transferBookings: {
                 count: parseInt(transferResult?.count || 0),

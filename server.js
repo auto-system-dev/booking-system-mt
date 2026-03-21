@@ -3889,6 +3889,23 @@ app.get('/api/admin/statistics/export', requireAuth, checkPermission('statistics
                 ]);
             }
         }
+
+        // 來源分析（與後台表格欄位一致；來源欄為系統 slug）
+        if (stats.bySource && stats.bySource.length > 0) {
+            rows.push(['']);
+            rows.push(['--- 來源分析 ---', '', '', '', '', '']);
+            rows.push(['來源(slug)', '訂房數', '營收', '付款成功率(%)', '取消率(%)', '佔總營收比(%)']);
+            for (const s of stats.bySource) {
+                rows.push([
+                    s.source ?? '',
+                    s.count ?? 0,
+                    s.revenue ?? 0,
+                    (Number(s.payment_success_rate) || 0).toFixed(1),
+                    (Number(s.cancel_rate) || 0).toFixed(1),
+                    (Number(s.revenue_share) || 0).toFixed(1)
+                ]);
+            }
+        }
         
         const csv = generateCSV(headers, rows);
         

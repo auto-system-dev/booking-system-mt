@@ -990,6 +990,99 @@ body.login-page-active {
     font-weight: 600;
 }
 
+/* 營運報表：來源分析表格 */
+.report-source-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.report-source-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 12px;
+}
+
+.report-source-table {
+    border: 1px solid var(--report-border);
+    border-radius: 12px;
+    overflow: hidden;
+    min-width: 680px;
+}
+
+.report-source-thead {
+    display: grid;
+    grid-template-columns: minmax(100px, 1.3fr) repeat(5, minmax(88px, 1fr));
+    gap: 10px;
+    padding: 12px 18px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--report-muted);
+    background: #f8fafc;
+    border-bottom: 1px solid var(--report-border);
+}
+
+.report-source-thead span:not(:first-child) {
+    text-align: right;
+}
+
+.report-source-row {
+    display: grid;
+    grid-template-columns: minmax(100px, 1.3fr) repeat(5, minmax(88px, 1fr));
+    gap: 10px;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.15s ease;
+}
+
+.report-source-row:last-child {
+    border-bottom: none;
+}
+
+.report-source-row:hover {
+    background: #f8fafc;
+}
+
+.report-source-name {
+    font-weight: 600;
+    color: var(--report-text);
+    font-size: 14px;
+}
+
+.report-source-count {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--report-accent);
+    font-variant-numeric: tabular-nums;
+}
+
+.report-source-num {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--report-text);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    justify-self: end;
+}
+
+.report-source-revenue {
+    color: #0f766e;
+}
+
+.report-source-pct {
+    color: var(--report-muted);
+    font-weight: 600;
+}
+
+.report-source-pct-muted {
+    color: #94a3b8;
+    font-weight: 600;
+}
+
 /* 模態框 */
 .modal {
     display: none;
