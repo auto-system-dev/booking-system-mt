@@ -891,6 +891,95 @@ function setOpsMomDelta(elementId, momValue) {
     el.textContent = `▼ ${Math.abs(value).toFixed(1)}%`;
 }
 
+function applyStatisticsSummaryCardsToDom(stats) {
+    if (!stats) return;
+
+    const totalBookingsEl = document.getElementById('totalBookings');
+    if (totalBookingsEl) totalBookingsEl.textContent = stats.totalBookings || 0;
+    const checkedIn = stats.totalBookingsDetail?.checkedIn || 0;
+    const notCheckedIn = stats.totalBookingsDetail?.notCheckedIn || 0;
+    const totalBookingsDetailEl = document.getElementById('totalBookingsDetail');
+    if (totalBookingsDetailEl) {
+        totalBookingsDetailEl.textContent = `已入住: ${checkedIn} / 未入住: ${notCheckedIn}`;
+    }
+
+    const totalRevenueEl = document.getElementById('totalRevenue');
+    if (totalRevenueEl) totalRevenueEl.textContent = `NT$ ${(stats.totalRevenue || 0).toLocaleString()}`;
+    const revenuePaid = stats.totalRevenueDetail?.paid || 0;
+    const revenueUnpaid = stats.totalRevenueDetail?.unpaid || 0;
+    const totalRevenueDetailEl = document.getElementById('totalRevenueDetail');
+    if (totalRevenueDetailEl) {
+        totalRevenueDetailEl.textContent = `已付款: NT$ ${revenuePaid.toLocaleString()} / 未付款: NT$ ${revenueUnpaid.toLocaleString()}`;
+    }
+
+    const transferLabel = document.getElementById('transferBookingsLabel');
+    if (transferLabel) transferLabel.textContent = '匯款轉帳';
+
+    const transferTotal = stats.transferBookings?.total || 0;
+    const transferBookingsEl = document.getElementById('transferBookings');
+    if (transferBookingsEl) transferBookingsEl.textContent = `NT$ ${transferTotal.toLocaleString()}`;
+    const transferPaidCount = stats.transferBookings?.paid?.count || 0;
+    const transferPaidTotal = stats.transferBookings?.paid?.total || 0;
+    const transferUnpaidCount = stats.transferBookings?.unpaid?.count || 0;
+    const transferUnpaidTotal = stats.transferBookings?.unpaid?.total || 0;
+    const transferBookingsDetailEl = document.getElementById('transferBookingsDetail');
+    if (transferBookingsDetailEl) {
+        transferBookingsDetailEl.textContent = `已付款: ${transferPaidCount} 筆 / NT$ ${transferPaidTotal.toLocaleString()} | 未付款: ${transferUnpaidCount} 筆 / NT$ ${transferUnpaidTotal.toLocaleString()}`;
+    }
+
+    const cardTotal = stats.cardBookings?.total || 0;
+    const cardBookingsEl = document.getElementById('cardBookings');
+    if (cardBookingsEl) cardBookingsEl.textContent = `NT$ ${cardTotal.toLocaleString()}`;
+    const cardPaidCount = stats.cardBookings?.paid?.count || 0;
+    const cardPaidTotal = stats.cardBookings?.paid?.total || 0;
+    const cardUnpaidCount = stats.cardBookings?.unpaid?.count || 0;
+    const cardUnpaidTotal = stats.cardBookings?.unpaid?.total || 0;
+    const cardBookingsDetailEl = document.getElementById('cardBookingsDetail');
+    if (cardBookingsDetailEl) {
+        cardBookingsDetailEl.textContent = `已付款: ${cardPaidCount} 筆 / NT$ ${cardPaidTotal.toLocaleString()} | 未付款: ${cardUnpaidCount} 筆 / NT$ ${cardUnpaidTotal.toLocaleString()}`;
+    }
+}
+
+function applyOpsKpiCardsToDom(opsData) {
+    if (!opsData || !opsData.kpis) return;
+
+    const kpis = opsData.kpis;
+    const overview = opsData.overview || {};
+    const formatPercent = (v) => `${(Number(v) || 0).toFixed(1)}%`;
+    const formatCurrency = (v) => `NT$ ${Math.round(Number(v) || 0).toLocaleString()}`;
+    const formatInteger = (v) => Math.round(Number(v) || 0).toLocaleString();
+
+    const monthOrdersEl = document.getElementById('opsMonthOrders');
+    if (monthOrdersEl) monthOrdersEl.textContent = formatInteger(overview.monthOrders);
+
+    const monthRevenueEl = document.getElementById('opsMonthRevenue');
+    if (monthRevenueEl) monthRevenueEl.textContent = formatCurrency(overview.monthRevenue);
+
+    setOpsMomDelta('opsMonthOrdersMoM', overview.monthOrdersMoM);
+    setOpsMomDelta('opsMonthRevenueMoM', overview.monthRevenueMoM);
+
+    const occupancyEl = document.getElementById('opsOccupancyRate');
+    if (occupancyEl) occupancyEl.textContent = formatPercent(kpis.occupancyRate);
+    setOpsKpiDelta('opsOccupancyRateDelta', kpis.occupancyRate, opsData?.previousKpis?.occupancyRate);
+
+    const paymentEl = document.getElementById('opsPaymentSuccessRate');
+    if (paymentEl) paymentEl.textContent = formatPercent(kpis.paymentSuccessRate);
+    setOpsKpiDelta(
+        'opsPaymentSuccessRateDelta',
+        kpis.paymentSuccessRate,
+        opsData?.previousKpis?.paymentSuccessRate
+    );
+
+    const cancellationEl = document.getElementById('opsCancellationRate');
+    if (cancellationEl) cancellationEl.textContent = formatPercent(kpis.cancellationRate);
+    setOpsKpiDelta(
+        'opsCancellationRateDelta',
+        kpis.cancellationRate,
+        opsData?.previousKpis?.cancellationRate,
+        { inverseGood: true }
+    );
+}
+
 function renderOpsTrendChart(trendData = {}) {
     const container = document.getElementById('opsTrendChart');
     if (!container) return;
@@ -1781,47 +1870,7 @@ async function loadDashboard(options = {}) {
                     }
                 }
 
-                if (opsData && opsData.kpis) {
-                    const kpis = opsData.kpis;
-                    const overview = opsData.overview || {};
-                    const formatPercent = (v) => `${(Number(v) || 0).toFixed(1)}%`;
-                    const formatCurrency = (v) => `NT$ ${Math.round(Number(v) || 0).toLocaleString()}`;
-                    const formatInteger = (v) => Math.round(Number(v) || 0).toLocaleString();
-
-                    const monthOrdersEl = document.getElementById('opsMonthOrders');
-                    if (monthOrdersEl) monthOrdersEl.textContent = formatInteger(overview.monthOrders);
-
-                    const monthRevenueEl = document.getElementById('opsMonthRevenue');
-                    if (monthRevenueEl) monthRevenueEl.textContent = formatCurrency(overview.monthRevenue);
-
-                    setOpsMomDelta('opsMonthOrdersMoM', overview.monthOrdersMoM);
-                    setOpsMomDelta('opsMonthRevenueMoM', overview.monthRevenueMoM);
-
-                    const occupancyEl = document.getElementById('opsOccupancyRate');
-                    if (occupancyEl) occupancyEl.textContent = formatPercent(kpis.occupancyRate);
-                    setOpsKpiDelta(
-                        'opsOccupancyRateDelta',
-                        kpis.occupancyRate,
-                        opsData?.previousKpis?.occupancyRate
-                    );
-
-                    const paymentEl = document.getElementById('opsPaymentSuccessRate');
-                    if (paymentEl) paymentEl.textContent = formatPercent(kpis.paymentSuccessRate);
-                    setOpsKpiDelta(
-                        'opsPaymentSuccessRateDelta',
-                        kpis.paymentSuccessRate,
-                        opsData?.previousKpis?.paymentSuccessRate
-                    );
-
-                    const cancellationEl = document.getElementById('opsCancellationRate');
-                    if (cancellationEl) cancellationEl.textContent = formatPercent(kpis.cancellationRate);
-                    setOpsKpiDelta(
-                        'opsCancellationRateDelta',
-                        kpis.cancellationRate,
-                        opsData?.previousKpis?.cancellationRate,
-                        { inverseGood: true }
-                    );
-
+                if (opsData) {
                     renderOpsTrendChart(opsData.trend || {});
                     renderOpsTopSources(opsData.sources || []);
                     renderOpsTodoList(opsData.todos || []);
@@ -1832,6 +1881,23 @@ async function loadDashboard(options = {}) {
                 }
             } catch (opsError) {
                 console.warn('營運 KPI API 暫不可用，不影響基本儀表板顯示:', opsError.message);
+            }
+
+            try {
+                const statsParams = new URLSearchParams({
+                    startDate: rangeParams.startDate,
+                    endDate: rangeParams.endDate
+                });
+                const statsRes = await fetchJsonWithRetry(
+                    `/api/dashboard/interval-summary?${statsParams.toString()}`,
+                    2,
+                    600
+                );
+                if (statsRes && statsRes.success && statsRes.data && isLatestRequest()) {
+                    applyStatisticsSummaryCardsToDom(statsRes.data);
+                }
+            } catch (statsErr) {
+                console.warn('儀表板區間摘要載入失敗:', statsErr.message || statsErr);
             }
         }
     } catch (error) {
@@ -3487,50 +3553,42 @@ async function loadStatistics() {
         
         if (result.success) {
             const stats = result.data;
-            
-            // 總訂房數（細分：已入住/未入住）
-            document.getElementById('totalBookings').textContent = stats.totalBookings || 0;
-            const checkedIn = stats.totalBookingsDetail?.checkedIn || 0;
-            const notCheckedIn = stats.totalBookingsDetail?.notCheckedIn || 0;
-            document.getElementById('totalBookingsDetail').textContent = `已入住: ${checkedIn} / 未入住: ${notCheckedIn}`;
-            
-            // 總營收（細分：已付款/未付款）
-            document.getElementById('totalRevenue').textContent = `NT$ ${(stats.totalRevenue || 0).toLocaleString()}`;
-            const revenuePaid = stats.totalRevenueDetail?.paid || 0;
-            const revenueUnpaid = stats.totalRevenueDetail?.unpaid || 0;
-            document.getElementById('totalRevenueDetail').textContent = `已付款: NT$ ${revenuePaid.toLocaleString()} / 未付款: NT$ ${revenueUnpaid.toLocaleString()}`;
-            
-            // 匯款轉帳（細分：已付款/未付款）
-            const transferCount = stats.transferBookings?.count || 0;
-            const transferTotal = stats.transferBookings?.total || 0;
-            const transferLabel = document.getElementById('transferBookingsLabel');
-            if (transferLabel) {
-                transferLabel.textContent = '匯款轉帳';
-            }
-            document.getElementById('transferBookings').textContent = `NT$ ${transferTotal.toLocaleString()}`;
-            const transferPaidCount = stats.transferBookings?.paid?.count || 0;
-            const transferPaidTotal = stats.transferBookings?.paid?.total || 0;
-            const transferUnpaidCount = stats.transferBookings?.unpaid?.count || 0;
-            const transferUnpaidTotal = stats.transferBookings?.unpaid?.total || 0;
-            document.getElementById('transferBookingsDetail').textContent = `已付款: ${transferPaidCount} 筆 / NT$ ${transferPaidTotal.toLocaleString()} | 未付款: ${transferUnpaidCount} 筆 / NT$ ${transferUnpaidTotal.toLocaleString()}`;
-            
-            // 線上刷卡（細分：已付款/未付款）
-            const cardCount = stats.cardBookings?.count || 0;
-            const cardTotal = stats.cardBookings?.total || 0;
-            document.getElementById('cardBookings').textContent = `NT$ ${cardTotal.toLocaleString()}`;
-            const cardPaidCount = stats.cardBookings?.paid?.count || 0;
-            const cardPaidTotal = stats.cardBookings?.paid?.total || 0;
-            const cardUnpaidCount = stats.cardBookings?.unpaid?.count || 0;
-            const cardUnpaidTotal = stats.cardBookings?.unpaid?.total || 0;
-            document.getElementById('cardBookingsDetail').textContent = `已付款: ${cardPaidCount} 筆 / NT$ ${cardPaidTotal.toLocaleString()} | 未付款: ${cardUnpaidCount} 筆 / NT$ ${cardUnpaidTotal.toLocaleString()}`;
-            
+
             // 渲染房型分析
             renderRoomStats(stats.byRoomType || []);
             // 渲染來源分析
             renderSourceAnalysis(stats.bySource || []);
-            
+
             // 區間比較（本期 vs 等長前期）
             loadPeriodComparisonStats(startDate, endDate);
+
+            let opsKpiStart = startDate;
+            let opsKpiEnd = endDate;
+            if (!opsKpiStart || !opsKpiEnd) {
+                opsKpiStart = '2000-01-01';
+                opsKpiEnd = formatLocalYMDFromDate(new Date());
+            }
+            try {
+                const opsParams = new URLSearchParams({
+                    startDate: opsKpiStart,
+                    endDate: opsKpiEnd
+                });
+                const opsResponse = await adminFetch(`/api/dashboard/ops?${opsParams.toString()}`);
+                if (opsResponse.status === 401) {
+                    await checkAuthStatus();
+                    return;
+                }
+                if (!opsResponse.ok) {
+                    console.warn('營運報表 KPI 載入失敗:', opsResponse.status);
+                } else {
+                    const opsResult = await opsResponse.json();
+                    if (opsResult.success && opsResult.data) {
+                        applyOpsKpiCardsToDom(opsResult.data);
+                    }
+                }
+            } catch (opsLoadErr) {
+                console.warn('營運報表 KPI 載入錯誤:', opsLoadErr.message || opsLoadErr);
+            }
         } else {
             console.error('統計資料 API 返回失敗:', result);
             showError(result.message || '載入統計資料失敗');

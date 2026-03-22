@@ -667,14 +667,20 @@ body.login-page-active {
     }
 }
 
-.report-page .report-kpi-grid {
+.report-page .report-kpi-grid,
+#dashboard-section .report-kpi-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
     gap: 16px;
     margin-bottom: 24px;
 }
 
-.report-page .report-kpi-card {
+#dashboard-section .report-kpi-grid {
+    margin-top: 20px;
+}
+
+.report-page .report-kpi-card,
+#dashboard-section .report-kpi-card {
     position: relative;
     text-align: left;
     padding: 22px 22px 20px;
@@ -686,7 +692,8 @@ body.login-page-active {
     transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-.report-page .report-kpi-card::before {
+.report-page .report-kpi-card::before,
+#dashboard-section .report-kpi-card::before {
     content: '';
     position: absolute;
     left: 0;
@@ -701,11 +708,16 @@ body.login-page-active {
 .report-page .report-kpi-card--bookings::before,
 .report-page .report-kpi-card--revenue::before,
 .report-page .report-kpi-card--transfer::before,
-.report-page .report-kpi-card--cardpay::before {
+.report-page .report-kpi-card--cardpay::before,
+#dashboard-section .report-kpi-card--bookings::before,
+#dashboard-section .report-kpi-card--revenue::before,
+#dashboard-section .report-kpi-card--transfer::before,
+#dashboard-section .report-kpi-card--cardpay::before {
     background: linear-gradient(180deg, #2C8EC4, #1d6a94);
 }
 
-.report-page .report-kpi-card:hover {
+.report-page .report-kpi-card:hover,
+#dashboard-section .report-kpi-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
 }
@@ -717,7 +729,8 @@ body.login-page-active {
     margin-bottom: 12px;
 }
 
-.report-page .report-kpi-icon {
+.report-page .report-kpi-icon,
+#dashboard-section .report-kpi-icon {
     margin: 0;
     width: 44px;
     height: 44px;
@@ -727,11 +740,13 @@ body.login-page-active {
     font-size: 24px !important;
 }
 
-.report-page .report-kpi-icon .material-symbols-outlined {
+.report-page .report-kpi-icon .material-symbols-outlined,
+#dashboard-section .report-kpi-icon .material-symbols-outlined {
     font-size: 24px !important;
 }
 
-.report-page .report-kpi-label {
+.report-page .report-kpi-label,
+#dashboard-section .report-kpi-label {
     font-size: 13px;
     font-weight: 600;
     color: var(--report-muted);
@@ -739,7 +754,8 @@ body.login-page-active {
     letter-spacing: 0.02em;
 }
 
-.report-page .report-kpi-value {
+.report-page .report-kpi-value,
+#dashboard-section .report-kpi-value {
     font-size: clamp(26px, 4vw, 32px);
     font-weight: 800;
     color: var(--report-text);
@@ -1750,6 +1766,11 @@ body.login-page-active {
 
 .dashboard-ops-grid {
     gap: 20px;
+}
+
+#statistics-section .dashboard-ops-grid--report {
+    margin-top: 0;
+    margin-bottom: 24px;
 }
 
 .dashboard-kpi-card {

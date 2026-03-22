@@ -4074,6 +4074,50 @@ app.get('/api/dashboard/ops', adminLimiter, async (req, res) => {
     }
 });
 
+// API: 儀表板區間摘要（頂部四張卡片；需 dashboard.view，不回傳房型／來源等完整報表欄位）
+app.get(
+    '/api/dashboard/interval-summary',
+    requireAuth,
+    checkPermission('dashboard.view'),
+    adminLimiter,
+    async (req, res) => {
+        try {
+            const { startDate, endDate } = req.query;
+            if (!startDate || !endDate) {
+                return res.status(400).json({
+                    success: false,
+                    message: '請提供 startDate 與 endDate（YYYY-MM-DD）'
+                });
+            }
+            if (String(startDate) > String(endDate)) {
+                return res.status(400).json({
+                    success: false,
+                    message: '開始日期不能晚於結束日期'
+                });
+            }
+            const stats = await db.getStatistics(startDate, endDate);
+            const data = {
+                totalBookings: stats.totalBookings,
+                totalBookingsDetail: stats.totalBookingsDetail,
+                totalRevenue: stats.totalRevenue,
+                totalRevenueDetail: stats.totalRevenueDetail,
+                transferBookings: stats.transferBookings,
+                cardBookings: stats.cardBookings
+            };
+            res.json({
+                success: true,
+                data
+            });
+        } catch (error) {
+            console.error('查詢儀表板區間摘要錯誤:', error);
+            res.status(500).json({
+                success: false,
+                message: '查詢儀表板區間摘要失敗：' + error.message
+            });
+        }
+    }
+);
+
 // API: 更新訂房資料
 async function handleUpdateBooking(req, res) {
     try {
