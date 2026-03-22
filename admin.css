@@ -677,6 +677,13 @@ body.login-page-active {
 
 #dashboard-section .report-kpi-grid {
     margin-top: 20px;
+    /* 儀表板不在 .report-page 內，需自行定義變數，卡片背景才會是白底 */
+    --report-accent: #2c8ec4;
+    --report-accent-soft: #e8f3fa;
+    --report-border: #e2e8f0;
+    --report-text: #1e293b;
+    --report-muted: #64748b;
+    --report-surface: #ffffff;
 }
 
 .report-page .report-kpi-card,
@@ -1771,6 +1778,20 @@ body.login-page-active {
 #statistics-section .dashboard-ops-grid--report {
     margin-top: 0;
     margin-bottom: 24px;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+}
+
+/* 營運報表頁頂五張 KPI：與報表區白底卡片（工具列／區塊）視覺一致 */
+#statistics-section .dashboard-ops-grid--report .dashboard-card.dashboard-kpi-card {
+    border: 1px solid var(--report-border);
+    border-radius: 16px;
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+#statistics-section .dashboard-ops-grid--report .dashboard-card.dashboard-kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
 }
 
 .dashboard-kpi-card {

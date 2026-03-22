@@ -866,7 +866,7 @@ function setOpsKpiDelta(elementId, currentValue, previousValue, options = {}) {
 
     const isGood = inverseGood ? diff < 0 : diff > 0;
     el.classList.add(isGood ? 'up' : 'down');
-    el.textContent = `${diff > 0 ? '▲' : '▼'} ${Math.abs(diff).toFixed(1)}%`;
+    el.textContent = `較上期 ${diff > 0 ? '▲' : '▼'} ${Math.abs(diff).toFixed(1)}%`;
 }
 
 function setOpsMomDelta(elementId, momValue) {
@@ -883,12 +883,12 @@ function setOpsMomDelta(elementId, momValue) {
 
     if (value > 0) {
         el.classList.add('up');
-        el.textContent = `▲ ${Math.abs(value).toFixed(1)}%`;
+        el.textContent = `較上期 ▲ ${Math.abs(value).toFixed(1)}%`;
         return;
     }
 
     el.classList.add('down');
-    el.textContent = `▼ ${Math.abs(value).toFixed(1)}%`;
+    el.textContent = `較上期 ▼ ${Math.abs(value).toFixed(1)}%`;
 }
 
 function applyStatisticsSummaryCardsToDom(stats) {
