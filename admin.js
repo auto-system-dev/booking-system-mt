@@ -4712,6 +4712,7 @@ function onRoomTypesBuildingChange(buildingId) {
 // 渲染房型列表
 function renderRoomTypes() {
     const tbody = document.getElementById('roomTypesTableBody');
+    if (!tbody) return;
     
     // 顯示所有房型（包括啟用和停用的）
     const filteredRoomTypes = allRoomTypes;
@@ -4721,34 +4722,54 @@ function renderRoomTypes() {
         return;
     }
     
-    tbody.innerHTML = filteredRoomTypes.map(room => `
-        <tr ${room.is_active === 0 ? 'style="opacity: 0.6; background: #f8f8f8;"' : ''}>
-            <td>${room.display_order || 0}</td>
-            <td>
-                ${room.image_url 
-                    ? `<img src="${escapeHtml(room.image_url)}" alt="${escapeHtml(room.display_name)}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid #eee;">` 
-                    : `<span style="font-size: 28px;">${room.icon || '🏠'}</span>`}
-            </td>
-            <td>${room.name}</td>
-            <td>${room.display_name}</td>
-            <td>${room.max_occupancy ?? 0}</td>
-            <td>${room.extra_beds ?? 0}</td>
-            <td>NT$ ${(Number(room.extra_bed_price) || 0).toLocaleString()}</td>
-            <td>NT$ ${room.price.toLocaleString()}${room.original_price ? `<br><small style="color:#aaa;text-decoration:line-through;">NT$ ${room.original_price.toLocaleString()}</small>` : ''}</td>
-            <td>NT$ ${((Number(room.price) || 0) + (Number(room.holiday_surcharge) || 0)).toLocaleString()}${room.original_price ? `<br><small style="color:#aaa;text-decoration:line-through;">NT$ ${Number(room.original_price).toLocaleString()}</small>` : ''}</td>
-            <td>
-                <span class="status-badge ${room.is_active === 1 ? 'status-sent' : 'status-unsent'}">
-                    ${room.is_active === 1 ? '啟用' : '停用'}
-                </span>
-            </td>
-            <td>
-                <div class="action-buttons">
-                    ${hasPermission('room_types.edit') ? `<button class="btn-edit" onclick="editRoomType(${room.id})">編輯</button>` : ''}
-                    ${hasPermission('room_types.delete') ? `<button class="btn-cancel" onclick="deleteRoomType(${room.id})">刪除</button>` : ''}
-                </div>
-            </td>
-        </tr>
-    `).join('');
+    try {
+        const n = (v) => {
+            const x = parseInt(String(v ?? '').trim(), 10);
+            return Number.isFinite(x) ? x : 0;
+        };
+        tbody.innerHTML = filteredRoomTypes.map((room) => {
+            const price = n(room.price);
+            const originalPrice = n(room.original_price);
+            const holidaySurcharge = n(room.holiday_surcharge);
+            const holidayPrice = price + holidaySurcharge;
+            const isActive = n(room.is_active) === 1;
+            const rowStyle = isActive ? '' : 'style="opacity: 0.6; background: #f8f8f8;"';
+            const oldLine = originalPrice > 0
+                ? `<br><small style="color:#aaa;text-decoration:line-through;">NT$ ${originalPrice.toLocaleString()}</small>`
+                : '';
+            return `
+                <tr ${rowStyle}>
+                    <td>${n(room.display_order)}</td>
+                    <td>
+                        ${room.image_url
+                            ? `<img src="${escapeHtml(room.image_url)}" alt="${escapeHtml(room.display_name)}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid #eee;">`
+                            : `<span style="font-size: 28px;">${room.icon || '🏠'}</span>`}
+                    </td>
+                    <td>${escapeHtml(String(room.name || ''))}</td>
+                    <td>${escapeHtml(String(room.display_name || ''))}</td>
+                    <td>${n(room.max_occupancy)}</td>
+                    <td>${n(room.extra_beds)}</td>
+                    <td>NT$ ${n(room.extra_bed_price).toLocaleString()}</td>
+                    <td>NT$ ${price.toLocaleString()}${oldLine}</td>
+                    <td>NT$ ${holidayPrice.toLocaleString()}${oldLine}</td>
+                    <td>
+                        <span class="status-badge ${isActive ? 'status-sent' : 'status-unsent'}">
+                            ${isActive ? '啟用' : '停用'}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            ${hasPermission('room_types.edit') ? `<button class="btn-edit" onclick="editRoomType(${Number(room.id)})">編輯</button>` : ''}
+                            ${hasPermission('room_types.delete') ? `<button class="btn-cancel" onclick="deleteRoomType(${Number(room.id)})">刪除</button>` : ''}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (err) {
+        console.error('renderRoomTypes failed:', err, { allRoomTypes });
+        tbody.innerHTML = `<tr><td colspan="11" class="loading" style="color:#e74c3c;">房型列表渲染失敗：${escapeHtml(err.message || '未知錯誤')}</td></tr>`;
+    }
 }
 
 // 顯示新增房型模態框
