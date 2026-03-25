@@ -3275,6 +3275,9 @@ function showBookingModal(booking) {
 async function openQuickBookingModal(roomTypeName, dateStr) {
     const modal = document.getElementById('bookingModal');
     const modalBody = document.getElementById('modalBody');
+    // 快速新增訂房也會重用 bookingModal，需要確保標題正確
+    const titleEl = modal?.querySelector?.('.modal-header h3');
+    if (titleEl) titleEl.textContent = '快速新增訂房';
     
     // 預設入住日期 = 被點擊那天，退房日期 = 隔天
     const checkInDate = dateStr;
@@ -4774,6 +4777,10 @@ function showRoomTypeModal(room) {
         .filter((b) => Number(b.is_active) !== 0 || (isEdit && Number(room.building_id) === Number(b.id)))
         .map((b) => `<option value="${Number(b.id)}" ${(isEdit ? Number(room.building_id) : Number(selectedBuildingIdForRoomTypes)) === Number(b.id) ? 'selected' : ''}>${escapeHtml(String(b.name || ''))}</option>`)
         .join('');
+
+    // 此 modal 會被房型/訂房/館別等功能重用，開啟時要先確保標題正確
+    const titleEl = modal?.querySelector?.('.modal-header h3');
+    if (titleEl) titleEl.textContent = '房型詳情';
 
     modalBody.innerHTML = `
         <form id="roomTypeForm" onsubmit="saveRoomType(event, ${isEdit ? room.id : 'null'})">
