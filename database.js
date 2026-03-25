@@ -174,6 +174,8 @@ async function initPostgreSQL() {
                     check_in_date VARCHAR(255) NOT NULL,
                     check_out_date VARCHAR(255) NOT NULL,
                     room_type VARCHAR(255) NOT NULL,
+                    building_id INTEGER DEFAULT 1,
+                    room_selections TEXT,
                     guest_name VARCHAR(255) NOT NULL,
                     guest_phone VARCHAR(255) NOT NULL,
                     guest_email VARCHAR(255) NOT NULL,
@@ -258,6 +260,7 @@ async function initPostgreSQL() {
                 { name: 'adults', type: 'INTEGER', default: '0' },
                 { name: 'children', type: 'INTEGER', default: '0' },
                 { name: 'special_request', type: 'TEXT', default: null },
+                { name: 'room_selections', type: 'TEXT', default: null },
                 { name: 'payment_deadline', type: 'TEXT', default: null },
                 { name: 'days_reserved', type: 'INTEGER', default: null },
                 { name: 'utm_source', type: 'VARCHAR(120)', default: null },
@@ -266,7 +269,8 @@ async function initPostgreSQL() {
                 { name: 'booking_source', type: 'VARCHAR(120)', default: null },
                 { name: 'referrer', type: 'TEXT', default: null },
                 { name: 'discount_amount', type: 'DECIMAL(10,2)', default: '0' },
-                { name: 'discount_description', type: 'TEXT', default: null }
+                { name: 'discount_description', type: 'TEXT', default: null },
+                { name: 'building_id', type: 'INTEGER', default: '1' }
             ];
             
             for (const col of columnsToAdd) {
@@ -299,6 +303,13 @@ async function initPostgreSQL() {
                         }
                     }
                 }
+            }
+            
+            // 回填既有訂單的 building_id（舊資料預設為預設館）
+            try {
+                await query(`UPDATE bookings SET building_id = 1 WHERE building_id IS NULL`);
+            } catch (err) {
+                console.warn('⚠️  回填 bookings.building_id 失敗:', err.message);
             }
             
             // 建立房型設定表
@@ -418,6 +429,67 @@ async function initPostgreSQL() {
             } catch (err) {
                 console.warn('⚠️  建立 room_types(building_id,name) 唯一索引失敗:', err.message);
             }
+
+            // ===== 房型庫存（每館每房型）=====
+            try {
+                await query(`
+                    CREATE TABLE IF NOT EXISTS room_type_inventory (
+                        id SERIAL PRIMARY KEY,
+                        building_id INTEGER NOT NULL,
+                        room_type_id INTEGER NOT NULL,
+                        qty_total INTEGER NOT NULL DEFAULT 1,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE (building_id, room_type_id)
+                    )
+                `);
+            } catch (err) {
+                console.warn('⚠️  建立 room_type_inventory 失敗:', err.message);
+            }
+            // 初始化既有房型庫存：qty_total=1（僅對尚未建立者）
+            try {
+                await query(`
+                    INSERT INTO room_type_inventory (building_id, room_type_id, qty_total)
+                    SELECT COALESCE(rt.building_id, 1) as building_id, rt.id as room_type_id, 1 as qty_total
+                    FROM room_types rt
+                    LEFT JOIN room_type_inventory inv
+                      ON inv.building_id = COALESCE(rt.building_id, 1) AND inv.room_type_id = rt.id
+                    WHERE inv.id IS NULL
+                `);
+            } catch (_) { /* ignore */ }
+
+            // room_type_inventory FK（非必要）
+            try {
+                await query(`
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1
+                            FROM information_schema.table_constraints
+                            WHERE constraint_type = 'FOREIGN KEY'
+                              AND table_name = 'room_type_inventory'
+                              AND constraint_name = 'fk_inv_building'
+                        ) THEN
+                            ALTER TABLE room_type_inventory
+                                ADD CONSTRAINT fk_inv_building
+                                FOREIGN KEY (building_id) REFERENCES buildings(id)
+                                ON DELETE CASCADE;
+                        END IF;
+                        IF NOT EXISTS (
+                            SELECT 1
+                            FROM information_schema.table_constraints
+                            WHERE constraint_type = 'FOREIGN KEY'
+                              AND table_name = 'room_type_inventory'
+                              AND constraint_name = 'fk_inv_roomtype'
+                        ) THEN
+                            ALTER TABLE room_type_inventory
+                                ADD CONSTRAINT fk_inv_roomtype
+                                FOREIGN KEY (room_type_id) REFERENCES room_types(id)
+                                ON DELETE CASCADE;
+                        END IF;
+                    END $$;
+                `);
+            } catch (_) { /* ignore */ }
 
             // 盡量加上 FK（若已存在或權限不足則略過）
             try {
@@ -2227,6 +2299,8 @@ function initSQLite() {
                     check_in_date TEXT NOT NULL,
                     check_out_date TEXT NOT NULL,
                     room_type TEXT NOT NULL,
+                    building_id INTEGER DEFAULT 1,
+                    room_selections TEXT,
                     guest_name TEXT NOT NULL,
                     guest_phone TEXT NOT NULL,
                     guest_email TEXT NOT NULL,
@@ -2290,6 +2364,19 @@ function initSQLite() {
                             db.run(`ALTER TABLE bookings ADD COLUMN discount_description TEXT`, (err) => {
                                 if (err && !err.message.includes('duplicate column')) {
                                     console.warn('⚠️  新增 discount_description 欄位時發生錯誤:', err.message);
+                                }
+                            });
+
+                            db.run(`ALTER TABLE bookings ADD COLUMN building_id INTEGER DEFAULT 1`, (err) => {
+                                if (err && !err.message.includes('duplicate column')) {
+                                    console.warn('⚠️  新增 bookings.building_id 欄位時發生錯誤:', err.message);
+                                }
+                                db.run(`UPDATE bookings SET building_id = 1 WHERE building_id IS NULL`);
+                            });
+
+                            db.run(`ALTER TABLE bookings ADD COLUMN room_selections TEXT`, (err) => {
+                                if (err && !err.message.includes('duplicate column')) {
+                                    console.warn('⚠️  新增 bookings.room_selections 欄位時發生錯誤:', err.message);
                                 }
                             });
                             
@@ -2424,6 +2511,41 @@ function initSQLite() {
                                                     console.log('✅ 已添加 show_on_landing 欄位');
                                                 }
                                             });
+
+                                    // ===== 房型庫存（每館每房型）=====
+                                    db.run(`
+                                        CREATE TABLE IF NOT EXISTS room_type_inventory (
+                                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                            building_id INTEGER NOT NULL,
+                                            room_type_id INTEGER NOT NULL,
+                                            qty_total INTEGER NOT NULL DEFAULT 1,
+                                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                            UNIQUE(building_id, room_type_id)
+                                        )
+                                    `, (invErr) => {
+                                        if (invErr) {
+                                            console.warn('⚠️  建立 room_type_inventory 表時發生錯誤:', invErr.message);
+                                        } else {
+                                            db.all(`SELECT id, COALESCE(building_id, 1) as building_id FROM room_types`, (selErr, rows) => {
+                                                if (selErr) return;
+                                                (rows || []).forEach((r) => {
+                                                    db.get(
+                                                        `SELECT id FROM room_type_inventory WHERE building_id = ? AND room_type_id = ?`,
+                                                        [r.building_id || 1, r.id],
+                                                        (gErr, row) => {
+                                                            if (!gErr && !row) {
+                                                                db.run(
+                                                                    `INSERT INTO room_type_inventory (building_id, room_type_id, qty_total) VALUES (?, ?, 1)`,
+                                                                    [r.building_id || 1, r.id]
+                                                                );
+                                                            }
+                                                        }
+                                                    );
+                                                });
+                                            });
+                                        }
+                                    });
                                         });
                                     });
                                     
@@ -2981,6 +3103,8 @@ async function saveBooking(bookingData) {
         const sql = usePostgreSQL ? `
             INSERT INTO bookings (
                 booking_id, check_in_date, check_out_date, room_type,
+                building_id,
+                room_selections,
                 guest_name, guest_phone, guest_email, special_request,
                 adults, children,
                 payment_amount, payment_method,
@@ -2989,11 +3113,13 @@ async function saveBooking(bookingData) {
                 payment_deadline, days_reserved, line_user_id,
                 utm_source, utm_medium, utm_campaign, booking_source, referrer,
                 discount_amount, discount_description
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)
             RETURNING id
         ` : `
             INSERT INTO bookings (
                 booking_id, check_in_date, check_out_date, room_type,
+                building_id,
+                room_selections,
                 guest_name, guest_phone, guest_email, special_request,
                 adults, children,
                 payment_amount, payment_method,
@@ -3002,7 +3128,7 @@ async function saveBooking(bookingData) {
                 payment_deadline, days_reserved, line_user_id,
                 utm_source, utm_medium, utm_campaign, booking_source, referrer,
                 discount_amount, discount_description
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const addonsJson = bookingData.addons ? JSON.stringify(bookingData.addons) : null;
@@ -3023,6 +3149,8 @@ async function saveBooking(bookingData) {
             bookingData.checkInDate,
             bookingData.checkOutDate,
             bookingData.roomType,
+            bookingData.buildingId || 1,
+            bookingData.roomSelections ? JSON.stringify(bookingData.roomSelections) : null,
             bookingData.guestName,
             bookingData.guestPhone,
             bookingData.guestEmail,
@@ -3124,12 +3252,20 @@ async function updateEmailStatus(bookingId, emailSent, append = false) {
     }
 }
 
-// 查詢所有訂房記錄
-async function getAllBookings() {
+// 查詢所有訂房記錄（可選館別）
+async function getAllBookings(buildingId) {
     try {
-        const sql = `SELECT * FROM bookings ORDER BY created_at DESC`;
-        const result = await query(sql);
-        return result.rows;
+        const bid = parseInt(buildingId, 10);
+        const hasBuildingFilter = Number.isFinite(bid) && bid > 0;
+        const safeBid = hasBuildingFilter ? bid : 1;
+        const sql = hasBuildingFilter
+            ? (usePostgreSQL
+                ? `SELECT * FROM bookings WHERE (building_id = $1 OR ($1 = 1 AND (building_id IS NULL OR building_id = 0))) ORDER BY created_at DESC`
+                : `SELECT * FROM bookings WHERE (building_id = ? OR (? = 1 AND (building_id IS NULL OR building_id = 0))) ORDER BY created_at DESC`)
+            : `SELECT * FROM bookings ORDER BY created_at DESC`;
+        const params = hasBuildingFilter ? (usePostgreSQL ? [safeBid] : [safeBid, safeBid]) : [];
+        const result = params.length ? await query(sql, params) : await query(sql);
+        return result.rows || result || [];
     } catch (error) {
         console.error('❌ 查詢訂房記錄失敗:', error.message);
         throw error;
@@ -3353,10 +3489,13 @@ async function deleteBooking(bookingId) {
     }
 }
 
-// 統計資料（可選日期區間）
-async function getStatistics(startDate, endDate) {
+// 統計資料（可選日期區間 + 可選館別）
+async function getStatistics(startDate, endDate, buildingId) {
     try {
         const hasRange = !!(startDate && endDate);
+        const bid = parseInt(buildingId, 10);
+        const hasBuildingFilter = Number.isFinite(bid) && bid > 0;
+        const safeBid = hasBuildingFilter ? bid : 1;
 
         let totalSql, totalCheckedInSql, totalNotCheckedInSql;
         let revenueSql, revenuePaidSql, revenueUnpaidSql;
@@ -3368,23 +3507,28 @@ async function getStatistics(startDate, endDate) {
 
         if (usePostgreSQL) {
             // 使用入住日期（check_in_date）作為篩選條件，排除已取消的訂房
-            const baseWhereClause = hasRange 
-                ? ' WHERE check_in_date::date BETWEEN $1::date AND $2::date AND status != \'cancelled\''
-                : ' WHERE status != \'cancelled\'';
+            const buildingClause = hasBuildingFilter
+                ? (hasRange
+                    ? ` AND (building_id = $3 OR ($3 = 1 AND (building_id IS NULL OR building_id = 0)))`
+                    : ` AND (building_id = $1 OR ($1 = 1 AND (building_id IS NULL OR building_id = 0)))`)
+                : '';
+            const baseWhereClause = hasRange
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND status != 'cancelled'${buildingClause}`
+                : ` WHERE status != 'cancelled'${buildingClause}`;
             
             // 總訂房數
             totalSql = `SELECT COUNT(*) as count FROM bookings${baseWhereClause}`;
             
             // 總訂房數 - 已入住（check_in_date <= 今天）
             const checkedInWhereClause = hasRange 
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND check_in_date::date <= CURRENT_DATE AND status != 'cancelled'`
-                : ` WHERE check_in_date::date <= CURRENT_DATE AND status != 'cancelled'`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND check_in_date::date <= CURRENT_DATE AND status != 'cancelled'${buildingClause}`
+                : ` WHERE check_in_date::date <= CURRENT_DATE AND status != 'cancelled'${buildingClause}`;
             totalCheckedInSql = `SELECT COUNT(*) as count FROM bookings${checkedInWhereClause}`;
             
             // 總訂房數 - 未入住（check_in_date > 今天）
             const notCheckedInWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND check_in_date::date > CURRENT_DATE AND status != 'cancelled'`
-                : ` WHERE check_in_date::date > CURRENT_DATE AND status != 'cancelled'`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND check_in_date::date > CURRENT_DATE AND status != 'cancelled'${buildingClause}`
+                : ` WHERE check_in_date::date > CURRENT_DATE AND status != 'cancelled'${buildingClause}`;
             totalNotCheckedInSql = `SELECT COUNT(*) as count FROM bookings${notCheckedInWhereClause}`;
             
             // 總營收
@@ -3392,14 +3536,14 @@ async function getStatistics(startDate, endDate) {
             
             // 總營收 - 已付款
             const revenuePaidWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_status = 'paid' AND status != 'cancelled'`
-                : ` WHERE payment_status = 'paid' AND status != 'cancelled'`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`
+                : ` WHERE payment_status = 'paid' AND status != 'cancelled'${buildingClause}`;
             revenuePaidSql = `SELECT SUM(total_amount) as total FROM bookings${revenuePaidWhereClause}`;
             
             // 總營收 - 未付款
             const revenueUnpaidWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_status = 'pending' AND status != 'cancelled'`
-                : ` WHERE payment_status = 'pending' AND status != 'cancelled'`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`
+                : ` WHERE payment_status = 'pending' AND status != 'cancelled'${buildingClause}`;
             revenueUnpaidSql = `SELECT SUM(total_amount) as total FROM bookings${revenueUnpaidWhereClause}`;
             
             // 房型：入住日於區間內（含已取消）計算取消率；有效訂單（非取消）計算筆數與營收
@@ -3411,7 +3555,7 @@ async function getStatistics(startDate, endDate) {
                         COUNT(*)::bigint AS total_in_range,
                         COUNT(*) FILTER (WHERE COALESCE(status, '') = 'cancelled')::bigint AS cancelled_count
                     FROM bookings
-                    WHERE check_in_date::date BETWEEN $1::date AND $2::date
+                    WHERE check_in_date::date BETWEEN $1::date AND $2::date${buildingClause}
                     GROUP BY 1
                     ORDER BY active_count DESC, revenue DESC`
                 : `SELECT 
@@ -3421,7 +3565,7 @@ async function getStatistics(startDate, endDate) {
                         COUNT(*)::bigint AS total_in_range,
                         COUNT(*) FILTER (WHERE COALESCE(status, '') = 'cancelled')::bigint AS cancelled_count
                     FROM bookings
-                    WHERE TRUE
+                    WHERE TRUE${buildingClause}
                     GROUP BY 1
                     ORDER BY active_count DESC, revenue DESC`;
             
@@ -3449,7 +3593,7 @@ async function getStatistics(startDate, endDate) {
                                 'direct'
                             ) AS src
                         FROM bookings
-                        WHERE check_in_date::date BETWEEN $1::date AND $2::date
+                        WHERE check_in_date::date BETWEEN $1::date AND $2::date${buildingClause}
                     ) b
                     GROUP BY src
                     ORDER BY active_count DESC, revenue DESC`
@@ -3475,68 +3619,74 @@ async function getStatistics(startDate, endDate) {
                                 'direct'
                             ) AS src
                         FROM bookings
+                        ${hasBuildingFilter ? `WHERE (building_id = $1 OR ($1 = 1 AND (building_id IS NULL OR building_id = 0)))` : ''}
                     ) b
                     GROUP BY src
                     ORDER BY active_count DESC, revenue DESC`;
             
             // 匯款轉帳統計
             const transferBaseWhereClause = hasRange 
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_method LIKE '%匯款%' AND status != 'cancelled'`
-                : ` WHERE payment_method LIKE '%匯款%' AND status != 'cancelled'`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_method LIKE '%匯款%' AND status != 'cancelled'${buildingClause}`
+                : ` WHERE payment_method LIKE '%匯款%' AND status != 'cancelled'${buildingClause}`;
             transferSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${transferBaseWhereClause}`;
             
             // 匯款轉帳 - 已付款
             const transferPaidWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'`
-                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`
+                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`;
             transferPaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${transferPaidWhereClause}`;
             
             // 匯款轉帳 - 未付款
             const transferUnpaidWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'`
-                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`
+                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`;
             transferUnpaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${transferUnpaidWhereClause}`;
             
             // 線上刷卡統計
             const cardBaseWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND status != 'cancelled'`
-                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND status != 'cancelled'`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND status != 'cancelled'${buildingClause}`
+                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND status != 'cancelled'${buildingClause}`;
             cardSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${cardBaseWhereClause}`;
             
             // 線上刷卡 - 已付款
             const cardPaidWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'`
-                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`
+                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`;
             cardPaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${cardPaidWhereClause}`;
             
             // 線上刷卡 - 未付款
             const cardUnpaidWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'`
-                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`
+                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`;
             cardUnpaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${cardUnpaidWhereClause}`;
 
             if (hasRange) {
-                params = [startDate, endDate];
+                params = hasBuildingFilter ? [startDate, endDate, safeBid] : [startDate, endDate];
+            } else if (hasBuildingFilter) {
+                params = [safeBid];
             }
         } else {
             // 使用入住日期（check_in_date）作為篩選條件，排除已取消的訂房
+            const buildingClause = hasBuildingFilter
+                ? ' AND (building_id = ? OR (? = 1 AND (building_id IS NULL OR building_id = 0)))'
+                : '';
             const baseWhereClause = hasRange 
-                ? ' WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND status != \'cancelled\''
-                : ' WHERE status != \'cancelled\'';
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND status != 'cancelled'${buildingClause}`
+                : ` WHERE status != 'cancelled'${buildingClause}`;
             
             // 總訂房數
             totalSql = `SELECT COUNT(*) as count FROM bookings${baseWhereClause}`;
             
             // 總訂房數 - 已入住（check_in_date <= 今天）
             const checkedInWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND DATE(check_in_date) <= DATE('now') AND status != 'cancelled'`
-                : ` WHERE DATE(check_in_date) <= DATE('now') AND status != 'cancelled'`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND DATE(check_in_date) <= DATE('now') AND status != 'cancelled'${buildingClause}`
+                : ` WHERE DATE(check_in_date) <= DATE('now') AND status != 'cancelled'${buildingClause}`;
             totalCheckedInSql = `SELECT COUNT(*) as count FROM bookings${checkedInWhereClause}`;
             
             // 總訂房數 - 未入住（check_in_date > 今天）
             const notCheckedInWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND DATE(check_in_date) > DATE('now') AND status != 'cancelled'`
-                : ` WHERE DATE(check_in_date) > DATE('now') AND status != 'cancelled'`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND DATE(check_in_date) > DATE('now') AND status != 'cancelled'${buildingClause}`
+                : ` WHERE DATE(check_in_date) > DATE('now') AND status != 'cancelled'${buildingClause}`;
             totalNotCheckedInSql = `SELECT COUNT(*) as count FROM bookings${notCheckedInWhereClause}`;
             
             // 總營收
@@ -3544,14 +3694,14 @@ async function getStatistics(startDate, endDate) {
             
             // 總營收 - 已付款
             const revenuePaidWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_status = 'paid' AND status != 'cancelled'`
-                : ` WHERE payment_status = 'paid' AND status != 'cancelled'`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`
+                : ` WHERE payment_status = 'paid' AND status != 'cancelled'${buildingClause}`;
             revenuePaidSql = `SELECT SUM(total_amount) as total FROM bookings${revenuePaidWhereClause}`;
             
             // 總營收 - 未付款
             const revenueUnpaidWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_status = 'pending' AND status != 'cancelled'`
-                : ` WHERE payment_status = 'pending' AND status != 'cancelled'`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`
+                : ` WHERE payment_status = 'pending' AND status != 'cancelled'${buildingClause}`;
             revenueUnpaidSql = `SELECT SUM(total_amount) as total FROM bookings${revenueUnpaidWhereClause}`;
             
             // 房型（SQLite）：入住日於區間內（含已取消）計算取消率
@@ -3563,7 +3713,7 @@ async function getStatistics(startDate, endDate) {
                         COUNT(*) AS total_in_range,
                         SUM(CASE WHEN IFNULL(status, '') = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_count
                     FROM bookings
-                    WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?)
+                    WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?)${buildingClause}
                     GROUP BY CASE WHEN TRIM(COALESCE(room_type, '')) = '' THEN '(未指定)' ELSE TRIM(room_type) END
                     ORDER BY active_count DESC, revenue DESC`
                 : `SELECT 
@@ -3573,7 +3723,7 @@ async function getStatistics(startDate, endDate) {
                         COUNT(*) AS total_in_range,
                         SUM(CASE WHEN IFNULL(status, '') = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_count
                     FROM bookings
-                    WHERE 1=1
+                    WHERE 1=1${buildingClause}
                     GROUP BY CASE WHEN TRIM(COALESCE(room_type, '')) = '' THEN '(未指定)' ELSE TRIM(room_type) END
                     ORDER BY active_count DESC, revenue DESC`;
             
@@ -3639,55 +3789,58 @@ async function getStatistics(startDate, endDate) {
             
             // 匯款轉帳 - 已付款
             const transferPaidWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'`
-                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`
+                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`;
             transferPaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${transferPaidWhereClause}`;
             
             // 匯款轉帳 - 未付款
             const transferUnpaidWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'`
-                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`
+                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`;
             transferUnpaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${transferUnpaidWhereClause}`;
             
             // 線上刷卡統計
             const cardBaseWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND status != 'cancelled'`
-                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND status != 'cancelled'`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND status != 'cancelled'${buildingClause}`
+                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND status != 'cancelled'${buildingClause}`;
             cardSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${cardBaseWhereClause}`;
             
             // 線上刷卡 - 已付款
             const cardPaidWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'`
-                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`
+                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`;
             cardPaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${cardPaidWhereClause}`;
             
             // 線上刷卡 - 未付款
             const cardUnpaidWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'`
-                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`
+                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`;
             cardUnpaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${cardUnpaidWhereClause}`;
 
             if (hasRange) {
-                params = [startDate, endDate];
+                params = hasBuildingFilter ? [startDate, endDate, safeBid, safeBid] : [startDate, endDate];
+            } else if (hasBuildingFilter) {
+                params = [safeBid, safeBid];
             }
         }
 
         // 執行所有查詢
+        const shouldBindParams = hasRange || hasBuildingFilter;
         const promises = [
-            hasRange ? queryOne(totalSql, params) : queryOne(totalSql),
-            hasRange ? queryOne(totalCheckedInSql, params) : queryOne(totalCheckedInSql),
-            hasRange ? queryOne(totalNotCheckedInSql, params) : queryOne(totalNotCheckedInSql),
-            hasRange ? queryOne(revenueSql, params) : queryOne(revenueSql),
-            hasRange ? queryOne(revenuePaidSql, params) : queryOne(revenuePaidSql),
-            hasRange ? queryOne(revenueUnpaidSql, params) : queryOne(revenueUnpaidSql),
-            hasRange ? query(byRoomTypeSql, params) : query(byRoomTypeSql),
-            hasRange ? query(bySourceSql, params) : query(bySourceSql),
-            hasRange ? queryOne(transferSql, params) : queryOne(transferSql),
-            hasRange ? queryOne(transferPaidSql, params) : queryOne(transferPaidSql),
-            hasRange ? queryOne(transferUnpaidSql, params) : queryOne(transferUnpaidSql),
-            hasRange ? queryOne(cardSql, params) : queryOne(cardSql),
-            hasRange ? queryOne(cardPaidSql, params) : queryOne(cardPaidSql),
-            hasRange ? queryOne(cardUnpaidSql, params) : queryOne(cardUnpaidSql)
+            shouldBindParams ? queryOne(totalSql, params) : queryOne(totalSql),
+            shouldBindParams ? queryOne(totalCheckedInSql, params) : queryOne(totalCheckedInSql),
+            shouldBindParams ? queryOne(totalNotCheckedInSql, params) : queryOne(totalNotCheckedInSql),
+            shouldBindParams ? queryOne(revenueSql, params) : queryOne(revenueSql),
+            shouldBindParams ? queryOne(revenuePaidSql, params) : queryOne(revenuePaidSql),
+            shouldBindParams ? queryOne(revenueUnpaidSql, params) : queryOne(revenueUnpaidSql),
+            shouldBindParams ? query(byRoomTypeSql, params) : query(byRoomTypeSql),
+            shouldBindParams ? query(bySourceSql, params) : query(bySourceSql),
+            shouldBindParams ? queryOne(transferSql, params) : queryOne(transferSql),
+            shouldBindParams ? queryOne(transferPaidSql, params) : queryOne(transferPaidSql),
+            shouldBindParams ? queryOne(transferUnpaidSql, params) : queryOne(transferUnpaidSql),
+            shouldBindParams ? queryOne(cardSql, params) : queryOne(cardSql),
+            shouldBindParams ? queryOne(cardPaidSql, params) : queryOne(cardPaidSql),
+            shouldBindParams ? queryOne(cardUnpaidSql, params) : queryOne(cardUnpaidSql)
         ];
 
         const [
@@ -3702,7 +3855,120 @@ async function getStatistics(startDate, endDate) {
         const totalRev = parseInt(revenueResult?.total || 0, 10);
         const totalActiveBookings = parseInt(totalResult?.count || 0, 10);
         const rawRoomRows = byRoomTypeResult.rows || [];
-        const byRoomType = rawRoomRows.map((r) => {
+        let effectiveRoomRows = rawRoomRows;
+
+        // 房型分析：若有日期區間，優先用 room_selections 拆分（支援多房型訂單）
+        // 目的：避免多房型訂單全部堆在 bookings.room_type 字串，導致房型排行與營收分攤失真
+        try {
+            if (hasRange) {
+                const roomTypesForMap = await getRoomTypesByBuilding(safeBid, { activeOnly: false });
+                const displayNameByRoomName = new Map();
+                (roomTypesForMap || []).forEach((rt) => {
+                    const nameKey = String(rt?.name || '').trim();
+                    const displayKey = String(rt?.display_name || rt?.name || '').trim();
+                    if (nameKey && displayKey) displayNameByRoomName.set(nameKey, displayKey);
+                });
+
+                const bookingWherePg = hasBuildingFilter
+                    ? ` AND (building_id = $3 OR ($3 = 1 AND (building_id IS NULL OR building_id = 0)))`
+                    : '';
+                const bookingWhereSqlite = hasBuildingFilter
+                    ? ` AND (building_id = ? OR (? = 1 AND (building_id IS NULL OR building_id = 0)))`
+                    : '';
+                const bookingsForRoomTypeSql = usePostgreSQL
+                    ? `
+                        SELECT status, total_amount, room_type, room_selections
+                        FROM bookings
+                        WHERE check_in_date::date BETWEEN $1::date AND $2::date
+                        ${bookingWherePg}
+                      `
+                    : `
+                        SELECT status, total_amount, room_type, room_selections
+                        FROM bookings
+                        WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?)
+                        ${bookingWhereSqlite}
+                      `;
+                const bookingsForRoomTypeParams = usePostgreSQL
+                    ? (hasBuildingFilter ? [startDate, endDate, safeBid] : [startDate, endDate])
+                    : (hasBuildingFilter ? [startDate, endDate, safeBid, safeBid] : [startDate, endDate]);
+
+                const bookingsForRoomTypeResult = await query(bookingsForRoomTypeSql, bookingsForRoomTypeParams);
+                const bookingRows = bookingsForRoomTypeResult.rows || bookingsForRoomTypeResult || [];
+
+                const normalizeStatus = (s) => String(s || '').trim().toLowerCase();
+                const isCancelled = (s) => {
+                    const x = normalizeStatus(s);
+                    return x === 'cancelled' || x === '已取消' || x === '取消';
+                };
+
+                const agg = new Map(); // room_type(display_name) -> { active_count, revenue, total_in_range, cancelled_count }
+                const touch = (roomTypeLabel) => {
+                    const key = String(roomTypeLabel || '').trim() || '(未指定)';
+                    if (!agg.has(key)) {
+                        agg.set(key, { room_type: key, active_count: 0, revenue: 0, total_in_range: 0, cancelled_count: 0 });
+                    }
+                    return agg.get(key);
+                };
+
+                for (const b of bookingRows) {
+                    const cancelled = isCancelled(b?.status);
+                    const totalAmount = Math.max(0, parseInt(b?.total_amount, 10) || 0);
+
+                    let selections = null;
+                    if (b && b.room_selections) {
+                        try {
+                            selections = typeof b.room_selections === 'string' ? JSON.parse(b.room_selections) : b.room_selections;
+                        } catch (_) {
+                            selections = null;
+                        }
+                    }
+
+                    if (Array.isArray(selections) && selections.length > 0) {
+                        const items = selections
+                            .map((it) => ({
+                                name: String(it?.name || '').trim(),
+                                quantity: Math.max(0, parseInt(it?.quantity, 10) || 0)
+                            }))
+                            .filter((it) => it.name && it.quantity > 0);
+
+                        if (items.length > 0) {
+                            const qtySum = items.reduce((sum, it) => sum + it.quantity, 0);
+                            for (const it of items) {
+                                const label = displayNameByRoomName.get(it.name) || it.name;
+                                const row = touch(label);
+                                row.total_in_range += 1;
+                                if (cancelled) {
+                                    row.cancelled_count += 1;
+                                } else {
+                                    row.active_count += 1;
+                                    const share = qtySum > 0 ? (it.quantity / qtySum) : 0;
+                                    row.revenue += Math.round(totalAmount * share);
+                                }
+                            }
+                            continue;
+                        }
+                    }
+
+                    // fallback：舊資料可能只存 display_name 在 room_type
+                    const label = String(b?.room_type || '').trim() || '(未指定)';
+                    const row = touch(label);
+                    row.total_in_range += 1;
+                    if (cancelled) {
+                        row.cancelled_count += 1;
+                    } else {
+                        row.active_count += 1;
+                        row.revenue += totalAmount;
+                    }
+                }
+
+                effectiveRoomRows = Array.from(agg.values())
+                    .sort((a, b) => (b.active_count - a.active_count) || (b.revenue - a.revenue));
+            }
+        } catch (roomSplitErr) {
+            console.warn('⚠️  以 room_selections 拆分房型分析失敗，改用原本 SQL 統計:', roomSplitErr.message || roomSplitErr);
+        }
+
+        const byRoomType = effectiveRoomRows.map((r) => {
             const activeCount = parseInt(r.active_count ?? r.count ?? 0, 10);
             const revenue = parseInt(r.revenue || 0, 10);
             const totalInRange = parseInt(r.total_in_range || 0, 10);
@@ -5289,6 +5555,19 @@ async function getAllBuildingsAdmin() {
     }
 }
 
+async function getActiveBuildingsPublic() {
+    try {
+        const sql = usePostgreSQL
+            ? `SELECT id, code, name, display_order FROM buildings WHERE is_active = 1 ORDER BY display_order ASC, id ASC`
+            : `SELECT id, code, name, display_order FROM buildings WHERE is_active = 1 ORDER BY display_order ASC, id ASC`;
+        const result = await query(sql);
+        return result.rows || [];
+    } catch (error) {
+        console.error('❌ 查詢可用館別失敗:', error.message);
+        throw error;
+    }
+}
+
 async function createBuilding(building) {
     try {
         const code = String(building.code || '').trim();
@@ -5403,12 +5682,28 @@ async function getRoomTypesBuildingStatsAdmin() {
 // 取得所有房型（只包含啟用的，供前台使用）
 async function getAllRoomTypes() {
     try {
-        // 目前前台維持單館流程：只回傳「預設館」（building_id = 1）的房型
-        const sql = `SELECT * FROM room_types WHERE is_active = 1 AND (building_id = 1 OR building_id IS NULL OR building_id = 0) ORDER BY display_order ASC, id ASC`;
-        const result = await query(sql);
-        return result.rows;
+        // 兼容舊簽名：不帶參數時回傳預設館
+        return await getRoomTypesByBuilding(1, { activeOnly: true });
     } catch (error) {
         console.error('❌ 查詢房型失敗:', error.message);
+        throw error;
+    }
+}
+
+async function getRoomTypesByBuilding(buildingId = 1, options = {}) {
+    try {
+        const { activeOnly = true } = options;
+        const bid = parseInt(buildingId, 10);
+        const safeBid = Number.isFinite(bid) && bid > 0 ? bid : 1;
+        const activeClause = activeOnly ? 'AND is_active = 1' : '';
+        const sql = usePostgreSQL
+            ? `SELECT * FROM room_types WHERE (building_id = $1 OR ($1 = 1 AND (building_id IS NULL OR building_id = 0))) ${activeClause} ORDER BY display_order ASC, id ASC`
+            : `SELECT * FROM room_types WHERE (building_id = ? OR (? = 1 AND (building_id IS NULL OR building_id = 0))) ${activeClause} ORDER BY display_order ASC, id ASC`;
+        const params = usePostgreSQL ? [safeBid] : [safeBid, safeBid];
+        const result = await query(sql, params);
+        return result.rows || [];
+    } catch (error) {
+        console.error('❌ 查詢房型（依館別）失敗:', error.message);
         throw error;
     }
 }
@@ -5418,17 +5713,41 @@ async function getAllRoomTypesAdmin(buildingId) {
     try {
         const bid = parseInt(buildingId, 10);
         const hasBuildingFilter = Number.isFinite(bid) && bid > 0;
+        const safeBid = hasBuildingFilter ? bid : null;
+
+        // 加上庫存（qty_total）供後台顯示/編輯（每館每房型）
         const sql = hasBuildingFilter
-            ? (bid === 1
-                ? (usePostgreSQL
-                    ? `SELECT * FROM room_types WHERE (building_id = $1 OR building_id IS NULL OR building_id = 0) ORDER BY display_order ASC, id ASC`
-                    : `SELECT * FROM room_types WHERE (building_id = ? OR building_id IS NULL OR building_id = 0) ORDER BY display_order ASC, id ASC`)
-                : (usePostgreSQL
-                    ? `SELECT * FROM room_types WHERE building_id = $1 ORDER BY display_order ASC, id ASC`
-                    : `SELECT * FROM room_types WHERE building_id = ? ORDER BY display_order ASC, id ASC`))
-            : `SELECT * FROM room_types ORDER BY display_order ASC, id ASC`;
-        const result = hasBuildingFilter ? await query(sql, [bid]) : await query(sql);
-        return result.rows;
+            ? (usePostgreSQL
+                ? `
+                    SELECT rt.*, COALESCE(inv.qty_total, 1) AS qty_total
+                    FROM room_types rt
+                    LEFT JOIN room_type_inventory inv
+                      ON inv.building_id = rt.building_id AND inv.room_type_id = rt.id
+                    WHERE (rt.building_id = $1 OR ($1 = 1 AND (rt.building_id IS NULL OR rt.building_id = 0)))
+                    ORDER BY rt.display_order ASC, rt.id ASC
+                  `
+                : `
+                    SELECT rt.*, COALESCE(inv.qty_total, 1) AS qty_total
+                    FROM room_types rt
+                    LEFT JOIN room_type_inventory inv
+                      ON inv.building_id = rt.building_id AND inv.room_type_id = rt.id
+                    WHERE (rt.building_id = ? OR (? = 1 AND (rt.building_id IS NULL OR rt.building_id = 0)))
+                    ORDER BY rt.display_order ASC, rt.id ASC
+                  `)
+            : `
+                SELECT rt.*, COALESCE(inv.qty_total, 1) AS qty_total
+                FROM room_types rt
+                LEFT JOIN room_type_inventory inv
+                  ON inv.building_id = rt.building_id AND inv.room_type_id = rt.id
+                ORDER BY rt.display_order ASC, rt.id ASC
+              `;
+
+        const params = hasBuildingFilter
+            ? (usePostgreSQL ? [safeBid] : [safeBid, safeBid])
+            : [];
+
+        const result = params.length ? await query(sql, params) : await query(sql);
+        return result.rows || [];
     } catch (error) {
         console.error('❌ 查詢房型失敗:', error.message);
         throw error;
@@ -5482,6 +5801,14 @@ async function createRoomType(roomData) {
         
         const result = await query(sql, values);
         const newId = result.lastID || result.rows[0]?.id;
+
+        // 初始化/更新庫存（每館每房型）
+        const buildingId = roomData.building_id !== undefined && roomData.building_id !== null ? roomData.building_id : 1;
+        const qtyTotal = roomData.qty_total !== undefined && roomData.qty_total !== null
+            ? Math.max(0, parseInt(roomData.qty_total, 10) || 0)
+            : 1;
+        await upsertRoomTypeInventory(buildingId, newId, qtyTotal);
+
         console.log(`✅ 房型已新增 (ID: ${newId})`);
         return newId;
     } catch (error) {
@@ -5524,12 +5851,43 @@ async function updateRoomType(id, roomData) {
         ];
         
         const result = await query(sql, values);
+
+        // 同步庫存（每館每房型）
+        if (roomData.qty_total !== undefined && roomData.qty_total !== null) {
+            const buildingId = roomData.building_id !== undefined && roomData.building_id !== null ? roomData.building_id : 1;
+            const qtyTotal = Math.max(0, parseInt(roomData.qty_total, 10) || 0);
+            await upsertRoomTypeInventory(buildingId, id, qtyTotal);
+        }
+
         console.log(`✅ 房型已更新 (影響行數: ${result.changes})`);
         return result.changes;
     } catch (error) {
         console.error('❌ 更新房型失敗:', error.message);
         throw error;
     }
+}
+
+async function upsertRoomTypeInventory(buildingId, roomTypeId, qtyTotal) {
+    const bid = parseInt(buildingId, 10);
+    const rid = parseInt(roomTypeId, 10);
+    const qty = Math.max(0, parseInt(qtyTotal, 10) || 0);
+    if (!Number.isFinite(bid) || bid <= 0 || !Number.isFinite(rid) || rid <= 0) return;
+
+    const sql = usePostgreSQL
+        ? `
+            INSERT INTO room_type_inventory (building_id, room_type_id, qty_total, updated_at)
+            VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+            ON CONFLICT (building_id, room_type_id)
+            DO UPDATE SET qty_total = EXCLUDED.qty_total, updated_at = CURRENT_TIMESTAMP
+          `
+        : `
+            INSERT INTO room_type_inventory (building_id, room_type_id, qty_total, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(building_id, room_type_id)
+            DO UPDATE SET qty_total = excluded.qty_total, updated_at = CURRENT_TIMESTAMP
+          `;
+
+    await query(sql, [bid, rid, qty]);
 }
 
 // ==================== 假日管理 ====================
@@ -6170,46 +6528,132 @@ async function deleteAddon(id) {
     }
 }
 
-async function getRoomAvailability(checkInDate, checkOutDate) {
+async function getRoomAvailability(checkInDate, checkOutDate, buildingId = 1) {
     try {
-        // 根據訂房狀態判斷前台的滿房房型
-        // 當訂房狀態為 'active'（有效）或 'reserved'（保留）時，顯示滿房
-        const sql = usePostgreSQL ? `
-            SELECT DISTINCT rt.name
-            FROM bookings b
-            INNER JOIN room_types rt ON b.room_type = rt.display_name
-            WHERE b.check_in_date::date < $2::date
-              AND b.check_out_date::date > $1::date
-              AND b.status IN ('active', 'reserved')
-        ` : `
-            SELECT DISTINCT rt.name
-            FROM bookings b
-            INNER JOIN room_types rt ON b.room_type = rt.display_name
-            WHERE b.check_in_date < ?
-              AND b.check_out_date > ?
-              AND b.status IN ('active', 'reserved')
-        `;
+        const bid = parseInt(buildingId, 10);
+        const safeBid = Number.isFinite(bid) && bid > 0 ? bid : 1;
 
-        const params = usePostgreSQL ? [checkInDate, checkOutDate] : [checkInDate, checkOutDate];
-        const result = await query(sql, params);
-        const rows = result.rows || result;
-        const unavailableRooms = rows.map(r => r.name);
-        return unavailableRooms || [];
+        // 注意：前台送單可能是「多房型+數量」(roomSelections)，單純用 bookings.room_type = rt.display_name 的 SQL 無法準確計算。
+        // 這裡改成：拉出重疊訂單 + room_selections，於 JS 端累加各房型數量，再與 room_type_inventory.qty_total 比對。
+
+        const roomTypes = await getRoomTypesByBuilding(safeBid, { activeOnly: true });
+        if (!roomTypes.length) return [];
+
+        const roomTypeByDisplayName = new Map();
+        const roomTypeByName = new Map();
+        roomTypes.forEach((rt) => {
+            if (rt.display_name) roomTypeByDisplayName.set(String(rt.display_name), rt);
+            if (rt.name) roomTypeByName.set(String(rt.name), rt);
+        });
+
+        // 讀取庫存
+        const invSql = usePostgreSQL
+            ? `SELECT room_type_id, qty_total FROM room_type_inventory WHERE building_id = $1`
+            : `SELECT room_type_id, qty_total FROM room_type_inventory WHERE building_id = ?`;
+        const invResult = await query(invSql, [safeBid]);
+        const invRows = invResult.rows || invResult || [];
+        const qtyTotalByRoomTypeId = new Map(
+            invRows
+                .map((r) => [Number(r.room_type_id), Math.max(0, parseInt(r.qty_total, 10) || 0)])
+                .filter(([id]) => Number.isFinite(id))
+        );
+
+        // 讀取重疊訂單（有效/保留）
+        const bookingsSql = usePostgreSQL
+            ? `
+                SELECT id, room_type, room_selections
+                FROM bookings
+                WHERE building_id = $3
+                  AND status IN ('active', 'reserved')
+                  AND check_in_date::date < $2::date
+                  AND check_out_date::date > $1::date
+            `
+            : `
+                SELECT id, room_type, room_selections
+                FROM bookings
+                WHERE building_id = ?
+                  AND status IN ('active', 'reserved')
+                  AND check_in_date < ?
+                  AND check_out_date > ?
+            `;
+        const bookingsParams = usePostgreSQL
+            ? [checkInDate, checkOutDate, safeBid]
+            : [safeBid, checkOutDate, checkInDate];
+        const bookingsResult = await query(bookingsSql, bookingsParams);
+        const bookingRows = bookingsResult.rows || bookingsResult || [];
+
+        // 逐單累加各房型佔用數
+        const usedByRoomTypeId = new Map();
+        const bump = (roomTypeId, qty) => {
+            const id = Number(roomTypeId);
+            const q = Math.max(0, parseInt(qty, 10) || 0);
+            if (!Number.isFinite(id) || q <= 0) return;
+            usedByRoomTypeId.set(id, (usedByRoomTypeId.get(id) || 0) + q);
+        };
+
+        for (const b of bookingRows) {
+            let selections = null;
+            if (b && b.room_selections) {
+                try {
+                    selections = JSON.parse(b.room_selections);
+                } catch (_) {
+                    selections = null;
+                }
+            }
+
+            if (Array.isArray(selections) && selections.length > 0) {
+                // selections: [{ name, quantity, ... }]
+                for (const item of selections) {
+                    const key = String(item?.name || '').trim();
+                    const rt = roomTypeByName.get(key) || roomTypeByDisplayName.get(key);
+                    if (rt && rt.id) {
+                        bump(rt.id, item?.quantity || 1);
+                    }
+                }
+                continue;
+            }
+
+            // fallback: 舊資料可能只存 display_name
+            const rawRoomType = String(b?.room_type || '').trim();
+            const rt = roomTypeByDisplayName.get(rawRoomType) || roomTypeByName.get(rawRoomType);
+            if (rt && rt.id) {
+                bump(rt.id, 1);
+            }
+        }
+
+        // 判斷滿房
+        const unavailable = [];
+        for (const rt of roomTypes) {
+            const qtyTotal = qtyTotalByRoomTypeId.has(Number(rt.id))
+                ? qtyTotalByRoomTypeId.get(Number(rt.id))
+                : 1;
+            const used = usedByRoomTypeId.get(Number(rt.id)) || 0;
+            if (used >= qtyTotal) {
+                unavailable.push(rt.name);
+            }
+        }
+
+        return unavailable.filter(Boolean);
     } catch (error) {
         console.error('❌ 查詢房間可用性失敗:', error.message);
         throw error;
     }
 }
 
-// 取得指定日期範圍內的訂房資料（供日曆視圖使用）
-async function getBookingsInRange(startDate, endDate) {
+// 取得指定日期範圍內的訂房資料（供日曆視圖使用，可選館別）
+async function getBookingsInRange(startDate, endDate, buildingId) {
     try {
+        const bid = parseInt(buildingId, 10);
+        const hasBuildingFilter = Number.isFinite(bid) && bid > 0;
+        const safeBid = hasBuildingFilter ? bid : 1;
+
         const sql = usePostgreSQL ? `
             SELECT booking_id, room_type, check_in_date, check_out_date, status, guest_name
             FROM bookings
             WHERE check_in_date::date <= $2::date
               AND check_out_date::date >= $1::date
               AND status IN ('active', 'reserved', 'cancelled')
+              ${hasBuildingFilter ? `AND (building_id = $3 OR ($3 = 1 AND (building_id IS NULL OR building_id = 0)))` : ''}
             ORDER BY check_in_date, room_type
         ` : `
             SELECT booking_id, room_type, check_in_date, check_out_date, status, guest_name
@@ -6217,9 +6661,12 @@ async function getBookingsInRange(startDate, endDate) {
             WHERE DATE(check_in_date) <= DATE(?)
               AND DATE(check_out_date) >= DATE(?)
               AND status IN ('active', 'reserved', 'cancelled')
+              ${hasBuildingFilter ? `AND (building_id = ? OR (? = 1 AND (building_id IS NULL OR building_id = 0)))` : ''}
             ORDER BY check_in_date, room_type
         `;
-        const params = usePostgreSQL ? [startDate, endDate] : [startDate, endDate];
+        const params = usePostgreSQL
+            ? (hasBuildingFilter ? [startDate, endDate, safeBid] : [startDate, endDate])
+            : (hasBuildingFilter ? [startDate, endDate, safeBid, safeBid] : [startDate, endDate]);
         const result = await query(sql, params);
         return result.rows || result;
     } catch (error) {
@@ -7327,11 +7774,13 @@ module.exports = {
     // 房型管理
     // 館別管理
     getAllBuildingsAdmin,
+    getActiveBuildingsPublic,
     createBuilding,
     updateBuilding,
     deleteBuilding,
     getRoomTypesBuildingStatsAdmin,
     getAllRoomTypes,
+    getRoomTypesByBuilding,
     getAllRoomTypesAdmin,
     getRoomTypeById,
     createRoomType,

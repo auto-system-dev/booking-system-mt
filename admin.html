@@ -137,9 +137,15 @@
             <section id="dashboard-section" class="content-section active">
                 <div class="section-header">
                     <h2><span class="material-symbols-outlined" style="font-size: 28px; vertical-align: middle; margin-right: 8px;">speed</span> 儀表板</h2>
-                    <button class="btn-refresh" onclick="loadDashboard()">
-                        <span class="material-symbols-outlined">refresh</span> 重新整理
-                    </button>
+                    <div class="header-actions">
+                        <div id="dashboardBuildingFilterWrap" style="display: none; align-items: center; gap: 8px;">
+                            <span style="color:#666; font-size: 13px; white-space: nowrap;">館別</span>
+                            <select id="dashboardBuildingFilter" style="min-width: 180px; padding: 8px; border: 1px solid #ddd; border-radius: 8px;" onchange="onDashboardBuildingChange(this.value)"></select>
+                        </div>
+                        <button class="btn-refresh" onclick="loadDashboard()">
+                            <span class="material-symbols-outlined">refresh</span> 重新整理
+                        </button>
+                    </div>
                 </div>
 
                 <div class="section-header" style="margin-top: 26px; margin-bottom: 16px;">
@@ -279,6 +285,9 @@
                         <span class="search-icon"><span class="material-symbols-outlined" style="font-size: 20px; vertical-align: middle;">search</span></span>
                     </div>
                     <div class="filter-group">
+                        <select id="bookingBuildingFilter" onchange="onBookingsBuildingChange(this.value)">
+                            <option value="1">預設館</option>
+                        </select>
                         <select id="roomTypeFilter" onchange="filterBookings()">
                             <option value="">所有房型</option>
                             <option value="標準雙人房">標準雙人房</option>
@@ -483,6 +492,8 @@
                             </div>
                             <div class="report-toolbar-right-cluster">
                                 <div class="report-toolbar-dates">
+                                    <label class="report-toolbar-label" for="statsBuildingFilter">館別</label>
+                                    <select id="statsBuildingFilter" class="report-date-input" style="min-width: 160px;" onchange="onStatisticsBuildingChange(this.value)"></select>
                                     <label class="report-toolbar-label" for="statsStartDate">期間</label>
                                     <input type="date" id="statsStartDate" class="report-date-input">
                                     <span class="report-date-sep" aria-hidden="true">至</span>
@@ -633,13 +644,14 @@
                                 <th>加床費用/人</th>
                                 <th>平日價格/晚</th>
                                 <th>假日價格/晚</th>
+                                <th>庫存</th>
                                 <th>狀態</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
                         <tbody id="roomTypesTableBody">
                             <tr>
-                                <td colspan="11" class="loading">載入中...</td>
+                                <td colspan="12" class="loading">載入中...</td>
                             </tr>
                         </tbody>
                     </table>

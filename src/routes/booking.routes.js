@@ -18,8 +18,8 @@ function createBookingRoutes(deps) {
 
     router.get('/bookings', requireAuth, checkPermission('bookings.view'), adminLimiter, async (req, res) => {
         try {
-            const { startDate, endDate } = req.query;
-            const bookings = await bookingService.getBookings(startDate, endDate);
+            const { startDate, endDate, buildingId } = req.query;
+            const bookings = await bookingService.getBookings(startDate, endDate, buildingId);
             const bookingsWithDefaults = bookingService.addBookingDefaults(bookings);
 
             return res.json({

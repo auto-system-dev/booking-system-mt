@@ -122,7 +122,13 @@ function buildDashboardOpsPayload(allBookings, roomTypes, start, end) {
 
     const bookings = allBookings || [];
     const dayCount = Math.max(1, Math.floor((end - start) / (24 * 60 * 60 * 1000)) + 1);
-    const totalRoomTypes = Math.max(1, (roomTypes || []).length);
+    const activeRoomTypes = (roomTypes || []).filter((rt) => Number(rt?.is_active ?? 1) !== 0);
+    const totalRoomsCapacity = activeRoomTypes.reduce((sum, rt) => {
+        const qty = Math.max(0, parseInt(rt?.qty_total, 10) || 0);
+        // 未設定庫存時，維持舊預設：每房型至少 1
+        return sum + (qty > 0 ? qty : 1);
+    }, 0);
+    const totalAvailableRoomNights = Math.max(1, totalRoomsCapacity) * dayCount;
 
     const normalizeDay = (value) => {
         if (!value) return null;
@@ -162,6 +168,25 @@ function buildDashboardOpsPayload(allBookings, roomTypes, start, end) {
         let activeReservedRevenue = 0;
         let activeReservedNights = 0;
 
+        const getBookingRoomsCount = (booking) => {
+            // 新版：room_selections: [{ name, quantity, ... }]
+            if (booking && booking.room_selections) {
+                try {
+                    const parsed = typeof booking.room_selections === 'string'
+                        ? JSON.parse(booking.room_selections)
+                        : booking.room_selections;
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        const total = parsed.reduce((sum, item) => sum + (Math.max(0, parseInt(item?.quantity, 10) || 0)), 0);
+                        if (total > 0) return total;
+                    }
+                } catch (_) {}
+            }
+            // 舊版：可能有 rooms
+            const rooms = Math.max(0, parseInt(booking?.rooms, 10) || 0);
+            if (rooms > 0) return rooms;
+            return 1;
+        };
+
         bookings.forEach((booking) => {
             if (!isActiveStatus(booking.status) && !isReservedStatus(booking.status)) return;
 
@@ -180,7 +205,8 @@ function buildDashboardOpsPayload(allBookings, roomTypes, start, end) {
             const overlapNights = Math.floor((overlapEndExclusive - overlapStart) / (24 * 60 * 60 * 1000));
             if (overlapNights <= 0) return;
 
-            occupiedRoomNights += overlapNights;
+            const roomsCount = getBookingRoomsCount(booking);
+            occupiedRoomNights += overlapNights * roomsCount;
 
             const totalNights = Math.max(1, Math.floor((checkOut - checkIn) / (24 * 60 * 60 * 1000)));
             const finalAmount = parseFloat(booking.final_amount || 0) || 0;
@@ -202,7 +228,8 @@ function buildDashboardOpsPayload(allBookings, roomTypes, start, end) {
         const cancellationNumerator = inRangeByCheckInDate.filter((b) => isCancelledStatus(b.status)).length;
         const cancellationDenominator = inRangeByCheckInDate.length;
 
-        const occupancyRate = (occupiedRoomNights / (totalRoomTypes * rangeDayCount)) * 100;
+        const denom = Math.max(1, totalRoomsCapacity) * rangeDayCount;
+        const occupancyRate = (occupiedRoomNights / denom) * 100;
         const averageRoomRate = activeReservedNights > 0 ? activeReservedRevenue / activeReservedNights : 0;
         const conversionRate = conversionDenominator > 0 ? (conversionNumerator / conversionDenominator) * 100 : 0;
         const paymentSuccessRate = paymentDenominator > 0 ? (paymentNumerator / paymentDenominator) * 100 : 0;

@@ -1,13 +1,13 @@
 function createBookingService(deps) {
     const { db } = deps;
 
-    async function getBookings(startDate, endDate) {
+    async function getBookings(startDate, endDate, buildingId) {
         if (startDate && endDate) {
             console.log('📅 查詢日曆區間:', startDate, '~', endDate);
-            return db.getBookingsInRange(startDate, endDate);
+            return db.getBookingsInRange(startDate, endDate, buildingId);
         }
         console.log('📋 查詢所有訂房記錄');
-        return db.getAllBookings();
+        return db.getAllBookings(buildingId);
     }
 
     async function getBookingById(bookingId) {

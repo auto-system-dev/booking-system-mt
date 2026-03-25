@@ -723,6 +723,12 @@ let currentPage = 1;
 const itemsPerPage = 10;
 let currentBookingView = 'list';
 let calendarStartDate = null;
+let selectedBuildingIdForBookings = 1;
+const BOOKINGS_BUILDING_STORAGE_KEY = 'bookingsBuildingId_v1';
+let selectedBuildingIdForStats = 1;
+const STATS_BUILDING_STORAGE_KEY = 'statsBuildingId_v1';
+let selectedBuildingIdForDashboard = 1;
+const DASHBOARD_BUILDING_STORAGE_KEY = 'dashboardBuildingId_v1';
 let sortColumn = null; // 當前排序欄位
 let sortDirection = 'asc'; // 排序方向：'asc' 或 'desc'
 /** 訂房列表快速篩選（與儀表板今日入住/退房口徑一致）：null | 'today_checkin' | 'today_checkout' */
@@ -742,7 +748,7 @@ const kpiHelpContentMap = {
         lines: [
             '公式：已售房晚 / 可售房晚 x 100%',
             '口徑：只計入「有效/保留」訂房的重疊房晚。',
-            '分母：房型數 x 區間天數。'
+            '分母：房型庫存總數（各房型 qty_total 加總，未設定則視為 1）x 區間天數。'
         ]
     },
     adr: {
@@ -1802,9 +1808,11 @@ async function loadDashboard(options = {}) {
             ? { startDate: options.startDate, endDate: options.endDate }
             : getOpsRangeParams();
 
+        const buildingId = getSelectedBuildingIdForDashboard();
         const opsQuery = new URLSearchParams({
             startDate: rangeParams.startDate,
-            endDate: rangeParams.endDate
+            endDate: rangeParams.endDate,
+            buildingId: String(buildingId)
         }).toString();
         const bundleUrl = `/api/dashboard/bundle?${opsQuery}`;
 
@@ -1831,7 +1839,7 @@ async function loadDashboard(options = {}) {
         }
 
         if (data === undefined) {
-            const dashRes = await fetchJsonWithRetry('/api/dashboard', 3, 700);
+            const dashRes = await fetchJsonWithRetry(`/api/dashboard?buildingId=${encodeURIComponent(String(buildingId))}`, 3, 700);
             if (!dashRes || !isLatestRequest()) return;
             if (!dashRes.success) {
                 showError('載入儀表板數據失敗：' + (dashRes.message || '未知錯誤'));
@@ -1870,7 +1878,7 @@ async function loadDashboard(options = {}) {
             // 若仍為全 0，再用 /api/bookings 回填一次，避免 API 冷啟動瞬間造成假 0
             if (!options.__bookingsFallbackDone && isDashboardAllZero(data)) {
                 try {
-                    const bookingsResult = await fetchJsonWithRetry('/api/bookings', 2, 700);
+                    const bookingsResult = await fetchJsonWithRetry(`/api/bookings?buildingId=${encodeURIComponent(String(buildingId))}`, 2, 700);
                     if (!bookingsResult || !isLatestRequest()) return;
                     if (bookingsResult.success && Array.isArray(bookingsResult.data) && bookingsResult.data.length > 0) {
                         const fallbackData = deriveDashboardFromBookings(bookingsResult.data);
@@ -1920,7 +1928,8 @@ async function loadDashboard(options = {}) {
             try {
                 const statsParams = new URLSearchParams({
                     startDate: rangeParams.startDate,
-                    endDate: rangeParams.endDate
+                    endDate: rangeParams.endDate,
+                    buildingId: String(buildingId)
                 });
                 const statsRes = await fetchJsonWithRetry(
                     `/api/dashboard/interval-summary?${statsParams.toString()}`,
@@ -1943,7 +1952,8 @@ async function loadDashboard(options = {}) {
 // 載入訂房記錄
 async function loadBookings() {
     try {
-        const response = await adminFetch('/api/bookings');
+        const bid = getSelectedBuildingIdForBookings();
+        const response = await adminFetch(`/api/bookings?buildingId=${encodeURIComponent(String(bid))}`);
         if (response.status === 401) {
             console.warn('載入訂房記錄收到 401，登入已過期');
             showLoginPage();
@@ -2107,7 +2117,8 @@ async function loadBookingCalendar() {
         const roomTypes = roomTypesResult.success ? roomTypesResult.data : [];
         
         // 獲取訂房資料
-        const calendarUrl = `${window.location.origin}/api/bookings?startDate=${encodeURIComponent(startDateStr)}&endDate=${encodeURIComponent(endDateStr)}`;
+        const bid = getSelectedBuildingIdForBookings();
+        const calendarUrl = `${window.location.origin}/api/bookings?startDate=${encodeURIComponent(startDateStr)}&endDate=${encodeURIComponent(endDateStr)}&buildingId=${encodeURIComponent(String(bid))}`;
         const bookingsResponse = await adminFetch(calendarUrl);
         if (bookingsResponse.status === 401) {
             console.warn('載入訂房日曆收到 401，登入已過期');
@@ -2137,6 +2148,197 @@ async function loadBookingCalendar() {
             container.innerHTML = '<div class="loading">載入失敗</div>';
         }
     }
+}
+
+function getSelectedBuildingIdForBookings() {
+    try {
+        const raw = localStorage.getItem(BOOKINGS_BUILDING_STORAGE_KEY);
+        const parsed = raw ? parseInt(raw, 10) : NaN;
+        if (Number.isFinite(parsed) && parsed > 0) {
+            selectedBuildingIdForBookings = parsed;
+            return parsed;
+        }
+    } catch (_) {}
+    return selectedBuildingIdForBookings || 1;
+}
+
+function setSelectedBuildingIdForBookings(nextId) {
+    const parsed = parseInt(String(nextId ?? ''), 10);
+    const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    selectedBuildingIdForBookings = safe;
+    try {
+        localStorage.setItem(BOOKINGS_BUILDING_STORAGE_KEY, String(safe));
+    } catch (_) {}
+}
+
+function syncBookingsBuildingSelect() {
+    const selectEl = document.getElementById('bookingBuildingFilter');
+    if (!selectEl) return;
+    const buildings = Array.isArray(allBuildings) ? allBuildings.filter((b) => Number(b?.is_active) !== 0) : [];
+    const showSelect = buildings.length > 1;
+    selectEl.style.display = showSelect ? '' : 'none';
+    if (!showSelect) {
+        setSelectedBuildingIdForBookings(1);
+        selectEl.innerHTML = '<option value="1">預設館</option>';
+        return;
+    }
+
+    const current = getSelectedBuildingIdForBookings();
+    const exists = buildings.some((b) => Number(b?.id) === Number(current));
+    const effective = exists ? current : Number(buildings[0]?.id || 1);
+    setSelectedBuildingIdForBookings(effective);
+
+    selectEl.innerHTML = buildings
+        .map((b) => `<option value="${Number(b.id)}">${escapeHtml(String(b.name || b.code || `館別 ${b.id}`))}</option>`)
+        .join('');
+    selectEl.value = String(effective);
+}
+
+function onBookingsBuildingChange(buildingId) {
+    setSelectedBuildingIdForBookings(buildingId);
+    updateBookingRoomTypeFilterOptions().catch((err) => {
+        console.warn('更新訂房房型篩選下拉失敗:', err?.message || err);
+    });
+    if (currentBookingView === 'calendar') {
+        loadBookingCalendar();
+        return;
+    }
+    loadBookings();
+}
+
+async function updateBookingRoomTypeFilterOptions() {
+    const selectEl = document.getElementById('roomTypeFilter');
+    if (!selectEl) return;
+
+    // 先保底：至少保留「所有房型」
+    const previousValue = selectEl.value;
+    selectEl.innerHTML = '<option value="">所有房型</option>';
+
+    try {
+        const bid = getSelectedBuildingIdForBookings();
+        const res = await adminFetch(`/api/admin/room-types?buildingId=${encodeURIComponent(String(bid))}`);
+        const j = await res.json();
+        if (!j.success) return;
+        const roomTypes = Array.isArray(j.data) ? j.data : [];
+        const options = roomTypes
+            .map((rt) => String(rt.display_name || '').trim())
+            .filter(Boolean);
+        options.forEach((name) => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            selectEl.appendChild(opt);
+        });
+
+        // 盡量保留原本選擇，否則回到「所有房型」
+        if (previousValue && options.includes(previousValue)) {
+            selectEl.value = previousValue;
+        } else {
+            selectEl.value = '';
+        }
+    } catch (err) {
+        // 靜默：不影響訂房列表載入
+        selectEl.value = '';
+    }
+}
+
+function getSelectedBuildingIdForStats() {
+    try {
+        const raw = localStorage.getItem(STATS_BUILDING_STORAGE_KEY);
+        const parsed = raw ? parseInt(raw, 10) : NaN;
+        if (Number.isFinite(parsed) && parsed > 0) {
+            selectedBuildingIdForStats = parsed;
+            return parsed;
+        }
+    } catch (_) {}
+    return selectedBuildingIdForStats || 1;
+}
+
+function setSelectedBuildingIdForStats(nextId) {
+    const parsed = parseInt(String(nextId ?? ''), 10);
+    const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    selectedBuildingIdForStats = safe;
+    try {
+        localStorage.setItem(STATS_BUILDING_STORAGE_KEY, String(safe));
+    } catch (_) {}
+}
+
+function getSelectedBuildingIdForDashboard() {
+    try {
+        const raw = localStorage.getItem(DASHBOARD_BUILDING_STORAGE_KEY);
+        const parsed = raw ? parseInt(raw, 10) : NaN;
+        if (Number.isFinite(parsed) && parsed > 0) {
+            selectedBuildingIdForDashboard = parsed;
+            return parsed;
+        }
+    } catch (_) {}
+    return selectedBuildingIdForDashboard || 1;
+}
+
+function setSelectedBuildingIdForDashboard(nextId) {
+    const parsed = parseInt(String(nextId ?? ''), 10);
+    const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    selectedBuildingIdForDashboard = safe;
+    try {
+        localStorage.setItem(DASHBOARD_BUILDING_STORAGE_KEY, String(safe));
+    } catch (_) {}
+}
+
+function syncDashboardBuildingSelect() {
+    const wrapEl = document.getElementById('dashboardBuildingFilterWrap');
+    const selectEl = document.getElementById('dashboardBuildingFilter');
+    if (!wrapEl || !selectEl) return;
+
+    const buildings = Array.isArray(allBuildings) ? allBuildings.filter((b) => Number(b?.is_active) !== 0) : [];
+    const show = buildings.length > 1;
+    wrapEl.style.display = show ? 'inline-flex' : 'none';
+    if (!show) {
+        setSelectedBuildingIdForDashboard(1);
+        selectEl.innerHTML = '';
+        return;
+    }
+
+    const current = getSelectedBuildingIdForDashboard();
+    const exists = buildings.some((b) => Number(b?.id) === Number(current));
+    const effective = exists ? current : Number(buildings[0]?.id || 1);
+    setSelectedBuildingIdForDashboard(effective);
+
+    selectEl.innerHTML = buildings
+        .map((b) => `<option value="${Number(b.id)}">${escapeHtml(String(b.name || b.code || `館別 ${b.id}`))}</option>`)
+        .join('');
+    selectEl.value = String(effective);
+}
+
+function onDashboardBuildingChange(buildingId) {
+    setSelectedBuildingIdForDashboard(buildingId);
+    loadDashboard();
+}
+
+function syncStatisticsBuildingSelect() {
+    const selectEl = document.getElementById('statsBuildingFilter');
+    if (!selectEl) return;
+    const buildings = Array.isArray(allBuildings) ? allBuildings.filter((b) => Number(b?.is_active) !== 0) : [];
+    const showSelect = buildings.length > 1;
+    selectEl.style.display = showSelect ? '' : 'none';
+    if (!showSelect) {
+        setSelectedBuildingIdForStats(1);
+        selectEl.innerHTML = '<option value="1">預設館</option>';
+        return;
+    }
+
+    const current = getSelectedBuildingIdForStats();
+    const exists = buildings.some((b) => Number(b?.id) === Number(current));
+    const effective = exists ? current : Number(buildings[0]?.id || 1);
+    setSelectedBuildingIdForStats(effective);
+    selectEl.innerHTML = buildings
+        .map((b) => `<option value="${Number(b.id)}">${escapeHtml(String(b.name || b.code || `館別 ${b.id}`))}</option>`)
+        .join('');
+    selectEl.value = String(effective);
+}
+
+function onStatisticsBuildingChange(buildingId) {
+    setSelectedBuildingIdForStats(buildingId);
+    loadStatistics();
 }
 
 // 渲染月曆
@@ -3563,14 +3765,15 @@ async function loadStatistics() {
             return;
         }
 
-        let url = '/api/statistics';
+        const bid = getSelectedBuildingIdForStats();
+        const params = new URLSearchParams();
+        params.set('buildingId', String(bid));
         if (startDate && endDate) {
-            const params = new URLSearchParams({
-                startDate,
-                endDate
-            });
-            url += `?${params.toString()}`;
+            params.set('startDate', startDate);
+            params.set('endDate', endDate);
         }
+        let url = '/api/statistics';
+        if (params.toString()) url += `?${params.toString()}`;
 
         const response = await adminFetch(url);
         
@@ -3608,7 +3811,8 @@ async function loadStatistics() {
             try {
                 const opsParams = new URLSearchParams({
                     startDate: opsKpiStart,
-                    endDate: opsKpiEnd
+                    endDate: opsKpiEnd,
+                    buildingId: String(getSelectedBuildingIdForStats())
                 });
                 const opsResponse = await adminFetch(`/api/dashboard/ops?${opsParams.toString()}`);
                 if (opsResponse.status === 401) {
@@ -4533,6 +4737,10 @@ async function loadBuildings(options = {}) {
         allBuildings = Array.isArray(j.data) ? j.data : [];
         renderBuildingsTable();
         syncRoomTypesBuildingSelect();
+        syncBookingsBuildingSelect();
+        syncStatisticsBuildingSelect();
+        syncDashboardBuildingSelect();
+        updateBookingRoomTypeFilterOptions().catch(() => {});
     } catch (err) {
         console.error('載入館別錯誤:', err);
         if (!silent) showError('載入館別時發生錯誤：' + err.message);
@@ -4729,7 +4937,7 @@ function renderRoomTypes() {
     const filteredRoomTypes = allRoomTypes;
     
     if (filteredRoomTypes.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="11" class="loading">沒有房型資料</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="loading">沒有房型資料</td></tr>';
         return;
     }
     
@@ -4743,6 +4951,7 @@ function renderRoomTypes() {
             const originalPrice = n(room.original_price);
             const holidaySurcharge = n(room.holiday_surcharge);
             const holidayPrice = price + holidaySurcharge;
+            const qtyTotal = n(room.qty_total);
             const isActive = n(room.is_active) === 1;
             const rowStyle = isActive ? '' : 'style="opacity: 0.6; background: #f8f8f8;"';
             const oldLine = originalPrice > 0
@@ -4763,6 +4972,7 @@ function renderRoomTypes() {
                     <td>NT$ ${n(room.extra_bed_price).toLocaleString()}</td>
                     <td>NT$ ${price.toLocaleString()}${oldLine}</td>
                     <td>NT$ ${holidayPrice.toLocaleString()}${oldLine}</td>
+                    <td>${qtyTotal}</td>
                     <td>
                         <span class="status-badge ${isActive ? 'status-sent' : 'status-unsent'}">
                             ${isActive ? '啟用' : '停用'}
@@ -4779,7 +4989,7 @@ function renderRoomTypes() {
         }).join('');
     } catch (err) {
         console.error('renderRoomTypes failed:', err, { allRoomTypes });
-        tbody.innerHTML = `<tr><td colspan="11" class="loading" style="color:#e74c3c;">房型列表渲染失敗：${escapeHtml(err.message || '未知錯誤')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="12" class="loading" style="color:#e74c3c;">房型列表渲染失敗：${escapeHtml(err.message || '未知錯誤')}</td></tr>`;
     }
 }
 
@@ -4859,6 +5069,11 @@ function showRoomTypeModal(room) {
                 <label>加床費用（每人）</label>
                 <input type="number" name="extra_bed_price" value="${isEdit ? (room.extra_bed_price ?? 0) : 0}" min="0" step="1" required>
                 <small>此房型每加 1 床（人）加收金額</small>
+            </div>
+            <div class="form-group">
+                <label>庫存（可賣房間數）</label>
+                <input type="number" name="qty_total" value="${isEdit ? (room.qty_total ?? 1) : 1}" min="0" step="1" required>
+                <small>每館別、每房型的庫存上限；當同一期間已成立/保留訂單數達到庫存時，前台會顯示滿房</small>
             </div>
             <div class="form-group">
                 <label>床型設定</label>
@@ -5152,6 +5367,7 @@ async function saveRoomType(event, id) {
         max_occupancy: parseInt(formData.get('max_occupancy')) || 0,
         extra_beds: parseInt(formData.get('extra_beds')) || 0,
         extra_bed_price: parseInt(formData.get('extra_bed_price')) || 0,
+        qty_total: parseInt(formData.get('qty_total')) || 0,
         bed_config: (formData.get('bed_config') || '').trim(),
         booking_badge: (formData.get('booking_badge') || '').trim(),
         included_items: (formData.get('included_items') || '').trim(),
@@ -11575,7 +11791,8 @@ async function exportBookingsCSV() {
         return;
     }
     showSuccess('正在匯出訂房資料...');
-    await downloadCSV('/api/admin/bookings/export', 'bookings.csv');
+    const bid = getSelectedBuildingIdForBookings();
+    await downloadCSV(`/api/admin/bookings/export?buildingId=${encodeURIComponent(String(bid))}`, 'bookings.csv');
 }
 
 // 匯出客戶資料 CSV
@@ -11598,11 +11815,15 @@ async function exportStatisticsCSV() {
     // 讀取目前的日期篩選條件
     const startDate = document.getElementById('statsStartDate')?.value || '';
     const endDate = document.getElementById('statsEndDate')?.value || '';
+    const bid = getSelectedBuildingIdForStats();
     
-    let url = '/api/admin/statistics/export';
+    const params = new URLSearchParams();
+    params.set('buildingId', String(bid));
     if (startDate && endDate) {
-        url += `?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+        params.set('startDate', startDate);
+        params.set('endDate', endDate);
     }
+    const url = `/api/admin/statistics/export?${params.toString()}`;
     
     showSuccess('正在匯出統計報表...');
     await downloadCSV(url, 'statistics.csv');

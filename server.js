@@ -758,6 +758,7 @@ async function handleCreateBooking(req, res) {
             checkInDate,
             checkOutDate,
             roomType,
+            buildingId,
             guestName,
             guestPhone,
             guestEmail,
@@ -782,6 +783,8 @@ async function handleCreateBooking(req, res) {
             referrer
         } = req.body;
         const lineUserId = req.body.lineUserId || req.query.lineUserId;
+        const normalizedBuildingId = buildingId ? parseInt(buildingId, 10) : (req.query.buildingId ? parseInt(req.query.buildingId, 10) : 1);
+        const safeBuildingId = Number.isFinite(normalizedBuildingId) && normalizedBuildingId > 0 ? normalizedBuildingId : 1;
 
         // 驗證必填欄位
         if (!checkInDate || !checkOutDate || !roomType || !guestName || !guestPhone || !guestEmail) {
@@ -885,7 +888,9 @@ async function handleCreateBooking(req, res) {
         // 從資料庫取得房型資訊（使用 display_name 作為房型名稱）
         let roomTypeName = roomType; // 預設值
         try {
-            const allRoomTypes = await db.getAllRoomTypes();
+            const allRoomTypes = db.getRoomTypesByBuilding
+                ? await db.getRoomTypesByBuilding(safeBuildingId, { activeOnly: false })
+                : await db.getAllRoomTypes();
             const selectedRoom = allRoomTypes.find(r => r.name === roomType);
             if (selectedRoom) {
                 roomTypeName = selectedRoom.display_name; // 使用顯示名稱
@@ -1194,6 +1199,8 @@ async function handleCreateBooking(req, res) {
                 checkInDate: bookingData.checkInDate,
                 checkOutDate: bookingData.checkOutDate,
                 roomType: bookingData.roomType,
+                buildingId: safeBuildingId,
+                roomSelections: Array.isArray(req.body.roomSelections) ? req.body.roomSelections : null,
                 guestName: bookingData.guestName,
                 guestPhone: bookingData.guestPhone,
                 guestEmail: bookingData.guestEmail,
@@ -3740,7 +3747,8 @@ function generateCSV(headers, rows) {
 // API: 匯出訂房資料 CSV
 app.get('/api/admin/bookings/export', requireAuth, checkPermission('bookings.export'), adminLimiter, async (req, res) => {
     try {
-        const bookings = await db.getAllBookings();
+        const buildingId = req.query.buildingId;
+        const bookings = await db.getAllBookings(buildingId);
         
         const headers = [
             '訂房編號', '入住日期', '退房日期', '房型', 
@@ -3779,7 +3787,7 @@ app.get('/api/admin/bookings/export', requireAuth, checkPermission('bookings.exp
         const csv = generateCSV(headers, rows);
         
         // 記錄匯出操作日誌
-        await logAction(req, 'export_bookings', 'booking', null, { count: bookings.length });
+        await logAction(req, 'export_bookings', 'booking', null, { count: bookings.length, buildingId: buildingId || null });
         
         const now = new Date();
         const dateStr = now.toISOString().replace(/[-:]/g, '').replace('T', '_').split('.')[0];
@@ -3836,14 +3844,11 @@ app.get('/api/admin/customers/export', requireAuth, checkPermission('customers.e
 // API: 匯出統計報表 CSV
 app.get('/api/admin/statistics/export', requireAuth, checkPermission('statistics.export'), adminLimiter, async (req, res) => {
     try {
-        const { startDate, endDate } = req.query;
+        const { startDate, endDate, buildingId } = req.query;
         
-        let stats;
-        if (startDate && endDate) {
-            stats = await db.getStatistics(startDate, endDate);
-        } else {
-            stats = await db.getStatistics();
-        }
+        const stats = startDate && endDate
+            ? await db.getStatistics(startDate, endDate, buildingId)
+            : await db.getStatistics(undefined, undefined, buildingId);
         
         const periodLabel = (startDate && endDate) ? `${startDate} ~ ${endDate}` : '全部期間';
         
@@ -3933,17 +3938,17 @@ app.get('/api/admin/statistics/export', requireAuth, checkPermission('statistics
 // 支援可選的日期區間：?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
 app.get('/api/statistics', requireAuth, checkPermission('statistics.view'), adminLimiter, async (req, res) => {
     try {
-        const { startDate, endDate } = req.query;
+        const { startDate, endDate, buildingId } = req.query;
 
         let stats;
         if (startDate && endDate) {
-            stats = await db.getStatistics(startDate, endDate);
+            stats = await db.getStatistics(startDate, endDate, buildingId);
             stats.period = {
                 startDate,
                 endDate
             };
         } else {
-            stats = await db.getStatistics();
+            stats = await db.getStatistics(undefined, undefined, buildingId);
             stats.period = {};
         }
         res.json({
@@ -4009,7 +4014,8 @@ app.get('/api/statistics/period-comparison', requireAuth, checkPermission('stati
 // API: 儀表板數據（僅摘要；與 ops 同頁載入請優先使用 /api/dashboard/bundle）
 app.get('/api/dashboard', adminLimiter, async (req, res) => {
     try {
-        const allBookings = await db.getAllBookings();
+        const buildingId = req.query.buildingId;
+        const allBookings = await db.getAllBookings(buildingId);
         res.json({
             success: true,
             data: computeDashboardSummaryFromBookings(allBookings)
@@ -4033,7 +4039,11 @@ app.get('/api/dashboard/bundle', adminLimiter, async (req, res) => {
                 message: parsed.message
             });
         }
-        const [allBookings, roomTypes] = await Promise.all([db.getAllBookings(), db.getAllRoomTypes()]);
+        const buildingId = req.query.buildingId;
+        const [allBookings, roomTypes] = await Promise.all([
+            db.getAllBookings(buildingId),
+            db.getAllRoomTypesAdmin ? db.getAllRoomTypesAdmin(buildingId) : db.getAllRoomTypes()
+        ]);
         res.json({
             success: true,
             data: {
@@ -4060,7 +4070,11 @@ app.get('/api/dashboard/ops', adminLimiter, async (req, res) => {
                 message: parsed.message
             });
         }
-        const [allBookings, roomTypes] = await Promise.all([db.getAllBookings(), db.getAllRoomTypes()]);
+        const buildingId = req.query.buildingId;
+        const [allBookings, roomTypes] = await Promise.all([
+            db.getAllBookings(buildingId),
+            db.getAllRoomTypesAdmin ? db.getAllRoomTypesAdmin(buildingId) : db.getAllRoomTypes()
+        ]);
         res.json({
             success: true,
             data: buildDashboardOpsPayload(allBookings, roomTypes, parsed.start, parsed.end)
@@ -4082,7 +4096,7 @@ app.get(
     adminLimiter,
     async (req, res) => {
         try {
-            const { startDate, endDate } = req.query;
+            const { startDate, endDate, buildingId } = req.query;
             if (!startDate || !endDate) {
                 return res.status(400).json({
                     success: false,
@@ -4095,7 +4109,7 @@ app.get(
                     message: '開始日期不能晚於結束日期'
                 });
             }
-            const stats = await db.getStatistics(startDate, endDate);
+            const stats = await db.getStatistics(startDate, endDate, buildingId);
             const data = {
                 totalBookings: stats.totalBookings,
                 totalBookingsDetail: stats.totalBookingsDetail,
@@ -4338,8 +4352,11 @@ app.get('/api/admin/debug/room-types-building-stats', requireAuth, checkPermissi
 // API: 取得所有房型（公開，供前台使用）
 app.get('/api/room-types', publicLimiter, async (req, res) => {
     try {
+        const buildingId = req.query.buildingId ? parseInt(req.query.buildingId, 10) : 1;
         const [roomTypes, allGalleryImages, allSettings] = await Promise.all([
-            db.getAllRoomTypes(),
+            db.getRoomTypesByBuilding
+                ? db.getRoomTypesByBuilding(buildingId, { activeOnly: true })
+                : db.getAllRoomTypes(), // fallback
             db.getAllRoomTypeGalleryImages(),
             db.getAllSettings()
         ]);
@@ -4398,10 +4415,24 @@ app.get('/api/room-types', publicLimiter, async (req, res) => {
     }
 });
 
+// API: 取得可用館別（公開，供前台使用）
+app.get('/api/buildings', publicLimiter, async (req, res) => {
+    try {
+        const buildings = db.getActiveBuildingsPublic
+            ? await db.getActiveBuildingsPublic()
+            : [];
+        res.json({ success: true, data: buildings || [] });
+    } catch (error) {
+        console.error('取得館別列表錯誤:', error);
+        res.status(500).json({ success: false, message: '取得館別列表失敗' });
+    }
+});
+
 // API: 檢查房間可用性
 app.get('/api/room-availability', publicLimiter, async (req, res) => {
     try {
         const { checkInDate, checkOutDate } = req.query;
+        const buildingId = req.query.buildingId ? parseInt(req.query.buildingId, 10) : 1;
         
         if (!checkInDate || !checkOutDate) {
             return res.status(400).json({
@@ -4410,7 +4441,7 @@ app.get('/api/room-availability', publicLimiter, async (req, res) => {
             });
         }
         
-        const availability = await db.getRoomAvailability(checkInDate, checkOutDate);
+        const availability = await db.getRoomAvailability(checkInDate, checkOutDate, buildingId);
         res.json({
             success: true,
             data: availability
@@ -4745,6 +4776,7 @@ app.get('/api/check-holiday', publicLimiter, async (req, res) => {
 app.get('/api/calculate-price', publicLimiter, async (req, res) => {
     try {
         const { checkInDate, checkOutDate, roomTypeName } = req.query;
+        const buildingId = req.query.buildingId ? parseInt(req.query.buildingId, 10) : 1;
         
         if (!checkInDate || !checkOutDate || !roomTypeName) {
             return res.status(400).json({
@@ -4754,8 +4786,10 @@ app.get('/api/calculate-price', publicLimiter, async (req, res) => {
         }
         
         // 取得房型資訊
-        const allRoomTypes = await db.getAllRoomTypes();
-        const roomType = allRoomTypes.find(r => r.display_name === roomTypeName || r.name === roomTypeName);
+        const allRoomTypes = db.getRoomTypesByBuilding
+            ? await db.getRoomTypesByBuilding(buildingId, { activeOnly: true })
+            : await db.getAllRoomTypes();
+        const roomType = (allRoomTypes || []).find((r) => r.display_name === roomTypeName || r.name === roomTypeName);
         
         if (!roomType) {
             return res.status(404).json({

@@ -3,6 +3,9 @@ let roomTypes = [];
 let addons = []; // 加購商品列表
 let selectedAddons = []; // 已選擇的加購商品
 let enableAddons = true; // 前台加購商品功能是否啟用
+let allBuildings = [];
+let selectedBuildingId = 1;
+const SELECTED_BUILDING_STORAGE_KEY = 'selected_building_id_v1';
 
 function formatAddonUnit(unitLabel) {
     const normalized = String(unitLabel || '人').trim();
@@ -333,15 +336,20 @@ async function loadRoomTypesAndSettings() {
     try {
         applyRoomCountSettings(null);
         // 同時載入房型、加購商品和設定
-        const [roomTypesResponse, addonsResponse, settingsResponse] = await Promise.all([
-            fetch('/api/room-types'),
+        const [buildingsResponse, roomTypesResponse, addonsResponse, settingsResponse] = await Promise.all([
+            fetch('/api/buildings'),
+            fetch(`/api/room-types?buildingId=${encodeURIComponent(getSelectedBuildingId())}`),
             fetch('/api/addons'),
             fetch('/api/settings')
         ]);
         
+        const buildingsResult = await buildingsResponse.json();
         const roomTypesResult = await roomTypesResponse.json();
         const addonsResult = await addonsResponse.json();
         const settingsResult = await settingsResponse.json();
+
+        allBuildings = buildingsResult.success ? (buildingsResult.data || []) : [];
+        syncBuildingSelect();
         applyRoomCountSettings(settingsResult.success ? settingsResult.data : null);
         
         roomTypes = roomTypesResult.success ? (roomTypesResult.data || []) : [];
@@ -383,6 +391,68 @@ async function loadRoomTypesAndSettings() {
         applyRoomCountSettings(null);
         document.getElementById('roomTypeGrid').innerHTML = '<div class="error">載入房型失敗，請重新整理頁面</div>';
         document.getElementById('addonsGrid').innerHTML = '<div class="error">載入加購商品失敗</div>';
+    }
+}
+
+function getSelectedBuildingId() {
+    const raw = localStorage.getItem(SELECTED_BUILDING_STORAGE_KEY);
+    const parsed = raw ? parseInt(raw, 10) : NaN;
+    if (Number.isFinite(parsed) && parsed > 0) {
+        selectedBuildingId = parsed;
+        return parsed;
+    }
+    return selectedBuildingId || 1;
+}
+
+function setSelectedBuildingId(nextId) {
+    const parsed = parseInt(String(nextId ?? ''), 10);
+    const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    selectedBuildingId = safe;
+    try {
+        localStorage.setItem(SELECTED_BUILDING_STORAGE_KEY, String(safe));
+    } catch (_) {}
+}
+
+function syncBuildingSelect() {
+    const sectionEl = document.getElementById('buildingSection');
+    const selectEl = document.getElementById('buildingSelect');
+    if (!sectionEl || !selectEl) return;
+
+    const buildings = Array.isArray(allBuildings) ? allBuildings : [];
+    const showSelect = buildings.length > 1;
+    sectionEl.classList.toggle('hidden', !showSelect);
+
+    if (!showSelect) {
+        setSelectedBuildingId(1);
+        selectEl.innerHTML = '';
+        return;
+    }
+
+    const current = getSelectedBuildingId();
+    const exists = buildings.some((b) => Number(b?.id) === Number(current));
+    const effective = exists ? current : Number(buildings[0]?.id || 1);
+    setSelectedBuildingId(effective);
+
+    selectEl.innerHTML = buildings
+        .map((b) => {
+            const id = Number(b?.id);
+            const name = String(b?.name || b?.code || `館別 ${id}`);
+            return `<option value="${id}">${escapeRoomText(name)}</option>`;
+        })
+        .join('');
+    selectEl.value = String(effective);
+
+    if (!selectEl.dataset.boundChange) {
+        selectEl.addEventListener('change', async () => {
+            setSelectedBuildingId(selectEl.value);
+            selectedRoomQuantities = {};
+            selectedRoomExtraBeds = {};
+            unavailableRooms = [];
+            await loadRoomTypesAndSettings();
+            await checkRoomAvailability();
+            calculatePrice();
+        });
+        selectEl.dataset.boundChange = '1';
     }
 }
 
@@ -1197,7 +1267,8 @@ async function computeRoomPricing(checkInDate, checkOutDate, roomSelections) {
     }
 
     const perRoomResults = await Promise.all(selections.map(async (room) => {
-        const response = await fetch(`/api/calculate-price?checkInDate=${checkInDate}&checkOutDate=${checkOutDate}&roomTypeName=${encodeURIComponent(room.displayName)}`);
+        const bid = getSelectedBuildingId();
+        const response = await fetch(`/api/calculate-price?checkInDate=${checkInDate}&checkOutDate=${checkOutDate}&buildingId=${encodeURIComponent(bid)}&roomTypeName=${encodeURIComponent(room.displayName)}`);
         const result = await response.json();
         if (!result.success || !result.data) {
             throw new Error(result.message || `計算 ${room.displayName} 價格失敗`);
@@ -2052,7 +2123,8 @@ async function checkRoomAvailability() {
     }
     
     try {
-        const response = await fetch(`/api/room-availability?checkInDate=${checkInDate}&checkOutDate=${checkOutDate}`);
+        const bid = getSelectedBuildingId();
+        const response = await fetch(`/api/room-availability?checkInDate=${checkInDate}&checkOutDate=${checkOutDate}&buildingId=${encodeURIComponent(bid)}`);
         const result = await response.json();
         
         if (result.success) {
@@ -2329,9 +2401,8 @@ document.getElementById('bookingForm').addEventListener('submit', async function
     const formData = {
         checkInDate: document.getElementById('checkInDate').value,
         checkOutDate: document.getElementById('checkOutDate').value,
-        roomType: roomSelections
-            .map(room => `${room.displayName} x${room.quantity}${room.selectedExtraBeds > 0 ? `（加床 x${room.selectedExtraBeds}）` : ''}`)
-            .join('、'),
+        buildingId: getSelectedBuildingId(),
+        roomType: roomSelections[0]?.name || '',
         guestName: document.getElementById('guestName').value.trim(),
         guestPhone: phone, // 使用驗證後清理過的手機號碼（已移除 - 和空格）
         guestEmail: email, // 使用驗證後清理過的 Email（已轉小寫）
