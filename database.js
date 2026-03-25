@@ -302,10 +302,42 @@ async function initPostgreSQL() {
             }
             
             // 建立房型設定表
+            // ===== 館別（buildings）=====
+            await query(`
+                CREATE TABLE IF NOT EXISTS buildings (
+                    id SERIAL PRIMARY KEY,
+                    code VARCHAR(80) UNIQUE NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    display_order INTEGER DEFAULT 0,
+                    is_active INTEGER DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+            // 預設館（保底，讓舊系統在只有 1 館時不需改前台流程）
+            try {
+                await query(
+                    `INSERT INTO buildings (id, code, name, display_order, is_active)
+                     VALUES (1, 'default', '預設館', 0, 1)
+                     ON CONFLICT (id) DO NOTHING`
+                );
+                await query(
+                    `INSERT INTO buildings (code, name, display_order, is_active)
+                     VALUES ('default', '預設館', 0, 1)
+                     ON CONFLICT (code) DO NOTHING`
+                );
+            } catch (err) {
+                // 相容舊版 Postgres / 欄位已存在狀況
+                if (!String(err.message || '').includes('conflict')) {
+                    console.warn('⚠️  初始化預設館別時發生錯誤:', err.message);
+                }
+            }
+
             await query(`
                 CREATE TABLE IF NOT EXISTS room_types (
                     id SERIAL PRIMARY KEY,
                     name VARCHAR(255) UNIQUE NOT NULL,
+                    building_id INTEGER DEFAULT 1,
                     display_name VARCHAR(255) NOT NULL,
                     price INTEGER NOT NULL,
                     original_price INTEGER DEFAULT 0,
@@ -329,6 +361,7 @@ async function initPostgreSQL() {
             
             // 檢查並添加欄位（如果不存在）- 使用 ADD COLUMN IF NOT EXISTS（PostgreSQL 9.6+）
             const roomTypeColumnsToAdd = [
+                { name: 'building_id', type: 'INTEGER', default: '1' },
                 { name: 'holiday_surcharge', type: 'INTEGER', default: '0' },
                 { name: 'max_occupancy', type: 'INTEGER', default: '0' },
                 { name: 'extra_beds', type: 'INTEGER', default: '0' },
@@ -363,6 +396,36 @@ async function initPostgreSQL() {
                 }
             }
             console.log('✅ room_types 欄位遷移完成');
+
+            // 確保既有房型資料都有 building_id（舊資料回填預設館）
+            try {
+                await query(`UPDATE room_types SET building_id = 1 WHERE building_id IS NULL`);
+            } catch (err) {
+                console.warn('⚠️  回填 room_types.building_id 失敗:', err.message);
+            }
+
+            // 盡量加上 FK（若已存在或權限不足則略過）
+            try {
+                await query(`
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (
+                            SELECT 1
+                            FROM information_schema.table_constraints
+                            WHERE constraint_type = 'FOREIGN KEY'
+                              AND table_name = 'room_types'
+                              AND constraint_name = 'fk_room_types_building'
+                        ) THEN
+                            ALTER TABLE room_types
+                                ADD CONSTRAINT fk_room_types_building
+                                FOREIGN KEY (building_id) REFERENCES buildings(id)
+                                ON DELETE RESTRICT;
+                        END IF;
+                    END $$;
+                `);
+            } catch (err) {
+                // 非必要，失敗不阻斷
+            }
             
             // 建立房型圖庫表（多張照片）
             await query(`
@@ -2220,6 +2283,7 @@ function initSQLite() {
                             CREATE TABLE IF NOT EXISTS room_types (
                                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                                 name TEXT UNIQUE NOT NULL,
+                                building_id INTEGER DEFAULT 1,
                                 display_name TEXT NOT NULL,
                                 price INTEGER NOT NULL,
                                 holiday_surcharge INTEGER DEFAULT 0,
@@ -2242,7 +2306,43 @@ function initSQLite() {
                                 console.warn('⚠️  建立 room_types 表時發生錯誤:', err.message);
                             } else {
                                 console.log('✅ 房型設定表已準備就緒');
+
+                                // ===== 館別（buildings）=====
+                                db.run(`
+                                    CREATE TABLE IF NOT EXISTS buildings (
+                                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                        code TEXT UNIQUE NOT NULL,
+                                        name TEXT NOT NULL,
+                                        display_order INTEGER DEFAULT 0,
+                                        is_active INTEGER DEFAULT 1,
+                                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                                    )
+                                `, (err) => {
+                                    if (err) {
+                                        console.warn('⚠️  建立 buildings 表時發生錯誤:', err.message);
+                                    } else {
+                                        // 預設館（保底）
+                                        db.get('SELECT id FROM buildings WHERE id = 1 OR code = ?', ['default'], (err, row) => {
+                                            if (!err && !row) {
+                                                db.run(
+                                                    'INSERT INTO buildings (id, code, name, display_order, is_active) VALUES (1, ?, ?, 0, 1)',
+                                                    ['default', '預設館']
+                                                );
+                                            }
+                                        });
+                                    }
+                                });
                                 
+                                // 先補上 building_id 欄位（如果不存在）
+                                db.run(`ALTER TABLE room_types ADD COLUMN building_id INTEGER DEFAULT 1`, (err) => {
+                                    if (err && !err.message.includes('duplicate column')) {
+                                        console.warn('⚠️  添加 building_id 欄位時發生錯誤:', err.message);
+                                    }
+                                    // 回填既有資料
+                                    db.run(`UPDATE room_types SET building_id = 1 WHERE building_id IS NULL`);
+                                });
+
                                 // 檢查並添加 holiday_surcharge 欄位（如果不存在）
                                 db.run(`ALTER TABLE room_types ADD COLUMN holiday_surcharge INTEGER DEFAULT 0`, (err) => {
                                     if (err && !err.message.includes('duplicate column')) {
@@ -5161,10 +5261,107 @@ async function deleteHoliday(holidayDate) {
 
 // ==================== 房型管理 ====================
 
+// ==================== 館別管理（buildings） ====================
+
+async function getAllBuildingsAdmin() {
+    try {
+        const sql = `SELECT * FROM buildings ORDER BY display_order ASC, id ASC`;
+        const result = await query(sql);
+        return result.rows || [];
+    } catch (error) {
+        console.error('❌ 查詢館別失敗:', error.message);
+        throw error;
+    }
+}
+
+async function createBuilding(building) {
+    try {
+        const code = String(building.code || '').trim();
+        const name = String(building.name || '').trim();
+        if (!code || !name) {
+            throw new Error('請提供館別代碼與名稱');
+        }
+        const displayOrder = Number.isFinite(Number(building.display_order)) ? Number(building.display_order) : 0;
+        const isActive = (String(building.is_active ?? '1').trim() === '0') ? 0 : 1;
+
+        const sql = usePostgreSQL
+            ? `INSERT INTO buildings (code, name, display_order, is_active) VALUES ($1, $2, $3, $4) RETURNING id`
+            : `INSERT INTO buildings (code, name, display_order, is_active) VALUES (?, ?, ?, ?)`;
+        const result = await query(sql, [code, name, displayOrder, isActive]);
+        return usePostgreSQL ? (result.rows?.[0]?.id) : result.lastID;
+    } catch (error) {
+        console.error('❌ 新增館別失敗:', error.message);
+        throw error;
+    }
+}
+
+async function updateBuilding(id, building) {
+    try {
+        const buildingId = parseInt(id, 10);
+        if (!Number.isFinite(buildingId) || buildingId <= 0) {
+            throw new Error('無效的館別 ID');
+        }
+        if (buildingId === 1) {
+            // 預設館可改名稱/排序/啟用，但代碼固定
+            if (building.code && String(building.code).trim() !== 'default') {
+                throw new Error('預設館代碼不可變更');
+            }
+        }
+
+        const name = String(building.name || '').trim();
+        const code = String(building.code || '').trim();
+        const displayOrder = Number.isFinite(Number(building.display_order)) ? Number(building.display_order) : 0;
+        const isActive = (String(building.is_active ?? '1').trim() === '0') ? 0 : 1;
+        if (!name) throw new Error('請提供館別名稱');
+        if (!code) throw new Error('請提供館別代碼');
+
+        const sql = usePostgreSQL
+            ? `UPDATE buildings SET code = $1, name = $2, display_order = $3, is_active = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5`
+            : `UPDATE buildings SET code = ?, name = ?, display_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+        const result = await query(sql, [code, name, displayOrder, isActive, buildingId]);
+        return result.changes || 0;
+    } catch (error) {
+        console.error('❌ 更新館別失敗:', error.message);
+        throw error;
+    }
+}
+
+async function deleteBuilding(id) {
+    try {
+        const buildingId = parseInt(id, 10);
+        if (!Number.isFinite(buildingId) || buildingId <= 0) {
+            throw new Error('無效的館別 ID');
+        }
+        if (buildingId === 1) {
+            throw new Error('預設館不可刪除');
+        }
+
+        // 若館別仍有房型，不允許刪除（避免孤兒資料）
+        const cntSql = usePostgreSQL
+            ? `SELECT COUNT(*)::bigint as cnt FROM room_types WHERE building_id = $1`
+            : `SELECT COUNT(*) as cnt FROM room_types WHERE building_id = ?`;
+        const row = await queryOne(cntSql, [buildingId]);
+        const cnt = parseInt(row?.cnt || row?.count || 0, 10);
+        if (cnt > 0) {
+            throw new Error('此館別仍有房型，請先移動或刪除房型後再刪除館別');
+        }
+
+        const sql = usePostgreSQL
+            ? `DELETE FROM buildings WHERE id = $1`
+            : `DELETE FROM buildings WHERE id = ?`;
+        const result = await query(sql, [buildingId]);
+        return result.changes || 0;
+    } catch (error) {
+        console.error('❌ 刪除館別失敗:', error.message);
+        throw error;
+    }
+}
+
 // 取得所有房型（只包含啟用的，供前台使用）
 async function getAllRoomTypes() {
     try {
-        const sql = `SELECT * FROM room_types WHERE is_active = 1 ORDER BY display_order ASC, id ASC`;
+        // 目前前台維持單館流程：只回傳「預設館」（building_id = 1）的房型
+        const sql = `SELECT * FROM room_types WHERE is_active = 1 AND (building_id = 1 OR building_id IS NULL) ORDER BY display_order ASC, id ASC`;
         const result = await query(sql);
         return result.rows;
     } catch (error) {
@@ -5174,10 +5371,16 @@ async function getAllRoomTypes() {
 }
 
 // 取得所有房型（包含已停用的，供管理後台使用）
-async function getAllRoomTypesAdmin() {
+async function getAllRoomTypesAdmin(buildingId) {
     try {
-        const sql = `SELECT * FROM room_types ORDER BY display_order ASC, id ASC`;
-        const result = await query(sql);
+        const bid = parseInt(buildingId, 10);
+        const hasBuildingFilter = Number.isFinite(bid) && bid > 0;
+        const sql = hasBuildingFilter
+            ? (usePostgreSQL
+                ? `SELECT * FROM room_types WHERE building_id = $1 ORDER BY display_order ASC, id ASC`
+                : `SELECT * FROM room_types WHERE building_id = ? ORDER BY display_order ASC, id ASC`)
+            : `SELECT * FROM room_types ORDER BY display_order ASC, id ASC`;
+        const result = hasBuildingFilter ? await query(sql, [bid]) : await query(sql);
         return result.rows;
     } catch (error) {
         console.error('❌ 查詢房型失敗:', error.message);
@@ -5202,15 +5405,16 @@ async function getRoomTypeById(id) {
 async function createRoomType(roomData) {
     try {
         const sql = usePostgreSQL ? `
-            INSERT INTO room_types (name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            INSERT INTO room_types (building_id, name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             RETURNING id
         ` : `
-            INSERT INTO room_types (name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO room_types (building_id, name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const values = [
+            roomData.building_id !== undefined && roomData.building_id !== null ? roomData.building_id : 1,
             roomData.name,
             roomData.display_name,
             roomData.price,
@@ -5244,15 +5448,16 @@ async function updateRoomType(id, roomData) {
     try {
         const sql = usePostgreSQL ? `
             UPDATE room_types 
-            SET display_name = $1, price = $2, original_price = $3, holiday_surcharge = $4, max_occupancy = $5, extra_beds = $6, extra_bed_price = $7, bed_config = $8, included_items = $9, booking_badge = $10, icon = $11, image_url = $12, show_on_landing = $13, display_order = $14, is_active = $15, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $16
+            SET building_id = $1, display_name = $2, price = $3, original_price = $4, holiday_surcharge = $5, max_occupancy = $6, extra_beds = $7, extra_bed_price = $8, bed_config = $9, included_items = $10, booking_badge = $11, icon = $12, image_url = $13, show_on_landing = $14, display_order = $15, is_active = $16, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $17
         ` : `
             UPDATE room_types 
-            SET display_name = ?, price = ?, original_price = ?, holiday_surcharge = ?, max_occupancy = ?, extra_beds = ?, extra_bed_price = ?, bed_config = ?, included_items = ?, booking_badge = ?, icon = ?, image_url = ?, show_on_landing = ?, display_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+            SET building_id = ?, display_name = ?, price = ?, original_price = ?, holiday_surcharge = ?, max_occupancy = ?, extra_beds = ?, extra_bed_price = ?, bed_config = ?, included_items = ?, booking_badge = ?, icon = ?, image_url = ?, show_on_landing = ?, display_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `;
         
         const values = [
+            roomData.building_id !== undefined && roomData.building_id !== null ? roomData.building_id : 1,
             roomData.display_name,
             roomData.price,
             roomData.original_price !== undefined ? roomData.original_price : 0,
@@ -7073,6 +7278,11 @@ module.exports = {
     getMonthlyComparison,
     getPeriodComparison,
     // 房型管理
+    // 館別管理
+    getAllBuildingsAdmin,
+    createBuilding,
+    updateBuilding,
+    deleteBuilding,
     getAllRoomTypes,
     getAllRoomTypesAdmin,
     getRoomTypeById,

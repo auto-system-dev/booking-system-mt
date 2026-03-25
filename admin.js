@@ -619,6 +619,15 @@ function exposeFunctionsToWindow() {
         if (typeof setStatisticsPreset === 'function') {
             window.setStatisticsPreset = setStatisticsPreset;
         }
+        if (typeof showBuildingModal === 'function') {
+            window.showBuildingModal = showBuildingModal;
+        }
+        if (typeof deleteBuilding === 'function') {
+            window.deleteBuilding = deleteBuilding;
+        }
+        if (typeof onRoomTypesBuildingChange === 'function') {
+            window.onRoomTypesBuildingChange = onRoomTypesBuildingChange;
+        }
     } catch (error) {
         console.error('暴露函數到 window 對象時發生錯誤:', error);
     }
@@ -1430,6 +1439,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     // 暴露函數到 window 對象，以便在 HTML onclick 屬性中訪問
     exposeFunctionsToWindow();
     initOpsKpiHelp();
+
+    // 預先載入館別（不影響前台訂房；供後台館別管理與房型篩選使用）
+    try {
+        await loadBuildings({ silent: true });
+    } catch (_) { /* ignore */ }
 });
 
 // 切換區塊
@@ -1440,6 +1454,7 @@ function switchSection(section) {
         'bookings': 'bookings.view',
         'customers': 'customers.view',
         'room-types': 'room_types.view',
+        'buildings': 'room_types.view',
         'addons': 'addons.view',
         'promotions': 'promo_codes.view',
         'settings': 'settings.view',
@@ -1504,6 +1519,8 @@ function switchSection(section) {
         if (savedTab === 'room-types') {
             loadRoomTypes();
         }
+    } else if (section === 'buildings') {
+        loadBuildings();
     } else if (section === 'addons') {
         loadAddons();
     } else if (section === 'promotions') {
@@ -1560,6 +1577,8 @@ function loadInitialAdminRoute() {
         switchSection('bookings');
     } else if (urlHash === '#room-types') {
         switchSection('room-types');
+    } else if (urlHash === '#buildings') {
+        switchSection('buildings');
     } else if (urlHash === '#settings') {
         switchSection('settings');
         if (typeof loadHolidays === 'function') loadHolidays();
@@ -1642,6 +1661,8 @@ function switchRoomTypeTab(tab) {
         
         // 顯示/隱藏對應的按鈕
         document.getElementById('addRoomTypeBtn').style.display = 'inline-flex';
+        const filterWrap = document.getElementById('roomTypesBuildingFilter');
+        if (filterWrap) filterWrap.style.display = 'inline-flex';
         document.getElementById('roomTypeRefreshBtn').style.display = 'inline-flex';
         document.getElementById('holidayRefreshBtn').style.display = 'none';
         
@@ -1654,6 +1675,8 @@ function switchRoomTypeTab(tab) {
         
         // 顯示/隱藏對應的按鈕
         document.getElementById('addRoomTypeBtn').style.display = 'none';
+        const filterWrap = document.getElementById('roomTypesBuildingFilter');
+        if (filterWrap) filterWrap.style.display = 'none';
         document.getElementById('roomTypeRefreshBtn').style.display = 'none';
         document.getElementById('holidayRefreshBtn').style.display = 'inline-flex';
         
@@ -4401,6 +4424,8 @@ function escapeHtml(text) {
 // ==================== 房型管理 ====================
 
 let allRoomTypes = [];
+let allBuildings = [];
+let selectedBuildingIdForRoomTypes = 1;
 const ROOM_INCLUDED_ITEM_PRESETS = [
     '附早餐',
     '附下午茶',
@@ -4456,7 +4481,9 @@ function syncIncludedItemsEditor() {
 // 載入房型列表
 async function loadRoomTypes() {
     try {
-        const roomTypesResponse = await adminFetch('/api/admin/room-types');
+        // 後台可依館別篩選；預設為預設館（id=1）
+        const bid = Number(selectedBuildingIdForRoomTypes) || 1;
+        const roomTypesResponse = await adminFetch(`/api/admin/room-types?buildingId=${encodeURIComponent(String(bid))}`);
         const result = await roomTypesResponse.json();
         
         if (result.success) {
@@ -4469,6 +4496,191 @@ async function loadRoomTypes() {
         console.error('載入房型列表錯誤:', error);
         showError('載入房型列表時發生錯誤：' + error.message);
     }
+}
+
+// ==================== 館別管理（buildings） ====================
+
+async function loadBuildings(options = {}) {
+    const { silent = false } = options;
+    try {
+        const res = await adminFetch('/api/admin/buildings');
+        const j = await res.json();
+        if (!j.success) {
+            if (!silent) showError('載入館別失敗：' + (j.message || '未知錯誤'));
+            return;
+        }
+        allBuildings = Array.isArray(j.data) ? j.data : [];
+        renderBuildingsTable();
+        syncRoomTypesBuildingSelect();
+    } catch (err) {
+        console.error('載入館別錯誤:', err);
+        if (!silent) showError('載入館別時發生錯誤：' + err.message);
+    }
+}
+
+function renderBuildingsTable() {
+    const tbody = document.getElementById('buildingsTableBody');
+    if (!tbody) return;
+
+    if (!allBuildings || allBuildings.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="loading">尚無館別資料</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = allBuildings.map((b) => {
+        const isActive = Number(b.is_active) !== 0;
+        const canEdit = hasPermission('room_types.edit');
+        const canDelete = hasPermission('room_types.edit') && Number(b.id) !== 1;
+        return `
+            <tr ${!isActive ? 'style="opacity: 0.6; background: #f8f8f8;"' : ''}>
+                <td>${Number(b.display_order) || 0}</td>
+                <td><code>${escapeHtml(String(b.code || ''))}</code></td>
+                <td>${escapeHtml(String(b.name || ''))}${Number(b.id) === 1 ? ' <small style="color:#888;">（預設館）</small>' : ''}</td>
+                <td>
+                    <span class="status-badge ${isActive ? 'status-sent' : 'status-unsent'}">
+                        ${isActive ? '啟用' : '停用'}
+                    </span>
+                </td>
+                <td>
+                    <div class="action-buttons">
+                        ${canEdit ? `<button class="btn-edit" onclick="showBuildingModal(${Number(b.id)})">編輯</button>` : ''}
+                        ${canDelete ? `<button class="btn-cancel" onclick="deleteBuilding(${Number(b.id)})">刪除</button>` : ''}
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function syncRoomTypesBuildingSelect() {
+    const wrap = document.getElementById('roomTypesBuildingFilter');
+    const sel = document.getElementById('roomTypesBuildingSelect');
+    if (!wrap || !sel) return;
+
+    wrap.style.display = 'inline-flex';
+
+    // 只在「房型管理」分頁顯示（假日分頁會在 switchRoomTypeTab 隱藏）
+    const saved = parseInt(localStorage.getItem('roomTypesBuildingId') || '1', 10);
+    selectedBuildingIdForRoomTypes = Number.isFinite(saved) && saved > 0 ? saved : 1;
+
+    const opts = (allBuildings && allBuildings.length > 0) ? allBuildings : [{ id: 1, name: '預設館', code: 'default', is_active: 1, display_order: 0 }];
+    sel.innerHTML = opts
+        .filter((b) => Number(b.is_active) !== 0 || Number(b.id) === selectedBuildingIdForRoomTypes)
+        .map((b) => `<option value="${Number(b.id)}" ${Number(b.id) === Number(selectedBuildingIdForRoomTypes) ? 'selected' : ''}>${escapeHtml(String(b.name || ''))}</option>`)
+        .join('');
+}
+
+function showBuildingModal(buildingId) {
+    const modal = document.getElementById('bookingModal');
+    const modalBody = document.getElementById('modalBody');
+    if (!modal || !modalBody) return;
+
+    const isEdit = buildingId !== null && buildingId !== undefined;
+    const b = isEdit ? allBuildings.find((x) => Number(x.id) === Number(buildingId)) : null;
+    if (isEdit && !b) {
+        showError('找不到該館別');
+        return;
+    }
+
+    const code = isEdit ? String(b.code || '') : '';
+    const name = isEdit ? String(b.name || '') : '';
+    const order = isEdit ? (Number(b.display_order) || 0) : 0;
+    const inactive = isEdit ? (Number(b.is_active) === 0) : false;
+    const isDefault = isEdit && Number(b.id) === 1;
+
+    modalBody.innerHTML = `
+        <form id="buildingForm" onsubmit="saveBuildingFromModal(event, ${isEdit ? Number(b.id) : 'null'})">
+            <div class="form-group">
+                <label>館別代碼（英文/數字/底線）</label>
+                <input type="text" name="code" value="${escapeHtml(code)}" ${isDefault ? 'readonly' : ''} required>
+                <small>${isDefault ? '預設館代碼固定為 default' : '建議如：bao_xi、song_lin'}</small>
+            </div>
+            <div class="form-group">
+                <label>館別名稱</label>
+                <input type="text" name="name" value="${escapeHtml(name)}" required>
+            </div>
+            <div class="form-group">
+                <label>排序</label>
+                <input type="number" name="display_order" value="${escapeHtml(String(order))}" min="0" step="1">
+            </div>
+            <div class="form-group">
+                <label>狀態</label>
+                <select name="is_active" required>
+                    <option value="1" ${!inactive ? 'selected' : ''}>啟用</option>
+                    <option value="0" ${inactive ? 'selected' : ''}>停用</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn-save">儲存</button>
+                <button type="button" class="btn-cancel" onclick="closeModal()">取消</button>
+            </div>
+        </form>
+    `;
+    modal.classList.add('active');
+}
+
+async function saveBuildingFromModal(event, id) {
+    event.preventDefault();
+    const fd = new FormData(event.target);
+    const code = String(fd.get('code') || '').trim();
+    const name = String(fd.get('name') || '').trim();
+    const display_order = parseInt(String(fd.get('display_order') || '0'), 10) || 0;
+    const is_active = String(fd.get('is_active') || '1').trim() === '0' ? 0 : 1;
+
+    if (!code || !name) {
+        showError('請填寫館別代碼與名稱');
+        return;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(code)) {
+        showError('館別代碼僅允許英數與底線（_）');
+        return;
+    }
+
+    const payload = { code, name, display_order, is_active };
+    try {
+        const url = id ? `/api/admin/buildings/${encodeURIComponent(String(id))}` : '/api/admin/buildings';
+        const method = id ? 'PUT' : 'POST';
+        const res = await adminFetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const j = await res.json();
+        if (!j.success) {
+            showError('儲存失敗：' + (j.message || '未知錯誤'));
+            return;
+        }
+        showSuccess(id ? '館別已更新' : '館別已新增');
+        closeModal();
+        await loadBuildings({ silent: true });
+    } catch (err) {
+        console.error('儲存館別錯誤:', err);
+        showError('儲存失敗：' + err.message);
+    }
+}
+
+async function deleteBuilding(id) {
+    if (!confirm('確定要刪除此館別嗎？（若仍有房型，系統會阻擋刪除）')) return;
+    try {
+        const res = await adminFetch(`/api/admin/buildings/${encodeURIComponent(String(id))}`, { method: 'DELETE' });
+        const j = await res.json();
+        if (!j.success) {
+            showError('刪除失敗：' + (j.message || '未知錯誤'));
+            return;
+        }
+        showSuccess('館別已刪除');
+        await loadBuildings({ silent: true });
+    } catch (err) {
+        console.error('刪除館別錯誤:', err);
+        showError('刪除失敗：' + err.message);
+    }
+}
+
+function onRoomTypesBuildingChange(buildingId) {
+    const bid = parseInt(String(buildingId || '').trim(), 10);
+    selectedBuildingIdForRoomTypes = Number.isFinite(bid) && bid > 0 ? bid : 1;
+    localStorage.setItem('roomTypesBuildingId', String(selectedBuildingIdForRoomTypes));
+    loadRoomTypes();
 }
 
 // 渲染房型列表
@@ -4548,8 +4760,20 @@ function showRoomTypeModal(room) {
     `).join('');
     const includedCustomValue = includedConfig.custom.join(', ');
     
+    const buildingOptions = (allBuildings && allBuildings.length > 0 ? allBuildings : [{ id: 1, name: '預設館', code: 'default', is_active: 1 }])
+        .filter((b) => Number(b.is_active) !== 0 || (isEdit && Number(room.building_id) === Number(b.id)))
+        .map((b) => `<option value="${Number(b.id)}" ${(isEdit ? Number(room.building_id) : Number(selectedBuildingIdForRoomTypes)) === Number(b.id) ? 'selected' : ''}>${escapeHtml(String(b.name || ''))}</option>`)
+        .join('');
+
     modalBody.innerHTML = `
         <form id="roomTypeForm" onsubmit="saveRoomType(event, ${isEdit ? room.id : 'null'})">
+            <div class="form-group">
+                <label>館別</label>
+                <select name="building_id" required>
+                    ${buildingOptions}
+                </select>
+                <small>目前前台訂房仍固定使用「預設館」的房型；新增其他館別不會影響既有流程</small>
+            </div>
             <div class="form-group">
                 <label>房型代碼（英文）</label>
                 <input type="text" name="name" value="${isEdit ? escapeHtml(room.name) : ''}" required ${isEdit ? 'readonly' : ''}>
@@ -4857,6 +5081,7 @@ async function saveRoomType(event, id) {
 
     const editingRoom = id ? allRoomTypes.find(r => Number(r.id) === Number(id)) : null;
     const data = {
+        building_id: parseInt(String(formData.get('building_id') || selectedBuildingIdForRoomTypes || 1), 10) || 1,
         name: formData.get('name'),
         display_name: formData.get('display_name'),
         price: basePrice,

@@ -4276,6 +4276,55 @@ async function handleDeleteBooking(req, res) {
 
 // ==================== 房型管理 API ====================
 
+// ==================== 館別管理 API ====================
+
+app.get('/api/admin/buildings', requireAuth, checkPermission('room_types.view'), adminLimiter, async (req, res) => {
+    try {
+        const buildings = await db.getAllBuildingsAdmin();
+        res.json({ success: true, data: buildings || [] });
+    } catch (error) {
+        console.error('取得館別列表錯誤:', error.message);
+        res.status(500).json({ success: false, message: '取得館別列表失敗: ' + error.message });
+    }
+});
+
+app.post('/api/admin/buildings', requireAuth, checkPermission('room_types.edit'), adminLimiter, async (req, res) => {
+    try {
+        const id = await db.createBuilding(req.body || {});
+        res.json({ success: true, message: '館別已新增', data: { id } });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message || '新增館別失敗' });
+    }
+});
+
+app.put('/api/admin/buildings/:id', requireAuth, checkPermission('room_types.edit'), adminLimiter, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const changes = await db.updateBuilding(id, req.body || {});
+        if (changes > 0) {
+            res.json({ success: true, message: '館別已更新' });
+        } else {
+            res.status(404).json({ success: false, message: '找不到該館別' });
+        }
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message || '更新館別失敗' });
+    }
+});
+
+app.delete('/api/admin/buildings/:id', requireAuth, checkPermission('room_types.edit'), adminLimiter, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const changes = await db.deleteBuilding(id);
+        if (changes > 0) {
+            res.json({ success: true, message: '館別已刪除' });
+        } else {
+            res.status(404).json({ success: false, message: '找不到該館別' });
+        }
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message || '刪除館別失敗' });
+    }
+});
+
 // API: 取得所有房型（公開，供前台使用）
 app.get('/api/room-types', publicLimiter, async (req, res) => {
     try {
@@ -4370,7 +4419,8 @@ app.get('/api/room-availability', publicLimiter, async (req, res) => {
 app.get('/api/admin/room-types', requireAuth, checkPermission('room_types.view'), adminLimiter, async (req, res) => {
     try {
         // 使用資料庫抽象層，支援 PostgreSQL 和 SQLite
-        const roomTypes = await db.getAllRoomTypesAdmin();
+        const buildingId = req.query.buildingId;
+        const roomTypes = await db.getAllRoomTypesAdmin(buildingId);
         res.json({
             success: true,
             data: roomTypes

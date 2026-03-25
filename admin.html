@@ -79,6 +79,10 @@
                     <span class="nav-icon"><span class="material-symbols-outlined">king_bed</span></span>
                     <span>房型管理</span>
                 </a>
+                <a href="#buildings" class="nav-item permission-required" data-section="buildings" data-permission="room_types.view" onclick="handleNavClick(event, 'buildings')">
+                    <span class="nav-icon"><span class="material-symbols-outlined">apartment</span></span>
+                    <span>館別管理</span>
+                </a>
                 <a href="#addons" class="nav-item permission-required" data-section="addons" data-permission="addons.view" onclick="handleNavClick(event, 'addons')">
                     <span class="nav-icon"><span class="material-symbols-outlined">add_shopping_cart</span></span>
                     <span>加購商品</span>
@@ -589,6 +593,10 @@
                         <button class="btn-primary permission-required" id="addRoomTypeBtn" data-permission="room_types.create" onclick="showAddRoomTypeModal()">
                             <span class="material-symbols-outlined">add</span> 新增房型
                         </button>
+                        <div id="roomTypesBuildingFilter" style="display:none; align-items:center; gap:10px; margin-right: 10px;">
+                            <label style="margin:0; color:#666; font-size: 13px; white-space: nowrap;">館別</label>
+                            <select id="roomTypesBuildingSelect" style="min-width: 180px; padding: 8px; border: 1px solid #ddd; border-radius: 8px;" onchange="onRoomTypesBuildingChange(this.value)"></select>
+                        </div>
                         <button class="btn-refresh" id="roomTypeRefreshBtn" onclick="loadRoomTypes()" style="display: none;">
                             <span class="material-symbols-outlined">refresh</span> 重新整理
                         </button>
@@ -723,6 +731,40 @@
                         </div>
                     </div>
                 </div>
+            </section>
+
+            <!-- 館別管理區 -->
+            <section id="buildings-section" class="content-section">
+                <div class="section-header">
+                    <h2><span class="material-symbols-outlined" style="font-size: 28px; vertical-align: middle; margin-right: 8px;">apartment</span> 館別管理</h2>
+                    <div class="header-actions">
+                        <button class="btn-primary permission-required" data-permission="room_types.edit" onclick="showBuildingModal(null)">
+                            <span class="material-symbols-outlined">add</span> 新增館別
+                        </button>
+                        <button class="btn-refresh" onclick="loadBuildings()">
+                            <span class="material-symbols-outlined">refresh</span> 重新整理
+                        </button>
+                    </div>
+                </div>
+                <div class="room-types-container">
+                    <table class="bookings-table">
+                        <thead>
+                            <tr>
+                                <th>排序</th>
+                                <th>館別代碼</th>
+                                <th>館別名稱</th>
+                                <th>狀態</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="buildingsTableBody">
+                            <tr><td colspan="5" class="loading">載入中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p style="color:#666; font-size:13px; margin-top:12px;">
+                    提示：目前前台訂房仍固定使用「預設館」的房型；新增其他館別不會影響既有流程。
+                </p>
             </section>
 
             <!-- 加購商品管理區 -->
