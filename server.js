@@ -4325,6 +4325,16 @@ app.delete('/api/admin/buildings/:id', requireAuth, checkPermission('room_types.
     }
 });
 
+// Debug: 房型館別分佈（僅後台登入可用）
+app.get('/api/admin/debug/room-types-building-stats', requireAuth, checkPermission('room_types.view'), adminLimiter, async (req, res) => {
+    try {
+        const stats = await db.getRoomTypesBuildingStatsAdmin();
+        res.json({ success: true, data: stats });
+    } catch (error) {
+        res.status(500).json({ success: false, message: '取得統計失敗: ' + error.message });
+    }
+});
+
 // API: 取得所有房型（公開，供前台使用）
 app.get('/api/room-types', publicLimiter, async (req, res) => {
     try {

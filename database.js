@@ -5357,6 +5357,34 @@ async function deleteBuilding(id) {
     }
 }
 
+async function getRoomTypesBuildingStatsAdmin() {
+    try {
+        const totalSql = `SELECT COUNT(*) as cnt FROM room_types`;
+        const totalRow = await queryOne(totalSql, []);
+        const total = parseInt(totalRow?.cnt || totalRow?.count || 0, 10);
+
+        const groupSql = usePostgreSQL
+            ? `SELECT building_id, COUNT(*)::bigint as cnt FROM room_types GROUP BY building_id ORDER BY building_id NULLS FIRST`
+            : `SELECT building_id, COUNT(*) as cnt FROM room_types GROUP BY building_id ORDER BY building_id`;
+        const groupRes = await query(groupSql, []);
+        const groups = (groupRes.rows || []).map((r) => ({
+            building_id: r.building_id === undefined ? null : r.building_id,
+            cnt: parseInt(r.cnt || r.count || 0, 10)
+        }));
+
+        const sampleSql = usePostgreSQL
+            ? `SELECT id, name, display_name, building_id, is_active FROM room_types ORDER BY id ASC LIMIT 10`
+            : `SELECT id, name, display_name, building_id, is_active FROM room_types ORDER BY id ASC LIMIT 10`;
+        const sampleRes = await query(sampleSql, []);
+        const samples = sampleRes.rows || [];
+
+        return { total, groups, samples };
+    } catch (error) {
+        console.error('❌ 查詢房型館別分佈失敗:', error.message);
+        throw error;
+    }
+}
+
 // 取得所有房型（只包含啟用的，供前台使用）
 async function getAllRoomTypes() {
     try {
@@ -7287,6 +7315,7 @@ module.exports = {
     createBuilding,
     updateBuilding,
     deleteBuilding,
+    getRoomTypesBuildingStatsAdmin,
     getAllRoomTypes,
     getAllRoomTypesAdmin,
     getRoomTypeById,
