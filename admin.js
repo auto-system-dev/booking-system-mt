@@ -2957,7 +2957,9 @@ async function viewCustomerDetails(email) {
 function renderBookings() {
     const tbody = document.getElementById('bookingsTableBody');
     const buildingHead = document.getElementById('bookingBuildingColHead');
-    const hasMultipleBuildings = Array.isArray(allBuildings) && allBuildings.length > 1;
+    // 顯示邏輯需與「訂房記錄館別下拉」一致：只看啟用中的館別數量
+    const activeBuildings = Array.isArray(allBuildings) ? allBuildings.filter((b) => Number(b?.is_active) !== 0) : [];
+    const hasMultipleBuildings = activeBuildings.length > 1;
     if (buildingHead) buildingHead.style.display = hasMultipleBuildings ? '' : 'none';
     
     if (filteredBookings.length === 0) {
