@@ -115,6 +115,16 @@ body {
 #buildingSection select {
     width: 100%;
     max-width: 280px;
+    padding: 12px 16px;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    font-size: 16px;
+    font-family: inherit;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    color: #2C8EC4;
+    font-weight: 600;
+    background: #fff;
 }
 
 @media (max-width: 520px) {
@@ -128,7 +138,15 @@ body {
     }
     #buildingSection select {
         max-width: none;
+        font-size: 14px;
+        padding: 10px 12px;
     }
+}
+
+#buildingSection select:focus {
+    outline: none;
+    border-color: #2C8EC4;
+    box-shadow: 0 0 0 3px rgba(44, 142, 196, 0.1);
 }
 
 .form-section:last-of-type {
