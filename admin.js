@@ -4503,7 +4503,12 @@ async function loadRoomTypes() {
         const result = await roomTypesResponse.json();
         
         if (result.success) {
-            allRoomTypes = result.data || [];
+            // 兼容：部分環境可能回傳 data.rows / data.data
+            const raw = result.data;
+            const normalized = Array.isArray(raw)
+                ? raw
+                : (Array.isArray(raw?.rows) ? raw.rows : (Array.isArray(raw?.data) ? raw.data : []));
+            allRoomTypes = normalized;
             renderRoomTypes();
         } else {
             showError('載入房型列表失敗：' + (result.message || '未知錯誤'));
