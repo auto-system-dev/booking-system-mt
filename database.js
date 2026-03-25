@@ -404,6 +404,21 @@ async function initPostgreSQL() {
                 console.warn('⚠️  回填 room_types.building_id 失敗:', err.message);
             }
 
+            // 調整唯一性：room_types.name 不需全站唯一，改為同館別內唯一（building_id + name）
+            // 避免多館別時相同房型代碼（例如 standard）衝突
+            try {
+                // 若原本存在 name 的 UNIQUE constraint（常見名稱：room_types_name_key），嘗試移除
+                await query(`ALTER TABLE room_types DROP CONSTRAINT IF EXISTS room_types_name_key`);
+            } catch (err) {
+                // 不阻斷：有些環境 constraint 名稱不同或已移除
+            }
+            try {
+                // 再用索引確保唯一性（避免 constraint 名稱不一致的問題）
+                await query(`CREATE UNIQUE INDEX IF NOT EXISTS room_types_building_id_name_key ON room_types (building_id, name)`);
+            } catch (err) {
+                console.warn('⚠️  建立 room_types(building_id,name) 唯一索引失敗:', err.message);
+            }
+
             // 盡量加上 FK（若已存在或權限不足則略過）
             try {
                 await query(`

@@ -5181,7 +5181,11 @@ async function saveRoomType(event, id) {
             closeModal();
             await loadRoomTypes();
         } else {
-            showError('儲存失敗：' + (result.message || '請稍後再試'));
+            const msg = String(result.message || '').trim();
+            const friendly = msg.includes('duplicate') || msg.includes('unique')
+                ? '儲存失敗：同一館別內「房型代碼」不可重複，請更換房型代碼或切換館別。'
+                : ('儲存失敗：' + (msg || '請稍後再試'));
+            showError(friendly);
         }
     } catch (error) {
         console.error('Error:', error);
