@@ -22,6 +22,19 @@ body {
     display: none !important;
 }
 
+/* 螢幕閱讀器專用（不影響版面） */
+.sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
 .container {
     width: 100%;
     max-width: 800px;
@@ -84,16 +97,38 @@ body {
 }
 
 #buildingSection .section-title {
-    margin-bottom: 12px;
+    margin-bottom: 0;
 }
 
-#buildingSection .form-group {
-    margin-bottom: 0;
-    max-width: 260px;
+#buildingSection .building-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+#buildingSection .building-toolbar-control {
+    flex: 0 0 auto;
+    min-width: 220px;
 }
 
 #buildingSection select {
     width: 100%;
+    max-width: 280px;
+}
+
+@media (max-width: 520px) {
+    #buildingSection .building-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+    #buildingSection .building-toolbar-control {
+        width: 100%;
+        min-width: 0;
+    }
+    #buildingSection select {
+        max-width: none;
+    }
 }
 
 .form-section:last-of-type {

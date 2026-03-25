@@ -109,10 +109,15 @@
 
                 <!-- 館別選擇區（多館別才顯示） -->
                 <div class="form-section hidden" id="buildingSection">
-                    <h2 class="section-title"><span class="material-symbols-outlined">apartment</span> 選擇館別</h2>
-                    <div class="form-group">
-                        <label for="buildingSelect">館別</label>
-                        <select id="buildingSelect" name="buildingId"></select>
+                    <div class="building-toolbar">
+                        <h2 class="section-title">
+                            <span class="material-symbols-outlined">apartment</span>
+                            選擇館別
+                        </h2>
+                        <div class="building-toolbar-control">
+                            <label class="sr-only" for="buildingSelect">館別</label>
+                            <select id="buildingSelect" name="buildingId" aria-label="館別"></select>
+                        </div>
                     </div>
                 </div>
 
