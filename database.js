@@ -5169,22 +5169,21 @@ async function getAllCustomers() {
             customer_stats AS (
                 SELECT 
                     guest_email,
-                    COUNT(*) as booking_count,
-                    SUM(final_amount) as total_spent,
+                    COUNT(*) FILTER (WHERE COALESCE(status, '') != 'cancelled')::bigint as booking_count,
+                    COALESCE(SUM(CASE WHEN payment_status = 'paid' AND COALESCE(status, '') != 'cancelled' THEN final_amount ELSE 0 END), 0)::bigint as total_spent,
                     MAX(created_at) as last_booking_date
                 FROM bookings
-                WHERE payment_status = 'paid' AND status = 'active'
                 GROUP BY guest_email
             )
             SELECT 
                 lci.guest_email,
                 lci.guest_name,
                 lci.guest_phone,
-                cs.booking_count,
-                cs.total_spent,
+                COALESCE(cs.booking_count, 0) as booking_count,
+                COALESCE(cs.total_spent, 0) as total_spent,
                 cs.last_booking_date
             FROM latest_customer_info lci
-            JOIN customer_stats cs ON lci.guest_email = cs.guest_email
+            LEFT JOIN customer_stats cs ON lci.guest_email = cs.guest_email
             ORDER BY cs.last_booking_date DESC`
             : `SELECT 
                 b1.guest_email,
@@ -5194,12 +5193,10 @@ async function getAllCustomers() {
                 (SELECT b2.guest_phone FROM bookings b2 
                  WHERE b2.guest_email = b1.guest_email 
                  ORDER BY b2.created_at DESC LIMIT 1) as guest_phone,
-                COUNT(*) as booking_count,
-                SUM(b1.final_amount) as total_spent,
+                SUM(CASE WHEN COALESCE(b1.status, '') != 'cancelled' THEN 1 ELSE 0 END) as booking_count,
+                SUM(CASE WHEN b1.payment_status = 'paid' AND COALESCE(b1.status, '') != 'cancelled' THEN b1.final_amount ELSE 0 END) as total_spent,
                 MAX(b1.created_at) as last_booking_date
             FROM bookings b1
-            WHERE b1.payment_status = 'paid'
-              AND b1.status = 'active'
             GROUP BY b1.guest_email
             ORDER BY last_booking_date DESC`;
         
