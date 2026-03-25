@@ -77,6 +77,25 @@ body {
     border-bottom: 1px solid #e0e0e0;
 }
 
+/* 館別選擇：避免出現大塊留白，改為緊湊版面 */
+#buildingSection.form-section {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+}
+
+#buildingSection .section-title {
+    margin-bottom: 12px;
+}
+
+#buildingSection .form-group {
+    margin-bottom: 0;
+    max-width: 260px;
+}
+
+#buildingSection select {
+    width: 100%;
+}
+
 .form-section:last-of-type {
     border-bottom: none;
 }
