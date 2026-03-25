@@ -5565,6 +5565,23 @@ async function getActiveBuildingsPublic() {
     }
 }
 
+async function getBuildingById(id) {
+    try {
+        const buildingId = Number(id);
+        if (!Number.isFinite(buildingId) || buildingId <= 0) return null;
+
+        const sql = usePostgreSQL
+            ? `SELECT id, code, name, display_order, is_active FROM buildings WHERE id = $1`
+            : `SELECT id, code, name, display_order, is_active FROM buildings WHERE id = ?`;
+        const result = await query(sql, [buildingId]);
+        const row = (result.rows || [])[0];
+        return row || null;
+    } catch (error) {
+        console.error('❌ 查詢館別（by id）失敗:', error.message);
+        throw error;
+    }
+}
+
 async function createBuilding(building) {
     try {
         const code = String(building.code || '').trim();
@@ -7772,6 +7789,7 @@ module.exports = {
     // 館別管理
     getAllBuildingsAdmin,
     getActiveBuildingsPublic,
+    getBuildingById,
     createBuilding,
     updateBuilding,
     deleteBuilding,

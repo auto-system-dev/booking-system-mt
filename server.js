@@ -8821,6 +8821,53 @@ function injectSpecialRequestRowForLegacyTemplate(content, specialRequest) {
     return content;
 }
 
+function injectBuildingRowForLegacyTemplate(content, buildingName) {
+    const nameText = String(buildingName || '').trim();
+    if (!nameText || !content) return content;
+    if (content.includes('館別')) return content;
+    if (content.includes('{{buildingName}}')) return content;
+
+    const escapedNameText = nameText
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const infoRowHtml = `
+<div class="info-row">
+    <span class="info-label">館別</span>
+    <span class="info-value">${escapedNameText}</span>
+</div>`;
+    const contactRowHtml = `
+<div class="contact-row">
+    <span class="contact-label">館別</span>
+    <span class="contact-value">${escapedNameText}</span>
+</div>`;
+
+    const tableRowHtml = `
+<tr>
+    <td style="padding: 8px 0; color: #666;">館別</td>
+    <td style="padding: 8px 0; text-align: right; color: #333;">${escapedNameText}</td>
+</tr>`;
+
+    // 優先插在「訂房編號」後方（常見模板結構）
+    const rowHtml = content.includes('class="contact-row"') ? contactRowHtml : infoRowHtml;
+    const injectedInfoRow = content.replace(
+        /(<span[^>]*class=["'][^"']*(?:info-label|contact-label)[^"']*["'][^>]*>\s*訂房編號\s*<\/span>[\s\S]*?<span[^>]*class=["'][^"']*(?:info-value|contact-value)[^"']*["'][^>]*>[\s\S]*?<\/span>\s*<\/div>)/i,
+        `$1${rowHtml}`
+    );
+    if (injectedInfoRow !== content) return injectedInfoRow;
+
+    const injectedTableRow = content.replace(
+        /(<td[^>]*>\s*訂房編號\s*<\/td>[\s\S]*?<\/tr>)/i,
+        `$1${tableRowHtml}`
+    );
+    if (injectedTableRow !== content) return injectedTableRow;
+
+    return content;
+}
+
 // 替換郵件模板中的變數
 async function replaceTemplateVariables(template, booking, bankInfo = null, additionalData = {}) {
     // 確保模板內容存在（支援多種欄位名稱）
@@ -9448,6 +9495,10 @@ ${htmlEnd}`;
     <span class="info-value"><strong>{{bookingId}}</strong></span>
 </div>
 <div class="info-row">
+    <span class="info-label">館別</span>
+    <span class="info-value">{{buildingName}}</span>
+</div>
+<div class="info-row">
     <span class="info-label">入住日期</span>
     <span class="info-value">{{checkInDate}}</span>
 </div>
@@ -9471,10 +9522,24 @@ ${htmlEnd}`;
     const showNotes = !isCheckinReminder || checkinBlockSettings.notes?.enabled !== false;
     const showContact = !isCheckinReminder || checkinBlockSettings.contact?.enabled !== false;
     
+    const rawBuildingId = booking.building_id ?? booking.buildingId ?? null;
+    let buildingName = '';
+    try {
+        if (rawBuildingId) {
+            const building = await db.getBuildingById(rawBuildingId);
+            buildingName = String(building?.name || building?.code || '').trim();
+        }
+    } catch (e) {
+        // 若查詢館別失敗，仍可正常寄信（退回預設顯示）
+        buildingName = '';
+    }
+    if (!buildingName) buildingName = '預設館';
+
     const variables = {
         '{{guestName}}': guestName,
         '{{bookingId}}': bookingId,
         '{{bookingIdLast5}}': bookingIdLast5,
+        '{{buildingName}}': buildingName,
         '{{checkInDate}}': checkInDate,
         '{{checkOutDate}}': checkOutDate,
         '{{roomType}}': roomType,
@@ -9752,6 +9817,9 @@ ${htmlEnd}`;
     if (templateKey === 'booking_confirmation_admin') {
         content = injectSpecialRequestRowForLegacyTemplate(content, specialRequest);
     }
+
+    // 相容舊模板：自動插入館別（讓所有訂房相關郵件都能顯示館別）
+    content = injectBuildingRowForLegacyTemplate(content, variables['{{buildingName}}']);
 
     // 確保模板主題存在（支援多種欄位名稱）
     let subject = template.subject || template.template_subject || '';

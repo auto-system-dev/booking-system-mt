@@ -85,6 +85,10 @@ function createEmailFallbackTemplatesService(deps) {
                         <span class="info-value"><strong>${data.bookingId}</strong></span>
                     </div>
                     <div class="info-row">
+                        <span class="info-label">館別</span>
+                        <span class="info-value">${data.buildingName || '預設館'}</span>
+                    </div>
+                    <div class="info-row">
                         <span class="info-label">入住日期</span>
                         <span class="info-value">${new Date(data.checkInDate).toLocaleDateString('zh-TW')}</span>
                     </div>
@@ -224,6 +228,10 @@ function createEmailFallbackTemplatesService(deps) {
                     <div class="info-row">
                         <span class="info-label">訂房編號</span>
                         <span class="info-value"><strong>${booking.booking_id}</strong></span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">館別</span>
+                        <span class="info-value">${booking.building_name || booking.buildingName || '預設館'}</span>
                     </div>
                     <div class="info-row">
                         <span class="info-label">入住日期</span>

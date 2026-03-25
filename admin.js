@@ -2956,9 +2956,12 @@ async function viewCustomerDetails(email) {
 // 渲染訂房記錄
 function renderBookings() {
     const tbody = document.getElementById('bookingsTableBody');
+    const buildingHead = document.getElementById('bookingBuildingColHead');
+    const hasMultipleBuildings = Array.isArray(allBuildings) && allBuildings.length > 1;
+    if (buildingHead) buildingHead.style.display = hasMultipleBuildings ? '' : 'none';
     
     if (filteredBookings.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="12" class="loading">沒有找到訂房記錄</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="${hasMultipleBuildings ? 13 : 12}" class="loading">沒有找到訂房記錄</td></tr>`;
         return;
     }
 
@@ -2966,6 +2969,12 @@ function renderBookings() {
     const start = (currentPage - 1) * itemsPerPage;
     const end = start + itemsPerPage;
     const pageBookings = filteredBookings.slice(start, end);
+
+    const buildingNameById = new Map(
+        (Array.isArray(allBuildings) ? allBuildings : [])
+            .map(b => [String(b.id), String(b.name || b.code || '')])
+            .filter(([id, name]) => id && name)
+    );
 
     tbody.innerHTML = pageBookings.map(booking => {
         const paymentStatus = booking.payment_status || 'pending';
@@ -2986,11 +2995,17 @@ function renderBookings() {
         // 一般管理員不可取消：已付款 + 有效 + 已過入住日期
         const isSuperAdmin = window.currentAdminInfo && window.currentAdminInfo.role === 'super_admin';
         const cannotCancel = !isSuperAdmin && paymentStatus === 'paid' && bookingStatus === 'active' && isPastCheckIn;
+
+        const rawBuildingId = booking.building_id ?? booking.buildingId ?? '';
+        const buildingName =
+            buildingNameById.get(String(rawBuildingId)) ||
+            (rawBuildingId === 1 || rawBuildingId === '1' ? '預設館' : (rawBuildingId ? `館別 #${rawBuildingId}` : '預設館'));
         
         return `
         <tr ${isCancelled ? 'style="opacity: 0.6; background: #f8f8f8;"' : ''}>
             <td>${booking.booking_id}</td>
             <td>${booking.guest_name}</td>
+            ${hasMultipleBuildings ? `<td class="booking-building-col">${escapeHtml(buildingName)}</td>` : ''}
             <td>${booking.room_type}</td>
             <td>${(booking.adults || 0)}大${(booking.children || 0)}小</td>
             <td>${formatDate(booking.check_in_date)}</td>
