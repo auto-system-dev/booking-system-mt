@@ -4585,10 +4585,21 @@ function syncRoomTypesBuildingSelect() {
     selectedBuildingIdForRoomTypes = Number.isFinite(saved) && saved > 0 ? saved : 1;
 
     const opts = (allBuildings && allBuildings.length > 0) ? allBuildings : [{ id: 1, name: '預設館', code: 'default', is_active: 1, display_order: 0 }];
-    sel.innerHTML = opts
-        .filter((b) => Number(b.is_active) !== 0 || Number(b.id) === selectedBuildingIdForRoomTypes)
+    const visibleOpts = opts.filter((b) => Number(b.is_active) !== 0 || Number(b.id) === selectedBuildingIdForRoomTypes);
+
+    // 若 localStorage 記住的館別不存在/不可見，瀏覽器會顯示第一個選項但 JS 仍用舊值查詢，導致列表看起來空白
+    const hasSelected = visibleOpts.some((b) => Number(b.id) === Number(selectedBuildingIdForRoomTypes));
+    if (!hasSelected) {
+        selectedBuildingIdForRoomTypes = 1;
+        localStorage.setItem('roomTypesBuildingId', '1');
+    }
+
+    sel.innerHTML = visibleOpts
         .map((b) => `<option value="${Number(b.id)}" ${Number(b.id) === Number(selectedBuildingIdForRoomTypes) ? 'selected' : ''}>${escapeHtml(String(b.name || ''))}</option>`)
         .join('');
+
+    // 強制同步 select 實際值，避免顯示與查詢不一致
+    sel.value = String(selectedBuildingIdForRoomTypes);
 }
 
 function showBuildingModal(buildingId) {
