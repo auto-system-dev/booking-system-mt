@@ -12709,6 +12709,7 @@ async function loadLandingRoomTypes(landingData) {
 
     try {
         syncLandingRoomsBuildingSelect();
+        const bid = getSelectedBuildingIdForLandingRooms();
         const response = await adminFetch('/api/admin/room-types');
         const result = await response.json();
 
