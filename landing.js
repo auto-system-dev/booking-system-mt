@@ -706,7 +706,7 @@ function renderRoomCards(cfg) {
                             <span class="price-current">NT$ ${price.toLocaleString()}</span>
                             ${originalPrice > 0 ? `<span class="price-old">NT$ ${originalPrice.toLocaleString()}</span>` : ''}
                         </div>
-                        <a href="${bookingUrl}" class="room-book-btn" onclick="event.stopPropagation(); trackBookingClick();">預訂</a>
+                        <a href="${bookingUrl}" class="room-book-btn" onclick="trackBookingClick();">預訂</a>
                     </div>
                 </div>
             </div>
@@ -1173,19 +1173,35 @@ function appendQueryParam(url, key, value) {
 
 function updateBookingLinks() {
     const bookingUrl = getLandingBookingUrl();
+    let base;
+    try {
+        base = new URL(bookingUrl, window.location.origin);
+    } catch (_) {
+        base = null;
+    }
     document.querySelectorAll('a').forEach((link) => {
         const href = link.getAttribute('href');
         if (!href) return;
-        if (href === '/booking' || href.startsWith('/booking?')) {
-            link.href = bookingUrl;
-            return;
-        }
-        // 相容絕對網址（例如分享/追蹤工具可能寫完整 URL）
         try {
             const u = new URL(href, window.location.origin);
-            if (u.pathname === '/booking') {
-                link.href = bookingUrl;
+            if (u.pathname !== '/booking') return;
+
+            // 合併：保留 link 自己的參數（例如 roomTypeId），同時補上 buildingId / utm 參數
+            if (base) {
+                base.searchParams.forEach((v, k) => {
+                    if (!u.searchParams.has(k) || !u.searchParams.get(k)) {
+                        u.searchParams.set(k, v);
+                    }
+                });
+            } else {
+                // fallback：至少補上 buildingId
+                const bid = getLandingSelectedBuildingId();
+                if (bid && !u.searchParams.has('buildingId')) {
+                    u.searchParams.set('buildingId', String(bid));
+                }
             }
+
+            link.href = u.pathname + (u.search ? u.search : '');
         } catch (_) {}
     });
 }

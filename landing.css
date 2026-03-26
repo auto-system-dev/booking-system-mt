@@ -563,22 +563,28 @@ section {
 }
 
 .rooms-subtitle-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: center;
     gap: 14px;
-    flex-wrap: wrap;
     margin-top: 6px;
 }
 
 .rooms-subtitle-row .section-subtitle {
     margin: 0;
+    justify-self: center;
+    text-align: center;
+}
+
+.rooms-subtitle-spacer {
+    min-height: 1px;
 }
 
 .rooms-building-switch {
     display: flex;
     justify-content: center;
     margin: 0;
+    justify-self: end;
 }
 
 .rooms-building-switch-inner {
@@ -625,9 +631,12 @@ section {
 
 @media (max-width: 767px) {
     .rooms-subtitle-row {
-        flex-direction: column;
-        align-items: center;
+        grid-template-columns: 1fr;
+        justify-items: center;
         gap: 10px;
+    }
+    .rooms-building-switch {
+        justify-self: center;
     }
 }
 
