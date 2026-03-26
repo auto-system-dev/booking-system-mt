@@ -12059,22 +12059,6 @@ async function loadLandingSettings() {
 const LANDING_ROOMS_BUILDING_STORAGE_KEY = 'landingRoomsBuildingId_v1';
 let selectedBuildingIdForLandingRooms = 1;
 
-// 銷售頁房型卡片不會顯示的「旅宿層級」設施（避免後台勾了卻前台看不到）
-const LANDING_ROOM_FEATURE_EXCLUDED = new Set([
-    '客廳空間', '小廚房', '和室空間', 'Mini Bar', '兒童遊戲區', '餐廳空間', '庭院',
-    '飲水機', '自動販賣機', '電動車充電設備', '洗衣機', '微波爐',
-    '免費早餐', '免費停車', '寵物友善', '保險箱', '行李寄放', '嬰兒床', '嬰兒澡盆', '電梯', '燒烤設備', '卡拉OK', '麻將桌', '電動麻將桌', '桌遊', '廚房用具', '無障礙設施', '機場接送'
-]);
-
-function filterLandingRoomFeaturesValue(rawValue) {
-    const parts = String(rawValue || '')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean)
-        .filter(name => !LANDING_ROOM_FEATURE_EXCLUDED.has(name));
-    return parts.join(',');
-}
-
 function getSelectedBuildingIdForLandingRooms() {
     try {
         const raw = localStorage.getItem(LANDING_ROOMS_BUILDING_STORAGE_KEY);
@@ -12738,7 +12722,6 @@ async function loadLandingRoomTypes(landingData) {
         }
 
         // 只顯示啟用中的房型
-        const bid = getSelectedBuildingIdForLandingRooms();
         const activeRooms = result.data
             .filter(r => r.is_active === 1)
             .filter((r) => {
@@ -12860,30 +12843,14 @@ async function loadLandingRoomTypes(landingData) {
             const badgeKey = `landing_roomtype_${room.id}_badge`;
             // 還原設施
             const hiddenInput = document.getElementById(`landingRoomFeatures_${room.id}`);
-            if (hiddenInput && landingData[featuresKey]) {
-                hiddenInput.value = filterLandingRoomFeaturesValue(landingData[featuresKey]);
+            if (hiddenInput) {
+                hiddenInput.value = String(landingData[featuresKey] || '');
                 restoreFeatureCheckboxes(`landingRoomFeatures_${room.id}`);
             }
             // 還原標籤
             const badgeInput = document.getElementById(`landingRoomBadge_${room.id}`);
-            if (badgeInput && landingData[badgeKey]) {
-                badgeInput.value = landingData[badgeKey];
-            }
-
-            // 隱藏「旅宿層級」設施選項，避免前後台顯示不一致
-            const grid = document.querySelector(`[data-target="landingRoomFeatures_${room.id}"]`);
-            if (grid) {
-                grid.querySelectorAll('label.feature-checkbox > input[type="checkbox"]').forEach((cb) => {
-                    const name = String(cb.value || '').trim();
-                    if (!name) return;
-                    if (LANDING_ROOM_FEATURE_EXCLUDED.has(name)) {
-                        const label = cb.closest('label');
-                        if (label) label.style.display = 'none';
-                        cb.checked = false;
-                    }
-                });
-                // 同步 hidden input，確保被隱藏的項目不會被存回去
-                syncFeatureCheckboxes(grid);
+            if (badgeInput) {
+                badgeInput.value = String(landingData[badgeKey] || '');
             }
         });
 
@@ -12944,7 +12911,7 @@ async function saveLandingRoomFeatures(silent = false) {
             const roomSource = window.landingRoomTypeSourceMap?.[String(roomId)];
             // 設施
             const featuresInput = document.getElementById(`landingRoomFeatures_${roomId}`);
-            const featuresValue = filterLandingRoomFeaturesValue(featuresInput ? featuresInput.value : '');
+            const featuresValue = featuresInput ? featuresInput.value : '';
             requests.push(
                 adminFetch(`/api/admin/settings/landing_roomtype_${roomId}_features`, {
                     method: 'PUT',
@@ -13243,10 +13210,7 @@ function syncFeatureCheckboxes(gridEl) {
     const hiddenInput = document.getElementById(targetId);
     if (!hiddenInput) return;
     const checked = gridEl.querySelectorAll('input[type="checkbox"]:checked');
-    const joined = Array.from(checked).map(cb => cb.value).join(',');
-    hiddenInput.value = targetId && targetId.startsWith('landingRoomFeatures_')
-        ? filterLandingRoomFeaturesValue(joined)
-        : joined;
+    hiddenInput.value = Array.from(checked).map(cb => cb.value).join(',');
     console.log(`✅ syncFeatureCheckboxes → ${targetId}:`, hiddenInput.value);
 }
 
