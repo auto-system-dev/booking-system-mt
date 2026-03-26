@@ -620,10 +620,19 @@ function renderRoomCards(cfg) {
     }
 
     // 使用 API 回傳的 roomTypes（來自房型管理）
-    const roomTypes = cfg._roomTypes || [];
+    const allRoomTypes = cfg._roomTypes || [];
+    const bid = getLandingSelectedBuildingId();
+    const roomTypes = allRoomTypes.filter((rt) => {
+        const raw = rt?.building_id ?? rt?.buildingId ?? 1;
+        const rtBid = raw === null || raw === undefined ? 1 : Number(raw);
+        // 相容舊資料：預設館時也包含 building_id 為 null/0 的房型
+        if (Number(bid) === 1) return rtBid === 1 || rtBid === 0 || Number.isNaN(rtBid);
+        return rtBid === Number(bid);
+    });
 
     if (roomTypes.length === 0) {
         console.log('ℹ️ 無房型資料，使用預設房型卡片');
+        const bookingUrl = getLandingBookingUrl();
         grid.innerHTML = `
             <div class="room-card">
                 <div class="room-image">
@@ -642,7 +651,7 @@ function renderRoomCards(cfg) {
                             <span class="price-current">NT$ 2,800</span>
                             <span class="price-old">NT$ 3,500</span>
                         </div>
-                        <a href="/booking" class="room-book-btn" onclick="trackBookingClick()">預訂</a>
+                        <a href="${bookingUrl}" class="room-book-btn" onclick="trackBookingClick()">預訂</a>
                     </div>
                 </div>
             </div>
@@ -659,6 +668,7 @@ function renderRoomCards(cfg) {
     // 儲存圖庫資料供 lightbox 使用
     window._roomGalleryData = {};
     
+    const bookingUrl = getLandingBookingUrl();
     grid.innerHTML = roomTypes.map(room => {
         const features = cfg[`landing_roomtype_${room.id}_features`] || '';
         const badge = cfg[`landing_roomtype_${room.id}_badge`] || '';
@@ -696,7 +706,7 @@ function renderRoomCards(cfg) {
                             <span class="price-current">NT$ ${price.toLocaleString()}</span>
                             ${originalPrice > 0 ? `<span class="price-old">NT$ ${originalPrice.toLocaleString()}</span>` : ''}
                         </div>
-                        <a href="/booking" class="room-book-btn" onclick="event.stopPropagation(); trackBookingClick();">預訂</a>
+                        <a href="${bookingUrl}" class="room-book-btn" onclick="event.stopPropagation(); trackBookingClick();">預訂</a>
                     </div>
                 </div>
             </div>
@@ -1114,21 +1124,111 @@ function storeUTMParams() {
 }
 
 // ===== 訂房按鈕 URL 處理 =====
-function updateBookingLinks() {
-    const utmParams = getUTMParams();
-    const queryString = new URLSearchParams(utmParams).toString();
-    
-    document.querySelectorAll('a[href="/booking"]').forEach(link => {
-        if (queryString && utmParams.utm_source !== 'direct') {
-            link.href = `/booking?${queryString}`;
+const LANDING_SELECTED_BUILDING_STORAGE_KEY = 'selected_building_id_v1';
+let landingAllBuildings = [];
+let landingSelectedBuildingId = 1;
+
+function getLandingSelectedBuildingId() {
+    try {
+        const raw = localStorage.getItem(LANDING_SELECTED_BUILDING_STORAGE_KEY);
+        const parsed = raw ? parseInt(raw, 10) : NaN;
+        if (Number.isFinite(parsed) && parsed > 0) {
+            landingSelectedBuildingId = parsed;
+            return parsed;
         }
+    } catch (_) {}
+    return landingSelectedBuildingId || 1;
+}
+
+function setLandingSelectedBuildingId(nextId) {
+    const parsed = parseInt(String(nextId ?? ''), 10);
+    const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    landingSelectedBuildingId = safe;
+    try {
+        localStorage.setItem(LANDING_SELECTED_BUILDING_STORAGE_KEY, String(safe));
+    } catch (_) {}
+}
+
+function getLandingBookingUrl() {
+    const utmParams = getUTMParams();
+    const qs = new URLSearchParams(utmParams);
+    const buildingId = getLandingSelectedBuildingId();
+    if (buildingId && Number(buildingId) > 0) {
+        qs.set('buildingId', String(buildingId));
+    }
+    const queryString = qs.toString();
+    return queryString ? `/booking?${queryString}` : '/booking';
+}
+
+function updateBookingLinks() {
+    const bookingUrl = getLandingBookingUrl();
+    document.querySelectorAll('a[href="/booking"], a[href^="/booking?"]').forEach(link => {
+        link.href = bookingUrl;
     });
+}
+
+async function loadLandingBuildings() {
+    try {
+        const res = await fetch('/api/buildings');
+        if (!res.ok) return [];
+        const j = await res.json();
+        if (!j || !j.success) return [];
+        return Array.isArray(j.data) ? j.data : [];
+    } catch (_) {
+        return [];
+    }
+}
+
+function syncLandingBuildingSwitch(cfg) {
+    const wrap = document.getElementById('roomsBuildingSwitch');
+    const selectEl = document.getElementById('roomsBuildingSelect');
+    if (!wrap || !selectEl) return;
+
+    const buildings = Array.isArray(landingAllBuildings)
+        ? landingAllBuildings.filter((b) => Number(b?.is_active ?? 1) !== 0)
+        : [];
+    const show = buildings.length > 1;
+    wrap.style.display = show ? '' : 'none';
+
+    if (!show) {
+        setLandingSelectedBuildingId(1);
+        selectEl.innerHTML = '';
+        return;
+    }
+
+    const current = getLandingSelectedBuildingId();
+    const exists = buildings.some((b) => Number(b?.id) === Number(current));
+    const effective = exists ? current : Number(buildings[0]?.id || 1);
+    setLandingSelectedBuildingId(effective);
+
+    selectEl.innerHTML = buildings
+        .map((b) => {
+            const id = Number(b?.id);
+            const name = String(b?.name || b?.code || `館別 ${id}`);
+            return `<option value="${id}">${escapeHtml(name)}</option>`;
+        })
+        .join('');
+    selectEl.value = String(effective);
+
+    if (!selectEl.dataset.boundChange) {
+        selectEl.addEventListener('change', () => {
+            setLandingSelectedBuildingId(selectEl.value);
+            renderRoomCards(cfg);
+            updateBookingLinks();
+        });
+        selectEl.dataset.boundChange = '1';
+    }
 }
 
 // ===== 初始化 =====
 document.addEventListener('DOMContentLoaded', async () => {
     // 先載入後台設定
     await loadLandingConfig();
+
+    // 載入館別並同步房型展示（只在多館時顯示切換）
+    landingAllBuildings = await loadLandingBuildings();
+    landingSelectedBuildingId = getLandingSelectedBuildingId();
+    syncLandingBuildingSwitch(landingConfig);
     
     // 再初始化各元件
     initCountdown();

@@ -562,6 +562,48 @@ section {
     background: linear-gradient(180deg, var(--bg-cream) 0%, #fff 100%);
 }
 
+.rooms-building-switch {
+    display: flex;
+    justify-content: center;
+    margin: 10px 0 26px;
+}
+
+.rooms-building-switch-inner {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(26, 58, 74, 0.12);
+    box-shadow: 0 12px 24px rgba(26, 58, 74, 0.08);
+    backdrop-filter: blur(6px);
+}
+
+.rooms-building-switch-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #5a6570;
+    letter-spacing: 0.5px;
+}
+
+.rooms-building-switch-select {
+    min-width: 180px;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 999px;
+    border: 1px solid rgba(26, 58, 74, 0.16);
+    background: #fff;
+    color: var(--text-dark);
+    outline: none;
+}
+
+.rooms-building-switch-select:focus {
+    border-color: rgba(44, 142, 196, 0.65);
+    box-shadow: 0 0 0 3px rgba(44, 142, 196, 0.14);
+}
+
 .rooms-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);

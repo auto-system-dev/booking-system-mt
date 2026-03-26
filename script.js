@@ -170,6 +170,17 @@ function initBookingAttribution() {
     return merged;
 }
 
+function applyBuildingIdFromUrl() {
+    try {
+        const urlParams = new URLSearchParams(window.location.search || '');
+        const raw = urlParams.get('buildingId');
+        const parsed = raw ? parseInt(raw, 10) : NaN;
+        if (Number.isFinite(parsed) && parsed > 0) {
+            setSelectedBuildingId(parsed);
+        }
+    } catch (_) {}
+}
+
 function forceRoomCounterButtonsVisibility(fixedRoomCount) {
     // 上方「客房數」控制器永遠顯示 +/-；固定房數只影響房型卡片右下角數量控制器
     return fixedRoomCount;
@@ -1391,6 +1402,7 @@ function changeRoomCount(delta) {
 }
 
 // 頁面載入時執行
+applyBuildingIdFromUrl();
 loadRoomTypesAndSettings();
 
 // 頁面載入後，如果有日期，檢查房間可用性
