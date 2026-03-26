@@ -684,7 +684,7 @@ function renderRoomCards(cfg) {
         const bookingUrl = appendQueryParam(getLandingBookingUrl(), 'roomTypeId', room.id);
         const featureItemsList = getRoomFeatureItemsForLanding(room, cfg);
         const features = featureItemsList.join(',');
-        const badge = cfg[`landing_roomtype_${room.id}_badge`] || '';
+        const badge = String(room.booking_badge || cfg[`landing_roomtype_${room.id}_badge`] || '').trim();
         const featureItems = buildFeatureHTML(features);
         const badgeClass = badgeClassMap[badge] || '';
         const price = room.price || 0;

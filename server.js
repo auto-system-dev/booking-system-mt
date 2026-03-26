@@ -1593,12 +1593,17 @@ async function getLandingPagePayload() {
     landingRoomTypes.forEach(room => {
         const roomTypeId = Number(room.id);
         const featureKey = `landing_roomtype_${roomTypeId}_features`;
+        const badgeKey = `landing_roomtype_${roomTypeId}_badge`;
         const featureText = String(settingsMap[featureKey] || '').trim();
         const featureItems = featureText
             ? featureText.split(',').map((item) => item.trim()).filter(Boolean)
             : [];
         room.bed_types = featureItems.filter((item) => bedTypeKeywords.has(item));
         room.room_facilities = featureItems.filter((item) => !bedTypeKeywords.has(item));
+        const customBadge = String(settingsMap[badgeKey] || '').trim();
+        if (customBadge) {
+            room.booking_badge = customBadge;
+        }
         room.gallery_images = galleryMap[room.id] || [];
     });
 
@@ -4392,12 +4397,14 @@ app.get('/api/room-types', publicLimiter, async (req, res) => {
         const normalizedRoomTypes = (roomTypes || []).map((roomType) => {
             const roomTypeId = Number(roomType.id);
             const featureKey = `landing_roomtype_${roomTypeId}_features`;
+            const badgeKey = `landing_roomtype_${roomTypeId}_badge`;
             const featureText = String(settingsMap[featureKey] || '').trim();
             const featureItems = featureText
                 ? featureText.split(',').map((item) => item.trim()).filter(Boolean)
                 : [];
             const bedTypes = featureItems.filter((item) => bedTypeKeywords.has(item));
             const roomFacilities = featureItems.filter((item) => !bedTypeKeywords.has(item));
+            const customBadge = String(settingsMap[badgeKey] || '').trim();
             const includedItems = String(roomType.included_items || '')
                 .split(/[,，、\n]/)
                 .map((item) => item.trim())
@@ -4408,6 +4415,7 @@ app.get('/api/room-types', publicLimiter, async (req, res) => {
                 ...roomType,
                 bed_types: bedTypes,
                 room_facilities: roomFacilities,
+                booking_badge: customBadge || roomType.booking_badge || '',
                 included_items_list: includedItems,
                 gallery_images: galleryImages
             };
