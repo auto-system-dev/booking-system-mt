@@ -342,6 +342,48 @@ async function initLIFF() {
     }
 }
 
+let _pendingRoomTypeIdFromUrl = null;
+
+function applyRoomTypeIdFromUrl() {
+    try {
+        const urlParams = new URLSearchParams(window.location.search || '');
+        const raw = urlParams.get('roomTypeId');
+        const parsed = raw ? parseInt(raw, 10) : NaN;
+        if (Number.isFinite(parsed) && parsed > 0) {
+            _pendingRoomTypeIdFromUrl = parsed;
+        }
+    } catch (_) {}
+}
+
+function autoSelectRoomTypeIfRequested() {
+    const pendingId = _pendingRoomTypeIdFromUrl;
+    if (!pendingId) return;
+
+    const match = (roomTypes || []).find((rt) => Number(rt?.id) === Number(pendingId));
+    if (!match) return;
+
+    // 清掉 pending，避免重複套用（例如重整或重新載入房型）
+    _pendingRoomTypeIdFromUrl = null;
+
+    // 以 room.name 作為選取 key
+    const roomName = match.name;
+    if (!roomName) return;
+    try {
+        selectRoomTypeByName(null, roomName);
+    } catch (e) {
+        console.warn('自動選取房型失敗:', e?.message || e);
+        return;
+    }
+
+    // 視覺上把選取結果帶到使用者視線
+    try {
+        const optionEl = Array.from(document.querySelectorAll('.room-option')).find(el => el.dataset.room === roomName);
+        if (optionEl && typeof optionEl.scrollIntoView === 'function') {
+            optionEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    } catch (_) {}
+}
+
 // 載入房型資料和系統設定
 async function loadRoomTypesAndSettings() {
     try {
@@ -365,6 +407,7 @@ async function loadRoomTypesAndSettings() {
         
         roomTypes = roomTypesResult.success ? (roomTypesResult.data || []) : [];
         renderRoomTypes();
+        autoSelectRoomTypeIfRequested();
         
         // 檢查是否啟用前台加購商品功能
         enableAddons = settingsResult.success && settingsResult.data && 
@@ -1403,6 +1446,7 @@ function changeRoomCount(delta) {
 
 // 頁面載入時執行
 applyBuildingIdFromUrl();
+applyRoomTypeIdFromUrl();
 loadRoomTypesAndSettings();
 
 // 頁面載入後，如果有日期，檢查房間可用性

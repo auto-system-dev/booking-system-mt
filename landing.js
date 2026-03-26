@@ -668,8 +668,8 @@ function renderRoomCards(cfg) {
     // 儲存圖庫資料供 lightbox 使用
     window._roomGalleryData = {};
     
-    const bookingUrl = getLandingBookingUrl();
     grid.innerHTML = roomTypes.map(room => {
+        const bookingUrl = appendQueryParam(getLandingBookingUrl(), 'roomTypeId', room.id);
         const features = cfg[`landing_roomtype_${room.id}_features`] || '';
         const badge = cfg[`landing_roomtype_${room.id}_badge`] || '';
         const featureItems = buildFeatureHTML(features);
@@ -1160,10 +1160,33 @@ function getLandingBookingUrl() {
     return queryString ? `/booking?${queryString}` : '/booking';
 }
 
+function appendQueryParam(url, key, value) {
+    try {
+        const u = new URL(url, window.location.origin);
+        u.searchParams.set(String(key), String(value));
+        return u.pathname + (u.search ? u.search : '');
+    } catch (_) {
+        const sep = url.includes('?') ? '&' : '?';
+        return `${url}${sep}${encodeURIComponent(String(key))}=${encodeURIComponent(String(value))}`;
+    }
+}
+
 function updateBookingLinks() {
     const bookingUrl = getLandingBookingUrl();
-    document.querySelectorAll('a[href="/booking"], a[href^="/booking?"]').forEach(link => {
-        link.href = bookingUrl;
+    document.querySelectorAll('a').forEach((link) => {
+        const href = link.getAttribute('href');
+        if (!href) return;
+        if (href === '/booking' || href.startsWith('/booking?')) {
+            link.href = bookingUrl;
+            return;
+        }
+        // 相容絕對網址（例如分享/追蹤工具可能寫完整 URL）
+        try {
+            const u = new URL(href, window.location.origin);
+            if (u.pathname === '/booking') {
+                link.href = bookingUrl;
+            }
+        } catch (_) {}
     });
 }
 

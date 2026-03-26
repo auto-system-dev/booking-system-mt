@@ -562,10 +562,23 @@ section {
     background: linear-gradient(180deg, var(--bg-cream) 0%, #fff 100%);
 }
 
+.rooms-subtitle-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+}
+
+.rooms-subtitle-row .section-subtitle {
+    margin: 0;
+}
+
 .rooms-building-switch {
     display: flex;
     justify-content: center;
-    margin: 10px 0 26px;
+    margin: 0;
 }
 
 .rooms-building-switch-inner {
@@ -608,6 +621,14 @@ section {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 32px;
+}
+
+@media (max-width: 767px) {
+    .rooms-subtitle-row {
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+    }
 }
 
 .room-card {
