@@ -5244,7 +5244,7 @@ async function getAllCustomers() {
                     guest_email,
                     COUNT(*) FILTER (WHERE COALESCE(status, '') != 'cancelled')::bigint as booking_count,
                     COALESCE(SUM(CASE WHEN payment_status = 'paid' AND COALESCE(status, '') != 'cancelled' THEN final_amount ELSE 0 END), 0)::bigint as total_spent,
-                    MAX(created_at) as last_booking_date
+                    MAX(created_at) FILTER (WHERE COALESCE(status, '') != 'cancelled') as last_booking_date
                 FROM bookings
                 GROUP BY guest_email
             )
@@ -5268,7 +5268,7 @@ async function getAllCustomers() {
                  ORDER BY b2.created_at DESC LIMIT 1) as guest_phone,
                 SUM(CASE WHEN COALESCE(b1.status, '') != 'cancelled' THEN 1 ELSE 0 END) as booking_count,
                 SUM(CASE WHEN b1.payment_status = 'paid' AND COALESCE(b1.status, '') != 'cancelled' THEN b1.final_amount ELSE 0 END) as total_spent,
-                MAX(b1.created_at) as last_booking_date
+                MAX(CASE WHEN COALESCE(b1.status, '') != 'cancelled' THEN b1.created_at END) as last_booking_date
             FROM bookings b1
             GROUP BY b1.guest_email
             ORDER BY last_booking_date DESC`;
@@ -5439,19 +5439,26 @@ async function updateCustomer(email, updateData) {
     }
 }
 
-// 刪除客戶（僅在沒有訂房記錄時允許）
+// 刪除客戶：與客戶列表「訂房次數」一致，僅統計非「已取消」訂單。
+// 若僅剩已取消訂單，則清除該 Email 在 bookings 的所有列，客戶即自列表消失。
 async function deleteCustomer(email) {
     try {
-        // 檢查是否有訂房記錄
-        const bookings = await getBookingsByEmail(email);
-        
-        if (bookings && bookings.length > 0) {
+        const countSql = usePostgreSQL
+            ? `SELECT COUNT(*)::int AS cnt FROM bookings WHERE guest_email = $1 AND COALESCE(status, '') != 'cancelled'`
+            : `SELECT COUNT(*) AS cnt FROM bookings WHERE guest_email = ? AND COALESCE(status, '') != 'cancelled'`;
+        const countRow = await queryOne(countSql, [email]);
+        const activeCount = parseInt(countRow && (countRow.cnt ?? countRow.CNT ?? countRow.count) || 0, 10);
+
+        if (activeCount > 0) {
             throw new Error('該客戶有訂房記錄，無法刪除');
         }
-        
-        // 如果沒有訂房記錄，客戶資料會自動從聚合查詢中消失
-        // 因為客戶資料是從 bookings 表中聚合出來的
-        console.log(`✅ 客戶已刪除 (email: ${email})`);
+
+        const deleteSql = usePostgreSQL
+            ? `DELETE FROM bookings WHERE guest_email = $1`
+            : `DELETE FROM bookings WHERE guest_email = ?`;
+        const result = await query(deleteSql, [email]);
+        const deleted = result.changes || result.rowCount || 0;
+        console.log(`✅ 客戶訂房資料已清除 (email: ${email}, 刪除 ${deleted} 筆)`);
         return true;
     } catch (error) {
         console.error('❌ 刪除客戶失敗:', error.message);
