@@ -1220,14 +1220,13 @@ async function renderRoomTypes() {
                                 ${galleryImages.length > 1 ? `<span class="room-gallery-hint"><span class="material-symbols-outlined">photo_library</span> ${galleryImages.length} 張照片</span>` : ''}
                             </div>` 
                             : `<div class="room-icon">${room.icon || '🏠'}</div>`}
-                        ${!isWholePropertyMode && includedItems.length > 0 ? `<div class="room-meta-item room-meta-item-included room-meta-item-under-photo"><strong>方案包含：</strong>${escapeRoomText(includedItems.join('、'))}</div>` : ''}
+                        ${includedItems.length > 0 ? `<div class="room-meta-item room-meta-item-included room-meta-item-under-photo"><strong>方案包含：</strong>${escapeRoomText(includedItems.join('、'))}</div>` : ''}
                     </div>
                     <div class="room-card-right">
                         <div class="room-basic-info">
                             <div class="room-meta-item"><strong>床型：</strong>${escapeRoomText(bedConfig || '依現場安排')}</div>
                             <div class="room-meta-item"><strong>入住人數：</strong>${maxOccupancy} 人</div>
                             <div class="room-meta-item"><strong>可加床數：</strong>${extraBeds} 人</div>
-                            ${isWholePropertyMode && includedItems.length > 0 ? `<div class="room-meta-item room-meta-item-included"><strong>方案包含：</strong>${escapeRoomText(includedItems.join('、'))}</div>` : ''}
                         </div>
                         ${extraBeds > 0 ? `
                             <div class="room-extra-bed-control" ${safeQty > 0 ? '' : 'style="display:none;"'}>
