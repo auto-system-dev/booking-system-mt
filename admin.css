@@ -100,6 +100,14 @@ body.login-page-active {
     padding: 0 10px;
 }
 
+/* 系統模式狀態：置於側欄選單頂端（儀表板連結上方） */
+.sidebar-mode-badge-mount {
+    width: 100%;
+    box-sizing: border-box;
+    padding-bottom: 12px;
+    margin-bottom: 6px;
+}
+
 .nav-item {
     display: flex;
     align-items: center;

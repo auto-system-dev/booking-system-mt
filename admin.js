@@ -757,24 +757,26 @@ function normalizeSystemMode(mode) {
 }
 
 function getSystemModeLabel(mode = currentSystemMode) {
-    return normalizeSystemMode(mode) === 'whole_property' ? '包棟模式' : '散客模式';
+    return normalizeSystemMode(mode) === 'whole_property' ? '包棟模式' : '一般模式';
 }
 
 function ensureSystemModeUi() {
-    const sidebarFooter = document.querySelector('.sidebar-footer');
-    if (sidebarFooter) {
+    const mount = document.getElementById('systemModeBadgeMount');
+    if (mount) {
         let badge = document.getElementById('systemModeBadge');
         if (!badge) {
             badge = document.createElement('div');
             badge.id = 'systemModeBadge';
-            badge.style.marginBottom = '10px';
             badge.style.padding = '8px 10px';
             badge.style.borderRadius = '8px';
             badge.style.fontSize = '12px';
             badge.style.fontWeight = '600';
             badge.style.background = '#eef6ff';
             badge.style.color = '#1e4f8f';
-            sidebarFooter.prepend(badge);
+            badge.style.lineHeight = '1.35';
+            mount.appendChild(badge);
+        } else if (badge.parentElement !== mount) {
+            mount.appendChild(badge);
         }
         badge.textContent = `目前系統模式：${getSystemModeLabel(currentSystemMode)}`;
     }
@@ -810,7 +812,7 @@ async function loadSystemModeContext() {
             currentSystemMode = 'retail';
         }
     } catch (error) {
-        console.warn('載入系統模式失敗，改用預設散客模式:', error.message || error);
+        console.warn('載入系統模式失敗，改用預設一般模式:', error.message || error);
         currentSystemMode = 'retail';
     }
     updateSystemModeSettingsUi(currentSystemMode);

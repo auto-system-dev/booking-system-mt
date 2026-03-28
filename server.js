@@ -2861,12 +2861,12 @@ const bookingService = createBookingService({ db });
 const retailModeGuard = createModeGuard({
     db,
     allowedModes: ['retail'],
-    getMessage: () => '目前為包棟模式，散客訂房功能未啟用'
+    getMessage: () => '目前為包棟模式，一般訂房功能未啟用'
 });
 const wholePropertyModeGuard = createModeGuard({
     db,
     allowedModes: ['whole_property'],
-    getMessage: () => '目前為散客模式，包棟訂房功能未啟用'
+    getMessage: () => '目前為一般模式，包棟訂房功能未啟用'
 });
 app.use('/api', createBookingRoutes({
     bookingService,
@@ -5160,7 +5160,7 @@ app.post('/api/admin/system/mode/switch', requireAuth, checkPermission('settings
             });
         }
 
-        await db.updateSetting('system_mode', targetMode, '系統模式（retail=散客訂房，whole_property=包棟訂房；每次僅啟用一種）');
+        await db.updateSetting('system_mode', targetMode, '系統模式（retail=一般訂房，whole_property=包棟訂房；每次僅啟用一種）');
 
         // 操作日誌（不影響主要流程）
         try {

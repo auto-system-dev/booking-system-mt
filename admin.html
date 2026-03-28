@@ -63,6 +63,7 @@
                 <h1>管理後台</h1>
             </div>
             <nav class="sidebar-nav">
+                <div id="systemModeBadgeMount" class="sidebar-mode-badge-mount"></div>
                 <a href="#dashboard" class="nav-item active permission-required" data-section="dashboard" data-permission="dashboard.view" onclick="handleNavClick(event, 'dashboard')">
                     <span class="nav-icon"><span class="material-symbols-outlined">speed</span></span>
                     <span>儀表板</span>
@@ -1098,7 +1099,7 @@
                                 <div class="form-group">
                                     <label>目前啟用模式</label>
                                     <select id="systemModeSelect">
-                                        <option value="retail">散客模式</option>
+                                        <option value="retail">一般模式</option>
                                         <option value="whole_property">包棟模式</option>
                                     </select>
                                     <small id="systemModeCurrentHint">切換後僅會啟用所選模式，另一模式將被停用。</small>

@@ -222,8 +222,8 @@ function clearCrossModeClientState(previousMode, nextMode) {
     } catch (error) {
         console.warn('⚠️ 清除跨模式暫存失敗:', error.message);
     }
-    const fromLabel = previousMode === 'whole_property' ? '包棟模式' : '散客模式';
-    const toLabel = nextMode === 'whole_property' ? '包棟模式' : '散客模式';
+    const fromLabel = previousMode === 'whole_property' ? '包棟模式' : '一般模式';
+    const toLabel = nextMode === 'whole_property' ? '包棟模式' : '一般模式';
     showModeToast(`已切換為${toLabel}，${fromLabel}的收藏/購物車/草稿已清除`);
 }
 
@@ -286,7 +286,7 @@ async function initSystemMode() {
             mode = normalizeSystemMode(result?.data?.system_mode);
         }
     } catch (error) {
-        console.warn('⚠️ 讀取系統模式失敗，預設散客模式:', error.message);
+        console.warn('⚠️ 讀取系統模式失敗，預設一般模式:', error.message);
     }
 
     let previousMode = '';
