@@ -156,6 +156,7 @@ async function initDatabase() {
             console.log('🗄️  使用 SQLite 資料庫');
             await initSQLite();
         }
+        await seedDefaultWholePropertyPlansIfEmpty();
     } catch (error) {
         console.error('❌ 資料庫初始化失敗:', error);
         throw error;
@@ -396,7 +397,8 @@ async function initPostgreSQL() {
                 { name: 'booking_badge', type: 'TEXT', default: "''" },
                 { name: 'image_url', type: 'TEXT', default: "NULL" },
                 { name: 'original_price', type: 'INTEGER', default: '0' },
-                { name: 'show_on_landing', type: 'INTEGER', default: '1' }
+                { name: 'show_on_landing', type: 'INTEGER', default: '1' },
+                { name: 'list_scope', type: 'VARCHAR(32)', default: "'retail'" }
             ];
             
             for (const col of roomTypeColumnsToAdd) {
@@ -421,6 +423,14 @@ async function initPostgreSQL() {
                 }
             }
             console.log('✅ room_types 欄位遷移完成');
+
+            try {
+                await query(`UPDATE room_types SET list_scope = 'retail' WHERE list_scope IS NULL OR TRIM(COALESCE(list_scope, '')) = ''`);
+            } catch (e) {
+                if (!String(e.message || '').includes('list_scope')) {
+                    console.warn('⚠️  回填 room_types.list_scope 失敗:', e.message);
+                }
+            }
 
             // 確保既有房型資料都有 building_id（舊資料回填預設館）
             try {
@@ -2532,6 +2542,14 @@ function initSQLite() {
                                                 } else {
                                                     console.log('✅ 已添加 show_on_landing 欄位');
                                                 }
+                                            });
+                                            db.run(`ALTER TABLE room_types ADD COLUMN list_scope TEXT DEFAULT 'retail'`, (lsErr) => {
+                                                if (lsErr && !lsErr.message.includes('duplicate column')) {
+                                                    console.warn('⚠️  添加 list_scope 欄位時發生錯誤:', lsErr.message);
+                                                } else {
+                                                    console.log('✅ 已添加 list_scope 欄位');
+                                                }
+                                                db.run(`UPDATE room_types SET list_scope = 'retail' WHERE list_scope IS NULL OR TRIM(COALESCE(list_scope, '')) = ''`);
                                             });
 
                                     // ===== 房型庫存（每館每房型）=====
@@ -5748,8 +5766,8 @@ async function getRoomTypesBuildingStatsAdmin() {
 // 取得所有房型（只包含啟用的，供前台使用）
 async function getAllRoomTypes() {
     try {
-        // 兼容舊簽名：不帶參數時回傳預設館
-        return await getRoomTypesByBuilding(1, { activeOnly: true });
+        // 兼容舊簽名：不帶參數時回傳預設館（一般房型，不含包棟專用方案）
+        return await getRoomTypesByBuilding(1, { activeOnly: true, listScope: 'retail' });
     } catch (error) {
         console.error('❌ 查詢房型失敗:', error.message);
         throw error;
@@ -5758,13 +5776,21 @@ async function getAllRoomTypes() {
 
 async function getRoomTypesByBuilding(buildingId = 1, options = {}) {
     try {
-        const { activeOnly = true } = options;
+        const { activeOnly = true, listScope } = options;
         const bid = parseInt(buildingId, 10);
         const safeBid = Number.isFinite(bid) && bid > 0 ? bid : 1;
         const activeClause = activeOnly ? 'AND is_active = 1' : '';
+        let scopeClause = '';
+        if (listScope === 'retail') {
+            scopeClause = usePostgreSQL
+                ? ` AND (COALESCE(NULLIF(TRIM(list_scope), ''), 'retail') = 'retail')`
+                : ` AND (COALESCE(NULLIF(TRIM(list_scope), ''), 'retail') = 'retail')`;
+        } else if (listScope === 'whole_property') {
+            scopeClause = ` AND list_scope = 'whole_property'`;
+        }
         const sql = usePostgreSQL
-            ? `SELECT * FROM room_types WHERE (building_id = $1 OR ($1 = 1 AND (building_id IS NULL OR building_id = 0))) ${activeClause} ORDER BY display_order ASC, id ASC`
-            : `SELECT * FROM room_types WHERE (building_id = ? OR (? = 1 AND (building_id IS NULL OR building_id = 0))) ${activeClause} ORDER BY display_order ASC, id ASC`;
+            ? `SELECT * FROM room_types WHERE (building_id = $1 OR ($1 = 1 AND (building_id IS NULL OR building_id = 0))) ${activeClause}${scopeClause} ORDER BY display_order ASC, id ASC`
+            : `SELECT * FROM room_types WHERE (building_id = ? OR (? = 1 AND (building_id IS NULL OR building_id = 0))) ${activeClause}${scopeClause} ORDER BY display_order ASC, id ASC`;
         const params = usePostgreSQL ? [safeBid] : [safeBid, safeBid];
         const result = await query(sql, params);
         return result.rows || [];
@@ -5775,11 +5801,19 @@ async function getRoomTypesByBuilding(buildingId = 1, options = {}) {
 }
 
 // 取得所有房型（包含已停用的，供管理後台使用）
-async function getAllRoomTypesAdmin(buildingId) {
+// listScope: 'retail' | 'whole_property' | undefined（undefined = 不篩選）
+async function getAllRoomTypesAdmin(buildingId, listScope) {
     try {
         const bid = parseInt(buildingId, 10);
         const hasBuildingFilter = Number.isFinite(bid) && bid > 0;
         const safeBid = hasBuildingFilter ? bid : null;
+
+        let scopeClause = '';
+        if (listScope === 'retail') {
+            scopeClause = ` AND (COALESCE(NULLIF(TRIM(rt.list_scope), ''), 'retail') = 'retail')`;
+        } else if (listScope === 'whole_property') {
+            scopeClause = ` AND rt.list_scope = 'whole_property'`;
+        }
 
         // 加上庫存（qty_total）供後台顯示/編輯（每館每房型）
         const sql = hasBuildingFilter
@@ -5789,7 +5823,7 @@ async function getAllRoomTypesAdmin(buildingId) {
                     FROM room_types rt
                     LEFT JOIN room_type_inventory inv
                       ON inv.building_id = rt.building_id AND inv.room_type_id = rt.id
-                    WHERE (rt.building_id = $1 OR ($1 = 1 AND (rt.building_id IS NULL OR rt.building_id = 0)))
+                    WHERE (rt.building_id = $1 OR ($1 = 1 AND (rt.building_id IS NULL OR rt.building_id = 0)))${scopeClause}
                     ORDER BY rt.display_order ASC, rt.id ASC
                   `
                 : `
@@ -5797,7 +5831,7 @@ async function getAllRoomTypesAdmin(buildingId) {
                     FROM room_types rt
                     LEFT JOIN room_type_inventory inv
                       ON inv.building_id = rt.building_id AND inv.room_type_id = rt.id
-                    WHERE (rt.building_id = ? OR (? = 1 AND (rt.building_id IS NULL OR rt.building_id = 0)))
+                    WHERE (rt.building_id = ? OR (? = 1 AND (rt.building_id IS NULL OR rt.building_id = 0)))${scopeClause}
                     ORDER BY rt.display_order ASC, rt.id ASC
                   `)
             : `
@@ -5805,6 +5839,7 @@ async function getAllRoomTypesAdmin(buildingId) {
                 FROM room_types rt
                 LEFT JOIN room_type_inventory inv
                   ON inv.building_id = rt.building_id AND inv.room_type_id = rt.id
+                WHERE 1=1${scopeClause}
                 ORDER BY rt.display_order ASC, rt.id ASC
               `;
 
@@ -5836,13 +5871,16 @@ async function getRoomTypeById(id) {
 // 新增房型
 async function createRoomType(roomData) {
     try {
+        const listScopeRaw = String(roomData.list_scope || 'retail').trim();
+        const listScope = listScopeRaw === 'whole_property' ? 'whole_property' : 'retail';
+
         const sql = usePostgreSQL ? `
-            INSERT INTO room_types (building_id, name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+            INSERT INTO room_types (building_id, name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active, list_scope) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
             RETURNING id
         ` : `
-            INSERT INTO room_types (building_id, name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO room_types (building_id, name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active, list_scope) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const values = [
@@ -5862,7 +5900,8 @@ async function createRoomType(roomData) {
             roomData.image_url || null,
             roomData.show_on_landing !== undefined ? roomData.show_on_landing : 1,
             roomData.display_order || 0,
-            roomData.is_active !== undefined ? roomData.is_active : 1
+            roomData.is_active !== undefined ? roomData.is_active : 1,
+            listScope
         ];
         
         const result = await query(sql, values);
@@ -5886,13 +5925,16 @@ async function createRoomType(roomData) {
 // 更新房型
 async function updateRoomType(id, roomData) {
     try {
+        const listScopeRaw = String(roomData.list_scope || 'retail').trim();
+        const listScope = listScopeRaw === 'whole_property' ? 'whole_property' : 'retail';
+
         const sql = usePostgreSQL ? `
             UPDATE room_types 
-            SET building_id = $1, display_name = $2, price = $3, original_price = $4, holiday_surcharge = $5, max_occupancy = $6, extra_beds = $7, extra_bed_price = $8, bed_config = $9, included_items = $10, booking_badge = $11, icon = $12, image_url = $13, show_on_landing = $14, display_order = $15, is_active = $16, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $17
+            SET building_id = $1, display_name = $2, price = $3, original_price = $4, holiday_surcharge = $5, max_occupancy = $6, extra_beds = $7, extra_bed_price = $8, bed_config = $9, included_items = $10, booking_badge = $11, icon = $12, image_url = $13, show_on_landing = $14, display_order = $15, is_active = $16, list_scope = $17, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $18
         ` : `
             UPDATE room_types 
-            SET building_id = ?, display_name = ?, price = ?, original_price = ?, holiday_surcharge = ?, max_occupancy = ?, extra_beds = ?, extra_bed_price = ?, bed_config = ?, included_items = ?, booking_badge = ?, icon = ?, image_url = ?, show_on_landing = ?, display_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+            SET building_id = ?, display_name = ?, price = ?, original_price = ?, holiday_surcharge = ?, max_occupancy = ?, extra_beds = ?, extra_bed_price = ?, bed_config = ?, included_items = ?, booking_badge = ?, icon = ?, image_url = ?, show_on_landing = ?, display_order = ?, is_active = ?, list_scope = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         `;
         
@@ -5913,6 +5955,7 @@ async function updateRoomType(id, roomData) {
             roomData.show_on_landing !== undefined ? roomData.show_on_landing : 1,
             roomData.display_order || 0,
             roomData.is_active !== undefined ? roomData.is_active : 1,
+            listScope,
             id
         ];
         
@@ -5954,6 +5997,65 @@ async function upsertRoomTypeInventory(buildingId, roomTypeId, qtyTotal) {
           `;
 
     await query(sql, [bid, rid, qty]);
+}
+
+/** 若預設館尚無包棟方案，建立 4 筆預設方案（方案代碼 + 圖片網址） */
+async function seedDefaultWholePropertyPlansIfEmpty() {
+    try {
+        const row = await queryOne(
+            usePostgreSQL
+                ? `SELECT COUNT(*)::bigint AS c FROM room_types WHERE building_id = 1 AND list_scope = 'whole_property'`
+                : `SELECT COUNT(*) AS c FROM room_types WHERE building_id = 1 AND list_scope = 'whole_property'`
+        );
+        const c = parseInt(row?.c || row?.count || 0, 10);
+        if (c > 0) return;
+
+        const img =
+            'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=400&h=300&fit=crop&q=80';
+        const plans = [
+            ['wp_10', '10人包棟', 10, 1],
+            ['wp_16', '16人包棟', 16, 2],
+            ['wp_20', '20人包棟', 20, 3],
+            ['wp_30', '30人包棟', 30, 4]
+        ];
+
+        for (let i = 0; i < plans.length; i += 1) {
+            const [code, title, maxOcc, ord] = plans[i];
+            if (usePostgreSQL) {
+                const ins = await query(
+                    `
+                    INSERT INTO room_types (
+                        building_id, name, display_name, price, original_price, holiday_surcharge,
+                        max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge,
+                        icon, image_url, show_on_landing, display_order, is_active, list_scope
+                    ) VALUES ($1, $2, $3, 0, 0, 0, $4, 0, 0, '', '', '', '🏠', $5, 1, $6, 1, 'whole_property')
+                    RETURNING id
+                    `,
+                    [1, code, title, maxOcc, img, ord]
+                );
+                const newId = ins.rows[0].id;
+                await upsertRoomTypeInventory(1, newId, 1);
+            } else {
+                const ins = await query(
+                    `
+                    INSERT INTO room_types (
+                        building_id, name, display_name, price, original_price, holiday_surcharge,
+                        max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge,
+                        icon, image_url, show_on_landing, display_order, is_active, list_scope
+                    ) VALUES (?, ?, ?, 0, 0, 0, ?, 0, 0, '', '', '', '🏠', ?, 1, ?, 1, 'whole_property')
+                    `,
+                    [1, code, title, maxOcc, img, ord]
+                );
+                const newId = ins.lastID || ins.rows?.[0]?.id;
+                if (newId) await upsertRoomTypeInventory(1, newId, 1);
+            }
+        }
+        console.log('✅ 已建立預設包棟方案（4 筆：wp_10 / wp_16 / wp_20 / wp_30）');
+    } catch (e) {
+        if (!String(e.message || '').includes('list_scope')) {
+            console.warn('⚠️ 預設包棟方案種子略過:', e.message);
+        }
+    }
 }
 
 // ==================== 假日管理 ====================
@@ -6602,7 +6704,15 @@ async function getRoomAvailability(checkInDate, checkOutDate, buildingId = 1) {
         // 注意：前台送單可能是「多房型+數量」(roomSelections)，單純用 bookings.room_type = rt.display_name 的 SQL 無法準確計算。
         // 這裡改成：拉出重疊訂單 + room_selections，於 JS 端累加各房型數量，再與 room_type_inventory.qty_total 比對。
 
-        const roomTypes = await getRoomTypesByBuilding(safeBid, { activeOnly: true });
+        let listScope = 'retail';
+        try {
+            const mode = String((await getSetting('system_mode')) || 'retail').trim();
+            listScope = mode === 'whole_property' ? 'whole_property' : 'retail';
+        } catch (_) {
+            listScope = 'retail';
+        }
+
+        const roomTypes = await getRoomTypesByBuilding(safeBid, { activeOnly: true, listScope });
         if (!roomTypes.length) return [];
 
         const roomTypeByDisplayName = new Map();

@@ -4419,9 +4419,16 @@ app.get('/api/admin/debug/room-types-building-stats', requireAuth, checkPermissi
 app.get('/api/room-types', publicLimiter, async (req, res) => {
     try {
         const buildingId = req.query.buildingId ? parseInt(req.query.buildingId, 10) : 1;
+        let listScope = 'retail';
+        try {
+            const mode = String((await db.getSetting('system_mode')) || 'retail').trim();
+            listScope = mode === 'whole_property' ? 'whole_property' : 'retail';
+        } catch (_) {
+            listScope = 'retail';
+        }
         const [roomTypes, allGalleryImages, allSettings] = await Promise.all([
             db.getRoomTypesByBuilding
-                ? db.getRoomTypesByBuilding(buildingId, { activeOnly: true })
+                ? db.getRoomTypesByBuilding(buildingId, { activeOnly: true, listScope })
                 : db.getAllRoomTypes(), // fallback
             db.getAllRoomTypeGalleryImages(),
             db.getAllSettings()
@@ -4531,7 +4538,9 @@ app.get('/api/admin/room-types', requireAuth, checkPermission('room_types.view')
     try {
         // 使用資料庫抽象層，支援 PostgreSQL 和 SQLite
         const buildingId = req.query.buildingId;
-        const roomTypes = await db.getAllRoomTypesAdmin(buildingId);
+        const rawScope = String(req.query.listScope || '').trim();
+        const listScope = rawScope === 'whole_property' ? 'whole_property' : (rawScope === 'retail' ? 'retail' : undefined);
+        const roomTypes = await db.getAllRoomTypesAdmin(buildingId, listScope);
         res.json({
             success: true,
             data: roomTypes
@@ -4855,9 +4864,17 @@ app.get('/api/calculate-price', publicLimiter, async (req, res) => {
             });
         }
         
+        let listScope = 'retail';
+        try {
+            const mode = String((await db.getSetting('system_mode')) || 'retail').trim();
+            listScope = mode === 'whole_property' ? 'whole_property' : 'retail';
+        } catch (_) {
+            listScope = 'retail';
+        }
+
         // 取得房型資訊
         const allRoomTypes = db.getRoomTypesByBuilding
-            ? await db.getRoomTypesByBuilding(buildingId, { activeOnly: true })
+            ? await db.getRoomTypesByBuilding(buildingId, { activeOnly: true, listScope })
             : await db.getAllRoomTypes();
         const roomType = (allRoomTypes || []).find((r) => r.display_name === roomTypeName || r.name === roomTypeName);
         

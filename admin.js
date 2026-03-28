@@ -2432,7 +2432,10 @@ async function updateBookingRoomTypeFilterOptions() {
 
     try {
         const bid = getSelectedBuildingIdForBookings();
-        const res = await adminFetch(`/api/admin/room-types?buildingId=${encodeURIComponent(String(bid))}`);
+        const rtScope = normalizeSystemMode(currentSystemMode || 'retail') === 'whole_property' ? 'whole_property' : 'retail';
+        const res = await adminFetch(
+            `/api/admin/room-types?buildingId=${encodeURIComponent(String(bid))}&listScope=${encodeURIComponent(rtScope)}`
+        );
         const j = await res.json();
         if (!j.success) return;
         const roomTypes = Array.isArray(j.data) ? j.data : [];
@@ -4361,8 +4364,9 @@ async function loadRoomPrices() {
             return;
         }
         
+        const rtScope = normalizeSystemMode(currentSystemMode || 'retail') === 'whole_property' ? 'whole_property' : 'retail';
         const [roomTypesResponse, settingsResponse] = await Promise.all([
-            adminFetch('/api/admin/room-types').catch(err => {
+            adminFetch(`/api/admin/room-types?listScope=${encodeURIComponent(rtScope)}`).catch(err => {
                 // 如果請求失敗（可能是 401），返回一個模擬的 response
                 if (err.message && err.message.includes('401')) {
                     return { ok: false, status: 401, json: async () => ({ success: false }) };
@@ -4876,9 +4880,16 @@ function escapeHtml(text) {
 
 // ==================== 房型管理 ====================
 
-let allRoomTypes = [];
+let allRoomTypesRetail = [];
+let allRoomTypesWholeProperty = [];
 let allBuildings = [];
 let selectedBuildingIdForRoomTypes = 1;
+
+function getActiveRoomTypesListScope() {
+    const tab = localStorage.getItem('roomTypeTab') || 'room-types';
+    if (tab === 'whole-property-plans') return 'whole_property';
+    return 'retail';
+}
 const ROOM_INCLUDED_ITEM_PRESETS = [
     '附早餐',
     '附下午茶',
@@ -4931,22 +4942,27 @@ function syncIncludedItemsEditor() {
     hiddenInput.value = merged.join(', ');
 }
 
-// 載入房型列表
+// 載入房型列表（房型管理 / 包棟方案依 listScope 分開）
 async function loadRoomTypes() {
     try {
-        // 後台可依館別篩選；預設為預設館（id=1）
         const bid = Number(selectedBuildingIdForRoomTypes) || 1;
-        const roomTypesResponse = await adminFetch(`/api/admin/room-types?buildingId=${encodeURIComponent(String(bid))}`);
+        const scope = getActiveRoomTypesListScope();
+        const roomTypesResponse = await adminFetch(
+            `/api/admin/room-types?buildingId=${encodeURIComponent(String(bid))}&listScope=${encodeURIComponent(scope)}`
+        );
         const result = await roomTypesResponse.json();
-        
+
         if (result.success) {
-            // 兼容：部分環境可能回傳 data.rows / data.data
             const raw = result.data;
             const normalized = Array.isArray(raw)
                 ? raw
                 : (Array.isArray(raw?.rows) ? raw.rows : (Array.isArray(raw?.data) ? raw.data : []));
-            allRoomTypes = normalized;
-            renderRoomTypes();
+            if (scope === 'whole_property') {
+                allRoomTypesWholeProperty = normalized;
+            } else {
+                allRoomTypesRetail = normalized;
+            }
+            renderRoomTypes(scope);
         } else {
             showError('載入房型列表失敗：' + (result.message || '未知錯誤'));
         }
@@ -5161,22 +5177,16 @@ function onRoomTypesBuildingChange(buildingId) {
     loadRoomTypes();
 }
 
-// 渲染房型列表
-function renderRoomTypes() {
-    const tbodies = [
-        document.getElementById('roomTypesTableBody'),
-        document.getElementById('wholePropertyPlansTableBody')
-    ].filter(Boolean);
-    if (tbodies.length === 0) return;
+// 渲染房型列表（依分頁只更新對應表格）
+function renderRoomTypes(scope = 'retail') {
+    const tbodyId = scope === 'whole_property' ? 'wholePropertyPlansTableBody' : 'roomTypesTableBody';
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
 
-    // 顯示所有房型（包括啟用和停用的）
-    const filteredRoomTypes = allRoomTypes;
+    const filteredRoomTypes = scope === 'whole_property' ? allRoomTypesWholeProperty : allRoomTypesRetail;
 
     if (filteredRoomTypes.length === 0) {
-        const emptyRow = '<tr><td colspan="12" class="loading">沒有房型資料</td></tr>';
-        tbodies.forEach((tbody) => {
-            tbody.innerHTML = emptyRow;
-        });
+        tbody.innerHTML = '<tr><td colspan="12" class="loading">沒有房型資料</td></tr>';
         return;
     }
 
@@ -5226,27 +5236,22 @@ function renderRoomTypes() {
                 </tr>
             `;
         }).join('');
-        tbodies.forEach((tbody) => {
-            tbody.innerHTML = rowsHtml;
-        });
+        tbody.innerHTML = rowsHtml;
     } catch (err) {
-        console.error('renderRoomTypes failed:', err, { allRoomTypes });
-        const errRow = `<tr><td colspan="12" class="loading" style="color:#e74c3c;">房型列表渲染失敗：${escapeHtml(err.message || '未知錯誤')}</td></tr>`;
-        tbodies.forEach((tbody) => {
-            tbody.innerHTML = errRow;
-        });
+        console.error('renderRoomTypes failed:', err, { scope, filteredRoomTypes });
+        tbody.innerHTML = `<tr><td colspan="12" class="loading" style="color:#e74c3c;">房型列表渲染失敗：${escapeHtml(err.message || '未知錯誤')}</td></tr>`;
     }
 }
 
 // 顯示新增房型模態框
 async function showAddRoomTypeModal() {
-    showRoomTypeModal(null);
+    showRoomTypeModal(null, getActiveRoomTypesListScope());
 }
 
 // 顯示編輯房型模態框
 async function editRoomType(id) {
     try {
-        const room = allRoomTypes.find(r => r.id === id);
+        const room = allRoomTypesRetail.find((r) => r.id === id) || allRoomTypesWholeProperty.find((r) => r.id === id);
         if (room) {
             showRoomTypeModal(room);
         } else {
@@ -5258,12 +5263,19 @@ async function editRoomType(id) {
     }
 }
 
-// 顯示房型編輯模態框
-function showRoomTypeModal(room) {
+// 顯示房型／方案編輯模態框（listScopeHint：新增時 'retail' | 'whole_property'）
+function showRoomTypeModal(room, listScopeHint) {
     const modal = document.getElementById('bookingModal');
     const modalBody = document.getElementById('modalBody');
     const isEdit = room !== null;
-    const currentImageUrl = isEdit ? (room.image_url || '') : '';
+    const listScope = isEdit
+        ? (String(room.list_scope || 'retail').trim() === 'whole_property' ? 'whole_property' : 'retail')
+        : (listScopeHint === 'whole_property' ? 'whole_property' : 'retail');
+    const isPlan = listScope === 'whole_property';
+    const defaultPlanImage = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=400&h=300&fit=crop&q=80';
+    const initialName = isEdit ? room.name : (isPlan ? `wp_plan_${Date.now()}` : '');
+    const initialDisplay = isEdit ? room.display_name : (isPlan ? '包棟方案（請修改）' : '');
+    const currentImageUrl = isEdit ? (room.image_url || '') : (isPlan ? defaultPlanImage : '');
     const includedConfig = parseIncludedItemsConfig(isEdit ? (room.included_items || '') : '');
     const includedPresetHtml = ROOM_INCLUDED_ITEM_PRESETS.map((item) => `
         <label style="display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; white-space: nowrap;">
@@ -5280,10 +5292,14 @@ function showRoomTypeModal(room) {
 
     // 此 modal 會被房型/訂房/館別等功能重用，開啟時要先確保標題正確
     const titleEl = modal?.querySelector?.('.modal-header h3');
-    if (titleEl) titleEl.textContent = '房型詳情';
+    if (titleEl) titleEl.textContent = isPlan ? '方案詳情' : '房型詳情';
+
+    const codeLabel = isPlan ? '方案代碼（英文）' : '房型代碼（英文）';
+    const nameLabel = isPlan ? '方案名稱' : '顯示名稱';
 
     modalBody.innerHTML = `
         <form id="roomTypeForm" onsubmit="saveRoomType(event, ${isEdit ? room.id : 'null'})">
+            <input type="hidden" name="list_scope" value="${listScope}">
             <div class="form-group">
                 <label>館別</label>
                 <select name="building_id" required>
@@ -5292,13 +5308,13 @@ function showRoomTypeModal(room) {
                 <small>目前前台訂房仍固定使用「預設館」的房型；新增其他館別不會影響既有流程</small>
             </div>
             <div class="form-group">
-                <label>房型代碼（英文）</label>
-                <input type="text" name="name" value="${isEdit ? escapeHtml(room.name) : ''}" required ${isEdit ? 'readonly' : ''}>
+                <label>${codeLabel}</label>
+                <input type="text" name="name" value="${isEdit ? escapeHtml(room.name) : escapeHtml(initialName)}" required ${isEdit ? 'readonly' : ''}>
                 <small>用於系統內部識別，建立後無法修改</small>
             </div>
             <div class="form-group">
-                <label>顯示名稱</label>
-                <input type="text" name="display_name" value="${isEdit ? escapeHtml(room.display_name) : ''}" required>
+                <label>${nameLabel}</label>
+                <input type="text" name="display_name" value="${isEdit ? escapeHtml(room.display_name) : escapeHtml(initialDisplay)}" required>
             </div>
             <div class="form-group">
                 <label>入住人數</label>
@@ -5341,12 +5357,12 @@ function showRoomTypeModal(room) {
             </div>
             <div class="form-group">
                 <label>平日價格（每晚）</label>
-                <input type="number" name="price" value="${isEdit ? room.price : ''}" min="0" step="1" required>
+                <input type="number" name="price" value="${isEdit ? room.price : (isPlan ? 0 : '')}" min="0" step="1" required>
                 <small>平日（週一至週五）的基礎價格</small>
             </div>
             <div class="form-group">
                 <label>假日價格（每晚）</label>
-                <input type="number" name="holiday_price" value="${isEdit ? ((Number(room.price) || 0) + (Number(room.holiday_surcharge) || 0)) : ''}" min="0" step="1">
+                <input type="number" name="holiday_price" value="${isEdit ? ((Number(room.price) || 0) + (Number(room.holiday_surcharge) || 0)) : (isPlan ? 0 : '')}" min="0" step="1">
                 <small>假日（週六、週日及手動設定的假日）的每晚價格。留空時會套用平日價格</small>
             </div>
             <div class="form-group">
@@ -5355,7 +5371,7 @@ function showRoomTypeModal(room) {
                 <small>銷售頁顯示的原始定價（會以刪除線顯示），設為 0 則不顯示原價</small>
             </div>
             <div class="form-group">
-                <label>房型照片</label>
+                <label>${isPlan ? '方案照片' : '房型照片'}</label>
                 <div id="roomImageUploadArea" style="border: 2px dashed #ccc; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.3s; background: #fafafa; position: relative;" onclick="document.getElementById('roomImageInput').click()">
                     ${currentImageUrl ? `
                         <div id="roomImagePreview" style="position: relative; display: inline-block;">
@@ -5601,11 +5617,16 @@ async function saveRoomType(event, id) {
         ? basePrice
         : (parseInt(holidayPriceRaw) || 0);
 
-    const editingRoom = id ? allRoomTypes.find(r => Number(r.id) === Number(id)) : null;
+    const editingRoom = id
+        ? (allRoomTypesRetail.find((r) => Number(r.id) === Number(id)) ||
+            allRoomTypesWholeProperty.find((r) => Number(r.id) === Number(id)))
+        : null;
+    const listScopeVal = String(formData.get('list_scope') || 'retail').trim() === 'whole_property' ? 'whole_property' : 'retail';
     const data = {
         building_id: parseInt(String(formData.get('building_id') || selectedBuildingIdForRoomTypes || 1), 10) || 1,
         name: formData.get('name'),
         display_name: formData.get('display_name'),
+        list_scope: listScopeVal,
         price: basePrice,
         original_price: parseInt(formData.get('original_price')) || 0,
         holiday_surcharge: holidayPrice - basePrice,
@@ -12947,7 +12968,10 @@ async function loadLandingRoomTypes(landingData) {
     try {
         syncLandingRoomsBuildingSelect();
         const bid = getSelectedBuildingIdForLandingRooms();
-        const response = await adminFetch('/api/admin/room-types');
+        const rtScope = normalizeSystemMode(currentSystemMode || 'retail') === 'whole_property' ? 'whole_property' : 'retail';
+        const response = await adminFetch(
+            `/api/admin/room-types?buildingId=${encodeURIComponent(String(bid))}&listScope=${encodeURIComponent(rtScope)}`
+        );
         const result = await response.json();
 
         if (!result.success || !result.data || result.data.length === 0) {
@@ -13943,7 +13967,8 @@ async function loadEarlyBirdSettings() {
     try {
         // 先載入房型名稱對照表（用於表格顯示中文名稱）
         try {
-            const rtResponse = await adminFetch('/api/admin/room-types');
+            const rtScope = normalizeSystemMode(currentSystemMode || 'retail') === 'whole_property' ? 'whole_property' : 'retail';
+            const rtResponse = await adminFetch(`/api/admin/room-types?listScope=${encodeURIComponent(rtScope)}`);
             const rtResult = await rtResponse.json();
             if (rtResult.success && rtResult.data) {
                 window._earlyBirdRoomTypeMap = {};
@@ -14055,7 +14080,8 @@ async function loadRoomTypesForEarlyBird(selectedRoomTypes) {
     if (!container) return;
     
     try {
-        const response = await adminFetch('/api/admin/room-types');
+        const rtScope = normalizeSystemMode(currentSystemMode || 'retail') === 'whole_property' ? 'whole_property' : 'retail';
+        const response = await adminFetch(`/api/admin/room-types?listScope=${encodeURIComponent(rtScope)}`);
         const result = await response.json();
         
         if (result.success && result.data) {
