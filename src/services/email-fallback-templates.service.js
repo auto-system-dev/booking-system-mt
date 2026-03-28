@@ -1,7 +1,8 @@
 function createEmailFallbackTemplatesService(deps) {
     const {
         getHotelSettingsWithFallback,
-        generateEmailFromTemplate
+        generateEmailFromTemplate,
+        db
     } = deps;
 
     async function getHotelInfoFooter() {
@@ -34,6 +35,16 @@ function createEmailFallbackTemplatesService(deps) {
     }
 
     async function generateCustomerEmail(data) {
+        let showBuildingInEmail = false;
+        try {
+            if (db && typeof db.getActiveBuildingsPublic === 'function') {
+                const ab = await db.getActiveBuildingsPublic();
+                showBuildingInEmail = Array.isArray(ab) && ab.length > 1;
+            }
+        } catch (_) {
+            showBuildingInEmail = false;
+        }
+
         console.log('📧 生成客戶郵件，資料:', {
             paymentMethodCode: data.paymentMethodCode,
             daysReserved: data.daysReserved,
@@ -84,10 +95,11 @@ function createEmailFallbackTemplatesService(deps) {
                         <span class="info-label">訂房編號</span>
                         <span class="info-value"><strong>${data.bookingId}</strong></span>
                     </div>
+                    ${showBuildingInEmail ? `
                     <div class="info-row">
                         <span class="info-label">館別</span>
                         <span class="info-value">${data.buildingName || '預設館'}</span>
-                    </div>
+                    </div>` : ''}
                     <div class="info-row">
                         <span class="info-label">入住日期</span>
                         <span class="info-value">${new Date(data.checkInDate).toLocaleDateString('zh-TW')}</span>
@@ -197,6 +209,16 @@ function createEmailFallbackTemplatesService(deps) {
             const checkInDate = new Date(booking.check_in_date);
             const checkOutDate = new Date(booking.check_out_date);
 
+            let showBuildingInEmail = false;
+            try {
+                if (db && typeof db.getActiveBuildingsPublic === 'function') {
+                    const ab = await db.getActiveBuildingsPublic();
+                    showBuildingInEmail = Array.isArray(ab) && ab.length > 1;
+                }
+            } catch (_) {
+                showBuildingInEmail = false;
+            }
+
             return `
     <!DOCTYPE html>
     <html>
@@ -229,10 +251,11 @@ function createEmailFallbackTemplatesService(deps) {
                         <span class="info-label">訂房編號</span>
                         <span class="info-value"><strong>${booking.booking_id}</strong></span>
                     </div>
+                    ${showBuildingInEmail ? `
                     <div class="info-row">
                         <span class="info-label">館別</span>
                         <span class="info-value">${booking.building_name || booking.buildingName || '預設館'}</span>
-                    </div>
+                    </div>` : ''}
                     <div class="info-row">
                         <span class="info-label">入住日期</span>
                         <span class="info-value">${checkInDate.toLocaleDateString('zh-TW')}</span>

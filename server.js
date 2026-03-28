@@ -2910,7 +2910,8 @@ const emailService = createEmailService({
 
 const fallbackTemplateService = createEmailFallbackTemplatesService({
     getHotelSettingsWithFallback,
-    generateEmailFromTemplate
+    generateEmailFromTemplate,
+    db
 });
 
 const templateService = createTemplateService({
@@ -9071,6 +9072,36 @@ function injectSpecialRequestRowForLegacyTemplate(content, specialRequest) {
     return content;
 }
 
+/** 與前台「選擇館別」一致：僅在啟用中館別數 > 1 時於郵件顯示館別 */
+async function resolveShowBuildingInEmail() {
+    try {
+        if (typeof db.getActiveBuildingsPublic !== 'function') return false;
+        const list = await db.getActiveBuildingsPublic();
+        return Array.isArray(list) && list.length > 1;
+    } catch (_) {
+        return false;
+    }
+}
+
+/** 移除郵件 HTML 中的館別列（多館未啟用時） */
+function stripBuildingInfoFromEmailHtml(content) {
+    if (!content || typeof content !== 'string') return content;
+    let out = content;
+    out = out.replace(
+        /<div[^>]*class="[^"]*info-row[^"]*"[^>]*>[\s\S]*?<span[^>]*class="[^"]*info-label[^"]*"[^>]*>\s*館別\s*<\/span>[\s\S]*?<\/div>/gi,
+        ''
+    );
+    out = out.replace(
+        /<div[^>]*class="[^"]*contact-row[^"]*"[^>]*>[\s\S]*?館別[\s\S]*?<\/div>/gi,
+        ''
+    );
+    out = out.replace(
+        /<tr[^>]*>[\s\S]*?<td[^>]*>[\s\S]*?館別[\s\S]*?<\/td>[\s\S]*?<\/tr>/gi,
+        ''
+    );
+    return out;
+}
+
 function injectBuildingRowForLegacyTemplate(content, buildingName) {
     const nameText = String(buildingName || '').trim();
     if (!nameText || !content) return content;
@@ -9084,20 +9115,21 @@ function injectBuildingRowForLegacyTemplate(content, buildingName) {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
 
+    // 與訂房確認模板 .info-row / .info-value 一致，避免部分信箱客戶端 flex 失效造成右欄未對齊
     const infoRowHtml = `
-<div class="info-row">
-    <span class="info-label">館別</span>
-    <span class="info-value">${escapedNameText}</span>
+<div class="info-row" style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #e0e0e0;flex-wrap:wrap;">
+    <span class="info-label" style="font-weight:600;color:#666;font-size:16px;min-width:140px;flex:0 0 auto;">館別</span>
+    <span class="info-value" style="color:#333;font-size:16px;text-align:right;font-weight:500;flex:1 1 auto;word-break:break-word;">${escapedNameText}</span>
 </div>`;
     const contactRowHtml = `
-<div class="contact-row">
-    <span class="contact-label">館別</span>
-    <span class="contact-value">${escapedNameText}</span>
+<div class="contact-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #e0e0e0;">
+    <span class="contact-label" style="font-weight:600;color:#666;min-width:140px;flex:0 0 auto;">館別</span>
+    <span class="contact-value" style="color:#333;text-align:right;flex:1 1 auto;">${escapedNameText}</span>
 </div>`;
 
     const tableRowHtml = `
 <tr>
-    <td style="padding: 8px 0; color: #666;">館別</td>
+    <td style="padding: 8px 0; color: #666; width: 40%;">館別</td>
     <td style="padding: 8px 0; text-align: right; color: #333;">${escapedNameText}</td>
 </tr>`;
 
@@ -9739,8 +9771,10 @@ ${htmlEnd}`;
     const guestEmail = booking.guest_email || booking.guestEmail || '';
     const specialRequest = booking.special_request || booking.specialRequest || '';
 
-    // 入住提醒區塊內容與顯示開關
-    const defaultBookingInfoContent = `<div class="info-row">
+    const showBuildingInEmail = await resolveShowBuildingInEmail();
+
+    // 入住提醒區塊內容與顯示開關（僅多館別時顯示館別列，與前台選館一致）
+    const defaultBookingInfoContentWithBuilding = `<div class="info-row">
     <span class="info-label">訂房編號</span>
     <span class="info-value"><strong>{{bookingId}}</strong></span>
 </div>
@@ -9760,6 +9794,25 @@ ${htmlEnd}`;
     <span class="info-label">房型</span>
     <span class="info-value">{{roomType}}</span>
 </div>`;
+    const defaultBookingInfoContentNoBuilding = `<div class="info-row">
+    <span class="info-label">訂房編號</span>
+    <span class="info-value"><strong>{{bookingId}}</strong></span>
+</div>
+<div class="info-row">
+    <span class="info-label">入住日期</span>
+    <span class="info-value">{{checkInDate}}</span>
+</div>
+<div class="info-row">
+    <span class="info-label">退房日期</span>
+    <span class="info-value">{{checkOutDate}}</span>
+</div>
+<div class="info-row" style="border-bottom: none;">
+    <span class="info-label">房型</span>
+    <span class="info-value">{{roomType}}</span>
+</div>`;
+    const defaultBookingInfoContent = showBuildingInEmail
+        ? defaultBookingInfoContentWithBuilding
+        : defaultBookingInfoContentNoBuilding;
     const bookingInfoContent = (isCheckinReminder &&
         checkinBlockSettings.booking_info &&
         typeof checkinBlockSettings.booking_info.content === 'string' &&
@@ -9783,7 +9836,7 @@ ${htmlEnd}`;
         // 若查詢館別失敗，仍可正常寄信（退回預設顯示）
         buildingName = '';
     }
-    if (!buildingName) buildingName = '預設館';
+    if (!buildingName) buildingName = showBuildingInEmail ? '預設館' : '';
 
     const variables = {
         '{{guestName}}': guestName,
@@ -10068,8 +10121,12 @@ ${htmlEnd}`;
         content = injectSpecialRequestRowForLegacyTemplate(content, specialRequest);
     }
 
-    // 相容舊模板：自動插入館別（讓所有訂房相關郵件都能顯示館別）
-    content = injectBuildingRowForLegacyTemplate(content, variables['{{buildingName}}']);
+    // 相容舊模板：僅多館別時自動插入館別；否則移除館別列
+    if (showBuildingInEmail) {
+        content = injectBuildingRowForLegacyTemplate(content, variables['{{buildingName}}']);
+    } else {
+        content = stripBuildingInfoFromEmailHtml(content);
+    }
 
     // 確保模板主題存在（支援多種欄位名稱）
     let subject = template.subject || template.template_subject || '';
