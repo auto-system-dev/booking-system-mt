@@ -1246,7 +1246,7 @@ async function renderRoomTypes() {
                     </div>
                     <div class="room-card-right">
                         <div class="room-basic-info">
-                            <div class="room-meta-item"><strong>床型：</strong>${escapeRoomText(bedConfig || '依現場安排')}</div>
+                            <div class="room-meta-item"><strong>${isWholePropertyMode ? '開放房型：' : '床型：'}</strong>${escapeRoomText(bedConfig || '依現場安排')}</div>
                             <div class="room-meta-item"><strong>入住人數：</strong>${maxOccupancy} 人</div>
                             <div class="room-meta-item"><strong>可加床數：</strong>${extraBeds} 人</div>
                         </div>
