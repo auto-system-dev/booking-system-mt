@@ -4,6 +4,7 @@ function registerScheduledJobs(deps) {
         backup,
         bookingJobs,
         adminLogCleanupJobs,
+        subscriptionJobs,
         timezone = 'Asia/Taipei'
     } = deps;
 
@@ -46,6 +47,11 @@ function registerScheduledJobs(deps) {
             timezone
         });
         console.log('✅ 操作日誌自動清理任務已啟動（每天 03:15 台灣時間）');
+    }
+
+    if (subscriptionJobs && typeof subscriptionJobs.runDailySubscriptionCheck === 'function') {
+        cron.schedule('5 0 * * *', subscriptionJobs.runDailySubscriptionCheck, { timezone });
+        console.log('✅ 訂閱狀態日檢任務已啟動（每天 00:05 台灣時間）');
     }
 }
 

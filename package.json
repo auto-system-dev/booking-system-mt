@@ -5,7 +5,9 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node migrate-to-r2.js && node src/server.js",
-    "dev": "nodemon src/server.js"
+    "dev": "nodemon src/server.js",
+    "test:tenant-smoke": "node scripts/tenant-isolation-smoke.js",
+    "test:newebpay-webhook-smoke": "node scripts/newebpay-webhook-smoke.js"
   },
   "keywords": [
     "booking",

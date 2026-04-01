@@ -8,17 +8,18 @@ async function initEmailService(deps) {
         emailRuntime,
         resetEmailRuntime
     } = deps;
+    const defaultTenantId = parseInt(processEnv.DEFAULT_TENANT_ID || '1', 10);
 
     try {
         if (typeof resetEmailRuntime === 'function') {
             resetEmailRuntime(emailRuntime);
         }
 
-        const resendApiKey = await db.getSetting('resend_api_key') || processEnv.RESEND_API_KEY;
+        const resendApiKey = await db.getSetting('resend_api_key', defaultTenantId) || processEnv.RESEND_API_KEY;
         const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
         const resolveResendSenderEmail = async () => {
-            const fromDb = (await db.getSetting('resend_from_email') || '').trim();
-            const fromDbEmailUser = (await db.getSetting('email_user') || '').trim();
+            const fromDb = (await db.getSetting('resend_from_email', defaultTenantId) || '').trim();
+            const fromDbEmailUser = (await db.getSetting('email_user', defaultTenantId) || '').trim();
             const fromEnv = (processEnv.RESEND_FROM_EMAIL || '').trim();
             const fromEnvEmailUser = (processEnv.EMAIL_USER || '').trim();
 
@@ -28,12 +29,12 @@ async function initEmailService(deps) {
             if (isValidEmail(fromEnvEmailUser)) return fromEnvEmailUser;
             return 'resend@resend.dev';
         };
-        let emailUser = ((await db.getSetting('email_user')) || processEnv.EMAIL_USER || '').trim();
+        let emailUser = ((await db.getSetting('email_user', defaultTenantId)) || processEnv.EMAIL_USER || '').trim();
         emailRuntime.configuredSenderEmail = emailUser;
         const emailPass = (processEnv.EMAIL_PASS || '').trim();
-        const gmailClientID = await db.getSetting('gmail_client_id') || processEnv.GMAIL_CLIENT_ID;
-        const gmailClientSecret = await db.getSetting('gmail_client_secret') || processEnv.GMAIL_CLIENT_SECRET;
-        const gmailRefreshToken = await db.getSetting('gmail_refresh_token') || processEnv.GMAIL_REFRESH_TOKEN;
+        const gmailClientID = await db.getSetting('gmail_client_id', defaultTenantId) || processEnv.GMAIL_CLIENT_ID;
+        const gmailClientSecret = await db.getSetting('gmail_client_secret', defaultTenantId) || processEnv.GMAIL_CLIENT_SECRET;
+        const gmailRefreshToken = await db.getSetting('gmail_refresh_token', defaultTenantId) || processEnv.GMAIL_REFRESH_TOKEN;
 
         if (resendApiKey) {
             try {
@@ -46,7 +47,7 @@ async function initEmailService(deps) {
                 emailRuntime.configuredSenderEmail = await resolveResendSenderEmail();
                 console.log('📧 郵件服務已設定（Resend）');
                 console.log('   服務提供商: Resend');
-                console.log('   設定來源:', await db.getSetting('resend_api_key') ? '資料庫' : '環境變數');
+                console.log('   設定來源:', await db.getSetting('resend_api_key', defaultTenantId) ? '資料庫' : '環境變數');
                 console.log('   寄件信箱:', emailRuntime.configuredSenderEmail);
                 return;
             } catch (error) {

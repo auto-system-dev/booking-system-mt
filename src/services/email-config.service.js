@@ -3,9 +3,10 @@ function createEmailConfigService(deps) {
         db,
         processEnv
     } = deps;
+    const defaultTenantId = parseInt(processEnv.DEFAULT_TENANT_ID || '1', 10);
 
     async function getRequiredEmailUser(context = '') {
-        const emailUser = ((await db.getSetting('email_user')) || processEnv.EMAIL_USER || '').trim();
+        const emailUser = ((await db.getSetting('email_user', defaultTenantId)) || processEnv.EMAIL_USER || '').trim();
         if (!emailUser) {
             const contextLabel = context ? `（${context}）` : '';
             throw new Error(`未設定後台寄件信箱 email_user / EMAIL_USER${contextLabel}`);

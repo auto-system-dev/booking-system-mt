@@ -11,11 +11,13 @@ function createBookingRoutes(deps) {
         requireAuth,
         checkPermission,
         adminLimiter,
+        requireTenantContext,
         retailModeGuard,
         wholePropertyModeGuard
     } = deps;
 
     const router = express.Router();
+    router.use(requireTenantContext);
 
     router.post('/booking', publicLimiter, retailModeGuard, verifyCsrfToken, validateBooking, handlers.createBooking);
     router.post('/whole-property/booking', publicLimiter, wholePropertyModeGuard, verifyCsrfToken, validateWholePropertyBooking, handlers.createBooking);
@@ -23,7 +25,7 @@ function createBookingRoutes(deps) {
     router.get('/bookings', requireAuth, checkPermission('bookings.view'), adminLimiter, async (req, res) => {
         try {
             const { startDate, endDate, buildingId, bookingMode } = req.query;
-            const systemMode = await bookingService.getCurrentSystemMode();
+            const systemMode = await bookingService.getCurrentSystemMode(req.tenantId);
             if (bookingMode && bookingMode !== systemMode) {
                 return res.status(403).json({
                     success: false,
@@ -33,7 +35,7 @@ function createBookingRoutes(deps) {
             }
 
             const effectiveMode = bookingMode || systemMode;
-            const bookings = await bookingService.getBookings(startDate, endDate, buildingId, effectiveMode);
+            const bookings = await bookingService.getBookings(startDate, endDate, buildingId, effectiveMode, req.tenantId);
             const bookingsWithDefaults = bookingService.addBookingDefaults(bookings);
 
             return res.json({
@@ -54,7 +56,7 @@ function createBookingRoutes(deps) {
         try {
             const { email } = req.params;
             const { bookingMode } = req.query;
-            const systemMode = await bookingService.getCurrentSystemMode();
+            const systemMode = await bookingService.getCurrentSystemMode(req.tenantId);
             if (bookingMode && bookingMode !== systemMode) {
                 return res.status(403).json({
                     success: false,
@@ -63,7 +65,7 @@ function createBookingRoutes(deps) {
                 });
             }
             const effectiveMode = bookingMode || systemMode;
-            const bookings = await bookingService.getBookingsByEmail(email, effectiveMode);
+            const bookings = await bookingService.getBookingsByEmail(email, effectiveMode, req.tenantId);
 
             return res.json({
                 success: true,
@@ -82,7 +84,7 @@ function createBookingRoutes(deps) {
     router.get('/bookings/:bookingId', requireAuth, checkPermission('bookings.view'), adminLimiter, async (req, res) => {
         try {
             const { bookingId } = req.params;
-            const booking = await bookingService.getBookingById(bookingId);
+            const booking = await bookingService.getBookingById(bookingId, req.tenantId);
 
             if (!booking) {
                 return res.status(404).json({

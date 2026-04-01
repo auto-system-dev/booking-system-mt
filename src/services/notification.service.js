@@ -9,6 +9,7 @@ function createNotificationService(deps) {
         generatePaymentReceivedEmail,
         generateCancellationEmail
     } = deps;
+    const resolveTenantId = (data = {}) => data.tenant_id || data.tenantId || processEnv.DEFAULT_TENANT_ID || 1;
 
     async function buildMailOptionsFromTemplateWithFallback(params) {
         const {
@@ -73,7 +74,7 @@ function createNotificationService(deps) {
             try {
                 const parsedAddons = typeof booking.addons === 'string' ? JSON.parse(booking.addons) : booking.addons;
                 if (parsedAddons && parsedAddons.length > 0) {
-                    const allAddons = await db.getAllAddonsAdmin();
+                    const allAddons = await db.getAllAddonsAdmin(resolveTenantId(booking));
                     addonsList = parsedAddons.map(addon => {
                         const addonInfo = allAddons.find(a => a.name === addon.name);
                         const rawDisplayName = String(
@@ -166,7 +167,7 @@ function createNotificationService(deps) {
         }
 
         try {
-            const adminEmail = await db.getSetting('admin_email') || processEnv.ADMIN_EMAIL || 'cheng701107@gmail.com';
+            const adminEmail = await db.getSetting('admin_email', resolveTenantId(booking)) || processEnv.ADMIN_EMAIL || 'cheng701107@gmail.com';
             let adminMailOptions = null;
             try {
                 const { subject, content } = await templateService.generateEmailFromTemplate('booking_confirmation_admin', bookingData);
@@ -231,7 +232,7 @@ function createNotificationService(deps) {
             fallbackHtmlFactory: () => templateService.generateCustomerEmail(bookingData)
         });
 
-        const adminEmail = await db.getSetting('admin_email') || processEnv.ADMIN_EMAIL || 'cheng701107@gmail.com';
+        const adminEmail = await db.getSetting('admin_email', resolveTenantId(bookingData)) || processEnv.ADMIN_EMAIL || 'cheng701107@gmail.com';
         const adminRender = await buildMailOptionsFromTemplateWithFallback({
             context: '建立訂房寄信',
             to: adminEmail,

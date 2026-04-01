@@ -5,6 +5,7 @@ function createBookingNotificationJobs(deps) {
         getHotelSettingsWithFallback,
         calculateDynamicPaymentDeadline
     } = deps;
+    const defaultTenantId = parseInt(process.env.DEFAULT_TENANT_ID || '1', 10);
 
     async function sendPaymentReminderEmails() {
         try {
@@ -71,10 +72,10 @@ function createBookingNotificationJobs(deps) {
             console.log(`找到 ${bookings.length} 筆需要發送匯款提醒的訂房（匯款期限最後一天）`);
 
             const bankInfo = {
-                bankName: await db.getSetting('bank_name') || '',
-                bankBranch: await db.getSetting('bank_branch') || '',
-                account: await db.getSetting('bank_account') || '',
-                accountName: await db.getSetting('account_name') || ''
+                bankName: await db.getSetting('bank_name', defaultTenantId) || '',
+                bankBranch: await db.getSetting('bank_branch', defaultTenantId) || '',
+                account: await db.getSetting('bank_account', defaultTenantId) || '',
+                accountName: await db.getSetting('account_name', defaultTenantId) || ''
             };
 
             for (const booking of bookings) {

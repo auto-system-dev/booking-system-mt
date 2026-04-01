@@ -96,6 +96,14 @@
                     <span class="nav-icon"><span class="material-symbols-outlined">settings</span></span>
                     <span>系統設定</span>
                 </a>
+                <a href="#subscription-overview" class="nav-item permission-required" data-super-admin-only="1" data-section="subscription-overview" data-permission="admins.view" onclick="handleNavClick(event, 'subscription-overview')">
+                    <span class="nav-icon"><span class="material-symbols-outlined">subscriptions</span></span>
+                    <span>訂閱總覽</span>
+                </a>
+                <a href="#tenant-management" class="nav-item permission-required" data-super-admin-only="1" data-section="tenant-management" data-permission="admins.view" onclick="handleNavClick(event, 'tenant-management')">
+                    <span class="nav-icon"><span class="material-symbols-outlined">apartment</span></span>
+                    <span>租戶管理</span>
+                </a>
                 <a href="#email-templates" class="nav-item permission-required" data-section="email-templates" data-permission="email_templates.view" onclick="handleNavClick(event, 'email-templates')">
                     <span class="nav-icon"><span class="material-symbols-outlined">mail</span></span>
                     <span>郵件模板</span>
@@ -1145,8 +1153,38 @@
 
                     <!-- 基本設定分頁 -->
                     <div id="settingsTabBasicContent" class="tab-content active">
-                        <!-- 旅宿資訊區塊 -->
+                        <!-- 訂閱方案區塊 -->
                         <div style="margin-top: 0;">
+                            <div style="display: flex; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #7c3aed;">
+                                <span class="material-symbols-outlined" style="font-size: 24px; color: #7c3aed; margin-right: 10px;">workspace_premium</span>
+                                <h3 style="margin: 0; color: #2c3e50;">訂閱方案管理</h3>
+                            </div>
+                            <div class="settings-card" style="margin-top: 0;">
+                                <div id="subscriptionStatusNotice" style="display:none; margin-bottom: 14px; padding: 10px 12px; border-radius: 8px; font-size: 14px;"></div>
+                                <div class="form-group">
+                                    <label>目前方案</label>
+                                    <input type="text" id="subscriptionCurrentPlan" readonly>
+                                    <small id="subscriptionCurrentMeta">-</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>功能權限摘要</label>
+                                    <input type="text" id="subscriptionFeatureSummary" readonly>
+                                    <small>依目前方案顯示報表/API/館別上限。</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>切換方案</label>
+                                    <select id="subscriptionPlanSelect"></select>
+                                    <small>切換後會即時更新功能權限。</small>
+                                </div>
+                                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                    <button type="button" class="btn-save" onclick="switchTenantSubscriptionPlan()">更新方案</button>
+                                    <button type="button" class="btn-refresh" onclick="loadSubscriptionSettings()">重新整理狀態</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 旅宿資訊區塊 -->
+                        <div style="margin-top: 30px;">
                             <div style="display: flex; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #3498db;">
                                 <span class="material-symbols-outlined" style="font-size: 24px; color: #3498db; margin-right: 10px;">hotel</span>
                                 <h3 style="margin: 0; color: #2c3e50;">旅宿資訊</h3>
@@ -1477,6 +1515,76 @@
                             </div>
                         </div>
                     </div>
+                </div>
+            </section>
+
+            <section id="subscription-overview-section" class="content-section">
+                <div class="section-header">
+                    <h2><span class="material-symbols-outlined" style="font-size: 28px; vertical-align: middle; margin-right: 8px;">subscriptions</span> 訂閱總覽（全租戶）</h2>
+                    <div class="header-actions">
+                        <button class="btn-refresh" onclick="loadSubscriptionOverview()">
+                            <span class="material-symbols-outlined">refresh</span> 重新整理
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="bookings-table">
+                        <thead>
+                            <tr>
+                                <th>Tenant ID</th>
+                                <th>租戶名稱</th>
+                                <th>租戶狀態</th>
+                                <th>方案</th>
+                                <th>訂閱狀態</th>
+                                <th>週期</th>
+                                <th>到期時間</th>
+                                <th>更新時間</th>
+                            </tr>
+                        </thead>
+                        <tbody id="subscriptionOverviewTableBody">
+                            <tr><td colspan="8" style="text-align:center;color:#666;">載入中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section id="tenant-management-section" class="content-section">
+                <div class="section-header">
+                    <h2><span class="material-symbols-outlined" style="font-size: 28px; vertical-align: middle; margin-right: 8px;">apartment</span> 租戶管理</h2>
+                    <div class="header-actions" style="display:flex; gap:8px; align-items:center;">
+                        <button class="btn-primary" onclick="showCreateTenantModal()">
+                            <span class="material-symbols-outlined">add</span> 新增租戶
+                        </button>
+                        <select id="tenantStatusFilter" style="padding:8px;">
+                            <option value="">全部狀態</option>
+                            <option value="pending">待驗證</option>
+                            <option value="active">啟用中</option>
+                            <option value="suspended">已停用</option>
+                        </select>
+                        <input id="tenantKeywordFilter" type="text" placeholder="搜尋租戶名稱/代碼" style="padding:8px; min-width:200px;">
+                        <button class="btn-refresh" onclick="loadTenantManagementList()">
+                            <span class="material-symbols-outlined">search</span> 查詢
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="bookings-table">
+                        <thead>
+                            <tr>
+                                <th>Tenant ID</th>
+                                <th>租戶代碼</th>
+                                <th>租戶名稱</th>
+                                <th>租戶狀態</th>
+                                <th>管理員帳號</th>
+                                <th>管理員信箱</th>
+                                <th>管理員啟用</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tenantManagementTableBody">
+                            <tr><td colspan="8" style="text-align:center;color:#666;">載入中...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </section>
 
@@ -2930,6 +3038,95 @@
                     </div>
                     <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
                         <button type="button" class="btn-primary btn-danger" onclick="closeAdminModal()">取消</button>
+                        <button type="submit" class="btn-save">儲存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="tenantCreateModal" class="modal">
+        <div class="modal-content" style="max-width: 640px;">
+            <div class="modal-header">
+                <h3>新增租戶</h3>
+                <span class="modal-close" onclick="closeCreateTenantModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="tenantCreateForm" onsubmit="saveTenant(event)">
+                    <div class="form-group">
+                        <label>租戶名稱 <span style="color: red;">*</span></label>
+                        <input type="text" id="tenantCreateName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>租戶代碼</label>
+                        <input type="text" id="tenantCreateCode" placeholder="可留空自動產生，例如 my_hotel">
+                    </div>
+                    <div class="form-group">
+                        <label>管理員帳號 <span style="color: red;">*</span></label>
+                        <input type="text" id="tenantCreateAdminUsername" required>
+                    </div>
+                    <div class="form-group">
+                        <label>管理員 Email</label>
+                        <input type="email" id="tenantCreateAdminEmail" placeholder="owner@example.com">
+                    </div>
+                    <div class="form-group">
+                        <label>管理員密碼 <span style="color: red;">*</span></label>
+                        <input type="password" id="tenantCreateAdminPassword" minlength="8" required>
+                    </div>
+                    <div class="form-group">
+                        <label>方案代碼</label>
+                        <select id="tenantCreatePlanCode">
+                            <option value="basic_monthly">basic_monthly</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>訂閱狀態</label>
+                        <select id="tenantCreateStatus">
+                            <option value="active">啟用中</option>
+                            <option value="trialing">試用中</option>
+                            <option value="past_due">逾期</option>
+                            <option value="canceled">已取消</option>
+                        </select>
+                    </div>
+                    <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                        <button type="button" class="btn-primary btn-danger" onclick="closeCreateTenantModal()">取消</button>
+                        <button type="submit" class="btn-save">建立租戶</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="tenantEditModal" class="modal">
+        <div class="modal-content" style="max-width: 520px;">
+            <div class="modal-header">
+                <h3>編輯租戶方案/狀態</h3>
+                <span class="modal-close" onclick="closeEditTenantModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="tenantEditForm" onsubmit="saveTenantEdit(event)">
+                    <input type="hidden" id="tenantEditId">
+                    <div class="form-group">
+                        <label>租戶資訊</label>
+                        <input type="text" id="tenantEditDisplay" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label>方案代碼</label>
+                        <select id="tenantEditPlanCode" required>
+                            <option value="basic_monthly">basic_monthly</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>租戶狀態</label>
+                        <select id="tenantEditStatus" required>
+                            <option value="pending">待驗證</option>
+                            <option value="active">啟用中</option>
+                            <option value="suspended">已停用</option>
+                            <option value="canceled">已取消</option>
+                        </select>
+                    </div>
+                    <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+                        <button type="button" class="btn-primary btn-danger" onclick="closeEditTenantModal()">取消</button>
                         <button type="submit" class="btn-save">儲存</button>
                     </div>
                 </form>

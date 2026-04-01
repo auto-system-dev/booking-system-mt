@@ -5,6 +5,7 @@ function createEmailDeliveryService(deps) {
         getHotelSettingsWithFallback,
         emailRuntime
     } = deps;
+    const defaultTenantId = parseInt(process.env.DEFAULT_TENANT_ID || '1', 10);
 
     async function sendEmailViaGmail(mailOptions) {
         if (emailRuntime.sendEmailViaGmailAPI) {
@@ -31,7 +32,7 @@ function createEmailDeliveryService(deps) {
 
                     const senderEmail = (emailRuntime.configuredSenderEmail || 'resend@resend.dev').trim();
                     let fromEmail = senderEmail;
-                    const resendSenderName = ((await db.getSetting('resend_sender_name')) || (await getHotelSettingsWithFallback()).hotelName || '').trim();
+                    const resendSenderName = ((await db.getSetting('resend_sender_name', defaultTenantId)) || (await getHotelSettingsWithFallback()).hotelName || '').trim();
                     if (resendSenderName) {
                         fromEmail = `"${resendSenderName}" <${senderEmail}>`;
                         console.log('   使用寄件人名稱:', resendSenderName);

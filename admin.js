@@ -653,6 +653,8 @@ function exposeFunctionsToWindow() {
 
 // 統一的 API 請求函數（自動包含 credentials 和 CSRF Token）
 let lastUnauthorizedHandledAt = 0;
+let subscriptionPlansCache = [];
+let lastSubscriptionGateAlertAt = 0;
 
 function handleUnauthorizedSession() {
     const now = Date.now();
@@ -714,6 +716,14 @@ async function adminFetch(url, options = {}) {
             // Clone response 以便讀取 body，同時保留原始 response
             const clonedResponse = response.clone();
             const result = await clonedResponse.json().catch(() => ({}));
+            if (result && ['SUBSCRIPTION_CANCELED', 'FEATURE_NOT_AVAILABLE', 'BUILDING_LIMIT_REACHED'].includes(result.code)) {
+                const now = Date.now();
+                const shouldAlert = needsCsrfToken && (now - lastSubscriptionGateAlertAt > 2000);
+                if (shouldAlert) {
+                    lastSubscriptionGateAlertAt = now;
+                    showError(result.message || '目前方案不支援此操作，請調整訂閱方案。');
+                }
+            }
             if (result.message && result.message.includes('CSRF')) {
                 csrfTokenCache = null; // 清除快取
                 // 重新取得 Token 並重試
@@ -1764,6 +1774,8 @@ function switchSection(section) {
         'addons': 'addons.view',
         'promotions': 'promo_codes.view',
         'settings': 'settings.view',
+        'subscription-overview': 'admins.view',
+        'tenant-management': 'admins.view',
         'email-templates': 'email_templates.view',
         'statistics': 'statistics.view',
         'admin-management': 'admins.view',
@@ -1775,6 +1787,11 @@ function switchSection(section) {
     // 檢查權限（僅在已登入後才檢查）
     const requiredPermission = sectionPermissions[section];
     const isLoggedIn = window.currentAdminInfo || (window.currentAdminPermissions && window.currentAdminPermissions.length > 0);
+    if ((section === 'subscription-overview' || section === 'tenant-management') && (!window.currentAdminInfo || window.currentAdminInfo.role !== 'super_admin')) {
+        showError('僅超級管理員可查看此功能');
+        if (section !== 'dashboard') switchSection('dashboard');
+        return;
+    }
     if (isLoggedIn && requiredPermission && !hasPermission(requiredPermission)) {
         console.warn(`⚠️ 沒有權限訪問 ${section}，需要 ${requiredPermission}`);
         showError(`您沒有權限訪問此功能`);
@@ -1835,6 +1852,10 @@ function switchSection(section) {
         // 恢復上次選擇的分頁
         const savedTab = localStorage.getItem('settingsTab') || 'basic';
         switchSettingsTab(savedTab);
+    } else if (section === 'subscription-overview') {
+        loadSubscriptionOverview();
+    } else if (section === 'tenant-management') {
+        loadTenantManagementList();
     } else if (section === 'email-templates') {
         loadEmailTemplates();
     } else if (section === 'statistics') {
@@ -1886,6 +1907,10 @@ function loadInitialAdminRoute() {
     } else if (urlHash === '#settings') {
         switchSection('settings');
         if (typeof loadHolidays === 'function') loadHolidays();
+    } else if (urlHash === '#subscription-overview') {
+        switchSection('subscription-overview');
+    } else if (urlHash === '#tenant-management') {
+        switchSection('tenant-management');
     } else if (urlHash === '#addons') {
         switchSection('addons');
     } else if (urlHash === '#promotions') {
@@ -2098,6 +2123,12 @@ async function loadDashboard(options = {}) {
             try {
                 const response = await adminFetch(url);
                 if (!response.ok) {
+                    if (response.status === 403) {
+                        const deniedPayload = await response.clone().json().catch(() => ({}));
+                        if (deniedPayload?.code === 'FEATURE_NOT_AVAILABLE' || deniedPayload?.code === 'SUBSCRIPTION_CANCELED') {
+                            throw new Error(`SUBSCRIPTION_GATE:${deniedPayload.message || '目前方案不支援此功能'}`);
+                        }
+                    }
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 return await response.json();
@@ -2119,6 +2150,7 @@ async function loadDashboard(options = {}) {
     };
 
     try {
+        setSectionInlineNotice('dashboard-section', '');
         const isCustom = !!options.isCustom;
         const rangeParams = isCustom
             ? { startDate: options.startDate, endDate: options.endDate }
@@ -2263,6 +2295,11 @@ async function loadDashboard(options = {}) {
         }
     } catch (error) {
         console.error('載入儀表板數據錯誤:', error);
+        if (String(error?.message || '').startsWith('SUBSCRIPTION_GATE:')) {
+            const reason = String(error.message).replace('SUBSCRIPTION_GATE:', '').trim();
+            setSectionInlineNotice('dashboard-section', reason || '目前方案限制，無法讀取儀表板資料', 'warn');
+            return;
+        }
         showError('載入儀表板數據時發生錯誤：' + error.message);
     }
 }
@@ -4086,6 +4123,7 @@ function setStatisticsPreset(preset) {
 // 依目前日期篩選載入統計資料
 async function loadStatistics() {
     try {
+        setSectionInlineNotice('statistics-section', '');
         const startInput = document.getElementById('statsStartDate');
         const endInput = document.getElementById('statsEndDate');
         // 預設顯示「本月」（未選日期且非「全部期間」模式時自動帶入當月）
@@ -4130,6 +4168,14 @@ async function loadStatistics() {
         }
         
         if (!response.ok) {
+            const deniedPayload = await response.clone().json().catch(() => ({}));
+            if (
+                response.status === 403 &&
+                (deniedPayload?.code === 'FEATURE_NOT_AVAILABLE' || deniedPayload?.code === 'SUBSCRIPTION_CANCELED')
+            ) {
+                setSectionInlineNotice('statistics-section', deniedPayload.message || '目前方案不支援報表功能', 'warn');
+                return;
+            }
             const errorText = await response.text();
             console.error('統計資料 API 錯誤:', response.status, errorText);
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -4354,6 +4400,40 @@ function showSuccess(message) {
     setTimeout(() => {
         errorDiv.remove();
     }, 3000);
+}
+
+function setSectionInlineNotice(sectionId, message = '', level = 'warn') {
+    const sectionEl = document.getElementById(sectionId);
+    if (!sectionEl) return;
+    const noticeId = `${sectionId}-inlineNotice`;
+    let noticeEl = document.getElementById(noticeId);
+    if (!noticeEl) {
+        noticeEl = document.createElement('div');
+        noticeEl.id = noticeId;
+        noticeEl.style.marginBottom = '14px';
+        noticeEl.style.padding = '10px 12px';
+        noticeEl.style.borderRadius = '8px';
+        noticeEl.style.fontSize = '14px';
+        sectionEl.insertBefore(noticeEl, sectionEl.firstChild);
+    }
+
+    if (!message) {
+        noticeEl.style.display = 'none';
+        noticeEl.textContent = '';
+        return;
+    }
+
+    if (level === 'error') {
+        noticeEl.style.background = '#fee2e2';
+        noticeEl.style.color = '#991b1b';
+        noticeEl.style.border = '1px solid #fecaca';
+    } else {
+        noticeEl.style.background = '#fff7ed';
+        noticeEl.style.color = '#9a3412';
+        noticeEl.style.border = '1px solid #fed7aa';
+    }
+    noticeEl.textContent = message;
+    noticeEl.style.display = 'block';
 }
 
 // 取得付款狀態樣式
@@ -7168,12 +7248,466 @@ async function loadSettings() {
             document.getElementById('gmailClientID').value = settings.gmail_client_id || '';
             document.getElementById('gmailClientSecret').value = settings.gmail_client_secret || '';
             document.getElementById('gmailRefreshToken').value = settings.gmail_refresh_token || '';
+
+            await loadSubscriptionSettings();
         } else {
             showError('載入設定失敗：' + (result.message || '未知錯誤'));
         }
     } catch (error) {
         console.error('載入設定錯誤:', error);
         showError('載入設定時發生錯誤：' + error.message);
+    }
+}
+
+function mapSubscriptionStatusLabel(status) {
+    const map = {
+        trialing: '試用中',
+        active: '啟用中',
+        past_due: '逾期待補繳',
+        canceled: '已停權'
+    };
+    return map[status] || status || '未知';
+}
+
+function mapTenantStatusLabel(status) {
+    const normalized = String(status || '').trim().toLowerCase();
+    const map = {
+        pending: '待驗證',
+        active: '啟用中',
+        suspended: '已停用',
+        canceled: '已取消'
+    };
+    return map[normalized] || (status || '-');
+}
+
+function escapeHtml(value) {
+    return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function toReadableDate(dateValue) {
+    if (!dateValue) {
+        return '未設定';
+    }
+    const d = new Date(dateValue);
+    if (Number.isNaN(d.getTime())) {
+        return String(dateValue);
+    }
+    return d.toLocaleString('zh-TW');
+}
+
+function renderSubscriptionNotice(snapshot) {
+    const noticeEl = document.getElementById('subscriptionStatusNotice');
+    if (!noticeEl || !snapshot) {
+        return;
+    }
+
+    if (snapshot.status === 'canceled') {
+        noticeEl.style.display = 'block';
+        noticeEl.style.background = '#fee2e2';
+        noticeEl.style.color = '#991b1b';
+        noticeEl.style.border = '1px solid #fecaca';
+        noticeEl.textContent = '目前訂閱已停權，部分功能已鎖定。切換至有效方案後會立即恢復。';
+        return;
+    }
+
+    if (snapshot.status === 'past_due') {
+        noticeEl.style.display = 'block';
+        noticeEl.style.background = '#fff7ed';
+        noticeEl.style.color = '#9a3412';
+        noticeEl.style.border = '1px solid #fed7aa';
+        noticeEl.textContent = '目前訂閱逾期，系統可能已限制部分功能，建議盡快更新方案。';
+        return;
+    }
+
+    if (snapshot.status === 'trialing') {
+        noticeEl.style.display = 'block';
+        noticeEl.style.background = '#eff6ff';
+        noticeEl.style.color = '#1e3a8a';
+        noticeEl.style.border = '1px solid #bfdbfe';
+        noticeEl.textContent = '目前為試用方案，試用到期後將依狀態自動降權。';
+        return;
+    }
+
+    noticeEl.style.display = 'none';
+}
+
+function renderSubscriptionSnapshot(snapshot) {
+    const planInput = document.getElementById('subscriptionCurrentPlan');
+    const metaEl = document.getElementById('subscriptionCurrentMeta');
+    const featureSummaryInput = document.getElementById('subscriptionFeatureSummary');
+    if (!planInput || !metaEl || !featureSummaryInput) {
+        return;
+    }
+
+    const statusText = mapSubscriptionStatusLabel(snapshot?.status);
+    const planText = snapshot?.planCode || 'basic_monthly';
+    const periodEndText = toReadableDate(snapshot?.periodEnd);
+    const reports = snapshot?.features?.reports ? '開啟' : '關閉';
+    const apiAccess = snapshot?.features?.api_access ? '開啟' : '關閉';
+    const maxBuildings = Number(snapshot?.limits?.max_buildings || 1);
+
+    planInput.value = `${planText}（${statusText}）`;
+    metaEl.textContent = `到期時間：${periodEndText}`;
+    featureSummaryInput.value = `報表：${reports} / API：${apiAccess} / 館別上限：${maxBuildings}`;
+    renderSubscriptionNotice(snapshot);
+}
+
+function renderSubscriptionPlans(plans, currentPlanCode) {
+    const selectEl = document.getElementById('subscriptionPlanSelect');
+    if (!selectEl) {
+        return;
+    }
+    selectEl.innerHTML = '';
+    plans.forEach((plan) => {
+        const option = document.createElement('option');
+        option.value = plan.code;
+        const price = Number(plan.price_amount || 0);
+        const priceText = Number.isFinite(price) ? `NT$${price}` : 'NT$0';
+        const cycleText = plan.billing_cycle === 'yearly' ? '年繳' : '月繳';
+        option.textContent = `${plan.name}（${cycleText} / ${priceText}）`;
+        if (currentPlanCode && plan.code === currentPlanCode) {
+            option.selected = true;
+        }
+        selectEl.appendChild(option);
+    });
+}
+
+async function loadSubscriptionSettings() {
+    const planInput = document.getElementById('subscriptionCurrentPlan');
+    if (!planInput) {
+        return;
+    }
+    try {
+        const [statusResp, plansResp] = await Promise.all([
+            adminFetch('/api/subscription/status'),
+            adminFetch('/api/admin/subscription/plans')
+        ]);
+        const [statusResult, plansResult] = await Promise.all([
+            statusResp.json(),
+            plansResp.json()
+        ]);
+
+        if (!statusResult.success) {
+            throw new Error(statusResult.message || '無法取得訂閱狀態');
+        }
+        if (!plansResult.success) {
+            throw new Error(plansResult.message || '無法取得方案清單');
+        }
+
+        const snapshot = statusResult.data || {};
+        const plans = Array.isArray(plansResult.data) ? plansResult.data : [];
+        subscriptionPlansCache = plans;
+        renderSubscriptionSnapshot(snapshot);
+        renderSubscriptionPlans(plans, snapshot.planCode);
+    } catch (error) {
+        console.error('載入訂閱狀態失敗:', error);
+        showError('載入訂閱方案資訊失敗：' + error.message);
+    }
+}
+
+async function switchTenantSubscriptionPlan() {
+    const selectEl = document.getElementById('subscriptionPlanSelect');
+    if (!selectEl) {
+        return;
+    }
+    const planCode = String(selectEl.value || '').trim();
+    if (!planCode) {
+        showError('請先選擇方案');
+        return;
+    }
+
+    try {
+        const response = await adminFetch('/api/admin/subscription/switch-plan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                planCode,
+                status: 'active'
+            })
+        });
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.message || '更新失敗');
+        }
+
+        showSuccess('訂閱方案已更新，功能權限已同步。');
+        const snapshot = result.data || {};
+        renderSubscriptionSnapshot(snapshot);
+        if (subscriptionPlansCache.length > 0) {
+            renderSubscriptionPlans(subscriptionPlansCache, snapshot.planCode);
+        }
+    } catch (error) {
+        console.error('切換訂閱方案失敗:', error);
+        showError('切換方案失敗：' + error.message);
+    }
+}
+
+async function loadSubscriptionOverview() {
+    const tbody = document.getElementById('subscriptionOverviewTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#666;">載入中...</td></tr>';
+    try {
+        const response = await adminFetch('/api/admin/subscription/overview');
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+        const rows = Array.isArray(result.data) ? result.data : [];
+        if (rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#666;">目前沒有租戶資料</td></tr>';
+            return;
+        }
+        tbody.innerHTML = rows.map((row) => {
+            const planText = row.planCode ? `${row.planCode}${row.planName ? ` (${row.planName})` : ''}` : '-';
+            const subStatus = row.subscriptionStatus || 'none';
+            const cycleLabel = row.billingCycle === 'yearly' ? '年繳' : (row.billingCycle === 'monthly' ? '月繳' : '-');
+            return `
+                <tr>
+                    <td>${escapeHtml(row.tenantId)}</td>
+                    <td>${escapeHtml(row.tenantName || '-')}</td>
+                    <td>${escapeHtml(mapTenantStatusLabel(row.tenantStatus || '-'))}</td>
+                    <td>${escapeHtml(planText)}</td>
+                    <td>${escapeHtml(mapSubscriptionStatusLabel(subStatus))}</td>
+                    <td>${escapeHtml(cycleLabel)}</td>
+                    <td>${escapeHtml(toReadableDate(row.periodEnd))}</td>
+                    <td>${escapeHtml(toReadableDate(row.updatedAt))}</td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('載入訂閱總覽失敗:', error);
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
+    }
+}
+
+async function loadTenantManagementList() {
+    const tbody = document.getElementById('tenantManagementTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#666;">載入中...</td></tr>';
+    try {
+        const status = String(document.getElementById('tenantStatusFilter')?.value || '').trim();
+        const keyword = String(document.getElementById('tenantKeywordFilter')?.value || '').trim();
+        const qs = new URLSearchParams();
+        if (status) qs.set('status', status);
+        if (keyword) qs.set('keyword', keyword);
+        qs.set('limit', '100');
+        qs.set('offset', '0');
+
+        const response = await adminFetch(`/api/admin/tenants?${qs.toString()}`);
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+        const rows = Array.isArray(result.data) ? result.data : [];
+        if (rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#666;">目前沒有租戶資料</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = rows.map((row) => {
+            const canActivate = String(row.status || '').toLowerCase() !== 'active';
+            const tenantId = escapeHtml(row.id);
+            const email = escapeHtml(row.admin_email || '');
+            return `
+                <tr>
+                    <td>${tenantId}</td>
+                    <td>${escapeHtml(row.code || '-')}</td>
+                    <td>${escapeHtml(row.name || '-')}</td>
+                    <td>${escapeHtml(mapTenantStatusLabel(row.status || '-'))}</td>
+                    <td>${escapeHtml(row.admin_username || '-')}</td>
+                    <td>${email || '-'}</td>
+                    <td>${String(row.admin_is_active) === '1' || row.admin_is_active === true ? '是' : '否'}</td>
+                    <td style="white-space:nowrap;">
+                        <button class="btn-refresh" onclick="showEditTenantModal(${tenantId}, '${escapeHtml(row.name || '').replace(/'/g, "\\'")}', '${escapeHtml(row.code || '').replace(/'/g, "\\'")}', '${escapeHtml(row.plan_code || 'basic_monthly').replace(/'/g, "\\'")}', '${escapeHtml(row.status || 'active').replace(/'/g, "\\'")}')">編輯</button>
+                        <button class="btn-refresh" onclick="activateTenantById(${tenantId})" ${canActivate ? '' : 'disabled'}>啟用</button>
+                        <button class="btn-refresh" onclick="resendTenantVerificationByEmail('${email.replace(/'/g, "\\'")}')" ${email ? '' : 'disabled'}>重寄驗證</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('載入租戶列表失敗:', error);
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
+    }
+}
+
+async function loadTenantPlanOptions(targetSelectId, selectedCode = '') {
+    const select = document.getElementById(targetSelectId);
+    if (!select) return;
+    try {
+        const response = await adminFetch('/api/admin/subscription/plans');
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+        const plans = Array.isArray(result.data) ? result.data : [];
+        if (plans.length === 0) {
+            select.innerHTML = '<option value="basic_monthly">basic_monthly</option>';
+            select.value = 'basic_monthly';
+            return;
+        }
+        select.innerHTML = plans
+            .map((plan) => `<option value="${escapeHtml(plan.code)}">${escapeHtml(plan.code)} - ${escapeHtml(plan.name || plan.code)}</option>`)
+            .join('');
+        if (selectedCode && plans.some((p) => String(p.code) === String(selectedCode))) {
+            select.value = selectedCode;
+        } else {
+            select.value = String(plans[0].code || 'basic_monthly');
+        }
+    } catch (error) {
+        console.error('載入租戶方案選項失敗:', error);
+        select.innerHTML = '<option value="basic_monthly">basic_monthly</option>';
+        select.value = 'basic_monthly';
+    }
+}
+
+async function activateTenantById(tenantId) {
+    if (!tenantId) return;
+    if (!confirm(`確認啟用租戶 #${tenantId} ?`)) return;
+    try {
+        const response = await adminFetch(`/api/admin/tenants/${tenantId}/activate`, { method: 'POST' });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+        showSuccess(`租戶 #${tenantId} 已啟用`);
+        loadTenantManagementList();
+    } catch (error) {
+        showError('啟用租戶失敗：' + error.message);
+    }
+}
+
+async function resendTenantVerificationByEmail(email) {
+    const safeEmail = String(email || '').trim();
+    if (!safeEmail) {
+        showError('此租戶沒有可重寄的管理員信箱');
+        return;
+    }
+    if (!confirm(`確認重寄驗證信到 ${safeEmail} ?`)) return;
+    try {
+        const response = await adminFetch('/api/public/resend-tenant-verification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: safeEmail })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+        showSuccess(`已重寄驗證信至 ${safeEmail}`);
+    } catch (error) {
+        showError('重寄驗證信失敗：' + error.message);
+    }
+}
+
+function showCreateTenantModal() {
+    const modal = document.getElementById('tenantCreateModal');
+    const form = document.getElementById('tenantCreateForm');
+    if (!modal || !form) return;
+    form.reset();
+    loadTenantPlanOptions('tenantCreatePlanCode', 'basic_monthly');
+    const defaultStatus = document.getElementById('tenantCreateStatus');
+    if (defaultStatus) defaultStatus.value = 'active';
+    modal.style.display = 'block';
+}
+
+function closeCreateTenantModal() {
+    const modal = document.getElementById('tenantCreateModal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function saveTenant(event) {
+    if (event && typeof event.preventDefault === 'function') {
+        event.preventDefault();
+    }
+    const payload = {
+        tenantName: String(document.getElementById('tenantCreateName')?.value || '').trim(),
+        tenantCode: String(document.getElementById('tenantCreateCode')?.value || '').trim(),
+        adminUsername: String(document.getElementById('tenantCreateAdminUsername')?.value || '').trim(),
+        adminEmail: String(document.getElementById('tenantCreateAdminEmail')?.value || '').trim(),
+        adminPassword: String(document.getElementById('tenantCreateAdminPassword')?.value || ''),
+        planCode: String(document.getElementById('tenantCreatePlanCode')?.value || 'basic_monthly').trim(),
+        subscriptionStatus: String(document.getElementById('tenantCreateStatus')?.value || 'active').trim()
+    };
+
+    if (!payload.tenantName || !payload.adminUsername || !payload.adminPassword) {
+        showError('請填寫租戶名稱、管理員帳號、管理員密碼');
+        return;
+    }
+    if (payload.adminPassword.length < 8) {
+        showError('管理員密碼至少 8 碼');
+        return;
+    }
+
+    try {
+        const response = await adminFetch('/api/admin/tenants', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+        showSuccess(`租戶已建立：${payload.tenantName}`);
+        closeCreateTenantModal();
+        loadTenantManagementList();
+    } catch (error) {
+        showError('建立租戶失敗：' + error.message);
+    }
+}
+
+function showEditTenantModal(tenantId, tenantName, tenantCode, planCode, status) {
+    const modal = document.getElementById('tenantEditModal');
+    if (!modal) return;
+    document.getElementById('tenantEditId').value = String(tenantId || '');
+    document.getElementById('tenantEditDisplay').value = `${tenantName || '-'} (${tenantCode || '-'})`;
+    loadTenantPlanOptions('tenantEditPlanCode', planCode || 'basic_monthly');
+    document.getElementById('tenantEditStatus').value = status || 'active';
+    modal.style.display = 'block';
+}
+
+function closeEditTenantModal() {
+    const modal = document.getElementById('tenantEditModal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function saveTenantEdit(event) {
+    if (event && typeof event.preventDefault === 'function') {
+        event.preventDefault();
+    }
+    const tenantId = parseInt(document.getElementById('tenantEditId')?.value, 10);
+    const planCode = String(document.getElementById('tenantEditPlanCode')?.value || '').trim();
+    const status = String(document.getElementById('tenantEditStatus')?.value || '').trim();
+    if (!Number.isInteger(tenantId) || tenantId <= 0) {
+        showError('租戶 ID 錯誤');
+        return;
+    }
+    if (!planCode || !status) {
+        showError('請填寫方案代碼與租戶狀態');
+        return;
+    }
+
+    try {
+        const response = await adminFetch(`/api/admin/tenants/${tenantId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ planCode, status })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+        showSuccess(`租戶 #${tenantId} 已更新`);
+        closeEditTenantModal();
+        loadTenantManagementList();
+    } catch (error) {
+        showError('更新租戶失敗：' + error.message);
     }
 }
 
@@ -10977,6 +11511,11 @@ function updateSidebarByPermissions() {
     // 更新需要權限的側邊欄項目
     document.querySelectorAll('.nav-item.permission-required').forEach(item => {
         const requiredPermission = item.dataset.permission;
+        const superAdminOnly = item.dataset.superAdminOnly === '1';
+        if (superAdminOnly && (!window.currentAdminInfo || window.currentAdminInfo.role !== 'super_admin')) {
+            item.style.display = 'none';
+            return;
+        }
         if (requiredPermission) {
             if (hasPermission(requiredPermission)) {
                 item.style.display = '';

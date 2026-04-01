@@ -366,10 +366,112 @@ function createPaymentController(deps) {
         }
     }
 
+    async function newebpaySubscriptionWebhook(req, res) {
+        const requestId = req.requestId || null;
+        const route = '/api/payment/newebpay/subscription/webhook';
+        try {
+            const payload = req.body || {};
+            logPaymentEvent('info', 'payment.newebpay.webhook.received', {
+                requestId,
+                route,
+                result: 'received'
+            });
+            const result = await paymentService.handleNewebpaySubscriptionWebhook(payload, { requestId });
+            if (result.duplicate) {
+                return res.json({ success: true, duplicate: true, message: 'duplicate event ignored' });
+            }
+            return res.json({ success: true, duplicate: false, tenantId: result.tenantId, status: result.status });
+        } catch (error) {
+            logPaymentEvent('error', 'ALERT_NEWEBPAY_WEBHOOK_PROCESSING_ERROR', {
+                requestId,
+                route,
+                result: 'error',
+                error: error.message
+            });
+            return res.status(400).json({ success: false, message: '藍新 webhook 處理失敗: ' + error.message });
+        }
+    }
+
+    async function newebpayCreateSubscription(req, res) {
+        try {
+            const admin = req.session?.admin;
+            if (!admin) {
+                return res.status(401).json({ success: false, message: '請先登入管理後台' });
+            }
+            const tenantId = admin.tenant_id || parseInt(process.env.DEFAULT_TENANT_ID || '1', 10);
+            const { planCode, returnUrl, notifyUrl, customerEmail, customerName } = req.body || {};
+            const data = await paymentService.createNewebpaySubscriptionRequest({
+                tenantId,
+                planCode,
+                returnUrl,
+                notifyUrl,
+                customerEmail,
+                customerName
+            });
+            return res.json({ success: true, data });
+        } catch (error) {
+            return res.status(400).json({ success: false, message: '建立藍新定期定額請求失敗: ' + error.message });
+        }
+    }
+
+    async function newebpayAlterSubscriptionStatus(req, res) {
+        try {
+            const admin = req.session?.admin;
+            if (!admin) {
+                return res.status(401).json({ success: false, message: '請先登入管理後台' });
+            }
+            const { merOrderNo, periodNo, alterType } = req.body || {};
+            const data = await paymentService.alterNewebpaySubscriptionStatus({
+                merOrderNo,
+                periodNo,
+                alterType
+            });
+            return res.json({ success: true, data });
+        } catch (error) {
+            return res.status(400).json({ success: false, message: '修改藍新定期定額狀態失敗: ' + error.message });
+        }
+    }
+
+    async function newebpayAlterSubscriptionContent(req, res) {
+        try {
+            const admin = req.session?.admin;
+            if (!admin) {
+                return res.status(401).json({ success: false, message: '請先登入管理後台' });
+            }
+            const {
+                merOrderNo,
+                periodNo,
+                alterAmt,
+                periodType,
+                periodPoint,
+                periodTimes,
+                extday,
+                notifyUrl
+            } = req.body || {};
+            const data = await paymentService.alterNewebpaySubscriptionContent({
+                merOrderNo,
+                periodNo,
+                alterAmt,
+                periodType,
+                periodPoint,
+                periodTimes,
+                extday,
+                notifyUrl
+            });
+            return res.json({ success: true, data });
+        } catch (error) {
+            return res.status(400).json({ success: false, message: '修改藍新定期定額內容失敗: ' + error.message });
+        }
+    }
+
     return {
         createPayment,
         paymentReturn,
-        paymentResult
+        paymentResult,
+        newebpaySubscriptionWebhook,
+        newebpayCreateSubscription,
+        newebpayAlterSubscriptionStatus,
+        newebpayAlterSubscriptionContent
     };
 }
 

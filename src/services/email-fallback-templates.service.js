@@ -4,6 +4,7 @@ function createEmailFallbackTemplatesService(deps) {
         generateEmailFromTemplate,
         db
     } = deps;
+    const resolveTenantId = (data = {}) => data.tenant_id || data.tenantId || process.env.DEFAULT_TENANT_ID || 1;
 
     async function getHotelInfoFooter() {
         try {
@@ -38,7 +39,7 @@ function createEmailFallbackTemplatesService(deps) {
         let showBuildingInEmail = false;
         try {
             if (db && typeof db.getActiveBuildingsPublic === 'function') {
-                const ab = await db.getActiveBuildingsPublic();
+                const ab = await db.getActiveBuildingsPublic(resolveTenantId(data));
                 showBuildingInEmail = Array.isArray(ab) && ab.length > 1;
             }
         } catch (_) {
@@ -212,7 +213,7 @@ function createEmailFallbackTemplatesService(deps) {
             let showBuildingInEmail = false;
             try {
                 if (db && typeof db.getActiveBuildingsPublic === 'function') {
-                    const ab = await db.getActiveBuildingsPublic();
+                    const ab = await db.getActiveBuildingsPublic(resolveTenantId(booking));
                     showBuildingInEmail = Array.isArray(ab) && ab.length > 1;
                 }
             } catch (_) {

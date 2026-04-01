@@ -2,6 +2,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const { Pool } = require('pg');
 const path = require('path');
+const crypto = require('crypto');
 
 // 檢測使用哪種資料庫
 const usePostgreSQL = !!process.env.DATABASE_URL;
@@ -131,6 +132,15 @@ async function queryOne(sql, params = []) {
     }
 }
 
+function assertTenantScope(tenantId, operation = 'database operation') {
+    const raw = tenantId ?? process.env.DEFAULT_TENANT_ID ?? 1;
+    const n = Number.parseInt(raw, 10);
+    if (!Number.isInteger(n) || n <= 0) {
+        throw new Error(`tenant_id is required for ${operation}`);
+    }
+    return n;
+}
+
 // 轉換 SQL 語法（SQLite -> PostgreSQL）
 function convertSQL(sql) {
     if (!usePostgreSQL) return sql;
@@ -146,6 +156,827 @@ function convertSQL(sql) {
         .replace(/DATE\(([^)]+)\)/g, 'DATE($1)');
 }
 
+async function initMultiTenantCoreTables() {
+    if (usePostgreSQL) {
+        await initMultiTenantCoreTablesPostgreSQL();
+    } else {
+        await initMultiTenantCoreTablesSQLite();
+    }
+}
+
+async function initMultiTenantCoreTablesPostgreSQL() {
+    // tenants: 租戶主檔
+    await query(`
+        CREATE TABLE IF NOT EXISTS tenants (
+            id SERIAL PRIMARY KEY,
+            code VARCHAR(120) UNIQUE NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            status VARCHAR(50) NOT NULL DEFAULT 'active',
+            timezone VARCHAR(80) NOT NULL DEFAULT 'Asia/Taipei',
+            plan_code VARCHAR(80),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // plans: 方案定義
+    await query(`
+        CREATE TABLE IF NOT EXISTS plans (
+            id SERIAL PRIMARY KEY,
+            code VARCHAR(80) UNIQUE NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            billing_cycle VARCHAR(20) NOT NULL CHECK (billing_cycle IN ('monthly', 'yearly')),
+            price_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+            currency VARCHAR(10) NOT NULL DEFAULT 'TWD',
+            feature_flags JSONB NOT NULL DEFAULT '{}'::jsonb,
+            is_active INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // users: 使用者（含 tenant_id）
+    await query(`
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            email VARCHAR(255) NOT NULL,
+            password_hash TEXT,
+            full_name VARCHAR(255) NOT NULL,
+            role VARCHAR(80) NOT NULL DEFAULT 'staff',
+            status VARCHAR(50) NOT NULL DEFAULT 'active',
+            last_login_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (tenant_id, email)
+        )
+    `);
+
+    // subscriptions: 訂閱狀態
+    await query(`
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            plan_id INTEGER REFERENCES plans(id) ON DELETE SET NULL,
+            status VARCHAR(30) NOT NULL DEFAULT 'trialing',
+            billing_cycle VARCHAR(20) NOT NULL CHECK (billing_cycle IN ('monthly', 'yearly')),
+            current_period_start TIMESTAMP,
+            current_period_end TIMESTAMP,
+            trial_ends_at TIMESTAMP,
+            canceled_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // invoices: 帳單/對帳
+    await query(`
+        CREATE TABLE IF NOT EXISTS invoices (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            subscription_id INTEGER REFERENCES subscriptions(id) ON DELETE SET NULL,
+            external_invoice_id VARCHAR(150),
+            invoice_number VARCHAR(120),
+            amount_due DECIMAL(12,2) NOT NULL DEFAULT 0,
+            amount_paid DECIMAL(12,2) NOT NULL DEFAULT 0,
+            currency VARCHAR(10) NOT NULL DEFAULT 'TWD',
+            status VARCHAR(40) NOT NULL DEFAULT 'draft',
+            due_at TIMESTAMP,
+            paid_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // payment_events: 金流 webhook 事件（防重放）
+    await query(`
+        CREATE TABLE IF NOT EXISTS payment_events (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER REFERENCES tenants(id) ON DELETE SET NULL,
+            provider VARCHAR(80) NOT NULL,
+            event_id VARCHAR(180) NOT NULL,
+            event_type VARCHAR(120) NOT NULL,
+            payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+            signature VARCHAR(255),
+            processed_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (provider, event_id)
+        )
+    `);
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS tenant_verifications (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            email VARCHAR(255) NOT NULL,
+            token VARCHAR(128) UNIQUE NOT NULL,
+            purpose VARCHAR(50) NOT NULL DEFAULT 'tenant_signup',
+            expires_at TIMESTAMP NOT NULL,
+            used_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // 常用索引
+    await query(`CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users (tenant_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_subscriptions_tenant_status ON subscriptions (tenant_id, status)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_invoices_tenant_status ON invoices (tenant_id, status)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_payment_events_tenant ON payment_events (tenant_id, created_at DESC)`);
+
+    // 業務表補齊（客戶、價格）並納入 tenant_id
+    await query(`
+        CREATE TABLE IF NOT EXISTS customers (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            name VARCHAR(255) NOT NULL,
+            email VARCHAR(255),
+            phone VARCHAR(60),
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+    await query(`
+        CREATE TABLE IF NOT EXISTS prices (
+            id SERIAL PRIMARY KEY,
+            tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            room_type_id INTEGER REFERENCES room_types(id) ON DELETE CASCADE,
+            date_from DATE,
+            date_to DATE,
+            weekday_price INTEGER,
+            weekend_price INTEGER,
+            holiday_price INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // 業務表補 tenant_id（第 1 週先完成資料模型）
+    await query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
+    await query(`ALTER TABLE room_types ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
+    await query(`ALTER TABLE buildings ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
+    await query(`ALTER TABLE addons ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
+    await query(`ALTER TABLE holidays ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
+    await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
+
+    await query(`CREATE INDEX IF NOT EXISTS idx_bookings_tenant_id ON bookings (tenant_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_room_types_tenant_id ON room_types (tenant_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_customers_tenant_id ON customers (tenant_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_prices_tenant_room_type ON prices (tenant_id, room_type_id)`);
+}
+
+async function initMultiTenantCoreTablesSQLite() {
+    await query(`
+        CREATE TABLE IF NOT EXISTS tenants (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            timezone TEXT NOT NULL DEFAULT 'Asia/Taipei',
+            plan_code TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS plans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            billing_cycle TEXT NOT NULL CHECK (billing_cycle IN ('monthly', 'yearly')),
+            price_amount REAL NOT NULL DEFAULT 0,
+            currency TEXT NOT NULL DEFAULT 'TWD',
+            feature_flags TEXT NOT NULL DEFAULT '{}',
+            is_active INTEGER DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id INTEGER NOT NULL,
+            email TEXT NOT NULL,
+            password_hash TEXT,
+            full_name TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'staff',
+            status TEXT NOT NULL DEFAULT 'active',
+            last_login_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (tenant_id, email),
+            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+        )
+    `);
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id INTEGER NOT NULL,
+            plan_id INTEGER,
+            status TEXT NOT NULL DEFAULT 'trialing',
+            billing_cycle TEXT NOT NULL CHECK (billing_cycle IN ('monthly', 'yearly')),
+            current_period_start DATETIME,
+            current_period_end DATETIME,
+            trial_ends_at DATETIME,
+            canceled_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+            FOREIGN KEY (plan_id) REFERENCES plans(id) ON DELETE SET NULL
+        )
+    `);
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS invoices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id INTEGER NOT NULL,
+            subscription_id INTEGER,
+            external_invoice_id TEXT,
+            invoice_number TEXT,
+            amount_due REAL NOT NULL DEFAULT 0,
+            amount_paid REAL NOT NULL DEFAULT 0,
+            currency TEXT NOT NULL DEFAULT 'TWD',
+            status TEXT NOT NULL DEFAULT 'draft',
+            due_at DATETIME,
+            paid_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+            FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE SET NULL
+        )
+    `);
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS payment_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id INTEGER,
+            provider TEXT NOT NULL,
+            event_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            payload TEXT NOT NULL DEFAULT '{}',
+            signature TEXT,
+            processed_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (provider, event_id),
+            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE SET NULL
+        )
+    `);
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS tenant_verifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id INTEGER NOT NULL,
+            email TEXT NOT NULL,
+            token TEXT UNIQUE NOT NULL,
+            purpose TEXT NOT NULL DEFAULT 'tenant_signup',
+            expires_at DATETIME NOT NULL,
+            used_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+        )
+    `);
+
+    await query(`CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users (tenant_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_subscriptions_tenant_status ON subscriptions (tenant_id, status)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_invoices_tenant_status ON invoices (tenant_id, status)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_payment_events_tenant ON payment_events (tenant_id, created_at DESC)`);
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS customers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            email TEXT,
+            phone TEXT,
+            notes TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+        )
+    `);
+    await query(`
+        CREATE TABLE IF NOT EXISTS prices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id INTEGER NOT NULL,
+            room_type_id INTEGER,
+            date_from TEXT,
+            date_to TEXT,
+            weekday_price INTEGER,
+            weekend_price INTEGER,
+            holiday_price INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+            FOREIGN KEY (room_type_id) REFERENCES room_types(id) ON DELETE CASCADE
+        )
+    `);
+
+    // 業務表補 tenant_id（SQLite 需容錯 duplicate column）
+    try { await query(`ALTER TABLE bookings ADD COLUMN tenant_id INTEGER`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
+    try { await query(`ALTER TABLE room_types ADD COLUMN tenant_id INTEGER`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
+    try { await query(`ALTER TABLE buildings ADD COLUMN tenant_id INTEGER`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
+    try { await query(`ALTER TABLE addons ADD COLUMN tenant_id INTEGER`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
+    try { await query(`ALTER TABLE holidays ADD COLUMN tenant_id INTEGER`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
+    try { await query(`ALTER TABLE settings ADD COLUMN tenant_id INTEGER`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
+
+    await query(`CREATE INDEX IF NOT EXISTS idx_bookings_tenant_id ON bookings (tenant_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_room_types_tenant_id ON room_types (tenant_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_customers_tenant_id ON customers (tenant_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_prices_tenant_room_type ON prices (tenant_id, room_type_id)`);
+}
+
+function parseFeatureFlags(raw) {
+    if (!raw) return {};
+    if (typeof raw === 'object') return raw;
+    try {
+        return JSON.parse(String(raw));
+    } catch (_) {
+        return {};
+    }
+}
+
+async function ensureAdminTenantColumn() {
+    try {
+        if (usePostgreSQL) {
+            await query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
+        } else {
+            await query(`ALTER TABLE admins ADD COLUMN tenant_id INTEGER`);
+        }
+    } catch (error) {
+        const msg = String(error?.message || '').toLowerCase();
+        if (!msg.includes('duplicate column') && !msg.includes('already exists')) {
+            throw error;
+        }
+    }
+}
+
+function slugifyTenantCode(input) {
+    const base = String(input || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 24);
+    return base || `tenant_${Date.now()}`;
+}
+
+function normalizeTenantCode(input) {
+    return String(input || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 40);
+}
+
+async function createTenantOnboarding(input = {}) {
+    const {
+        tenantName,
+        tenantCode,
+        adminUsername,
+        adminEmail,
+        adminPassword,
+        planCode = 'basic_monthly',
+        subscriptionStatus = 'trialing',
+        requireEmailVerification = false
+    } = input;
+
+    const safeTenantName = String(tenantName || '').trim();
+    const safeAdminUsername = String(adminUsername || '').trim();
+    const safeAdminEmail = String(adminEmail || '').trim().toLowerCase();
+    const safeAdminPassword = String(adminPassword || '').trim();
+    const safeTenantCodeBase = normalizeTenantCode(tenantCode || slugifyTenantCode(safeTenantName || safeAdminUsername));
+    if (!safeTenantName) throw new Error('tenantName 為必填');
+    if (!safeAdminUsername) throw new Error('adminUsername 為必填');
+    if (!safeAdminPassword || safeAdminPassword.length < 8) throw new Error('adminPassword 至少 8 碼');
+    if (requireEmailVerification && !safeAdminEmail) throw new Error('啟用 Email 驗證時，adminEmail 為必填');
+
+    await ensureAdminTenantColumn();
+
+    let resolvedTenantCode = safeTenantCodeBase || `tenant_${Date.now()}`;
+    for (let i = 0; i < 5; i += 1) {
+        const existing = await queryOne(
+            usePostgreSQL
+                ? `SELECT id FROM tenants WHERE code = $1`
+                : `SELECT id FROM tenants WHERE code = ?`,
+            [resolvedTenantCode]
+        );
+        if (!existing) break;
+        resolvedTenantCode = `${safeTenantCodeBase}_${Math.floor(Math.random() * 10000)}`;
+    }
+
+    const existingAdmin = await queryOne(
+        usePostgreSQL
+            ? `SELECT id FROM admins WHERE username = $1`
+            : `SELECT id FROM admins WHERE username = ?`,
+        [safeAdminUsername]
+    );
+    if (existingAdmin) {
+        throw new Error('管理員帳號已存在，請更換 adminUsername');
+    }
+
+    const tenantInsert = await query(
+        usePostgreSQL
+            ? `INSERT INTO tenants (code, name, status, timezone, plan_code, created_at, updated_at)
+               VALUES ($1, $2, $3, 'Asia/Taipei', $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+               RETURNING id`
+            : `INSERT INTO tenants (code, name, status, timezone, plan_code, created_at, updated_at)
+               VALUES (?, ?, ?, 'Asia/Taipei', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [
+            resolvedTenantCode,
+            safeTenantName,
+            requireEmailVerification ? 'pending' : 'active',
+            String(planCode || 'basic_monthly')
+        ]
+    );
+    const tenantId = usePostgreSQL ? tenantInsert.rows[0].id : tenantInsert.lastID;
+
+    try {
+        const bcrypt = require('bcrypt');
+        const passwordHash = await bcrypt.hash(safeAdminPassword, 10);
+        await query(
+            usePostgreSQL
+                ? `INSERT INTO admins (username, password_hash, email, role, tenant_id, created_at, is_active)
+                   VALUES ($1, $2, $3, 'admin', $4, CURRENT_TIMESTAMP, $5)`
+                : `INSERT INTO admins (username, password_hash, email, role, tenant_id, created_at, is_active)
+                   VALUES (?, ?, ?, 'admin', ?, CURRENT_TIMESTAMP, ?)`,
+            [safeAdminUsername, passwordHash, safeAdminEmail, tenantId, requireEmailVerification ? 0 : 1]
+        );
+
+        const snapshot = await setTenantSubscriptionPlan(tenantId, String(planCode || 'basic_monthly'), subscriptionStatus);
+        return {
+            tenantId,
+            tenantCode: resolvedTenantCode,
+            tenantName: safeTenantName,
+            adminUsername: safeAdminUsername,
+            adminEmail: safeAdminEmail,
+            subscription: snapshot
+        };
+    } catch (error) {
+        await query(
+            usePostgreSQL ? `DELETE FROM tenants WHERE id = $1` : `DELETE FROM tenants WHERE id = ?`,
+            [tenantId]
+        );
+        throw error;
+    }
+}
+
+async function createTenantVerificationToken({ tenantId, email, purpose = 'tenant_signup', ttlMinutes = 60 * 24 }) {
+    const safeTenantId = assertTenantScope(tenantId, 'createTenantVerificationToken');
+    const safeEmail = String(email || '').trim().toLowerCase();
+    if (!safeEmail) throw new Error('email 為必填');
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + Math.max(5, parseInt(ttlMinutes, 10) || 1440) * 60 * 1000).toISOString();
+
+    await query(
+        usePostgreSQL
+            ? `INSERT INTO tenant_verifications (tenant_id, email, token, purpose, expires_at, created_at)
+               VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)`
+            : `INSERT INTO tenant_verifications (tenant_id, email, token, purpose, expires_at, created_at)
+               VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [safeTenantId, safeEmail, token, String(purpose || 'tenant_signup'), expiresAt]
+    );
+    return { token, expiresAt };
+}
+
+async function activateTenantOnboarding(tenantId, email = '') {
+    const safeTenantId = assertTenantScope(tenantId, 'activateTenantOnboarding');
+    const safeEmail = String(email || '').trim().toLowerCase();
+
+    await query(
+        usePostgreSQL
+            ? `UPDATE tenants SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = $1`
+            : `UPDATE tenants SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [safeTenantId]
+    );
+
+    if (safeEmail) {
+        await query(
+            usePostgreSQL
+                ? `UPDATE admins SET is_active = 1 WHERE tenant_id = $1 AND lower(email) = $2`
+                : `UPDATE admins SET is_active = 1 WHERE tenant_id = ? AND lower(email) = ?`,
+            [safeTenantId, safeEmail]
+        );
+    } else {
+        await query(
+            usePostgreSQL
+                ? `UPDATE admins SET is_active = 1 WHERE tenant_id = $1`
+                : `UPDATE admins SET is_active = 1 WHERE tenant_id = ?`,
+            [safeTenantId]
+        );
+    }
+}
+
+async function verifyTenantEmailToken(token) {
+    const safeToken = String(token || '').trim();
+    if (!safeToken) throw new Error('token 為必填');
+
+    const row = await queryOne(
+        usePostgreSQL
+            ? `SELECT * FROM tenant_verifications WHERE token = $1`
+            : `SELECT * FROM tenant_verifications WHERE token = ?`,
+        [safeToken]
+    );
+    if (!row) throw new Error('驗證連結無效');
+    if (row.used_at) throw new Error('驗證連結已使用');
+    if (new Date(row.expires_at).getTime() < Date.now()) throw new Error('驗證連結已過期');
+
+    await activateTenantOnboarding(row.tenant_id, row.email);
+    await query(
+        usePostgreSQL
+            ? `UPDATE tenant_verifications SET used_at = CURRENT_TIMESTAMP WHERE id = $1`
+            : `UPDATE tenant_verifications SET used_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [row.id]
+    );
+
+    const tenant = await queryOne(
+        usePostgreSQL
+            ? `SELECT id, code, name, status FROM tenants WHERE id = $1`
+            : `SELECT id, code, name, status FROM tenants WHERE id = ?`,
+        [row.tenant_id]
+    );
+    return {
+        tenantId: row.tenant_id,
+        email: row.email,
+        tenant
+    };
+}
+
+async function getTenantVerificationByEmail(email, purpose = 'tenant_signup') {
+    const safeEmail = String(email || '').trim().toLowerCase();
+    if (!safeEmail) return null;
+    return queryOne(
+        usePostgreSQL
+            ? `SELECT tv.*, t.code as tenant_code, t.name as tenant_name, t.status as tenant_status
+               FROM tenant_verifications tv
+               INNER JOIN tenants t ON t.id = tv.tenant_id
+               WHERE lower(tv.email) = $1
+                 AND tv.purpose = $2
+                 AND tv.used_at IS NULL
+                 AND tv.expires_at > CURRENT_TIMESTAMP
+               ORDER BY tv.created_at DESC
+               LIMIT 1`
+            : `SELECT tv.*, t.code as tenant_code, t.name as tenant_name, t.status as tenant_status
+               FROM tenant_verifications tv
+               INNER JOIN tenants t ON t.id = tv.tenant_id
+               WHERE lower(tv.email) = ?
+                 AND tv.purpose = ?
+                 AND tv.used_at IS NULL
+                 AND tv.expires_at > CURRENT_TIMESTAMP
+               ORDER BY tv.created_at DESC
+               LIMIT 1`,
+        [safeEmail, String(purpose || 'tenant_signup')]
+    );
+}
+
+async function getTenantById(tenantId) {
+    const safeTenantId = assertTenantScope(tenantId, 'getTenantById');
+    return queryOne(
+        usePostgreSQL
+            ? `SELECT id, code, name, status, timezone, plan_code, created_at, updated_at
+               FROM tenants WHERE id = $1`
+            : `SELECT id, code, name, status, timezone, plan_code, created_at, updated_at
+               FROM tenants WHERE id = ?`,
+        [safeTenantId]
+    );
+}
+
+async function getTenantsOverview({ status = '', keyword = '', limit = 50, offset = 0 } = {}) {
+    await ensureAdminTenantColumn();
+    const safeLimit = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
+    const safeOffset = Math.max(0, parseInt(offset, 10) || 0);
+    const safeStatus = String(status || '').trim().toLowerCase();
+    const safeKeyword = String(keyword || '').trim().toLowerCase();
+
+    const conditions = [];
+    const params = [];
+    const placeholder = (value) => {
+        params.push(value);
+        return usePostgreSQL ? `$${params.length}` : '?';
+    };
+
+    if (safeStatus) {
+        conditions.push(`lower(t.status) = ${placeholder(safeStatus)}`);
+    }
+    if (safeKeyword) {
+        const likeValue = `%${safeKeyword}%`;
+        if (usePostgreSQL) {
+            conditions.push(`(lower(t.name) LIKE ${placeholder(likeValue)} OR lower(t.code) LIKE ${placeholder(likeValue)})`);
+        } else {
+            conditions.push(`(lower(t.name) LIKE ${placeholder(likeValue)} OR lower(t.code) LIKE ${placeholder(likeValue)})`);
+        }
+    }
+
+    const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const listSql = `
+        SELECT t.id,
+               t.code,
+               t.name,
+               t.status,
+               t.timezone,
+               t.plan_code,
+               t.created_at,
+               t.updated_at,
+               a.username AS admin_username,
+               a.email AS admin_email,
+               a.is_active AS admin_is_active
+        FROM tenants t
+        LEFT JOIN admins a
+          ON a.id = (
+              SELECT a2.id
+              FROM admins a2
+              WHERE a2.tenant_id = t.id
+              ORDER BY a2.id ASC
+              LIMIT 1
+          )
+        ${whereSql}
+        ORDER BY t.id DESC
+        LIMIT ${usePostgreSQL ? `$${params.length + 1}` : '?'}
+        OFFSET ${usePostgreSQL ? `$${params.length + 2}` : '?'}
+    `;
+    const countSql = `SELECT COUNT(*) as cnt FROM tenants t ${whereSql}`;
+
+    const listResult = await query(listSql, [...params, safeLimit, safeOffset]);
+    const countRow = await queryOne(countSql, params);
+    return {
+        total: parseInt(countRow?.cnt || 0, 10),
+        limit: safeLimit,
+        offset: safeOffset,
+        items: listResult.rows || []
+    };
+}
+
+async function updateTenantProfile(tenantId, { status, planCode } = {}) {
+    const safeTenantId = assertTenantScope(tenantId, 'updateTenantProfile');
+    const nextStatus = String(status || '').trim().toLowerCase();
+    const nextPlanCode = String(planCode || '').trim();
+
+    const allowedStatuses = ['pending', 'active', 'suspended', 'canceled'];
+    if (!allowedStatuses.includes(nextStatus)) {
+        throw new Error(`status 僅允許：${allowedStatuses.join(', ')}`);
+    }
+    if (!nextPlanCode) {
+        throw new Error('planCode 為必填');
+    }
+
+    await query(
+        usePostgreSQL
+            ? `UPDATE tenants
+               SET status = $1,
+                   plan_code = $2,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $3`
+            : `UPDATE tenants
+               SET status = ?,
+                   plan_code = ?,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = ?`,
+        [nextStatus, nextPlanCode, safeTenantId]
+    );
+
+    await setTenantSubscriptionPlan(safeTenantId, nextPlanCode, nextStatus === 'pending' ? 'trialing' : nextStatus);
+    return getTenantById(safeTenantId);
+}
+
+async function seedSubscriptionMvpDefaults() {
+    const defaultTenantId = assertTenantScope(undefined, 'seedSubscriptionMvpDefaults');
+
+    await query(
+        usePostgreSQL
+            ? `INSERT INTO tenants (id, code, name, status, timezone, plan_code)
+               VALUES ($1, $2, $3, 'active', 'Asia/Taipei', 'basic_monthly')
+               ON CONFLICT (id) DO NOTHING`
+            : `INSERT OR IGNORE INTO tenants (id, code, name, status, timezone, plan_code)
+               VALUES (?, ?, ?, 'active', 'Asia/Taipei', 'basic_monthly')`,
+        [defaultTenantId, `tenant_${defaultTenantId}`, `Tenant ${defaultTenantId}`]
+    );
+
+    const planSeeds = [
+        {
+            code: 'basic_monthly',
+            name: 'Basic Monthly',
+            cycle: 'monthly',
+            price: 999,
+            features: { reports: false, api_access: false, max_buildings: 1 }
+        },
+        {
+            code: 'basic_yearly',
+            name: 'Basic Yearly',
+            cycle: 'yearly',
+            price: 9990,
+            features: { reports: false, api_access: false, max_buildings: 1 }
+        },
+        {
+            code: 'pro_monthly',
+            name: 'Pro Monthly',
+            cycle: 'monthly',
+            price: 2999,
+            features: { reports: true, api_access: true, max_buildings: 5 }
+        },
+        {
+            code: 'pro_yearly',
+            name: 'Pro Yearly',
+            cycle: 'yearly',
+            price: 29990,
+            features: { reports: true, api_access: true, max_buildings: 20 }
+        }
+    ];
+
+    for (const plan of planSeeds) {
+        if (usePostgreSQL) {
+            await query(
+                `INSERT INTO plans (code, name, billing_cycle, price_amount, currency, feature_flags, is_active)
+                 VALUES ($1, $2, $3, $4, 'TWD', $5::jsonb, 1)
+                 ON CONFLICT (code) DO UPDATE SET
+                   name = EXCLUDED.name,
+                   billing_cycle = EXCLUDED.billing_cycle,
+                   price_amount = EXCLUDED.price_amount,
+                   feature_flags = EXCLUDED.feature_flags,
+                   is_active = 1,
+                   updated_at = CURRENT_TIMESTAMP`,
+                [plan.code, plan.name, plan.cycle, plan.price, JSON.stringify(plan.features)]
+            );
+        } else {
+            const existing = await queryOne(`SELECT id FROM plans WHERE code = ?`, [plan.code]);
+            if (existing) {
+                await query(
+                    `UPDATE plans SET name = ?, billing_cycle = ?, price_amount = ?, feature_flags = ?, is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE code = ?`,
+                    [plan.name, plan.cycle, plan.price, JSON.stringify(plan.features), plan.code]
+                );
+            } else {
+                await query(
+                    `INSERT INTO plans (code, name, billing_cycle, price_amount, currency, feature_flags, is_active) VALUES (?, ?, ?, ?, 'TWD', ?, 1)`,
+                    [plan.code, plan.name, plan.cycle, plan.price, JSON.stringify(plan.features)]
+                );
+            }
+        }
+    }
+
+    const existingSub = await queryOne(
+        usePostgreSQL
+            ? `SELECT id FROM subscriptions WHERE tenant_id = $1 ORDER BY id DESC LIMIT 1`
+            : `SELECT id FROM subscriptions WHERE tenant_id = ? ORDER BY id DESC LIMIT 1`,
+        [defaultTenantId]
+    );
+
+    if (!existingSub) {
+        const basicMonthly = await queryOne(
+            usePostgreSQL
+                ? `SELECT id FROM plans WHERE code = $1`
+                : `SELECT id FROM plans WHERE code = ?`,
+            ['basic_monthly']
+        );
+        const now = new Date();
+        const trialEnds = new Date(now);
+        trialEnds.setDate(trialEnds.getDate() + 14);
+
+        await query(
+            usePostgreSQL
+                ? `INSERT INTO subscriptions
+                   (tenant_id, plan_id, status, billing_cycle, current_period_start, current_period_end, trial_ends_at)
+                   VALUES ($1, $2, 'trialing', 'monthly', CURRENT_TIMESTAMP, $3, $3)`
+                : `INSERT INTO subscriptions
+                   (tenant_id, plan_id, status, billing_cycle, current_period_start, current_period_end, trial_ends_at)
+                   VALUES (?, ?, 'trialing', 'monthly', CURRENT_TIMESTAMP, ?, ?)`,
+            [defaultTenantId, basicMonthly?.id || null, trialEnds.toISOString()]
+        );
+    }
+}
+
+async function backfillLegacyTenantIds() {
+    const defaultTenantId = parseInt(process.env.DEFAULT_TENANT_ID || '1', 10) || 1;
+    const targetTables = [
+        'bookings',
+        'room_types',
+        'buildings',
+        'addons',
+        'holidays',
+        'settings',
+        'customers',
+        'prices'
+    ];
+
+    for (const tableName of targetTables) {
+        try {
+            const sql = usePostgreSQL
+                ? `UPDATE ${tableName} SET tenant_id = $1 WHERE tenant_id IS NULL`
+                : `UPDATE ${tableName} SET tenant_id = ? WHERE tenant_id IS NULL`;
+            const result = await query(sql, [defaultTenantId]);
+            const changed = parseInt(result?.changes || result?.rowCount || 0, 10) || 0;
+            if (changed > 0) {
+                console.log(`✅ 已回填 ${tableName}.tenant_id：${changed} 筆`);
+            }
+        } catch (error) {
+            // 部分舊資料庫可能尚未建立某些表，初始化時略過即可
+            console.warn(`⚠️ 回填 ${tableName}.tenant_id 失敗：${error.message}`);
+        }
+    }
+}
+
 // 初始化資料庫（建立資料表）
 async function initDatabase() {
     try {
@@ -156,6 +987,9 @@ async function initDatabase() {
             console.log('🗄️  使用 SQLite 資料庫');
             await initSQLite();
         }
+        await initMultiTenantCoreTables();
+        await backfillLegacyTenantIds();
+        await seedSubscriptionMvpDefaults();
         await seedDefaultWholePropertyPlansIfEmpty();
         await normalizeRetailRoomTypeDisplayNamesIfPackagedByMistake();
         await applyRetailRoomTypesSeedDefaultsBuilding1Once();
@@ -3148,6 +3982,7 @@ async function saveBooking(bookingData) {
             INSERT INTO bookings (
                 booking_id, check_in_date, check_out_date, room_type,
                 building_id,
+                tenant_id,
                 room_selections,
                 guest_name, guest_phone, guest_email, special_request,
                 adults, children,
@@ -3157,12 +3992,13 @@ async function saveBooking(bookingData) {
                 payment_deadline, days_reserved, line_user_id,
                 utm_source, utm_medium, utm_campaign, booking_source, referrer,
                 discount_amount, discount_description
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36)
             RETURNING id
         ` : `
             INSERT INTO bookings (
                 booking_id, check_in_date, check_out_date, room_type,
                 building_id,
+                tenant_id,
                 room_selections,
                 guest_name, guest_phone, guest_email, special_request,
                 adults, children,
@@ -3172,7 +4008,7 @@ async function saveBooking(bookingData) {
                 payment_deadline, days_reserved, line_user_id,
                 utm_source, utm_medium, utm_campaign, booking_source, referrer,
                 discount_amount, discount_description
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const addonsJson = bookingData.addons ? JSON.stringify(bookingData.addons) : null;
@@ -3194,6 +4030,7 @@ async function saveBooking(bookingData) {
             bookingData.checkOutDate,
             bookingData.roomType,
             bookingData.buildingId || 1,
+            bookingData.tenantId || null,
             bookingData.roomSelections ? JSON.stringify(bookingData.roomSelections) : null,
             bookingData.guestName,
             bookingData.guestPhone,
@@ -3298,7 +4135,7 @@ async function updateEmailStatus(bookingId, emailSent, append = false) {
 }
 
 // 查詢所有訂房記錄（可選館別）
-async function getAllBookings(buildingId, bookingMode) {
+async function getAllBookings(buildingId, bookingMode, tenantId) {
     try {
         const bid = parseInt(buildingId, 10);
         const hasBuildingFilter = Number.isFinite(bid) && bid > 0;
@@ -3310,6 +4147,16 @@ async function getAllBookings(buildingId, bookingMode) {
         let sql = `SELECT * FROM bookings WHERE 1=1`;
         const params = [];
         let paramIndex = 1;
+        if (tenantId) {
+            if (usePostgreSQL) {
+                sql += ` AND tenant_id = $${paramIndex}`;
+                params.push(tenantId);
+                paramIndex += 1;
+            } else {
+                sql += ` AND tenant_id = ?`;
+                params.push(tenantId);
+            }
+        }
 
         if (hasBuildingFilter) {
             if (usePostgreSQL) {
@@ -3342,12 +4189,12 @@ async function getAllBookings(buildingId, bookingMode) {
 }
 
 // 根據訂房編號查詢
-async function getBookingById(bookingId) {
+async function getBookingById(bookingId, tenantId) {
     try {
-        const sql = usePostgreSQL 
-            ? `SELECT * FROM bookings WHERE booking_id = $1`
-            : `SELECT * FROM bookings WHERE booking_id = ?`;
-        const booking = await queryOne(sql, [bookingId]);
+        const sql = usePostgreSQL
+            ? `SELECT * FROM bookings WHERE booking_id = $1 ${tenantId ? 'AND tenant_id = $2' : ''}`
+            : `SELECT * FROM bookings WHERE booking_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`;
+        const booking = await queryOne(sql, tenantId ? [bookingId, tenantId] : [bookingId]);
         
         if (!booking) {
             return null;
@@ -3437,15 +4284,17 @@ async function getBookingById(bookingId) {
 }
 
 // 根據 Email 查詢訂房記錄
-async function getBookingsByEmail(email, bookingMode) {
+async function getBookingsByEmail(email, bookingMode, tenantId) {
     try {
         const mode = ['retail', 'whole_property'].includes((bookingMode || '').toString().trim())
             ? (bookingMode || '').toString().trim()
             : '';
         const sql = usePostgreSQL
-            ? `SELECT * FROM bookings WHERE guest_email = $1 ${mode ? `AND COALESCE(booking_mode, 'retail') = $2` : ''} ORDER BY created_at DESC`
-            : `SELECT * FROM bookings WHERE guest_email = ? ${mode ? `AND COALESCE(booking_mode, 'retail') = ?` : ''} ORDER BY created_at DESC`;
-        const params = mode ? [email, mode] : [email];
+            ? `SELECT * FROM bookings WHERE guest_email = $1 ${tenantId ? 'AND tenant_id = $2' : ''} ${mode ? `AND COALESCE(booking_mode, 'retail') = ${tenantId ? '$3' : '$2'}` : ''} ORDER BY created_at DESC`
+            : `SELECT * FROM bookings WHERE guest_email = ? ${tenantId ? 'AND tenant_id = ?' : ''} ${mode ? `AND COALESCE(booking_mode, 'retail') = ?` : ''} ORDER BY created_at DESC`;
+        const params = tenantId
+            ? (mode ? [email, tenantId, mode] : [email, tenantId])
+            : (mode ? [email, mode] : [email]);
         const result = await query(sql, params);
         return result.rows;
     } catch (error) {
@@ -3563,8 +4412,9 @@ async function deleteBooking(bookingId) {
 }
 
 // 統計資料（可選日期區間 + 可選館別）
-async function getStatistics(startDate, endDate, buildingId) {
+async function getStatistics(startDate, endDate, buildingId, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getStatistics');
         const hasRange = !!(startDate && endDate);
         const bid = parseInt(buildingId, 10);
         const hasBuildingFilter = Number.isFinite(bid) && bid > 0;
@@ -3580,28 +4430,29 @@ async function getStatistics(startDate, endDate, buildingId) {
 
         if (usePostgreSQL) {
             // 使用入住日期（check_in_date）作為篩選條件，排除已取消的訂房
+            const tenantClause = hasRange ? ` AND tenant_id = $3` : ` AND tenant_id = $1`;
             const buildingClause = hasBuildingFilter
                 ? (hasRange
-                    ? ` AND (building_id = $3 OR ($3 = 1 AND (building_id IS NULL OR building_id = 0)))`
-                    : ` AND (building_id = $1 OR ($1 = 1 AND (building_id IS NULL OR building_id = 0)))`)
+                    ? ` AND (building_id = $4 OR ($4 = 1 AND (building_id IS NULL OR building_id = 0)))`
+                    : ` AND (building_id = $2 OR ($2 = 1 AND (building_id IS NULL OR building_id = 0)))`)
                 : '';
             const baseWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND status != 'cancelled'${buildingClause}`
-                : ` WHERE status != 'cancelled'${buildingClause}`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE status != 'cancelled'${tenantClause}${buildingClause}`;
             
             // 總訂房數
             totalSql = `SELECT COUNT(*) as count FROM bookings${baseWhereClause}`;
             
             // 總訂房數 - 已入住（check_in_date <= 今天）
             const checkedInWhereClause = hasRange 
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND check_in_date::date <= CURRENT_DATE AND status != 'cancelled'${buildingClause}`
-                : ` WHERE check_in_date::date <= CURRENT_DATE AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND check_in_date::date <= CURRENT_DATE AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE check_in_date::date <= CURRENT_DATE AND status != 'cancelled'${tenantClause}${buildingClause}`;
             totalCheckedInSql = `SELECT COUNT(*) as count FROM bookings${checkedInWhereClause}`;
             
             // 總訂房數 - 未入住（check_in_date > 今天）
             const notCheckedInWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND check_in_date::date > CURRENT_DATE AND status != 'cancelled'${buildingClause}`
-                : ` WHERE check_in_date::date > CURRENT_DATE AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND check_in_date::date > CURRENT_DATE AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE check_in_date::date > CURRENT_DATE AND status != 'cancelled'${tenantClause}${buildingClause}`;
             totalNotCheckedInSql = `SELECT COUNT(*) as count FROM bookings${notCheckedInWhereClause}`;
             
             // 總營收
@@ -3609,14 +4460,14 @@ async function getStatistics(startDate, endDate, buildingId) {
             
             // 總營收 - 已付款
             const revenuePaidWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`
-                : ` WHERE payment_status = 'paid' AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_status = 'paid' AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE payment_status = 'paid' AND status != 'cancelled'${tenantClause}${buildingClause}`;
             revenuePaidSql = `SELECT SUM(total_amount) as total FROM bookings${revenuePaidWhereClause}`;
             
             // 總營收 - 未付款
             const revenueUnpaidWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`
-                : ` WHERE payment_status = 'pending' AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_status = 'pending' AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE payment_status = 'pending' AND status != 'cancelled'${tenantClause}${buildingClause}`;
             revenueUnpaidSql = `SELECT SUM(total_amount) as total FROM bookings${revenueUnpaidWhereClause}`;
             
             // 房型：入住日於區間內（含已取消）計算取消率；有效訂單（非取消）計算筆數與營收
@@ -3628,7 +4479,7 @@ async function getStatistics(startDate, endDate, buildingId) {
                         COUNT(*)::bigint AS total_in_range,
                         COUNT(*) FILTER (WHERE COALESCE(status, '') = 'cancelled')::bigint AS cancelled_count
                     FROM bookings
-                    WHERE check_in_date::date BETWEEN $1::date AND $2::date${buildingClause}
+                    WHERE check_in_date::date BETWEEN $1::date AND $2::date${tenantClause}${buildingClause}
                     GROUP BY 1
                     ORDER BY active_count DESC, revenue DESC`
                 : `SELECT 
@@ -3638,7 +4489,7 @@ async function getStatistics(startDate, endDate, buildingId) {
                         COUNT(*)::bigint AS total_in_range,
                         COUNT(*) FILTER (WHERE COALESCE(status, '') = 'cancelled')::bigint AS cancelled_count
                     FROM bookings
-                    WHERE TRUE${buildingClause}
+                    WHERE TRUE${tenantClause}${buildingClause}
                     GROUP BY 1
                     ORDER BY active_count DESC, revenue DESC`;
             
@@ -3666,7 +4517,7 @@ async function getStatistics(startDate, endDate, buildingId) {
                                 'direct'
                             ) AS src
                         FROM bookings
-                        WHERE check_in_date::date BETWEEN $1::date AND $2::date${buildingClause}
+                        WHERE check_in_date::date BETWEEN $1::date AND $2::date${tenantClause}${buildingClause}
                     ) b
                     GROUP BY src
                     ORDER BY active_count DESC, revenue DESC`
@@ -3692,60 +4543,63 @@ async function getStatistics(startDate, endDate, buildingId) {
                                 'direct'
                             ) AS src
                         FROM bookings
-                        ${hasBuildingFilter ? `WHERE (building_id = $1 OR ($1 = 1 AND (building_id IS NULL OR building_id = 0)))` : ''}
+                        WHERE tenant_id = $1${hasBuildingFilter ? ` AND (building_id = $2 OR ($2 = 1 AND (building_id IS NULL OR building_id = 0)))` : ''}
                     ) b
                     GROUP BY src
                     ORDER BY active_count DESC, revenue DESC`;
             
             // 匯款轉帳統計
             const transferBaseWhereClause = hasRange 
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_method LIKE '%匯款%' AND status != 'cancelled'${buildingClause}`
-                : ` WHERE payment_method LIKE '%匯款%' AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_method LIKE '%匯款%' AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE payment_method LIKE '%匯款%' AND status != 'cancelled'${tenantClause}${buildingClause}`;
             transferSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${transferBaseWhereClause}`;
             
             // 匯款轉帳 - 已付款
             const transferPaidWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`
-                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'${tenantClause}${buildingClause}`;
             transferPaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${transferPaidWhereClause}`;
             
             // 匯款轉帳 - 未付款
             const transferUnpaidWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`
-                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'${tenantClause}${buildingClause}`;
             transferUnpaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${transferUnpaidWhereClause}`;
             
             // 線上刷卡統計
             const cardBaseWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND status != 'cancelled'${buildingClause}`
-                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND status != 'cancelled'${tenantClause}${buildingClause}`;
             cardSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${cardBaseWhereClause}`;
             
             // 線上刷卡 - 已付款
             const cardPaidWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`
-                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'${tenantClause}${buildingClause}`;
             cardPaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${cardPaidWhereClause}`;
             
             // 線上刷卡 - 未付款
             const cardUnpaidWhereClause = hasRange
-                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`
-                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE check_in_date::date BETWEEN $1::date AND $2::date AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'${tenantClause}${buildingClause}`;
             cardUnpaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${cardUnpaidWhereClause}`;
 
             if (hasRange) {
-                params = hasBuildingFilter ? [startDate, endDate, safeBid] : [startDate, endDate];
+                params = hasBuildingFilter ? [startDate, endDate, safeTenantId, safeBid] : [startDate, endDate, safeTenantId];
             } else if (hasBuildingFilter) {
-                params = [safeBid];
+                params = [safeTenantId, safeBid];
+            } else {
+                params = [safeTenantId];
             }
         } else {
             // 使用入住日期（check_in_date）作為篩選條件，排除已取消的訂房
+            const tenantClause = ' AND tenant_id = ?';
             const buildingClause = hasBuildingFilter
                 ? ' AND (building_id = ? OR (? = 1 AND (building_id IS NULL OR building_id = 0)))'
                 : '';
             const baseWhereClause = hasRange 
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND status != 'cancelled'${buildingClause}`
-                : ` WHERE status != 'cancelled'${buildingClause}`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE status != 'cancelled'${tenantClause}${buildingClause}`;
             
             // 總訂房數
             totalSql = `SELECT COUNT(*) as count FROM bookings${baseWhereClause}`;
@@ -3786,7 +4640,7 @@ async function getStatistics(startDate, endDate, buildingId) {
                         COUNT(*) AS total_in_range,
                         SUM(CASE WHEN IFNULL(status, '') = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_count
                     FROM bookings
-                    WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?)${buildingClause}
+                    WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?)${tenantClause}${buildingClause}
                     GROUP BY CASE WHEN TRIM(COALESCE(room_type, '')) = '' THEN '(未指定)' ELSE TRIM(room_type) END
                     ORDER BY active_count DESC, revenue DESC`
                 : `SELECT 
@@ -3796,7 +4650,7 @@ async function getStatistics(startDate, endDate, buildingId) {
                         COUNT(*) AS total_in_range,
                         SUM(CASE WHEN IFNULL(status, '') = 'cancelled' THEN 1 ELSE 0 END) AS cancelled_count
                     FROM bookings
-                    WHERE 1=1${buildingClause}
+                    WHERE 1=1${tenantClause}${buildingClause}
                     GROUP BY CASE WHEN TRIM(COALESCE(room_type, '')) = '' THEN '(未指定)' ELSE TRIM(room_type) END
                     ORDER BY active_count DESC, revenue DESC`;
             
@@ -3824,7 +4678,7 @@ async function getStatistics(startDate, endDate, buildingId) {
                                 'direct'
                             ) AS src
                         FROM bookings
-                        WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?)
+                        WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?)${tenantClause}
                     ) b
                     GROUP BY src
                     ORDER BY active_count DESC, revenue DESC`
@@ -3850,14 +4704,15 @@ async function getStatistics(startDate, endDate, buildingId) {
                                 'direct'
                             ) AS src
                         FROM bookings
+                        WHERE tenant_id = ?
                     ) b
                     GROUP BY src
                     ORDER BY active_count DESC, revenue DESC`;
             
             // 匯款轉帳統計
             const transferBaseWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_method LIKE '%匯款%' AND status != 'cancelled'`
-                : ` WHERE payment_method LIKE '%匯款%' AND status != 'cancelled'`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_method LIKE '%匯款%' AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE payment_method LIKE '%匯款%' AND status != 'cancelled'${tenantClause}${buildingClause}`;
             transferSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${transferBaseWhereClause}`;
             
             // 匯款轉帳 - 已付款
@@ -3891,9 +4746,11 @@ async function getStatistics(startDate, endDate, buildingId) {
             cardUnpaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${cardUnpaidWhereClause}`;
 
             if (hasRange) {
-                params = hasBuildingFilter ? [startDate, endDate, safeBid, safeBid] : [startDate, endDate];
+                params = hasBuildingFilter ? [startDate, endDate, safeTenantId, safeBid, safeBid] : [startDate, endDate, safeTenantId];
             } else if (hasBuildingFilter) {
-                params = [safeBid, safeBid];
+                params = [safeTenantId, safeBid, safeBid];
+            } else {
+                params = [safeTenantId];
             }
         }
 
@@ -3934,7 +4791,7 @@ async function getStatistics(startDate, endDate, buildingId) {
         // 目的：避免多房型訂單全部堆在 bookings.room_type 字串，導致房型排行與營收分攤失真
         try {
             if (hasRange) {
-                const roomTypesForMap = await getRoomTypesByBuilding(safeBid, { activeOnly: false });
+                const roomTypesForMap = await getRoomTypesByBuilding(safeBid, { activeOnly: false, tenantId: safeTenantId });
                 const displayNameByRoomName = new Map();
                 (roomTypesForMap || []).forEach((rt) => {
                     const nameKey = String(rt?.name || '').trim();
@@ -3943,7 +4800,7 @@ async function getStatistics(startDate, endDate, buildingId) {
                 });
 
                 const bookingWherePg = hasBuildingFilter
-                    ? ` AND (building_id = $3 OR ($3 = 1 AND (building_id IS NULL OR building_id = 0)))`
+                    ? ` AND (building_id = $4 OR ($4 = 1 AND (building_id IS NULL OR building_id = 0)))`
                     : '';
                 const bookingWhereSqlite = hasBuildingFilter
                     ? ` AND (building_id = ? OR (? = 1 AND (building_id IS NULL OR building_id = 0)))`
@@ -3953,17 +4810,19 @@ async function getStatistics(startDate, endDate, buildingId) {
                         SELECT status, total_amount, room_type, room_selections
                         FROM bookings
                         WHERE check_in_date::date BETWEEN $1::date AND $2::date
+                          AND tenant_id = $3
                         ${bookingWherePg}
                       `
                     : `
                         SELECT status, total_amount, room_type, room_selections
                         FROM bookings
                         WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?)
+                          AND tenant_id = ?
                         ${bookingWhereSqlite}
                       `;
                 const bookingsForRoomTypeParams = usePostgreSQL
-                    ? (hasBuildingFilter ? [startDate, endDate, safeBid] : [startDate, endDate])
-                    : (hasBuildingFilter ? [startDate, endDate, safeBid, safeBid] : [startDate, endDate]);
+                    ? (hasBuildingFilter ? [startDate, endDate, safeTenantId, safeBid] : [startDate, endDate, safeTenantId])
+                    : (hasBuildingFilter ? [startDate, endDate, safeTenantId, safeBid, safeBid] : [startDate, endDate, safeTenantId]);
 
                 const bookingsForRoomTypeResult = await query(bookingsForRoomTypeSql, bookingsForRoomTypeParams);
                 const bookingRows = bookingsForRoomTypeResult.rows || bookingsForRoomTypeResult || [];
@@ -4162,10 +5021,10 @@ function computePreviousPeriod(ymdStart, ymdEnd) {
     return { start: formatLocalYMD(prevStart), end: formatLocalYMD(prevEnd) };
 }
 
-async function fetchTotalRoomsForReport() {
+async function fetchTotalRoomsForReport(tenantId) {
     let totalRooms = 10;
     try {
-        const totalRoomsSetting = await getSetting('total_rooms');
+        const totalRoomsSetting = await getSetting('total_rooms', tenantId);
         if (totalRoomsSetting) {
             totalRooms = parseInt(totalRoomsSetting, 10) || 10;
         }
@@ -4174,7 +5033,7 @@ async function fetchTotalRoomsForReport() {
 }
 
 /** 依區間計算平日/假日住房率（與原月度邏輯相同，區間可為任意連續日期） */
-async function calculateOccupancyForRange(bookingsResult, rangeStart, rangeEnd, totalRooms) {
+async function calculateOccupancyForRange(bookingsResult, rangeStart, rangeEnd, totalRooms, tenantId) {
     try {
         let weekdayRoomNights = 0;
         let weekendRoomNights = 0;
@@ -4188,7 +5047,7 @@ async function calculateOccupancyForRange(bookingsResult, rangeStart, rangeEnd, 
         for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
             try {
-                const isHoliday = await isHolidayOrWeekend(dateStr, true);
+                const isHoliday = await isHolidayOrWeekend(dateStr, true, tenantId);
                 holidayMap.set(dateStr, isHoliday);
                 if (isHoliday) weekendDays++;
                 else weekdayDays++;
@@ -4237,7 +5096,8 @@ async function calculateOccupancyForRange(bookingsResult, rangeStart, rangeEnd, 
 }
 
 /** 單一期間：訂房數、營收、平日/假日住房率（入住日口徑 + 與區間重疊之夜數） */
-async function getComparisonSlice(rangeStart, rangeEnd, totalRooms) {
+async function getComparisonSlice(rangeStart, rangeEnd, totalRooms, tenantId) {
+    const safeTenantId = assertTenantScope(tenantId, 'getComparisonSlice');
     if (usePostgreSQL) {
         const countSql = `
             SELECT 
@@ -4245,17 +5105,19 @@ async function getComparisonSlice(rangeStart, rangeEnd, totalRooms) {
                 COALESCE(SUM(total_amount), 0)::bigint as total_revenue
             FROM bookings
             WHERE check_in_date::date BETWEEN $1::date AND $2::date
+            AND tenant_id = $3
             AND status != 'cancelled'
         `;
-        const countRow = await query(countSql, [rangeStart, rangeEnd]).then((r) => r.rows[0] || {});
+        const countRow = await query(countSql, [rangeStart, rangeEnd, safeTenantId]).then((r) => r.rows[0] || {});
         const bookingsSql = `
             SELECT check_in_date, check_out_date, nights
             FROM bookings
             WHERE (check_in_date::date <= $2::date AND check_out_date::date > $1::date)
+            AND tenant_id = $3
             AND status != 'cancelled'
         `;
-        const bookingsRes = await query(bookingsSql, [rangeStart, rangeEnd]);
-        const occ = await calculateOccupancyForRange(bookingsRes, rangeStart, rangeEnd, totalRooms);
+        const bookingsRes = await query(bookingsSql, [rangeStart, rangeEnd, safeTenantId]);
+        const occ = await calculateOccupancyForRange(bookingsRes, rangeStart, rangeEnd, totalRooms, safeTenantId);
         return {
             bookingCount: parseInt(countRow.booking_count || 0, 10),
             totalRevenue: parseInt(countRow.total_revenue || 0, 10),
@@ -4270,17 +5132,19 @@ async function getComparisonSlice(rangeStart, rangeEnd, totalRooms) {
             COALESCE(SUM(total_amount), 0) as total_revenue
         FROM bookings
         WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?)
+        AND tenant_id = ?
         AND status != 'cancelled'
     `;
-    const countRow = await queryOne(countSql, [rangeStart, rangeEnd]) || {};
+    const countRow = await queryOne(countSql, [rangeStart, rangeEnd, safeTenantId]) || {};
     const bookingsSql = `
         SELECT check_in_date, check_out_date, nights
         FROM bookings
         WHERE (DATE(check_in_date) <= DATE(?) AND DATE(check_out_date) > DATE(?))
+        AND tenant_id = ?
         AND status != 'cancelled'
     `;
-    const bookingsRes = await query(bookingsSql, [rangeEnd, rangeStart]);
-    const occ = await calculateOccupancyForRange(bookingsRes, rangeStart, rangeEnd, totalRooms);
+    const bookingsRes = await query(bookingsSql, [rangeEnd, rangeStart, safeTenantId]);
+    const occ = await calculateOccupancyForRange(bookingsRes, rangeStart, rangeEnd, totalRooms, safeTenantId);
     return {
         bookingCount: parseInt(countRow.booking_count || 0, 10),
         totalRevenue: parseInt(countRow.total_revenue || 0, 10),
@@ -4290,15 +5154,15 @@ async function getComparisonSlice(rangeStart, rangeEnd, totalRooms) {
 }
 
 /** 所選期間 vs 等長前期（營運報表「區間比較」） */
-async function getPeriodComparison(currentStart, currentEnd) {
+async function getPeriodComparison(currentStart, currentEnd, tenantId) {
     const prev = computePreviousPeriod(currentStart, currentEnd);
     if (!prev) {
         throw new Error('日期區間無效');
     }
-    const totalRooms = await fetchTotalRoomsForReport();
+    const totalRooms = await fetchTotalRoomsForReport(tenantId);
     const [currentSlice, previousSlice] = await Promise.all([
-        getComparisonSlice(currentStart, currentEnd, totalRooms),
-        getComparisonSlice(prev.start, prev.end, totalRooms)
+        getComparisonSlice(currentStart, currentEnd, totalRooms, tenantId),
+        getComparisonSlice(prev.start, prev.end, totalRooms, tenantId)
     ]);
     return {
         currentPeriod: {
@@ -4314,7 +5178,7 @@ async function getPeriodComparison(currentStart, currentEnd) {
     };
 }
 
-async function getMonthlyComparison() {
+async function getMonthlyComparison(tenantId) {
     try {
         const today = new Date();
         const currentYear = today.getFullYear();
@@ -4330,10 +5194,10 @@ async function getMonthlyComparison() {
         const lastMonthEndDate = new Date(lastMonthYear, lastMonthNum, 0);
         const lastMonthEnd = formatLocalYMD(lastMonthEndDate);
 
-        const totalRooms = await fetchTotalRoomsForReport();
+        const totalRooms = await fetchTotalRoomsForReport(tenantId);
         const [thisSlice, lastSlice] = await Promise.all([
-            getComparisonSlice(thisMonthStart, thisMonthEnd, totalRooms),
-            getComparisonSlice(lastMonthStart, lastMonthEnd, totalRooms)
+            getComparisonSlice(thisMonthStart, thisMonthEnd, totalRooms, tenantId),
+            getComparisonSlice(lastMonthStart, lastMonthEnd, totalRooms, tenantId)
         ]);
 
         return {
@@ -5228,8 +6092,9 @@ async function calculateEarlyBirdDiscount(checkInDate, roomTypeName, totalAmount
 // ==================== 客戶管理 ====================
 
 // 取得所有客戶（聚合訂房資料，以 email 為唯一值，顯示最新的姓名和電話）
-async function getAllCustomers() {
+async function getAllCustomers(tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getAllCustomers');
         const sql = usePostgreSQL
             ? `WITH latest_customer_info AS (
                 SELECT DISTINCT ON (guest_email)
@@ -5237,6 +6102,7 @@ async function getAllCustomers() {
                     guest_name,
                     guest_phone
                 FROM bookings
+                WHERE tenant_id = $1
                 ORDER BY guest_email, created_at DESC
             ),
             customer_stats AS (
@@ -5246,6 +6112,7 @@ async function getAllCustomers() {
                     COALESCE(SUM(CASE WHEN payment_status = 'paid' AND COALESCE(status, '') != 'cancelled' THEN final_amount ELSE 0 END), 0)::bigint as total_spent,
                     MAX(created_at) FILTER (WHERE COALESCE(status, '') != 'cancelled') as last_booking_date
                 FROM bookings
+                WHERE tenant_id = $1
                 GROUP BY guest_email
             )
             SELECT 
@@ -5270,10 +6137,11 @@ async function getAllCustomers() {
                 SUM(CASE WHEN b1.payment_status = 'paid' AND COALESCE(b1.status, '') != 'cancelled' THEN b1.final_amount ELSE 0 END) as total_spent,
                 MAX(CASE WHEN COALESCE(b1.status, '') != 'cancelled' THEN b1.created_at END) as last_booking_date
             FROM bookings b1
+            WHERE b1.tenant_id = ?
             GROUP BY b1.guest_email
             ORDER BY last_booking_date DESC`;
         
-        const result = await query(sql);
+        const result = await query(sql, [safeTenantId]);
         
         // 格式化日期並計算等級
         const customers = await Promise.all(result.rows.map(async (customer) => {
@@ -5304,8 +6172,9 @@ async function getAllCustomers() {
 }
 
 // 根據 Email 取得客戶詳情（包含所有訂房記錄，顯示最新的姓名和電話）
-async function getCustomerByEmail(email) {
+async function getCustomerByEmail(email, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getCustomerByEmail');
         // 先取得客戶基本資訊（使用最新的姓名和電話）
         const customerSQL = usePostgreSQL
             ? `SELECT DISTINCT ON (guest_email)
@@ -5317,6 +6186,7 @@ async function getCustomerByEmail(email) {
                 MAX(created_at) OVER (PARTITION BY guest_email) as last_booking_date
             FROM bookings
             WHERE guest_email = $1
+              AND tenant_id = $2
               AND payment_status = 'paid'
               AND status = 'active'
             ORDER BY guest_email, created_at DESC
@@ -5334,19 +6204,20 @@ async function getCustomerByEmail(email) {
                 MAX(created_at) as last_booking_date
             FROM bookings
             WHERE guest_email = ?
+              AND tenant_id = ?
               AND payment_status = 'paid'
               AND status = 'active'`;
         
         const customerResult = usePostgreSQL 
-            ? await queryOne(customerSQL, [email])
-            : await queryOne(customerSQL, [email, email, email]);
+            ? await queryOne(customerSQL, [email, safeTenantId])
+            : await queryOne(customerSQL, [email, email, email, safeTenantId]);
         
         if (!customerResult) {
             return null;
         }
         
         // 取得該客戶的所有訂房記錄
-        const bookings = await getBookingsByEmail(email);
+        const bookings = await getBookingsByEmail(email, undefined, safeTenantId);
         
         return {
             guest_email: customerResult.guest_email,
@@ -5366,14 +6237,16 @@ async function getCustomerByEmail(email) {
 }
 
 // 取得客戶「已付款且有效」訂房統計（用於會員等級/會員折扣判斷）
-async function getPaidActiveCustomerStatsByEmail(email) {
+async function getPaidActiveCustomerStatsByEmail(email, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getPaidActiveCustomerStatsByEmail');
         const sql = usePostgreSQL
             ? `SELECT
                 COUNT(*) as booking_count,
                 COALESCE(SUM(final_amount), 0) as total_spent
                FROM bookings
                WHERE guest_email = $1
+                 AND tenant_id = $2
                  AND payment_status = 'paid'
                  AND status = 'active'`
             : `SELECT
@@ -5381,10 +6254,11 @@ async function getPaidActiveCustomerStatsByEmail(email) {
                 COALESCE(SUM(final_amount), 0) as total_spent
                FROM bookings
                WHERE guest_email = ?
+                 AND tenant_id = ?
                  AND payment_status = 'paid'
                  AND status = 'active'`;
 
-        const result = await queryOne(sql, [email]);
+        const result = await queryOne(sql, [email, safeTenantId]);
         return {
             booking_count: parseInt(result?.booking_count || 0, 10),
             total_spent: parseInt(result?.total_spent || 0, 10)
@@ -5396,8 +6270,9 @@ async function getPaidActiveCustomerStatsByEmail(email) {
 }
 
 // 更新客戶資料（更新所有該 email 的訂房記錄）
-async function updateCustomer(email, updateData) {
+async function updateCustomer(email, updateData, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'updateCustomer');
         const { guest_name, guest_phone } = updateData;
         
         if (!guest_name && !guest_phone) {
@@ -5419,8 +6294,11 @@ async function updateCustomer(email, updateData) {
         }
         
         // 添加 WHERE 條件（email 參數）
-        const whereClause = usePostgreSQL ? `WHERE guest_email = $${values.length + 1}` : 'WHERE guest_email = ?';
+        const whereClause = usePostgreSQL
+            ? `WHERE guest_email = $${values.length + 1} AND tenant_id = $${values.length + 2}`
+            : 'WHERE guest_email = ? AND tenant_id = ?';
         values.push(email);
+        values.push(safeTenantId);
         
         // 構建完整的 SQL
         const sql = `UPDATE bookings SET ${setParts.join(', ')} ${whereClause}`;
@@ -5441,12 +6319,13 @@ async function updateCustomer(email, updateData) {
 
 // 刪除客戶：與客戶列表「訂房次數」一致，僅統計非「已取消」訂單。
 // 若僅剩已取消訂單，則清除該 Email 在 bookings 的所有列，客戶即自列表消失。
-async function deleteCustomer(email) {
+async function deleteCustomer(email, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'deleteCustomer');
         const countSql = usePostgreSQL
-            ? `SELECT COUNT(*)::int AS cnt FROM bookings WHERE guest_email = $1 AND COALESCE(status, '') != 'cancelled'`
-            : `SELECT COUNT(*) AS cnt FROM bookings WHERE guest_email = ? AND COALESCE(status, '') != 'cancelled'`;
-        const countRow = await queryOne(countSql, [email]);
+            ? `SELECT COUNT(*)::int AS cnt FROM bookings WHERE guest_email = $1 AND tenant_id = $2 AND COALESCE(status, '') != 'cancelled'`
+            : `SELECT COUNT(*) AS cnt FROM bookings WHERE guest_email = ? AND tenant_id = ? AND COALESCE(status, '') != 'cancelled'`;
+        const countRow = await queryOne(countSql, [email, safeTenantId]);
         const activeCount = parseInt(countRow && (countRow.cnt ?? countRow.CNT ?? countRow.count) || 0, 10);
 
         if (activeCount > 0) {
@@ -5454,9 +6333,9 @@ async function deleteCustomer(email) {
         }
 
         const deleteSql = usePostgreSQL
-            ? `DELETE FROM bookings WHERE guest_email = $1`
-            : `DELETE FROM bookings WHERE guest_email = ?`;
-        const result = await query(deleteSql, [email]);
+            ? `DELETE FROM bookings WHERE guest_email = $1 AND tenant_id = $2`
+            : `DELETE FROM bookings WHERE guest_email = ? AND tenant_id = ?`;
+        const result = await query(deleteSql, [email, safeTenantId]);
         const deleted = result.changes || result.rowCount || 0;
         console.log(`✅ 客戶訂房資料已清除 (email: ${email}, 刪除 ${deleted} 筆)`);
         return true;
@@ -5469,13 +6348,14 @@ async function deleteCustomer(email) {
 // ==================== 假日管理 ====================
 
 // 取得所有假日
-async function getAllHolidays() {
+async function getAllHolidays(tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getAllHolidays');
         const sql = usePostgreSQL
-            ? `SELECT * FROM holidays ORDER BY holiday_date ASC`
-            : `SELECT * FROM holidays ORDER BY holiday_date ASC`;
+            ? `SELECT * FROM holidays WHERE tenant_id = $1 ORDER BY holiday_date ASC`
+            : `SELECT * FROM holidays WHERE tenant_id = ? ORDER BY holiday_date ASC`;
         
-        const result = await query(sql);
+        const result = await query(sql, [safeTenantId]);
         return result.rows || [];
     } catch (error) {
         console.error('❌ 查詢假日列表失敗:', error.message);
@@ -5484,13 +6364,14 @@ async function getAllHolidays() {
 }
 
 // 檢查日期是否為假日
-async function isHoliday(dateString) {
+async function isHoliday(dateString, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'isHoliday');
         const sql = usePostgreSQL
-            ? `SELECT * FROM holidays WHERE holiday_date = $1`
-            : `SELECT * FROM holidays WHERE holiday_date = ?`;
+            ? `SELECT * FROM holidays WHERE holiday_date = $1 AND tenant_id = $2`
+            : `SELECT * FROM holidays WHERE holiday_date = ? AND tenant_id = ?`;
         
-        const result = await queryOne(sql, [dateString]);
+        const result = await queryOne(sql, [dateString, safeTenantId]);
         return result !== null;
     } catch (error) {
         console.error('❌ 檢查假日失敗:', error.message);
@@ -5507,10 +6388,10 @@ function isWeekend(dateString) {
 }
 
 // 檢查日期是否為假日（使用自訂的平日/假日設定）
-async function isCustomWeekend(dateString) {
+async function isCustomWeekend(dateString, tenantId) {
     try {
         // 取得平日/假日設定
-        const settingsJson = await getSetting('weekday_settings');
+        const settingsJson = await getSetting('weekday_settings', tenantId);
         let weekdays = [1, 2, 3, 4, 5]; // 預設：週一到週五為平日
         
         if (settingsJson) {
@@ -5546,29 +6427,30 @@ async function isCustomWeekend(dateString) {
 }
 
 // 檢查日期是否為假日（包括週末和手動設定的假日）
-async function isHolidayOrWeekend(dateString, includeWeekend = true) {
+async function isHolidayOrWeekend(dateString, includeWeekend = true, tenantId) {
     // 先檢查是否為手動設定的假日
-    const isManualHoliday = await isHoliday(dateString);
+    const isManualHoliday = await isHoliday(dateString, tenantId);
     if (isManualHoliday) {
         return true;
     }
     
     // 如果包含週末，使用自訂的平日/假日設定來判斷
     if (includeWeekend) {
-        return await isCustomWeekend(dateString);
+        return await isCustomWeekend(dateString, tenantId);
     }
     
     return false;
 }
 
 // 新增假日
-async function addHoliday(holidayDate, holidayName = null) {
+async function addHoliday(holidayDate, holidayName = null, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'addHoliday');
         const sql = usePostgreSQL
-            ? `INSERT INTO holidays (holiday_date, holiday_name, is_weekend) VALUES ($1, $2, 0) ON CONFLICT (holiday_date) DO NOTHING`
-            : `INSERT OR IGNORE INTO holidays (holiday_date, holiday_name, is_weekend) VALUES (?, ?, 0)`;
+            ? `INSERT INTO holidays (tenant_id, holiday_date, holiday_name, is_weekend) VALUES ($1, $2, $3, 0)`
+            : `INSERT OR IGNORE INTO holidays (tenant_id, holiday_date, holiday_name, is_weekend) VALUES (?, ?, ?, 0)`;
         
-        const result = await query(sql, [holidayDate, holidayName]);
+        const result = await query(sql, [safeTenantId, holidayDate, holidayName]);
         return result.changes || 0;
     } catch (error) {
         console.error('❌ 新增假日失敗:', error.message);
@@ -5577,7 +6459,7 @@ async function addHoliday(holidayDate, holidayName = null) {
 }
 
 // 新增連續假期
-async function addHolidayRange(startDate, endDate, holidayName = null) {
+async function addHolidayRange(startDate, endDate, holidayName = null, tenantId) {
     try {
         const start = new Date(startDate);
         const end = new Date(endDate);
@@ -5587,7 +6469,7 @@ async function addHolidayRange(startDate, endDate, holidayName = null) {
         for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
             const dateString = date.toISOString().split('T')[0];
             try {
-                await addHoliday(dateString, holidayName);
+                await addHoliday(dateString, holidayName, tenantId);
                 addedCount++;
             } catch (err) {
                 // 忽略重複的日期
@@ -5603,13 +6485,14 @@ async function addHolidayRange(startDate, endDate, holidayName = null) {
 }
 
 // 刪除假日
-async function deleteHoliday(holidayDate) {
+async function deleteHoliday(holidayDate, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'deleteHoliday');
         const sql = usePostgreSQL
-            ? `DELETE FROM holidays WHERE holiday_date = $1 AND is_weekend = 0`
-            : `DELETE FROM holidays WHERE holiday_date = ? AND is_weekend = 0`;
+            ? `DELETE FROM holidays WHERE holiday_date = $1 AND tenant_id = $2 AND is_weekend = 0`
+            : `DELETE FROM holidays WHERE holiday_date = ? AND tenant_id = ? AND is_weekend = 0`;
         
-        const result = await query(sql, [holidayDate]);
+        const result = await query(sql, [holidayDate, safeTenantId]);
         return result.changes || 0;
     } catch (error) {
         console.error('❌ 刪除假日失敗:', error.message);
@@ -5621,10 +6504,13 @@ async function deleteHoliday(holidayDate) {
 
 // ==================== 館別管理（buildings） ====================
 
-async function getAllBuildingsAdmin() {
+async function getAllBuildingsAdmin(tenantId) {
     try {
-        const sql = `SELECT * FROM buildings ORDER BY display_order ASC, id ASC`;
-        const result = await query(sql);
+        const safeTenantId = assertTenantScope(tenantId, 'getAllBuildingsAdmin');
+        const sql = usePostgreSQL
+            ? `SELECT * FROM buildings WHERE tenant_id = $1 ORDER BY display_order ASC, id ASC`
+            : `SELECT * FROM buildings WHERE tenant_id = ? ORDER BY display_order ASC, id ASC`;
+        const result = await query(sql, [safeTenantId]);
         return result.rows || [];
     } catch (error) {
         console.error('❌ 查詢館別失敗:', error.message);
@@ -5632,12 +6518,13 @@ async function getAllBuildingsAdmin() {
     }
 }
 
-async function getActiveBuildingsPublic() {
+async function getActiveBuildingsPublic(tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getActiveBuildingsPublic');
         const sql = usePostgreSQL
-            ? `SELECT id, code, name, display_order FROM buildings WHERE is_active = 1 ORDER BY display_order ASC, id ASC`
-            : `SELECT id, code, name, display_order FROM buildings WHERE is_active = 1 ORDER BY display_order ASC, id ASC`;
-        const result = await query(sql);
+            ? `SELECT id, code, name, display_order FROM buildings WHERE tenant_id = $1 AND is_active = 1 ORDER BY display_order ASC, id ASC`
+            : `SELECT id, code, name, display_order FROM buildings WHERE tenant_id = ? AND is_active = 1 ORDER BY display_order ASC, id ASC`;
+        const result = await query(sql, [safeTenantId]);
         return result.rows || [];
     } catch (error) {
         console.error('❌ 查詢可用館別失敗:', error.message);
@@ -5662,8 +6549,20 @@ async function getBuildingById(id) {
     }
 }
 
-async function createBuilding(building) {
+async function getBuildingCountByTenant(tenantId) {
+    const safeTenantId = assertTenantScope(tenantId, 'getBuildingCountByTenant');
+    const row = await queryOne(
+        usePostgreSQL
+            ? `SELECT COUNT(*)::int as cnt FROM buildings WHERE tenant_id = $1`
+            : `SELECT COUNT(*) as cnt FROM buildings WHERE tenant_id = ?`,
+        [safeTenantId]
+    );
+    return parseInt(row?.cnt || 0, 10);
+}
+
+async function createBuilding(building, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'createBuilding');
         const code = String(building.code || '').trim();
         const name = String(building.name || '').trim();
         if (!code || !name) {
@@ -5673,9 +6572,9 @@ async function createBuilding(building) {
         const isActive = (String(building.is_active ?? '1').trim() === '0') ? 0 : 1;
 
         const sql = usePostgreSQL
-            ? `INSERT INTO buildings (code, name, display_order, is_active) VALUES ($1, $2, $3, $4) RETURNING id`
-            : `INSERT INTO buildings (code, name, display_order, is_active) VALUES (?, ?, ?, ?)`;
-        const result = await query(sql, [code, name, displayOrder, isActive]);
+            ? `INSERT INTO buildings (tenant_id, code, name, display_order, is_active) VALUES ($1, $2, $3, $4, $5) RETURNING id`
+            : `INSERT INTO buildings (tenant_id, code, name, display_order, is_active) VALUES (?, ?, ?, ?, ?)`;
+        const result = await query(sql, [safeTenantId, code, name, displayOrder, isActive]);
         return usePostgreSQL ? (result.rows?.[0]?.id) : result.lastID;
     } catch (error) {
         console.error('❌ 新增館別失敗:', error.message);
@@ -5683,8 +6582,9 @@ async function createBuilding(building) {
     }
 }
 
-async function updateBuilding(id, building) {
+async function updateBuilding(id, building, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'updateBuilding');
         const buildingId = parseInt(id, 10);
         if (!Number.isFinite(buildingId) || buildingId <= 0) {
             throw new Error('無效的館別 ID');
@@ -5704,9 +6604,9 @@ async function updateBuilding(id, building) {
         if (!code) throw new Error('請提供館別代碼');
 
         const sql = usePostgreSQL
-            ? `UPDATE buildings SET code = $1, name = $2, display_order = $3, is_active = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5`
-            : `UPDATE buildings SET code = ?, name = ?, display_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
-        const result = await query(sql, [code, name, displayOrder, isActive, buildingId]);
+            ? `UPDATE buildings SET code = $1, name = $2, display_order = $3, is_active = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 AND tenant_id = $6`
+            : `UPDATE buildings SET code = ?, name = ?, display_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?`;
+        const result = await query(sql, [code, name, displayOrder, isActive, buildingId, safeTenantId]);
         return result.changes || 0;
     } catch (error) {
         console.error('❌ 更新館別失敗:', error.message);
@@ -5714,8 +6614,9 @@ async function updateBuilding(id, building) {
     }
 }
 
-async function deleteBuilding(id) {
+async function deleteBuilding(id, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'deleteBuilding');
         const buildingId = parseInt(id, 10);
         if (!Number.isFinite(buildingId) || buildingId <= 0) {
             throw new Error('無效的館別 ID');
@@ -5726,18 +6627,18 @@ async function deleteBuilding(id) {
 
         // 若館別仍有房型，不允許刪除（避免孤兒資料）
         const cntSql = usePostgreSQL
-            ? `SELECT COUNT(*)::bigint as cnt FROM room_types WHERE building_id = $1`
-            : `SELECT COUNT(*) as cnt FROM room_types WHERE building_id = ?`;
-        const row = await queryOne(cntSql, [buildingId]);
+            ? `SELECT COUNT(*)::bigint as cnt FROM room_types WHERE building_id = $1 AND tenant_id = $2`
+            : `SELECT COUNT(*) as cnt FROM room_types WHERE building_id = ? AND tenant_id = ?`;
+        const row = await queryOne(cntSql, [buildingId, safeTenantId]);
         const cnt = parseInt(row?.cnt || row?.count || 0, 10);
         if (cnt > 0) {
             throw new Error('此館別仍有房型，請先移動或刪除房型後再刪除館別');
         }
 
         const sql = usePostgreSQL
-            ? `DELETE FROM buildings WHERE id = $1`
-            : `DELETE FROM buildings WHERE id = ?`;
-        const result = await query(sql, [buildingId]);
+            ? `DELETE FROM buildings WHERE id = $1 AND tenant_id = $2`
+            : `DELETE FROM buildings WHERE id = ? AND tenant_id = ?`;
+        const result = await query(sql, [buildingId, safeTenantId]);
         return result.changes || 0;
     } catch (error) {
         console.error('❌ 刪除館別失敗:', error.message);
@@ -5745,25 +6646,28 @@ async function deleteBuilding(id) {
     }
 }
 
-async function getRoomTypesBuildingStatsAdmin() {
+async function getRoomTypesBuildingStatsAdmin(tenantId) {
     try {
-        const totalSql = `SELECT COUNT(*) as cnt FROM room_types`;
-        const totalRow = await queryOne(totalSql, []);
+        const safeTenantId = assertTenantScope(tenantId, 'getRoomTypesBuildingStatsAdmin');
+        const totalSql = usePostgreSQL
+            ? `SELECT COUNT(*) as cnt FROM room_types WHERE tenant_id = $1`
+            : `SELECT COUNT(*) as cnt FROM room_types WHERE tenant_id = ?`;
+        const totalRow = await queryOne(totalSql, [safeTenantId]);
         const total = parseInt(totalRow?.cnt || totalRow?.count || 0, 10);
 
         const groupSql = usePostgreSQL
-            ? `SELECT building_id, COUNT(*)::bigint as cnt FROM room_types GROUP BY building_id ORDER BY building_id NULLS FIRST`
-            : `SELECT building_id, COUNT(*) as cnt FROM room_types GROUP BY building_id ORDER BY building_id`;
-        const groupRes = await query(groupSql, []);
+            ? `SELECT building_id, COUNT(*)::bigint as cnt FROM room_types WHERE tenant_id = $1 GROUP BY building_id ORDER BY building_id NULLS FIRST`
+            : `SELECT building_id, COUNT(*) as cnt FROM room_types WHERE tenant_id = ? GROUP BY building_id ORDER BY building_id`;
+        const groupRes = await query(groupSql, [safeTenantId]);
         const groups = (groupRes.rows || []).map((r) => ({
             building_id: r.building_id === undefined ? null : r.building_id,
             cnt: parseInt(r.cnt || r.count || 0, 10)
         }));
 
         const sampleSql = usePostgreSQL
-            ? `SELECT id, name, display_name, building_id, is_active FROM room_types ORDER BY id ASC LIMIT 10`
-            : `SELECT id, name, display_name, building_id, is_active FROM room_types ORDER BY id ASC LIMIT 10`;
-        const sampleRes = await query(sampleSql, []);
+            ? `SELECT id, name, display_name, building_id, is_active FROM room_types WHERE tenant_id = $1 ORDER BY id ASC LIMIT 10`
+            : `SELECT id, name, display_name, building_id, is_active FROM room_types WHERE tenant_id = ? ORDER BY id ASC LIMIT 10`;
+        const sampleRes = await query(sampleSql, [safeTenantId]);
         const samples = sampleRes.rows || [];
 
         return { total, groups, samples };
@@ -5774,10 +6678,10 @@ async function getRoomTypesBuildingStatsAdmin() {
 }
 
 // 取得所有房型（只包含啟用的，供前台使用）
-async function getAllRoomTypes() {
+async function getAllRoomTypes(tenantId) {
     try {
         // 兼容舊簽名：不帶參數時回傳預設館（一般房型，不含包棟專用方案）
-        return await getRoomTypesByBuilding(1, { activeOnly: true, listScope: 'retail' });
+        return await getRoomTypesByBuilding(1, { activeOnly: true, listScope: 'retail', tenantId });
     } catch (error) {
         console.error('❌ 查詢房型失敗:', error.message);
         throw error;
@@ -5786,7 +6690,8 @@ async function getAllRoomTypes() {
 
 async function getRoomTypesByBuilding(buildingId = 1, options = {}) {
     try {
-        const { activeOnly = true, listScope } = options;
+        const { activeOnly = true, listScope, tenantId } = options;
+        const safeTenantId = assertTenantScope(tenantId, 'getRoomTypesByBuilding');
         const bid = parseInt(buildingId, 10);
         const safeBid = Number.isFinite(bid) && bid > 0 ? bid : 1;
         const activeClause = activeOnly ? 'AND is_active = 1' : '';
@@ -5799,9 +6704,9 @@ async function getRoomTypesByBuilding(buildingId = 1, options = {}) {
             scopeClause = ` AND list_scope = 'whole_property'`;
         }
         const sql = usePostgreSQL
-            ? `SELECT * FROM room_types WHERE (building_id = $1 OR ($1 = 1 AND (building_id IS NULL OR building_id = 0))) ${activeClause}${scopeClause} ORDER BY display_order ASC, id ASC`
-            : `SELECT * FROM room_types WHERE (building_id = ? OR (? = 1 AND (building_id IS NULL OR building_id = 0))) ${activeClause}${scopeClause} ORDER BY display_order ASC, id ASC`;
-        const params = usePostgreSQL ? [safeBid] : [safeBid, safeBid];
+            ? `SELECT * FROM room_types WHERE tenant_id = $1 AND (building_id = $2 OR ($2 = 1 AND (building_id IS NULL OR building_id = 0))) ${activeClause}${scopeClause} ORDER BY display_order ASC, id ASC`
+            : `SELECT * FROM room_types WHERE tenant_id = ? AND (building_id = ? OR (? = 1 AND (building_id IS NULL OR building_id = 0))) ${activeClause}${scopeClause} ORDER BY display_order ASC, id ASC`;
+        const params = usePostgreSQL ? [safeTenantId, safeBid] : [safeTenantId, safeBid, safeBid];
         const result = await query(sql, params);
         return result.rows || [];
     } catch (error) {
@@ -5812,8 +6717,9 @@ async function getRoomTypesByBuilding(buildingId = 1, options = {}) {
 
 // 取得所有房型（包含已停用的，供管理後台使用）
 // listScope: 'retail' | 'whole_property' | undefined（undefined = 不篩選）
-async function getAllRoomTypesAdmin(buildingId, listScope) {
+async function getAllRoomTypesAdmin(buildingId, listScope, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getAllRoomTypesAdmin');
         const bid = parseInt(buildingId, 10);
         const hasBuildingFilter = Number.isFinite(bid) && bid > 0;
         const safeBid = hasBuildingFilter ? bid : null;
@@ -5833,7 +6739,7 @@ async function getAllRoomTypesAdmin(buildingId, listScope) {
                     FROM room_types rt
                     LEFT JOIN room_type_inventory inv
                       ON inv.building_id = rt.building_id AND inv.room_type_id = rt.id
-                    WHERE (rt.building_id = $1 OR ($1 = 1 AND (rt.building_id IS NULL OR rt.building_id = 0)))${scopeClause}
+                    WHERE rt.tenant_id = $1 AND (rt.building_id = $2 OR ($2 = 1 AND (rt.building_id IS NULL OR rt.building_id = 0)))${scopeClause}
                     ORDER BY rt.display_order ASC, rt.id ASC
                   `
                 : `
@@ -5841,21 +6747,30 @@ async function getAllRoomTypesAdmin(buildingId, listScope) {
                     FROM room_types rt
                     LEFT JOIN room_type_inventory inv
                       ON inv.building_id = rt.building_id AND inv.room_type_id = rt.id
-                    WHERE (rt.building_id = ? OR (? = 1 AND (rt.building_id IS NULL OR rt.building_id = 0)))${scopeClause}
+                    WHERE rt.tenant_id = ? AND (rt.building_id = ? OR (? = 1 AND (rt.building_id IS NULL OR rt.building_id = 0)))${scopeClause}
                     ORDER BY rt.display_order ASC, rt.id ASC
                   `)
-            : `
-                SELECT rt.*, COALESCE(inv.qty_total, 1) AS qty_total
-                FROM room_types rt
-                LEFT JOIN room_type_inventory inv
-                  ON inv.building_id = rt.building_id AND inv.room_type_id = rt.id
-                WHERE 1=1${scopeClause}
-                ORDER BY rt.display_order ASC, rt.id ASC
-              `;
+            : (usePostgreSQL
+                ? `
+                    SELECT rt.*, COALESCE(inv.qty_total, 1) AS qty_total
+                    FROM room_types rt
+                    LEFT JOIN room_type_inventory inv
+                      ON inv.building_id = rt.building_id AND inv.room_type_id = rt.id
+                    WHERE rt.tenant_id = $1${scopeClause}
+                    ORDER BY rt.display_order ASC, rt.id ASC
+                  `
+                : `
+                    SELECT rt.*, COALESCE(inv.qty_total, 1) AS qty_total
+                    FROM room_types rt
+                    LEFT JOIN room_type_inventory inv
+                      ON inv.building_id = rt.building_id AND inv.room_type_id = rt.id
+                    WHERE rt.tenant_id = ?${scopeClause}
+                    ORDER BY rt.display_order ASC, rt.id ASC
+                  `);
 
         const params = hasBuildingFilter
-            ? (usePostgreSQL ? [safeBid] : [safeBid, safeBid])
-            : [];
+            ? (usePostgreSQL ? [safeTenantId, safeBid] : [safeTenantId, safeBid, safeBid])
+            : [safeTenantId];
 
         const result = params.length ? await query(sql, params) : await query(sql);
         return result.rows || [];
@@ -5866,12 +6781,13 @@ async function getAllRoomTypesAdmin(buildingId, listScope) {
 }
 
 // 取得單一房型
-async function getRoomTypeById(id) {
+async function getRoomTypeById(id, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getRoomTypeById');
         const sql = usePostgreSQL
-            ? `SELECT * FROM room_types WHERE id = $1`
-            : `SELECT * FROM room_types WHERE id = ?`;
-        return await queryOne(sql, [id]);
+            ? `SELECT * FROM room_types WHERE id = $1 AND tenant_id = $2`
+            : `SELECT * FROM room_types WHERE id = ? AND tenant_id = ?`;
+        return await queryOne(sql, [id, safeTenantId]);
     } catch (error) {
         console.error('❌ 查詢房型失敗:', error.message);
         throw error;
@@ -5879,21 +6795,23 @@ async function getRoomTypeById(id) {
 }
 
 // 新增房型
-async function createRoomType(roomData) {
+async function createRoomType(roomData, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'createRoomType');
         const listScopeRaw = String(roomData.list_scope || 'retail').trim();
         const listScope = listScopeRaw === 'whole_property' ? 'whole_property' : 'retail';
 
         const sql = usePostgreSQL ? `
-            INSERT INTO room_types (building_id, name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active, list_scope) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+            INSERT INTO room_types (tenant_id, building_id, name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active, list_scope) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
             RETURNING id
         ` : `
-            INSERT INTO room_types (building_id, name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active, list_scope) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO room_types (tenant_id, building_id, name, display_name, price, original_price, holiday_surcharge, max_occupancy, extra_beds, extra_bed_price, bed_config, included_items, booking_badge, icon, image_url, show_on_landing, display_order, is_active, list_scope) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const values = [
+            safeTenantId,
             roomData.building_id !== undefined && roomData.building_id !== null ? roomData.building_id : 1,
             roomData.name,
             roomData.display_name,
@@ -5933,19 +6851,20 @@ async function createRoomType(roomData) {
 }
 
 // 更新房型
-async function updateRoomType(id, roomData) {
+async function updateRoomType(id, roomData, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'updateRoomType');
         const listScopeRaw = String(roomData.list_scope || 'retail').trim();
         const listScope = listScopeRaw === 'whole_property' ? 'whole_property' : 'retail';
 
         const sql = usePostgreSQL ? `
             UPDATE room_types 
             SET building_id = $1, display_name = $2, price = $3, original_price = $4, holiday_surcharge = $5, max_occupancy = $6, extra_beds = $7, extra_bed_price = $8, bed_config = $9, included_items = $10, booking_badge = $11, icon = $12, image_url = $13, show_on_landing = $14, display_order = $15, is_active = $16, list_scope = $17, updated_at = CURRENT_TIMESTAMP
-            WHERE id = $18
+            WHERE id = $18 AND tenant_id = $19
         ` : `
             UPDATE room_types 
             SET building_id = ?, display_name = ?, price = ?, original_price = ?, holiday_surcharge = ?, max_occupancy = ?, extra_beds = ?, extra_bed_price = ?, bed_config = ?, included_items = ?, booking_badge = ?, icon = ?, image_url = ?, show_on_landing = ?, display_order = ?, is_active = ?, list_scope = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = ? AND tenant_id = ?
         `;
         
         const values = [
@@ -5966,7 +6885,8 @@ async function updateRoomType(id, roomData) {
             roomData.display_order || 0,
             roomData.is_active !== undefined ? roomData.is_active : 1,
             listScope,
-            id
+            id,
+            safeTenantId
         ];
         
         const result = await query(sql, values);
@@ -6415,14 +7335,15 @@ async function deleteHoliday(holidayDate) {
 }
 
 // 刪除房型（硬刪除 - 真正從資料庫刪除）
-async function deleteRoomType(id) {
+async function deleteRoomType(id, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'deleteRoomType');
         // 先檢查房型是否存在
         const roomType = await queryOne(
             usePostgreSQL
-                ? `SELECT id, name FROM room_types WHERE id = $1`
-                : `SELECT id, name FROM room_types WHERE id = ?`,
-            [id]
+                ? `SELECT id, name FROM room_types WHERE id = $1 AND tenant_id = $2`
+                : `SELECT id, name FROM room_types WHERE id = ? AND tenant_id = ?`,
+            [id, safeTenantId]
         );
         
         if (!roomType) {
@@ -6433,9 +7354,9 @@ async function deleteRoomType(id) {
         // 檢查是否有訂房記錄使用該房型
         const bookingCheck = await queryOne(
             usePostgreSQL
-                ? `SELECT COUNT(*) as count FROM bookings WHERE room_type = $1`
-                : `SELECT COUNT(*) as count FROM bookings WHERE room_type = ?`,
-            [roomType.name]
+                ? `SELECT COUNT(*) as count FROM bookings WHERE room_type = $1 AND tenant_id = $2`
+                : `SELECT COUNT(*) as count FROM bookings WHERE room_type = ? AND tenant_id = ?`,
+            [roomType.name, safeTenantId]
         );
         
         const bookingCount = bookingCheck ? (bookingCheck.count || 0) : 0;
@@ -6447,10 +7368,10 @@ async function deleteRoomType(id) {
         
         // 執行硬刪除（真正從資料庫刪除）
         const sql = usePostgreSQL
-            ? `DELETE FROM room_types WHERE id = $1`
-            : `DELETE FROM room_types WHERE id = ?`;
+            ? `DELETE FROM room_types WHERE id = $1 AND tenant_id = $2`
+            : `DELETE FROM room_types WHERE id = ? AND tenant_id = ?`;
         
-        const result = await query(sql, [id]);
+        const result = await query(sql, [id, safeTenantId]);
         console.log(`✅ 房型已永久刪除 (影響行數: ${result.changes})`);
         return result.changes;
     } catch (error) {
@@ -6474,10 +7395,25 @@ async function getRoomTypeGalleryImages(roomTypeId) {
     }
 }
 
-async function getAllRoomTypeGalleryImages() {
+async function getAllRoomTypeGalleryImages(tenantId) {
     try {
-        const sql = `SELECT * FROM room_type_images ORDER BY room_type_id ASC, display_order ASC, id ASC`;
-        const result = await query(sql);
+        const safeTenantId = assertTenantScope(tenantId, 'getAllRoomTypeGalleryImages');
+        const sql = usePostgreSQL
+            ? `
+                SELECT rti.*
+                FROM room_type_images rti
+                JOIN room_types rt ON rt.id = rti.room_type_id
+                WHERE rt.tenant_id = $1
+                ORDER BY rti.room_type_id ASC, rti.display_order ASC, rti.id ASC
+              `
+            : `
+                SELECT rti.*
+                FROM room_type_images rti
+                JOIN room_types rt ON rt.id = rti.room_type_id
+                WHERE rt.tenant_id = ?
+                ORDER BY rti.room_type_id ASC, rti.display_order ASC, rti.id ASC
+              `;
+        const result = await query(sql, [safeTenantId]);
         return result.rows;
     } catch (error) {
         console.error('❌ 查詢所有房型圖庫失敗:', error.message);
@@ -6529,12 +7465,13 @@ async function updateRoomTypeGalleryOrder(imageId, displayOrder) {
 // ==================== 系統設定管理 ====================
 
 // 取得設定值
-async function getSetting(key) {
+async function getSetting(key, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getSetting');
         const sql = usePostgreSQL
-            ? `SELECT value FROM settings WHERE key = $1`
-            : `SELECT value FROM settings WHERE key = ?`;
-        const row = await queryOne(sql, [key]);
+            ? `SELECT value FROM settings WHERE key = $1 AND tenant_id = $2`
+            : `SELECT value FROM settings WHERE key = ? AND tenant_id = ?`;
+        const row = await queryOne(sql, [key, safeTenantId]);
         return row ? row.value : null;
     } catch (error) {
         console.error('❌ 查詢設定失敗:', error.message);
@@ -6542,11 +7479,310 @@ async function getSetting(key) {
     }
 }
 
+async function getTenantSubscriptionSnapshot(tenantId) {
+    const safeTenantId = assertTenantScope(tenantId, 'getTenantSubscriptionSnapshot');
+
+    const row = await queryOne(
+        usePostgreSQL
+            ? `SELECT s.*, p.code AS plan_code, p.feature_flags
+               FROM subscriptions s
+               LEFT JOIN plans p ON p.id = s.plan_id
+               WHERE s.tenant_id = $1
+               ORDER BY s.id DESC
+               LIMIT 1`
+            : `SELECT s.*, p.code AS plan_code, p.feature_flags
+               FROM subscriptions s
+               LEFT JOIN plans p ON p.id = s.plan_id
+               WHERE s.tenant_id = ?
+               ORDER BY s.id DESC
+               LIMIT 1`,
+        [safeTenantId]
+    );
+
+    if (!row) {
+        await seedSubscriptionMvpDefaults();
+        return getTenantSubscriptionSnapshot(safeTenantId);
+    }
+
+    const features = parseFeatureFlags(row.feature_flags);
+    const limits = {
+        max_buildings: parseInt(features.max_buildings || 1, 10)
+    };
+
+    return {
+        tenantId: safeTenantId,
+        subscriptionId: row.id,
+        planCode: row.plan_code || 'basic_monthly',
+        status: row.status || 'trialing',
+        billingCycle: row.billing_cycle || 'monthly',
+        periodEnd: row.current_period_end || row.trial_ends_at || null,
+        features: {
+            reports: !!features.reports,
+            api_access: !!features.api_access
+        },
+        limits
+    };
+}
+
+async function runSubscriptionDailyCheck() {
+    const nowIso = new Date().toISOString();
+
+    const toPastDue = await query(
+        usePostgreSQL
+            ? `UPDATE subscriptions
+               SET status = 'past_due', updated_at = CURRENT_TIMESTAMP
+               WHERE status IN ('trialing', 'active')
+                 AND current_period_end IS NOT NULL
+                 AND current_period_end < $1`
+            : `UPDATE subscriptions
+               SET status = 'past_due', updated_at = CURRENT_TIMESTAMP
+               WHERE status IN ('trialing', 'active')
+                 AND current_period_end IS NOT NULL
+                 AND datetime(current_period_end) < datetime(?)`,
+        [nowIso]
+    );
+
+    const toCanceled = await query(
+        usePostgreSQL
+            ? `UPDATE subscriptions
+               SET status = 'canceled', canceled_at = COALESCE(canceled_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP
+               WHERE status = 'past_due'
+                 AND current_period_end IS NOT NULL
+                 AND current_period_end < ($1::timestamp - INTERVAL '7 days')`
+            : `UPDATE subscriptions
+               SET status = 'canceled',
+                   canceled_at = COALESCE(canceled_at, CURRENT_TIMESTAMP),
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE status = 'past_due'
+                 AND current_period_end IS NOT NULL
+                 AND datetime(current_period_end) < datetime(?, '-7 days')`,
+        [nowIso]
+    );
+
+    const checkedRow = await queryOne(
+        usePostgreSQL
+            ? `SELECT COUNT(*)::int as cnt FROM subscriptions`
+            : `SELECT COUNT(*) as cnt FROM subscriptions`
+    );
+
+    return {
+        toPastDue: parseInt(toPastDue?.changes || 0, 10),
+        toCanceled: parseInt(toCanceled?.changes || 0, 10),
+        checked: parseInt(checkedRow?.cnt || 0, 10)
+    };
+}
+
+async function setTenantSubscriptionPlan(tenantId, planCode, status = 'active') {
+    const safeTenantId = assertTenantScope(tenantId, 'setTenantSubscriptionPlan');
+    const safeStatus = ['trialing', 'active', 'past_due', 'canceled'].includes(String(status || '').trim())
+        ? String(status).trim()
+        : 'active';
+
+    const plan = await queryOne(
+        usePostgreSQL
+            ? `SELECT id, billing_cycle FROM plans WHERE code = $1 AND is_active = 1`
+            : `SELECT id, billing_cycle FROM plans WHERE code = ? AND is_active = 1`,
+        [planCode]
+    );
+    if (!plan) {
+        throw new Error(`找不到方案: ${planCode}`);
+    }
+
+    const start = new Date();
+    const end = new Date(start);
+    if (plan.billing_cycle === 'yearly') end.setFullYear(end.getFullYear() + 1);
+    else end.setMonth(end.getMonth() + 1);
+
+    await query(
+        usePostgreSQL
+            ? `INSERT INTO subscriptions
+               (tenant_id, plan_id, status, billing_cycle, current_period_start, current_period_end, trial_ends_at, updated_at)
+               VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5, $5, CURRENT_TIMESTAMP)`
+            : `INSERT INTO subscriptions
+               (tenant_id, plan_id, status, billing_cycle, current_period_start, current_period_end, trial_ends_at, updated_at)
+               VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, CURRENT_TIMESTAMP)`,
+        usePostgreSQL
+            ? [safeTenantId, plan.id, safeStatus, plan.billing_cycle, end.toISOString()]
+            : [safeTenantId, plan.id, safeStatus, plan.billing_cycle, end.toISOString(), end.toISOString()]
+    );
+
+    return getTenantSubscriptionSnapshot(safeTenantId);
+}
+
+async function updateLatestSubscriptionStatus(tenantId, status, nextPeriodEnd = null) {
+    const safeTenantId = assertTenantScope(tenantId, 'updateLatestSubscriptionStatus');
+    const safeStatus = ['trialing', 'active', 'past_due', 'canceled'].includes(String(status || '').trim())
+        ? String(status).trim()
+        : 'past_due';
+
+    const latest = await queryOne(
+        usePostgreSQL
+            ? `SELECT id FROM subscriptions WHERE tenant_id = $1 ORDER BY id DESC LIMIT 1`
+            : `SELECT id FROM subscriptions WHERE tenant_id = ? ORDER BY id DESC LIMIT 1`,
+        [safeTenantId]
+    );
+
+    if (!latest?.id) {
+        await seedSubscriptionMvpDefaults();
+        return updateLatestSubscriptionStatus(safeTenantId, safeStatus, nextPeriodEnd);
+    }
+
+    const sql = usePostgreSQL
+        ? `UPDATE subscriptions
+           SET status = $1,
+               current_period_end = COALESCE($2, current_period_end),
+               canceled_at = CASE WHEN $1 = 'canceled' THEN COALESCE(canceled_at, CURRENT_TIMESTAMP) ELSE canceled_at END,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $3`
+        : `UPDATE subscriptions
+           SET status = ?,
+               current_period_end = COALESCE(?, current_period_end),
+               canceled_at = CASE WHEN ? = 'canceled' THEN COALESCE(canceled_at, CURRENT_TIMESTAMP) ELSE canceled_at END,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`;
+
+    const params = usePostgreSQL
+        ? [safeStatus, nextPeriodEnd, latest.id]
+        : [safeStatus, nextPeriodEnd, safeStatus, latest.id];
+    await query(sql, params);
+    return getTenantSubscriptionSnapshot(safeTenantId);
+}
+
+async function insertPaymentEventIfAbsent({ tenantId = null, provider, eventId, eventType, payload, signature = null }) {
+    const providerValue = String(provider || '').trim();
+    const eventIdValue = String(eventId || '').trim();
+    const eventTypeValue = String(eventType || 'unknown').trim();
+    if (!providerValue || !eventIdValue) {
+        throw new Error('provider 與 eventId 為必填');
+    }
+
+    if (usePostgreSQL) {
+        const inserted = await queryOne(
+            `INSERT INTO payment_events (tenant_id, provider, event_id, event_type, payload, signature, processed_at)
+             VALUES ($1, $2, $3, $4, $5::jsonb, $6, CURRENT_TIMESTAMP)
+             ON CONFLICT (provider, event_id) DO NOTHING
+             RETURNING id`,
+            [tenantId, providerValue, eventIdValue, eventTypeValue, JSON.stringify(payload || {}), signature]
+        );
+        return { inserted: !!inserted?.id, id: inserted?.id || null };
+    }
+
+    const existing = await queryOne(
+        `SELECT id FROM payment_events WHERE provider = ? AND event_id = ? LIMIT 1`,
+        [providerValue, eventIdValue]
+    );
+    if (existing?.id) {
+        return { inserted: false, id: existing.id };
+    }
+
+    const ins = await query(
+        `INSERT INTO payment_events (tenant_id, provider, event_id, event_type, payload, signature, processed_at)
+         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [tenantId, providerValue, eventIdValue, eventTypeValue, JSON.stringify(payload || {}), signature]
+    );
+    return { inserted: true, id: ins?.lastID || null };
+}
+
+async function getSubscriptionPlans() {
+    const result = await query(
+        usePostgreSQL
+            ? `SELECT code, name, billing_cycle, price_amount, currency, feature_flags, is_active
+               FROM plans
+               WHERE is_active = 1
+               ORDER BY code ASC`
+            : `SELECT code, name, billing_cycle, price_amount, currency, feature_flags, is_active
+               FROM plans
+               WHERE is_active = 1
+               ORDER BY code ASC`
+    );
+    return (result.rows || []).map((row) => ({
+        code: row.code,
+        name: row.name,
+        billing_cycle: row.billing_cycle,
+        price_amount: Number(row.price_amount || 0),
+        currency: row.currency || 'TWD',
+        feature_flags: parseFeatureFlags(row.feature_flags)
+    }));
+}
+
+async function getAllTenantSubscriptionOverview() {
+    const result = await query(
+        usePostgreSQL
+            ? `SELECT
+                   t.id AS tenant_id,
+                   t.name AS tenant_name,
+                   t.status AS tenant_status,
+                   t.timezone,
+                   s.id AS subscription_id,
+                   s.status AS subscription_status,
+                   s.billing_cycle,
+                   s.current_period_start,
+                   s.current_period_end,
+                   s.trial_ends_at,
+                   s.updated_at,
+                   p.code AS plan_code,
+                   p.name AS plan_name
+               FROM tenants t
+               LEFT JOIN LATERAL (
+                   SELECT *
+                   FROM subscriptions s1
+                   WHERE s1.tenant_id = t.id
+                   ORDER BY s1.id DESC
+                   LIMIT 1
+               ) s ON true
+               LEFT JOIN plans p ON p.id = s.plan_id
+               ORDER BY t.id ASC`
+            : `SELECT
+                   t.id AS tenant_id,
+                   t.name AS tenant_name,
+                   t.status AS tenant_status,
+                   t.timezone,
+                   s.id AS subscription_id,
+                   s.status AS subscription_status,
+                   s.billing_cycle,
+                   s.current_period_start,
+                   s.current_period_end,
+                   s.trial_ends_at,
+                   s.updated_at,
+                   p.code AS plan_code,
+                   p.name AS plan_name
+               FROM tenants t
+               LEFT JOIN subscriptions s ON s.id = (
+                   SELECT s1.id
+                   FROM subscriptions s1
+                   WHERE s1.tenant_id = t.id
+                   ORDER BY s1.id DESC
+                   LIMIT 1
+               )
+               LEFT JOIN plans p ON p.id = s.plan_id
+               ORDER BY t.id ASC`
+    );
+
+    return (result.rows || []).map((row) => ({
+        tenantId: row.tenant_id,
+        tenantName: row.tenant_name || `tenant_${row.tenant_id}`,
+        tenantStatus: row.tenant_status || 'active',
+        timezone: row.timezone || 'Asia/Taipei',
+        subscriptionId: row.subscription_id || null,
+        subscriptionStatus: row.subscription_status || 'none',
+        billingCycle: row.billing_cycle || null,
+        periodStart: row.current_period_start || null,
+        periodEnd: row.current_period_end || null,
+        trialEndsAt: row.trial_ends_at || null,
+        planCode: row.plan_code || null,
+        planName: row.plan_name || null,
+        updatedAt: row.updated_at || null
+    }));
+}
+
 // 取得所有設定
-async function getAllSettings() {
+async function getAllSettings(tenantId) {
     try {
-        const sql = `SELECT * FROM settings ORDER BY key ASC`;
-        const result = await query(sql);
+        const safeTenantId = assertTenantScope(tenantId, 'getAllSettings');
+        const sql = usePostgreSQL
+            ? `SELECT * FROM settings WHERE tenant_id = $1 ORDER BY key ASC`
+            : `SELECT * FROM settings WHERE tenant_id = ? ORDER BY key ASC`;
+        const result = await query(sql, [safeTenantId]);
         return result.rows;
     } catch (error) {
         console.error('❌ 查詢設定失敗:', error.message);
@@ -6555,21 +7791,20 @@ async function getAllSettings() {
 }
 
 // 更新設定
-async function updateSetting(key, value, description = null) {
+async function updateSetting(key, value, description = null, tenantId) {
     try {
-        const sql = usePostgreSQL ? `
-            INSERT INTO settings (key, value, description, updated_at) 
-            VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-            ON CONFLICT (key) DO UPDATE SET
-            value = EXCLUDED.value,
-            description = EXCLUDED.description,
-            updated_at = CURRENT_TIMESTAMP
-        ` : `
-            INSERT OR REPLACE INTO settings (key, value, description, updated_at) 
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-        `;
-        
-        const result = await query(sql, [key, value, description]);
+        const safeTenantId = assertTenantScope(tenantId, 'updateSetting');
+        const updateSql = usePostgreSQL
+            ? `UPDATE settings SET value = $1, description = $2, updated_at = CURRENT_TIMESTAMP WHERE key = $3 AND tenant_id = $4`
+            : `UPDATE settings SET value = ?, description = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ? AND tenant_id = ?`;
+        const updateResult = await query(updateSql, [value, description, key, safeTenantId]);
+        if ((updateResult.changes || 0) === 0) {
+            const insertSql = usePostgreSQL
+                ? `INSERT INTO settings (tenant_id, key, value, description, updated_at) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`
+                : `INSERT INTO settings (tenant_id, key, value, description, updated_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`;
+            await query(insertSql, [safeTenantId, key, value, description]);
+        }
+        const result = updateResult;
         console.log(`✅ 設定已更新 (key: ${key})`);
         return result.changes;
     } catch (error) {
@@ -6786,10 +8021,13 @@ async function getBookingsForFeedbackRequest(daysAfterCheckout = 1) {
 // ==================== 加購商品管理 ====================
 
 // 取得所有加購商品
-async function getAllAddons() {
+async function getAllAddons(tenantId) {
     try {
-        const sql = `SELECT *, COALESCE(unit_label, '人') AS unit_label FROM addons WHERE is_active = 1 ORDER BY display_order ASC, id ASC`;
-        const result = await query(sql);
+        const safeTenantId = assertTenantScope(tenantId, 'getAllAddons');
+        const sql = usePostgreSQL
+            ? `SELECT *, COALESCE(unit_label, '人') AS unit_label FROM addons WHERE tenant_id = $1 AND is_active = 1 ORDER BY display_order ASC, id ASC`
+            : `SELECT *, COALESCE(unit_label, '人') AS unit_label FROM addons WHERE tenant_id = ? AND is_active = 1 ORDER BY display_order ASC, id ASC`;
+        const result = await query(sql, [safeTenantId]);
         return result.rows;
     } catch (error) {
         console.error('❌ 查詢加購商品失敗:', error.message);
@@ -6798,10 +8036,13 @@ async function getAllAddons() {
 }
 
 // 取得所有加購商品（包含已停用的，供管理後台使用）
-async function getAllAddonsAdmin() {
+async function getAllAddonsAdmin(tenantId) {
     try {
-        const sql = `SELECT *, COALESCE(unit_label, '人') AS unit_label FROM addons ORDER BY display_order ASC, id ASC`;
-        const result = await query(sql);
+        const safeTenantId = assertTenantScope(tenantId, 'getAllAddonsAdmin');
+        const sql = usePostgreSQL
+            ? `SELECT *, COALESCE(unit_label, '人') AS unit_label FROM addons WHERE tenant_id = $1 ORDER BY display_order ASC, id ASC`
+            : `SELECT *, COALESCE(unit_label, '人') AS unit_label FROM addons WHERE tenant_id = ? ORDER BY display_order ASC, id ASC`;
+        const result = await query(sql, [safeTenantId]);
         return result.rows;
     } catch (error) {
         console.error('❌ 查詢加購商品失敗:', error.message);
@@ -6810,12 +8051,13 @@ async function getAllAddonsAdmin() {
 }
 
 // 取得單一加購商品
-async function getAddonById(id) {
+async function getAddonById(id, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getAddonById');
         const sql = usePostgreSQL
-            ? `SELECT *, COALESCE(unit_label, '人') AS unit_label FROM addons WHERE id = $1`
-            : `SELECT *, COALESCE(unit_label, '人') AS unit_label FROM addons WHERE id = ?`;
-        return await queryOne(sql, [id]);
+            ? `SELECT *, COALESCE(unit_label, '人') AS unit_label FROM addons WHERE id = $1 AND tenant_id = $2`
+            : `SELECT *, COALESCE(unit_label, '人') AS unit_label FROM addons WHERE id = ? AND tenant_id = ?`;
+        return await queryOne(sql, [id, safeTenantId]);
     } catch (error) {
         console.error('❌ 查詢加購商品失敗:', error.message);
         throw error;
@@ -6823,18 +8065,20 @@ async function getAddonById(id) {
 }
 
 // 新增加購商品
-async function createAddon(addonData) {
+async function createAddon(addonData, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'createAddon');
         const summary = String(addonData.summary || '').trim();
         const details = String(addonData.details || '').trim();
         const terms = String(addonData.terms || '').trim();
         const sql = usePostgreSQL
-            ? `INSERT INTO addons (name, display_name, price, unit_label, summary, details, terms, icon, display_order, is_active) 
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`
-            : `INSERT INTO addons (name, display_name, price, unit_label, summary, details, terms, icon, display_order, is_active) 
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+            ? `INSERT INTO addons (tenant_id, name, display_name, price, unit_label, summary, details, terms, icon, display_order, is_active) 
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`
+            : `INSERT INTO addons (tenant_id, name, display_name, price, unit_label, summary, details, terms, icon, display_order, is_active) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
         
         const values = [
+            safeTenantId,
             addonData.name,
             addonData.display_name,
             addonData.price,
@@ -6856,14 +8100,15 @@ async function createAddon(addonData) {
 }
 
 // 更新加購商品
-async function updateAddon(id, addonData) {
+async function updateAddon(id, addonData, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'updateAddon');
         const summary = String(addonData.summary || '').trim();
         const details = String(addonData.details || '').trim();
         const terms = String(addonData.terms || '').trim();
         const sql = usePostgreSQL
-            ? `UPDATE addons SET display_name = $1, price = $2, unit_label = $3, summary = $4, details = $5, terms = $6, icon = $7, display_order = $8, is_active = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10`
-            : `UPDATE addons SET display_name = ?, price = ?, unit_label = ?, summary = ?, details = ?, terms = ?, icon = ?, display_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+            ? `UPDATE addons SET display_name = $1, price = $2, unit_label = $3, summary = $4, details = $5, terms = $6, icon = $7, display_order = $8, is_active = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10 AND tenant_id = $11`
+            : `UPDATE addons SET display_name = ?, price = ?, unit_label = ?, summary = ?, details = ?, terms = ?, icon = ?, display_order = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND tenant_id = ?`;
         
         const values = [
             addonData.display_name,
@@ -6875,7 +8120,8 @@ async function updateAddon(id, addonData) {
             addonData.icon || '➕',
             addonData.display_order || 0,
             addonData.is_active !== undefined ? addonData.is_active : 1,
-            id
+            id,
+            safeTenantId
         ];
         
         await query(sql, values);
@@ -6887,13 +8133,14 @@ async function updateAddon(id, addonData) {
 }
 
 // 刪除加購商品
-async function deleteAddon(id) {
+async function deleteAddon(id, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'deleteAddon');
         const sql = usePostgreSQL
-            ? `DELETE FROM addons WHERE id = $1`
-            : `DELETE FROM addons WHERE id = ?`;
+            ? `DELETE FROM addons WHERE id = $1 AND tenant_id = $2`
+            : `DELETE FROM addons WHERE id = ? AND tenant_id = ?`;
         
-        const result = await query(sql, [id]);
+        const result = await query(sql, [id, safeTenantId]);
         return result.changes > 0;
     } catch (error) {
         console.error('❌ 刪除加購商品失敗:', error.message);
@@ -6901,8 +8148,9 @@ async function deleteAddon(id) {
     }
 }
 
-async function getRoomAvailability(checkInDate, checkOutDate, buildingId = 1) {
+async function getRoomAvailability(checkInDate, checkOutDate, buildingId = 1, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getRoomAvailability');
         const bid = parseInt(buildingId, 10);
         const safeBid = Number.isFinite(bid) && bid > 0 ? bid : 1;
 
@@ -6917,7 +8165,7 @@ async function getRoomAvailability(checkInDate, checkOutDate, buildingId = 1) {
             listScope = 'retail';
         }
 
-        const roomTypes = await getRoomTypesByBuilding(safeBid, { activeOnly: true, listScope });
+        const roomTypes = await getRoomTypesByBuilding(safeBid, { activeOnly: true, listScope, tenantId: safeTenantId });
         if (!roomTypes.length) return [];
 
         const roomTypeByDisplayName = new Map();
@@ -6945,6 +8193,7 @@ async function getRoomAvailability(checkInDate, checkOutDate, buildingId = 1) {
                 SELECT id, room_type, room_selections
                 FROM bookings
                 WHERE building_id = $3
+                  AND tenant_id = $4
                   AND status IN ('active', 'reserved')
                   AND check_in_date::date < $2::date
                   AND check_out_date::date > $1::date
@@ -6953,13 +8202,14 @@ async function getRoomAvailability(checkInDate, checkOutDate, buildingId = 1) {
                 SELECT id, room_type, room_selections
                 FROM bookings
                 WHERE building_id = ?
+                  AND tenant_id = ?
                   AND status IN ('active', 'reserved')
                   AND check_in_date < ?
                   AND check_out_date > ?
             `;
         const bookingsParams = usePostgreSQL
-            ? [checkInDate, checkOutDate, safeBid]
-            : [safeBid, checkOutDate, checkInDate];
+            ? [checkInDate, checkOutDate, safeBid, safeTenantId]
+            : [safeBid, safeTenantId, checkOutDate, checkInDate];
         const bookingsResult = await query(bookingsSql, bookingsParams);
         const bookingRows = bookingsResult.rows || bookingsResult || [];
 
@@ -7033,7 +8283,7 @@ async function getRoomAvailability(checkInDate, checkOutDate, buildingId = 1) {
 }
 
 // 取得指定日期範圍內的訂房資料（供日曆視圖使用，可選館別）
-async function getBookingsInRange(startDate, endDate, buildingId, bookingMode) {
+async function getBookingsInRange(startDate, endDate, buildingId, bookingMode, tenantId) {
     try {
         const bid = parseInt(buildingId, 10);
         const hasBuildingFilter = Number.isFinite(bid) && bid > 0;
@@ -7047,15 +8297,17 @@ async function getBookingsInRange(startDate, endDate, buildingId, bookingMode) {
             FROM bookings
             WHERE check_in_date::date <= $2::date
               AND check_out_date::date >= $1::date
+              ${tenantId ? 'AND tenant_id = $3' : ''}
               AND status IN ('active', 'reserved', 'cancelled')
-              ${hasBuildingFilter ? `AND (building_id = $3 OR ($3 = 1 AND (building_id IS NULL OR building_id = 0)))` : ''}
-              ${mode ? `AND COALESCE(booking_mode, 'retail') = ${hasBuildingFilter ? '$4' : '$3'}` : ''}
+              ${hasBuildingFilter ? `AND (building_id = $${tenantId ? 4 : 3} OR ($${tenantId ? 4 : 3} = 1 AND (building_id IS NULL OR building_id = 0)))` : ''}
+              ${mode ? `AND COALESCE(booking_mode, 'retail') = $${hasBuildingFilter ? (tenantId ? 5 : 4) : (tenantId ? 4 : 3)}` : ''}
             ORDER BY check_in_date, room_type
         ` : `
             SELECT booking_id, room_type, check_in_date, check_out_date, status, guest_name, COALESCE(booking_mode, 'retail') AS booking_mode
             FROM bookings
             WHERE DATE(check_in_date) <= DATE(?)
               AND DATE(check_out_date) >= DATE(?)
+              ${tenantId ? `AND tenant_id = ?` : ''}
               AND status IN ('active', 'reserved', 'cancelled')
               ${hasBuildingFilter ? `AND (building_id = ? OR (? = 1 AND (building_id IS NULL OR building_id = 0)))` : ''}
               ${mode ? `AND COALESCE(booking_mode, 'retail') = ?` : ''}
@@ -7063,11 +8315,19 @@ async function getBookingsInRange(startDate, endDate, buildingId, bookingMode) {
         `;
         const params = usePostgreSQL
             ? (hasBuildingFilter
-                ? (mode ? [startDate, endDate, safeBid, mode] : [startDate, endDate, safeBid])
-                : (mode ? [startDate, endDate, mode] : [startDate, endDate]))
+                ? (tenantId
+                    ? (mode ? [startDate, endDate, tenantId, safeBid, mode] : [startDate, endDate, tenantId, safeBid])
+                    : (mode ? [startDate, endDate, safeBid, mode] : [startDate, endDate, safeBid]))
+                : (tenantId
+                    ? (mode ? [startDate, endDate, tenantId, mode] : [startDate, endDate, tenantId])
+                    : (mode ? [startDate, endDate, mode] : [startDate, endDate])))
             : (hasBuildingFilter
-                ? (mode ? [startDate, endDate, safeBid, safeBid, mode] : [startDate, endDate, safeBid, safeBid])
-                : (mode ? [startDate, endDate, mode] : [startDate, endDate]));
+                ? (tenantId
+                    ? (mode ? [startDate, endDate, tenantId, safeBid, safeBid, mode] : [startDate, endDate, tenantId, safeBid, safeBid])
+                    : (mode ? [startDate, endDate, safeBid, safeBid, mode] : [startDate, endDate, safeBid, safeBid]))
+                : (tenantId
+                    ? (mode ? [startDate, endDate, tenantId, mode] : [startDate, endDate, tenantId])
+                    : (mode ? [startDate, endDate, mode] : [startDate, endDate])));
         const result = await query(sql, params);
         return result.rows || result;
     } catch (error) {
@@ -8177,6 +9437,7 @@ module.exports = {
     getAllBuildingsAdmin,
     getActiveBuildingsPublic,
     getBuildingById,
+    getBuildingCountByTenant,
     createBuilding,
     updateBuilding,
     deleteBuilding,
@@ -8206,6 +9467,21 @@ module.exports = {
     getSetting,
     getAllSettings,
     updateSetting,
+    getTenantSubscriptionSnapshot,
+    runSubscriptionDailyCheck,
+    setTenantSubscriptionPlan,
+    updateLatestSubscriptionStatus,
+    createTenantOnboarding,
+    createTenantVerificationToken,
+    verifyTenantEmailToken,
+    activateTenantOnboarding,
+    getTenantVerificationByEmail,
+    getTenantById,
+    getTenantsOverview,
+    updateTenantProfile,
+    getSubscriptionPlans,
+    getAllTenantSubscriptionOverview,
+    insertPaymentEventIfAbsent,
     // 郵件模板
     getAllEmailTemplates,
     getEmailTemplateByKey,

@@ -58,6 +58,7 @@ const { createNotificationService } = require('./src/services/notification.servi
 const { createEmailFallbackTemplatesService } = require('./src/services/email-fallback-templates.service');
 const { createBookingNotificationJobs } = require('./src/jobs/booking-notification.jobs');
 const { createAdminLogCleanupJobs } = require('./src/jobs/admin-log-cleanup.jobs');
+const { createSubscriptionJobs } = require('./src/jobs/subscription.jobs');
 const { registerScheduledJobs } = require('./src/jobs/scheduler');
 const { startServer } = require('./src/bootstrap/start-server');
 const { initEmailService: initEmailServiceBootstrap } = require('./src/bootstrap/email-init');
@@ -66,6 +67,8 @@ const { createEmailRuntime, resetEmailRuntime, getConfiguredSenderEmail } = requ
 const { createBookingRoutes } = require('./src/routes/booking.routes');
 const { createOrderQueryRoutes } = require('./src/routes/order-query.routes');
 const { createModeGuard } = require('./src/middlewares/modeGuard');
+const { requireTenantContext } = require('./src/middlewares/tenant');
+const { createSubscriptionGate } = require('./src/middlewares/subscriptionGate');
 
 // 本地 uploads 目錄（當未設定 R2 時作為回退儲存）
 const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
@@ -129,6 +132,11 @@ const {
 const app = createApp();
 const PORT = process.env.PORT || 3000;
 const checkPermission = createCheckPermission(db);
+const subscriptionGate = createSubscriptionGate(db);
+const defaultTenantId = parseInt(process.env.DEFAULT_TENANT_ID || '1', 10);
+function getRequestTenantId(req) {
+    return parseInt(req?.tenantId || req?.session?.admin?.tenant_id || defaultTenantId, 10);
+}
 
 // Railway 使用代理，需要信任代理以正確處理 HTTPS 和 Cookie
 app.set('trust proxy', 1);
@@ -137,7 +145,7 @@ app.set('trust proxy', 1);
 app.get('/health', async (req, res) => {
     const health = { status: 'ok', timestamp: new Date().toISOString() };
     try {
-        const roomTypes = await db.getAllRoomTypesAdmin();
+        const roomTypes = await db.getAllRoomTypesAdmin(undefined, undefined, getRequestTenantId(req));
         health.database = 'connected';
         health.roomTypeCount = roomTypes ? roomTypes.length : 0;
         if (roomTypes && roomTypes.length > 0) {
@@ -844,8 +852,8 @@ async function handleCreateBooking(req, res) {
         // 驗證訂房須知同意（由後台設定控制）
         try {
             const [noticeEnabledSetting, noticeRequireSetting] = await Promise.all([
-                db.getSetting('booking_notice_enabled'),
-                db.getSetting('booking_notice_require_agreement')
+                db.getSetting('booking_notice_enabled', getRequestTenantId(req)),
+                db.getSetting('booking_notice_require_agreement', getRequestTenantId(req))
             ]);
             const noticeEnabled = noticeEnabledSetting === null || noticeEnabledSetting === undefined || noticeEnabledSetting === ''
                 ? true
@@ -863,7 +871,7 @@ async function handleCreateBooking(req, res) {
 
         // 驗證使用條款與隱私政策同意（顯示同意區塊時固定必填）
         try {
-            const termsEnabledSetting = await db.getSetting('booking_terms_enabled');
+            const termsEnabledSetting = await db.getSetting('booking_terms_enabled', getRequestTenantId(req));
             const termsEnabled = termsEnabledSetting === null || termsEnabledSetting === undefined || termsEnabledSetting === ''
                 ? true
                 : ['1', 'true', 'yes', 'on'].includes(String(termsEnabledSetting).trim().toLowerCase());
@@ -898,16 +906,16 @@ async function handleCreateBooking(req, res) {
             accountName: ''
         };
         try {
-            const depositSetting = await db.getSetting('deposit_percentage');
+            const depositSetting = await db.getSetting('deposit_percentage', getRequestTenantId(req));
             if (depositSetting) {
                 depositPercentage = parseInt(depositSetting) || 30;
             }
             
             // 取得匯款資訊
-            const bankName = await db.getSetting('bank_name');
-            const bankBranch = await db.getSetting('bank_branch');
-            const bankAccount = await db.getSetting('bank_account');
-            const accountName = await db.getSetting('account_name');
+            const bankName = await db.getSetting('bank_name', getRequestTenantId(req));
+            const bankBranch = await db.getSetting('bank_branch', getRequestTenantId(req));
+            const bankAccount = await db.getSetting('bank_account', getRequestTenantId(req));
+            const accountName = await db.getSetting('account_name', getRequestTenantId(req));
             
             if (bankName) bankInfo.bankName = bankName;
             if (bankBranch) bankInfo.bankBranch = bankBranch;
@@ -915,8 +923,8 @@ async function handleCreateBooking(req, res) {
             if (accountName) bankInfo.accountName = accountName;
             
             // 取得付款方式啟用狀態
-            const transferSetting = await db.getSetting('enable_transfer');
-            const cardSetting = await db.getSetting('enable_card');
+            const transferSetting = await db.getSetting('enable_transfer', getRequestTenantId(req));
+            const cardSetting = await db.getSetting('enable_card', getRequestTenantId(req));
             const enableTransfer = transferSetting === '1' || transferSetting === 'true' || transferSetting === null; // null 表示預設啟用
             const enableCard = cardSetting === '1' || cardSetting === 'true' || cardSetting === null; // null 表示預設啟用
             
@@ -939,8 +947,8 @@ async function handleCreateBooking(req, res) {
         let roomTypeName = roomType; // 預設值
         try {
             const allRoomTypes = db.getRoomTypesByBuilding
-                ? await db.getRoomTypesByBuilding(safeBuildingId, { activeOnly: false })
-                : await db.getAllRoomTypes();
+                ? await db.getRoomTypesByBuilding(safeBuildingId, { activeOnly: false, tenantId: getRequestTenantId(req) })
+                : await db.getAllRoomTypes(getRequestTenantId(req));
             const selectedRoom = allRoomTypes.find(r => r.name === roomType);
             if (selectedRoom) {
                 roomTypeName = selectedRoom.display_name; // 使用顯示名稱
@@ -955,7 +963,7 @@ async function handleCreateBooking(req, res) {
         let addonsList = '';
         if (addons && addons.length > 0) {
             try {
-                const allAddons = await db.getAllAddonsAdmin();
+                const allAddons = await db.getAllAddonsAdmin(getRequestTenantId(req));
                 addonsList = addons.map(addon => {
                     const addonInfo = allAddons.find(a => a.name === addon.name);
                     const rawDisplayName = String(
@@ -1073,7 +1081,7 @@ async function handleCreateBooking(req, res) {
 
         // 0. 計算會員等級折扣（依歷史「已付款且有效」訂房）
         try {
-            const paidActiveStats = await db.getPaidActiveCustomerStatsByEmail(guestEmail);
+            const paidActiveStats = await db.getPaidActiveCustomerStatsByEmail(guestEmail, getRequestTenantId(req));
             const memberLevel = await db.calculateCustomerLevel(
                 paidActiveStats.total_spent || 0,
                 paidActiveStats.booking_count || 0
@@ -1227,7 +1235,7 @@ async function handleCreateBooking(req, res) {
         try {
             // 庫存／滿房檢查（與 /api/room-availability 同口徑；包棟模式任一案被訂則同館方案皆不可訂）
             try {
-                const unavailableList = await db.getRoomAvailability(checkInDate, checkOutDate, safeBuildingId);
+                const unavailableList = await db.getRoomAvailability(checkInDate, checkOutDate, safeBuildingId, getRequestTenantId(req));
                 const requestedKey = String(roomType || '').trim();
                 if (Array.isArray(unavailableList) && unavailableList.includes(requestedKey)) {
                     return res.status(409).json({
@@ -1288,7 +1296,8 @@ async function handleCreateBooking(req, res) {
                 utmCampaign: bookingData.utmCampaign || null,
                 bookingSource: bookingData.bookingSource || null,
                 referrer: bookingData.referrer || null,
-                bookingMode: req.systemMode || 'retail'
+                bookingMode: req.systemMode || 'retail',
+                tenantId: req.tenantId
             });
             
             console.log('✅ 訂房資料已成功儲存到資料庫 (ID:', savedId, ')');
@@ -1458,7 +1467,7 @@ app.post('/api/line/webhook', express.raw({ type: 'application/json' }), async (
 });
 
 // 後台：快速建立訂房（不發送任何郵件，用於電話 / 其他平台訂房）
-app.post('/api/admin/bookings/quick', requireAuth, checkPermission('bookings.create'), adminLimiter, async (req, res) => {
+app.post('/api/admin/bookings/quick', requireAuth, requireTenantContext, checkPermission('bookings.create'), adminLimiter, async (req, res) => {
     try {
         const {
             roomType,
@@ -1493,7 +1502,7 @@ app.post('/api/admin/bookings/quick', requireAuth, checkPermission('bookings.cre
         const nights = Math.max(1, Math.round((checkOut - checkIn) / msPerDay));
 
         // 後端強制防呆：同房型在「有效/保留」重疊期間不可重複新增
-        const bookingsInRange = await db.getBookingsInRange(checkInDate, checkOutDate);
+        const bookingsInRange = await db.getBookingsInRange(checkInDate, checkOutDate, null, null, req.tenantId);
         const hasRoomTypeConflict = bookingsInRange.some((booking) => {
             if (!booking) return false;
             const status = (booking.status || '').toLowerCase();
@@ -1546,9 +1555,10 @@ app.post('/api/admin/bookings/quick', requireAuth, checkPermission('bookings.cre
             emailSent: '0',
             paymentStatus: paymentStatus || 'paid',
             status: status || 'active',
-            bookingMode: ((await db.getSetting('system_mode')) || 'retail').toString().trim() || 'retail',
+            bookingMode: ((await db.getSetting('system_mode', req.tenantId)) || 'retail').toString().trim() || 'retail',
             addons: null,
-            addonsTotal: 0
+            addonsTotal: 0,
+            tenantId: req.tenantId
         };
         
         const savedId = await db.saveBooking(bookingData);
@@ -1634,8 +1644,8 @@ app.get('/order-query', (req, res) => {
     res.sendFile(path.join(__dirname, 'order-query.html'));
 });
 
-async function getLandingPagePayload() {
-    const allSettings = await db.getAllSettings();
+async function getLandingPagePayload(tenantId = defaultTenantId) {
+    const allSettings = await db.getAllSettings(tenantId);
     const landingSettings = {};
     const settingsMap = {};
     allSettings.forEach(setting => {
@@ -1645,11 +1655,11 @@ async function getLandingPagePayload() {
         settingsMap[setting.key] = setting.value;
     });
 
-    const allRoomTypes = await db.getAllRoomTypes();
+    const allRoomTypes = await db.getAllRoomTypes(tenantId);
     const landingRoomTypes = (allRoomTypes || []).filter(r => r.show_on_landing === 1);
     const bedTypeKeywords = new Set(['單人床', '雙人床', '加大雙人床', '特大雙人床', '上下鋪', '和式床墊', '沙發床']);
 
-    const allGalleryImages = await db.getAllRoomTypeGalleryImages();
+    const allGalleryImages = await db.getAllRoomTypeGalleryImages(tenantId);
     const galleryMap = {};
     (allGalleryImages || []).forEach(img => {
         if (!galleryMap[img.room_type_id]) galleryMap[img.room_type_id] = [];
@@ -2013,6 +2023,7 @@ app.post('/api/admin/login', loginLimiter, validateLogin, async (req, res) => {
                 id: admin.id,
                 username: admin.username,
                 email: admin.email,
+                tenant_id: parseInt(admin.tenant_id, 10) || parseInt(process.env.DEFAULT_TENANT_ID || '1', 10),
                 role: admin.role,
                 role_id: adminDetail?.role_id,
                 role_display_name: roleName,
@@ -2938,7 +2949,7 @@ app.use('/api/admin', (req, res, next) => {
     // 先驗證 CSRF Token，再驗證登入狀態
     verifyCsrfToken(req, res, (err) => {
         if (err) return next(err);
-        requireAuth(req, res, next);
+        requireAuth(req, res, () => requireTenantContext(req, res, next));
     });
 });
 
@@ -2950,6 +2961,144 @@ app.get('/admin', generateCsrfToken, (req, res) => {
     res.setHeader('Expires', '0');
     // 直接返回 admin.html，由前端 JavaScript 檢查登入狀態並顯示對應頁面
     res.sendFile(path.join(__dirname, 'admin.html'));
+});
+
+// 必須註冊在 app.use('/api', createBookingRoutes) 之前，否則會被訂房 router 攔截而回傳 Cannot POST
+app.post('/api/public/register-tenant', publicLimiter, async (req, res) => {
+    try {
+        const {
+            tenantName,
+            tenantCode,
+            adminUsername,
+            adminEmail,
+            adminPassword,
+            planCode
+        } = req.body || {};
+
+        if (!tenantName || !adminUsername || !adminPassword) {
+            return res.status(400).json({
+                success: false,
+                message: '缺少必要欄位：tenantName、adminUsername、adminPassword'
+            });
+        }
+
+        const result = await db.createTenantOnboarding({
+            tenantName,
+            tenantCode,
+            adminUsername,
+            adminEmail,
+            adminPassword,
+            planCode: String(planCode || 'basic_monthly').trim(),
+            subscriptionStatus: 'trialing',
+            requireEmailVerification: true
+        });
+
+        if (adminEmail) {
+            const verification = await db.createTenantVerificationToken({
+                tenantId: result.tenantId,
+                email: adminEmail,
+                purpose: 'tenant_signup',
+                ttlMinutes: parseInt(process.env.TENANT_SIGNUP_VERIFY_TTL_MINUTES || '1440', 10)
+            });
+            const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+            const verifyUrl = `${baseUrl}/api/public/verify-tenant-email?token=${verification.token}`;
+            await sendEmail({
+                to: adminEmail,
+                subject: '請完成帳號驗證啟用',
+                html: `
+                    <div style="font-family:Arial,sans-serif;line-height:1.6;">
+                        <h2>完成租戶註冊驗證</h2>
+                        <p>您好，請點擊以下連結完成 Email 驗證後啟用管理後台帳號：</p>
+                        <p><a href="${verifyUrl}" target="_blank">${verifyUrl}</a></p>
+                        <p>此連結將於 ${verification.expiresAt} 失效。</p>
+                    </div>
+                `
+            });
+        }
+        return res.json({
+            success: true,
+            message: '租戶註冊成功，請先完成 Email 驗證啟用帳號',
+            data: result
+        });
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: '租戶註冊失敗：' + error.message
+        });
+    }
+});
+
+app.get('/api/public/verify-tenant-email', publicLimiter, async (req, res) => {
+    try {
+        const token = String(req.query?.token || '').trim();
+        if (!token) {
+            return res.status(400).json({ success: false, message: '缺少 token' });
+        }
+        const result = await db.verifyTenantEmailToken(token);
+        return res.json({
+            success: true,
+            message: 'Email 驗證成功，租戶已啟用',
+            data: result
+        });
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: 'Email 驗證失敗：' + error.message
+        });
+    }
+});
+
+app.post('/api/public/resend-tenant-verification', publicLimiter, async (req, res) => {
+    try {
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        if (!email) {
+            return res.status(400).json({ success: false, message: '缺少 email' });
+        }
+
+        const pending = await db.getTenantVerificationByEmail(email, 'tenant_signup');
+        if (!pending) {
+            return res.status(404).json({
+                success: false,
+                message: '找不到可重寄的待驗證註冊資料（可能已驗證或已過期）'
+            });
+        }
+
+        const verification = await db.createTenantVerificationToken({
+            tenantId: pending.tenant_id,
+            email,
+            purpose: 'tenant_signup',
+            ttlMinutes: parseInt(process.env.TENANT_SIGNUP_VERIFY_TTL_MINUTES || '1440', 10)
+        });
+        const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+        const verifyUrl = `${baseUrl}/api/public/verify-tenant-email?token=${verification.token}`;
+        await sendEmail({
+            to: email,
+            subject: '重寄：請完成帳號驗證啟用',
+            html: `
+                <div style="font-family:Arial,sans-serif;line-height:1.6;">
+                    <h2>完成租戶註冊驗證</h2>
+                    <p>您好，這是重新發送的驗證連結：</p>
+                    <p><a href="${verifyUrl}" target="_blank">${verifyUrl}</a></p>
+                    <p>此連結將於 ${verification.expiresAt} 失效。</p>
+                </div>
+            `
+        });
+
+        return res.json({
+            success: true,
+            message: '驗證信已重寄',
+            data: {
+                tenantId: pending.tenant_id,
+                email,
+                expiresAt: verification.expiresAt
+            }
+        });
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: '重寄驗證信失敗：' + error.message
+        });
+    }
 });
 
 const bookingService = createBookingService({ db });
@@ -2978,6 +3127,7 @@ app.use('/api', createBookingRoutes({
     validateBooking,
     validateWholePropertyBooking,
     requireAuth,
+    requireTenantContext,
     checkPermission,
     adminLimiter
 }));
@@ -3021,6 +3171,7 @@ const adminLogCleanupJobs = createAdminLogCleanupJobs({
     db,
     processEnv: process.env
 });
+const subscriptionJobs = createSubscriptionJobs({ db });
 
 const orderQueryService = createOrderQueryService({
     db,
@@ -3031,11 +3182,191 @@ app.use('/api/order-query', createOrderQueryRoutes({
     orderQueryService,
     publicLimiter
 }));
+app.use('/api/order-query', requireTenantContext, subscriptionGate.requireFeature('api_access'));
+
+app.get('/api/subscription/status', requireAuth, requireTenantContext, async (req, res) => {
+    try {
+        const snapshot = await db.getTenantSubscriptionSnapshot(req.tenantId);
+        res.json({ success: true, data: snapshot });
+    } catch (error) {
+        res.status(500).json({ success: false, message: '取得訂閱狀態失敗: ' + error.message });
+    }
+});
+
+app.get('/api/admin/subscription/plans', requireAuth, requireTenantContext, checkPermission('settings.view'), adminLimiter, async (_req, res) => {
+    try {
+        const plans = await db.getSubscriptionPlans();
+        return res.json({ success: true, data: plans });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: '取得方案清單失敗: ' + error.message });
+    }
+});
+
+app.post('/api/admin/subscription/switch-plan', requireAuth, requireTenantContext, checkPermission('settings.edit'), adminLimiter, async (req, res) => {
+    try {
+        const { planCode, status } = req.body || {};
+        if (!planCode) {
+            return res.status(400).json({ success: false, message: '缺少 planCode' });
+        }
+        const snapshot = await db.setTenantSubscriptionPlan(req.tenantId, String(planCode).trim(), status || 'active');
+        return res.json({ success: true, message: '訂閱方案已更新', data: snapshot });
+    } catch (error) {
+        return res.status(400).json({ success: false, message: '更新訂閱方案失敗: ' + error.message });
+    }
+});
+
+app.get('/api/admin/subscription/overview', requireAuth, adminLimiter, async (req, res) => {
+    try {
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可查看全部租戶訂閱總覽' });
+        }
+        const rows = await db.getAllTenantSubscriptionOverview();
+        return res.json({ success: true, count: rows.length, data: rows });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: '取得訂閱總覽失敗: ' + error.message });
+    }
+});
+
+app.post('/api/admin/tenants', requireAuth, adminLimiter, async (req, res) => {
+    try {
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可建立租戶' });
+        }
+
+        const {
+            tenantName,
+            tenantCode,
+            adminUsername,
+            adminEmail,
+            adminPassword,
+            planCode,
+            subscriptionStatus
+        } = req.body || {};
+
+        if (!tenantName || !adminUsername || !adminPassword) {
+            return res.status(400).json({
+                success: false,
+                message: '缺少必要欄位：tenantName、adminUsername、adminPassword'
+            });
+        }
+
+        const result = await db.createTenantOnboarding({
+            tenantName,
+            tenantCode,
+            adminUsername,
+            adminEmail,
+            adminPassword,
+            planCode: String(planCode || 'basic_monthly').trim(),
+            subscriptionStatus: String(subscriptionStatus || 'active').trim()
+        });
+        return res.json({
+            success: true,
+            message: '租戶建立成功',
+            data: result
+        });
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: '建立租戶失敗：' + error.message
+        });
+    }
+});
+
+app.post('/api/admin/tenants/:id/activate', requireAuth, adminLimiter, async (req, res) => {
+    try {
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可手動啟用租戶' });
+        }
+
+        const tenantId = parseInt(req.params?.id, 10);
+        if (!Number.isInteger(tenantId) || tenantId <= 0) {
+            return res.status(400).json({ success: false, message: 'tenant id 格式錯誤' });
+        }
+
+        const tenant = await db.getTenantById(tenantId);
+        if (!tenant) {
+            return res.status(404).json({ success: false, message: '找不到租戶' });
+        }
+
+        await db.activateTenantOnboarding(tenantId);
+        const activated = await db.getTenantById(tenantId);
+        return res.json({
+            success: true,
+            message: '租戶已手動啟用',
+            data: activated
+        });
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: '手動啟用租戶失敗：' + error.message
+        });
+    }
+});
+
+app.get('/api/admin/tenants', requireAuth, adminLimiter, async (req, res) => {
+    try {
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可查看租戶列表' });
+        }
+
+        const status = String(req.query?.status || '').trim().toLowerCase();
+        const keyword = String(req.query?.keyword || '').trim();
+        const limit = parseInt(req.query?.limit, 10) || 50;
+        const offset = parseInt(req.query?.offset, 10) || 0;
+        const data = await db.getTenantsOverview({ status, keyword, limit, offset });
+
+        return res.json({
+            success: true,
+            count: data.items.length,
+            total: data.total,
+            limit: data.limit,
+            offset: data.offset,
+            data: data.items
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: '取得租戶列表失敗：' + error.message
+        });
+    }
+});
+
+app.put('/api/admin/tenants/:id', requireAuth, adminLimiter, async (req, res) => {
+    try {
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可編輯租戶' });
+        }
+        const tenantId = parseInt(req.params?.id, 10);
+        if (!Number.isInteger(tenantId) || tenantId <= 0) {
+            return res.status(400).json({ success: false, message: 'tenant id 格式錯誤' });
+        }
+
+        const { status, planCode } = req.body || {};
+        if (!status || !planCode) {
+            return res.status(400).json({ success: false, message: '缺少必要欄位：status、planCode' });
+        }
+
+        const updated = await db.updateTenantProfile(tenantId, {
+            status: String(status).trim(),
+            planCode: String(planCode).trim()
+        });
+        return res.json({
+            success: true,
+            message: '租戶資料已更新',
+            data: updated
+        });
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: '更新租戶失敗：' + error.message
+        });
+    }
+});
 
 // API: 取得所有客戶列表（聚合訂房資料）- 需要登入
-app.get('/api/customers', requireAuth, checkPermission('customers.view'), adminLimiter, async (req, res) => {
+app.get('/api/customers', requireAuth, requireTenantContext, checkPermission('customers.view'), adminLimiter, async (req, res) => {
     try {
-        const customers = await db.getAllCustomers();
+        const customers = await db.getAllCustomers(req.tenantId);
         
         res.json({
             success: true,
@@ -3052,7 +3383,7 @@ app.get('/api/customers', requireAuth, checkPermission('customers.view'), adminL
 });
 
 // API: 更新客戶資料
-app.put('/api/customers/:email', requireAuth, checkPermission('customers.edit'), adminLimiter, async (req, res) => {
+app.put('/api/customers/:email', requireAuth, requireTenantContext, checkPermission('customers.edit'), adminLimiter, async (req, res) => {
     try {
         const { email } = req.params;
         const { guest_name, guest_phone } = req.body;
@@ -3064,7 +3395,7 @@ app.put('/api/customers/:email', requireAuth, checkPermission('customers.edit'),
             });
         }
         
-        const updatedCount = await db.updateCustomer(email, { guest_name, guest_phone });
+        const updatedCount = await db.updateCustomer(email, { guest_name, guest_phone }, req.tenantId);
         
         res.json({
             success: true,
@@ -3081,11 +3412,11 @@ app.put('/api/customers/:email', requireAuth, checkPermission('customers.edit'),
 });
 
 // API: 刪除客戶
-app.delete('/api/customers/:email', requireAuth, checkPermission('customers.delete'), adminLimiter, async (req, res) => {
+app.delete('/api/customers/:email', requireAuth, requireTenantContext, checkPermission('customers.delete'), adminLimiter, async (req, res) => {
     try {
         const { email } = req.params;
         
-        await db.deleteCustomer(email);
+        await db.deleteCustomer(email, req.tenantId);
         
         res.json({
             success: true,
@@ -3257,7 +3588,7 @@ app.post('/api/member-discount/check', publicLimiter, async (req, res) => {
             });
         }
 
-        const stats = await db.getPaidActiveCustomerStatsByEmail(guestEmail);
+        const stats = await db.getPaidActiveCustomerStatsByEmail(guestEmail, getRequestTenantId(req));
         const level = await db.calculateCustomerLevel(stats.total_spent || 0, stats.booking_count || 0);
         const discountPercent = parseFloat(level?.discount_percent || 0);
         const discountAmount = discountPercent > 0
@@ -3697,10 +4028,10 @@ app.delete('/api/admin/early-bird-settings/:id', requireAuth, checkPermission('p
 });
 
 // API: 取得單一客戶詳情（包含所有訂房記錄）
-app.get('/api/customers/:email', publicLimiter, async (req, res) => {
+app.get('/api/customers/:email', requireTenantContext, publicLimiter, async (req, res) => {
     try {
         const { email } = req.params;
-        const customer = await db.getCustomerByEmail(email);
+        const customer = await db.getCustomerByEmail(email, req.tenantId);
         
         if (customer) {
             res.json({
@@ -3748,7 +4079,7 @@ app.post('/api/data-protection/send-verification-code', publicLimiter, async (re
         // 檢查是否有該 Email 的資料
         let customer;
         try {
-            customer = await db.getCustomerByEmail(email);
+            customer = await db.getCustomerByEmail(email, getRequestTenantId(req));
         } catch (dbError) {
             console.error('查詢客戶資料錯誤:', dbError);
             return res.status(500).json({
@@ -3814,7 +4145,7 @@ app.post('/api/data-protection/query', publicLimiter, async (req, res, next) => 
         }
         
         // 取得客戶資料
-        const customer = await db.getCustomerByEmail(email);
+        const customer = await db.getCustomerByEmail(email, getRequestTenantId(req));
         if (!customer) {
             return res.status(404).json({
                 success: false,
@@ -3854,7 +4185,7 @@ app.post('/api/data-protection/delete', publicLimiter, async (req, res, next) =>
         }
         
         // 檢查是否有該 Email 的資料
-        const customer = await db.getCustomerByEmail(email);
+        const customer = await db.getCustomerByEmail(email, getRequestTenantId(req));
         if (!customer) {
             return res.status(404).json({
                 success: false,
@@ -3907,10 +4238,10 @@ function generateCSV(headers, rows) {
 }
 
 // API: 匯出訂房資料 CSV
-app.get('/api/admin/bookings/export', requireAuth, checkPermission('bookings.export'), adminLimiter, async (req, res) => {
+app.get('/api/admin/bookings/export', requireAuth, requireTenantContext, subscriptionGate.requireFeature('reports'), checkPermission('bookings.export'), adminLimiter, async (req, res) => {
     try {
         const buildingId = req.query.buildingId;
-        const bookings = await db.getAllBookings(buildingId);
+        const bookings = await db.getAllBookings(buildingId, undefined, req.tenantId);
         
         const headers = [
             '訂房編號', '入住日期', '退房日期', '房型', 
@@ -3964,9 +4295,9 @@ app.get('/api/admin/bookings/export', requireAuth, checkPermission('bookings.exp
 });
 
 // API: 匯出客戶資料 CSV
-app.get('/api/admin/customers/export', requireAuth, checkPermission('customers.export'), adminLimiter, async (req, res) => {
+app.get('/api/admin/customers/export', requireAuth, requireTenantContext, subscriptionGate.requireFeature('reports'), checkPermission('customers.export'), adminLimiter, async (req, res) => {
     try {
-        const customers = await db.getAllCustomers();
+        const customers = await db.getAllCustomers(getRequestTenantId(req));
         
         const headers = [
             'Email', '姓名', '電話',
@@ -4004,13 +4335,13 @@ app.get('/api/admin/customers/export', requireAuth, checkPermission('customers.e
 });
 
 // API: 匯出統計報表 CSV
-app.get('/api/admin/statistics/export', requireAuth, checkPermission('statistics.export'), adminLimiter, async (req, res) => {
+app.get('/api/admin/statistics/export', requireAuth, requireTenantContext, subscriptionGate.requireFeature('reports'), checkPermission('statistics.export'), adminLimiter, async (req, res) => {
     try {
         const { startDate, endDate, buildingId } = req.query;
         
         const stats = startDate && endDate
-            ? await db.getStatistics(startDate, endDate, buildingId)
-            : await db.getStatistics(undefined, undefined, buildingId);
+            ? await db.getStatistics(startDate, endDate, buildingId, req.tenantId)
+            : await db.getStatistics(undefined, undefined, buildingId, req.tenantId);
         
         const periodLabel = (startDate && endDate) ? `${startDate} ~ ${endDate}` : '全部期間';
         
@@ -4098,19 +4429,19 @@ app.get('/api/admin/statistics/export', requireAuth, checkPermission('statistics
 
 // API: 取得統計資料 - 需要登入
 // 支援可選的日期區間：?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD
-app.get('/api/statistics', requireAuth, checkPermission('statistics.view'), adminLimiter, async (req, res) => {
+app.get('/api/statistics', requireAuth, requireTenantContext, subscriptionGate.requireFeature('reports'), checkPermission('statistics.view'), adminLimiter, async (req, res) => {
     try {
         const { startDate, endDate, buildingId } = req.query;
 
         let stats;
         if (startDate && endDate) {
-            stats = await db.getStatistics(startDate, endDate, buildingId);
+            stats = await db.getStatistics(startDate, endDate, buildingId, req.tenantId);
             stats.period = {
                 startDate,
                 endDate
             };
         } else {
-            stats = await db.getStatistics(undefined, undefined, buildingId);
+            stats = await db.getStatistics(undefined, undefined, buildingId, req.tenantId);
             stats.period = {};
         }
         res.json({
@@ -4127,9 +4458,9 @@ app.get('/api/statistics', requireAuth, checkPermission('statistics.view'), admi
 });
 
 // API: 取得上月和本月的統計資料（曆月；供其他頁面或相容用）
-app.get('/api/statistics/monthly-stats', requireAuth, checkPermission('statistics.view'), adminLimiter, async (req, res) => {
+app.get('/api/statistics/monthly-stats', requireAuth, requireTenantContext, subscriptionGate.requireFeature('reports'), checkPermission('statistics.view'), adminLimiter, async (req, res) => {
     try {
-        const stats = await db.getMonthlyComparison();
+        const stats = await db.getMonthlyComparison(req.tenantId);
         res.json({
             success: true,
             data: stats
@@ -4147,7 +4478,7 @@ app.get('/api/statistics/monthly-stats', requireAuth, checkPermission('statistic
 });
 
 // API: 營運報表「區間比較」— 所選期間 vs 等長前期（入住日口徑）
-app.get('/api/statistics/period-comparison', requireAuth, checkPermission('statistics.view'), adminLimiter, async (req, res) => {
+app.get('/api/statistics/period-comparison', requireAuth, requireTenantContext, subscriptionGate.requireFeature('reports'), checkPermission('statistics.view'), adminLimiter, async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
         if (!startDate || !endDate) {
@@ -4162,7 +4493,7 @@ app.get('/api/statistics/period-comparison', requireAuth, checkPermission('stati
                 message: '開始日期不能晚於結束日期'
             });
         }
-        const stats = await db.getPeriodComparison(startDate, endDate);
+        const stats = await db.getPeriodComparison(startDate, endDate, req.tenantId);
         res.json({ success: true, data: stats });
     } catch (error) {
         console.error('查詢區間比較錯誤:', error);
@@ -4174,10 +4505,10 @@ app.get('/api/statistics/period-comparison', requireAuth, checkPermission('stati
 });
 
 // API: 儀表板數據（僅摘要；與 ops 同頁載入請優先使用 /api/dashboard/bundle）
-app.get('/api/dashboard', adminLimiter, async (req, res) => {
+app.get('/api/dashboard', requireTenantContext, subscriptionGate.requireFeature('reports'), adminLimiter, async (req, res) => {
     try {
         const buildingId = req.query.buildingId;
-        const allBookings = await db.getAllBookings(buildingId);
+        const allBookings = await db.getAllBookings(buildingId, undefined, getRequestTenantId(req));
         res.json({
             success: true,
             data: computeDashboardSummaryFromBookings(allBookings)
@@ -4194,8 +4525,9 @@ app.get('/api/dashboard', adminLimiter, async (req, res) => {
 /** 營運 KPI／bundle：訂單與房型依系統模式（或 query bookingMode）篩選，避免一般訂房與包棟混算 */
 async function loadBookingsAndRoomTypesForOpsDashboard(req) {
     const buildingId = req.query.buildingId;
+    const tenantId = getRequestTenantId(req);
     const qMode = String(req.query.bookingMode || '').trim().toLowerCase();
-    const systemMode = String((await db.getSetting('system_mode')) || 'retail').trim() || 'retail';
+    const systemMode = String((await db.getSetting('system_mode', tenantId)) || 'retail').trim() || 'retail';
     let bookingModeFilter;
     let listScope;
     if (qMode === 'all') {
@@ -4209,17 +4541,17 @@ async function loadBookingsAndRoomTypesForOpsDashboard(req) {
         listScope = bookingModeFilter;
     }
     const roomTypesPromise = db.getAllRoomTypesAdmin
-        ? db.getAllRoomTypesAdmin(buildingId, listScope)
-        : db.getAllRoomTypes();
+        ? db.getAllRoomTypesAdmin(buildingId, listScope, tenantId)
+        : db.getAllRoomTypes(tenantId);
     const [allBookings, roomTypes] = await Promise.all([
-        db.getAllBookings(buildingId, bookingModeFilter),
+        db.getAllBookings(buildingId, bookingModeFilter, tenantId),
         roomTypesPromise
     ]);
     return { allBookings, roomTypes };
 }
 
 // API: 儀表板摘要 + 營運 KPI 單次查詢（重新整理時避免重複 getAllBookings）
-app.get('/api/dashboard/bundle', adminLimiter, async (req, res) => {
+app.get('/api/dashboard/bundle', requireTenantContext, subscriptionGate.requireFeature('reports'), adminLimiter, async (req, res) => {
     try {
         const parsed = parseOpsDashboardQuery(req.query);
         if (!parsed.ok) {
@@ -4246,7 +4578,7 @@ app.get('/api/dashboard/bundle', adminLimiter, async (req, res) => {
 });
 
 // API: 營運儀表板 Phase 1 指標（同頁整合）
-app.get('/api/dashboard/ops', adminLimiter, async (req, res) => {
+app.get('/api/dashboard/ops', requireTenantContext, subscriptionGate.requireFeature('reports'), adminLimiter, async (req, res) => {
     try {
         const parsed = parseOpsDashboardQuery(req.query);
         if (!parsed.ok) {
@@ -4290,7 +4622,7 @@ app.get(
                     message: '開始日期不能晚於結束日期'
                 });
             }
-            const stats = await db.getStatistics(startDate, endDate, buildingId);
+            const stats = await db.getStatistics(startDate, endDate, buildingId, getRequestTenantId(req));
             const data = {
                 totalBookings: stats.totalBookings,
                 totalBookingsDetail: stats.totalBookingsDetail,
@@ -4473,9 +4805,9 @@ async function handleDeleteBooking(req, res) {
 
 // ==================== 館別管理 API ====================
 
-app.get('/api/admin/buildings', requireAuth, checkPermission('room_types.view'), adminLimiter, async (req, res) => {
+app.get('/api/admin/buildings', requireAuth, requireTenantContext, checkPermission('room_types.view'), adminLimiter, async (req, res) => {
     try {
-        const buildings = await db.getAllBuildingsAdmin();
+        const buildings = await db.getAllBuildingsAdmin(req.tenantId);
         res.json({ success: true, data: buildings || [] });
     } catch (error) {
         console.error('取得館別列表錯誤:', error.message);
@@ -4483,19 +4815,19 @@ app.get('/api/admin/buildings', requireAuth, checkPermission('room_types.view'),
     }
 });
 
-app.post('/api/admin/buildings', requireAuth, checkPermission('room_types.edit'), adminLimiter, async (req, res) => {
+app.post('/api/admin/buildings', requireAuth, requireTenantContext, subscriptionGate.requireSubscriptionActive, subscriptionGate.enforceBuildingLimit, checkPermission('room_types.edit'), adminLimiter, async (req, res) => {
     try {
-        const id = await db.createBuilding(req.body || {});
+        const id = await db.createBuilding(req.body || {}, req.tenantId);
         res.json({ success: true, message: '館別已新增', data: { id } });
     } catch (error) {
         res.status(400).json({ success: false, message: error.message || '新增館別失敗' });
     }
 });
 
-app.put('/api/admin/buildings/:id', requireAuth, checkPermission('room_types.edit'), adminLimiter, async (req, res) => {
+app.put('/api/admin/buildings/:id', requireAuth, requireTenantContext, checkPermission('room_types.edit'), adminLimiter, async (req, res) => {
     try {
         const { id } = req.params;
-        const changes = await db.updateBuilding(id, req.body || {});
+        const changes = await db.updateBuilding(id, req.body || {}, req.tenantId);
         if (changes > 0) {
             res.json({ success: true, message: '館別已更新' });
         } else {
@@ -4506,10 +4838,10 @@ app.put('/api/admin/buildings/:id', requireAuth, checkPermission('room_types.edi
     }
 });
 
-app.delete('/api/admin/buildings/:id', requireAuth, checkPermission('room_types.edit'), adminLimiter, async (req, res) => {
+app.delete('/api/admin/buildings/:id', requireAuth, requireTenantContext, checkPermission('room_types.edit'), adminLimiter, async (req, res) => {
     try {
         const { id } = req.params;
-        const changes = await db.deleteBuilding(id);
+        const changes = await db.deleteBuilding(id, req.tenantId);
         if (changes > 0) {
             res.json({ success: true, message: '館別已刪除' });
         } else {
@@ -4521,9 +4853,9 @@ app.delete('/api/admin/buildings/:id', requireAuth, checkPermission('room_types.
 });
 
 // Debug: 房型館別分佈（僅後台登入可用）
-app.get('/api/admin/debug/room-types-building-stats', requireAuth, checkPermission('room_types.view'), adminLimiter, async (req, res) => {
+app.get('/api/admin/debug/room-types-building-stats', requireAuth, requireTenantContext, checkPermission('room_types.view'), adminLimiter, async (req, res) => {
     try {
-        const stats = await db.getRoomTypesBuildingStatsAdmin();
+        const stats = await db.getRoomTypesBuildingStatsAdmin(req.tenantId);
         res.json({ success: true, data: stats });
     } catch (error) {
         res.status(500).json({ success: false, message: '取得統計失敗: ' + error.message });
@@ -4532,7 +4864,7 @@ app.get('/api/admin/debug/room-types-building-stats', requireAuth, checkPermissi
 
 // API: 取得所有房型（公開，供前台使用）
 // 可選 query：listScope=retail|whole_property（銷售頁精選房型需固定 retail 時傳入，不受系統模式影響）
-app.get('/api/room-types', publicLimiter, async (req, res) => {
+app.get('/api/room-types', requireTenantContext, publicLimiter, async (req, res) => {
     try {
         const buildingId = req.query.buildingId ? parseInt(req.query.buildingId, 10) : 1;
         const rawScope = String(req.query.listScope || '').trim().toLowerCase();
@@ -4541,7 +4873,7 @@ app.get('/api/room-types', publicLimiter, async (req, res) => {
             listScope = rawScope;
         } else {
             try {
-                const mode = String((await db.getSetting('system_mode')) || 'retail').trim();
+                const mode = String((await db.getSetting('system_mode', req.tenantId)) || 'retail').trim();
                 listScope = mode === 'whole_property' ? 'whole_property' : 'retail';
             } catch (_) {
                 listScope = 'retail';
@@ -4549,10 +4881,10 @@ app.get('/api/room-types', publicLimiter, async (req, res) => {
         }
         const [roomTypes, allGalleryImages, allSettings] = await Promise.all([
             db.getRoomTypesByBuilding
-                ? db.getRoomTypesByBuilding(buildingId, { activeOnly: true, listScope })
-                : db.getAllRoomTypes(), // fallback
-            db.getAllRoomTypeGalleryImages(),
-            db.getAllSettings()
+                ? db.getRoomTypesByBuilding(buildingId, { activeOnly: true, listScope, tenantId: req.tenantId })
+                : db.getAllRoomTypes(req.tenantId), // fallback
+            db.getAllRoomTypeGalleryImages(req.tenantId),
+            db.getAllSettings(req.tenantId)
         ]);
 
         const galleryMap = {};
@@ -4614,10 +4946,10 @@ app.get('/api/room-types', publicLimiter, async (req, res) => {
 });
 
 // API: 取得可用館別（公開，供前台使用）
-app.get('/api/buildings', publicLimiter, async (req, res) => {
+app.get('/api/buildings', requireTenantContext, publicLimiter, async (req, res) => {
     try {
         const buildings = db.getActiveBuildingsPublic
-            ? await db.getActiveBuildingsPublic()
+            ? await db.getActiveBuildingsPublic(req.tenantId)
             : [];
         res.json({ success: true, data: buildings || [] });
     } catch (error) {
@@ -4627,7 +4959,7 @@ app.get('/api/buildings', publicLimiter, async (req, res) => {
 });
 
 // API: 檢查房間可用性
-app.get('/api/room-availability', publicLimiter, async (req, res) => {
+app.get('/api/room-availability', requireTenantContext, publicLimiter, async (req, res) => {
     try {
         const { checkInDate, checkOutDate } = req.query;
         const buildingId = req.query.buildingId ? parseInt(req.query.buildingId, 10) : 1;
@@ -4639,7 +4971,7 @@ app.get('/api/room-availability', publicLimiter, async (req, res) => {
             });
         }
         
-        const availability = await db.getRoomAvailability(checkInDate, checkOutDate, buildingId);
+        const availability = await db.getRoomAvailability(checkInDate, checkOutDate, buildingId, req.tenantId);
         res.json({
             success: true,
             data: availability
@@ -4655,13 +4987,13 @@ app.get('/api/room-availability', publicLimiter, async (req, res) => {
 
 
 // API: 取得所有房型（管理後台，包含已停用的）
-app.get('/api/admin/room-types', requireAuth, checkPermission('room_types.view'), adminLimiter, async (req, res) => {
+app.get('/api/admin/room-types', requireAuth, requireTenantContext, checkPermission('room_types.view'), adminLimiter, async (req, res) => {
     try {
         // 使用資料庫抽象層，支援 PostgreSQL 和 SQLite
         const buildingId = req.query.buildingId;
         const rawScope = String(req.query.listScope || '').trim();
         const listScope = rawScope === 'whole_property' ? 'whole_property' : (rawScope === 'retail' ? 'retail' : undefined);
-        const roomTypes = await db.getAllRoomTypesAdmin(buildingId, listScope);
+        const roomTypes = await db.getAllRoomTypesAdmin(buildingId, listScope, req.tenantId);
         res.json({
             success: true,
             data: roomTypes
@@ -4677,7 +5009,7 @@ app.get('/api/admin/room-types', requireAuth, checkPermission('room_types.view')
 });
 
 // API: 新增房型
-app.post('/api/admin/room-types', requireAuth, checkPermission('room_types.create'), adminLimiter, validateRoomType, async (req, res) => {
+app.post('/api/admin/room-types', requireAuth, requireTenantContext, checkPermission('room_types.create'), adminLimiter, validateRoomType, async (req, res) => {
     try {
         const roomData = req.body;
         
@@ -4688,7 +5020,7 @@ app.post('/api/admin/room-types', requireAuth, checkPermission('room_types.creat
             });
         }
         
-        const id = await db.createRoomType(roomData);
+        const id = await db.createRoomType(roomData, req.tenantId);
         
         // 記錄新增房型日誌
         await logAction(req, 'create_room_type', 'room_type', id.toString(), {
@@ -4711,7 +5043,7 @@ app.post('/api/admin/room-types', requireAuth, checkPermission('room_types.creat
 });
 
 // API: 更新房型
-app.put('/api/admin/room-types/:id', requireAuth, checkPermission('room_types.edit'), adminLimiter, validateRoomType, async (req, res) => {
+app.put('/api/admin/room-types/:id', requireAuth, requireTenantContext, checkPermission('room_types.edit'), adminLimiter, validateRoomType, async (req, res) => {
     try {
         const { id } = req.params;
         const roomData = req.body;
@@ -4723,7 +5055,7 @@ app.put('/api/admin/room-types/:id', requireAuth, checkPermission('room_types.ed
             holiday_surcharge: roomData.holiday_surcharge
         }));
         
-        const result = await db.updateRoomType(id, roomData);
+        const result = await db.updateRoomType(id, roomData, req.tenantId);
         
         if (result > 0) {
             res.json({
@@ -4850,7 +5182,7 @@ app.post('/api/admin/room-types/:id/gallery', requireAuth, checkPermission('room
 app.delete('/api/admin/room-types/gallery/:imageId', requireAuth, checkPermission('room_types.edit'), adminLimiter, async (req, res) => {
     try {
         const imageId = parseInt(req.params.imageId);
-        const allImages = await db.getAllRoomTypeGalleryImages();
+        const allImages = await db.getAllRoomTypeGalleryImages(getRequestTenantId(req));
         const target = allImages.find(img => img.id === imageId);
 
         if (target && target.image_url) {
@@ -4868,9 +5200,9 @@ app.delete('/api/admin/room-types/gallery/:imageId', requireAuth, checkPermissio
 // ==================== 假日管理 API ====================
 
 // API: 取得所有假日
-app.get('/api/admin/holidays', requireAuth, checkPermission('room_types.view'), adminLimiter, async (req, res) => {
+app.get('/api/admin/holidays', requireAuth, requireTenantContext, checkPermission('room_types.view'), adminLimiter, async (req, res) => {
     try {
-        const holidays = await db.getAllHolidays();
+        const holidays = await db.getAllHolidays(req.tenantId);
         res.json({
             success: true,
             data: holidays
@@ -4885,7 +5217,7 @@ app.get('/api/admin/holidays', requireAuth, checkPermission('room_types.view'), 
 });
 
 // API: 新增假日
-app.post('/api/admin/holidays', requireAuth, checkPermission('room_types.edit'), adminLimiter, validateHoliday, async (req, res) => {
+app.post('/api/admin/holidays', requireAuth, requireTenantContext, checkPermission('room_types.edit'), adminLimiter, validateHoliday, async (req, res) => {
     try {
         const { holidayDate, holidayName, startDate, endDate } = req.body;
         
@@ -4900,10 +5232,10 @@ app.post('/api/admin/holidays', requireAuth, checkPermission('room_types.edit'),
         
         if (startDate && endDate) {
             // 新增連續假期
-            addedCount = await db.addHolidayRange(startDate, endDate, holidayName);
+            addedCount = await db.addHolidayRange(startDate, endDate, holidayName, req.tenantId);
         } else {
             // 新增單一假日
-            addedCount = await db.addHoliday(holidayDate, holidayName);
+            addedCount = await db.addHoliday(holidayDate, holidayName, req.tenantId);
         }
         
         res.json({
@@ -4921,10 +5253,10 @@ app.post('/api/admin/holidays', requireAuth, checkPermission('room_types.edit'),
 });
 
 // API: 刪除假日
-app.delete('/api/admin/holidays/:date', requireAuth, checkPermission('room_types.edit'), adminLimiter, async (req, res) => {
+app.delete('/api/admin/holidays/:date', requireAuth, requireTenantContext, checkPermission('room_types.edit'), adminLimiter, async (req, res) => {
     try {
         const { date } = req.params;
-        const result = await db.deleteHoliday(date);
+        const result = await db.deleteHoliday(date, req.tenantId);
         
         if (result > 0) {
             res.json({
@@ -4947,7 +5279,7 @@ app.delete('/api/admin/holidays/:date', requireAuth, checkPermission('room_types
 });
 
 // API: 檢查日期是否為假日
-app.get('/api/check-holiday', publicLimiter, async (req, res) => {
+app.get('/api/check-holiday', requireTenantContext, publicLimiter, async (req, res) => {
     try {
         const { date } = req.query;
         
@@ -4958,7 +5290,7 @@ app.get('/api/check-holiday', publicLimiter, async (req, res) => {
             });
         }
         
-        const isHoliday = await db.isHolidayOrWeekend(date, true);
+        const isHoliday = await db.isHolidayOrWeekend(date, true, req.tenantId);
         res.json({
             success: true,
             data: { isHoliday, date }
@@ -4987,7 +5319,7 @@ app.get('/api/calculate-price', publicLimiter, async (req, res) => {
         
         let listScope = 'retail';
         try {
-            const mode = String((await db.getSetting('system_mode')) || 'retail').trim();
+            const mode = String((await db.getSetting('system_mode', getRequestTenantId(req))) || 'retail').trim();
             listScope = mode === 'whole_property' ? 'whole_property' : 'retail';
         } catch (_) {
             listScope = 'retail';
@@ -4995,8 +5327,8 @@ app.get('/api/calculate-price', publicLimiter, async (req, res) => {
 
         // 取得房型資訊
         const allRoomTypes = db.getRoomTypesByBuilding
-            ? await db.getRoomTypesByBuilding(buildingId, { activeOnly: true, listScope })
-            : await db.getAllRoomTypes();
+            ? await db.getRoomTypesByBuilding(buildingId, { activeOnly: true, listScope, tenantId: getRequestTenantId(req) })
+            : await db.getAllRoomTypes(getRequestTenantId(req));
         const roomType = (allRoomTypes || []).find((r) => r.display_name === roomTypeName || r.name === roomTypeName);
         
         if (!roomType) {
@@ -5017,7 +5349,7 @@ app.get('/api/calculate-price', publicLimiter, async (req, res) => {
         
         for (let date = new Date(startDate); date < endDate; date.setDate(date.getDate() + 1)) {
             const dateString = date.toISOString().split('T')[0];
-            const isHoliday = await db.isHolidayOrWeekend(dateString, true);
+            const isHoliday = await db.isHolidayOrWeekend(dateString, true, getRequestTenantId(req));
             const dailyPrice = isHoliday ? basePrice + holidaySurcharge : basePrice;
             totalAmount += dailyPrice;
             dailyPrices.push({
@@ -5051,7 +5383,7 @@ app.get('/api/calculate-price', publicLimiter, async (req, res) => {
 });
 
 // API: 刪除房型
-app.delete('/api/admin/room-types/:id', requireAuth, checkPermission('room_types.delete'), adminLimiter, async (req, res) => {
+app.delete('/api/admin/room-types/:id', requireAuth, requireTenantContext, checkPermission('room_types.delete'), adminLimiter, async (req, res) => {
     try {
         const { id } = req.params;
         
@@ -5065,7 +5397,7 @@ app.delete('/api/admin/room-types/:id', requireAuth, checkPermission('room_types
         }
         
         // 執行刪除（軟刪除）
-        const result = await db.deleteRoomType(id);
+        const result = await db.deleteRoomType(id, req.tenantId);
         
         if (result > 0) {
             res.json({
@@ -5092,9 +5424,9 @@ app.delete('/api/admin/room-types/:id', requireAuth, checkPermission('room_types
 // ==================== 加購商品管理 API ====================
 
 // API: 取得所有加購商品（公開，供前台使用）
-app.get('/api/addons', publicLimiter, async (req, res) => {
+app.get('/api/addons', requireTenantContext, publicLimiter, async (req, res) => {
     try {
-        const addons = await db.getAllAddons();
+        const addons = await db.getAllAddons(req.tenantId);
         res.json({
             success: true,
             data: addons
@@ -5109,9 +5441,9 @@ app.get('/api/addons', publicLimiter, async (req, res) => {
 });
 
 // API: 取得所有加購商品（管理後台，包含已停用的）
-app.get('/api/admin/addons', requireAuth, checkPermission('addons.view'), adminLimiter, async (req, res) => {
+app.get('/api/admin/addons', requireAuth, requireTenantContext, checkPermission('addons.view'), adminLimiter, async (req, res) => {
     try {
-        const addons = await db.getAllAddonsAdmin();
+        const addons = await db.getAllAddonsAdmin(req.tenantId);
         res.json({
             success: true,
             data: addons
@@ -5126,7 +5458,7 @@ app.get('/api/admin/addons', requireAuth, checkPermission('addons.view'), adminL
 });
 
 // API: 新增加購商品
-app.post('/api/admin/addons', requireAuth, checkPermission('addons.create'), adminLimiter, validateAddon, async (req, res) => {
+app.post('/api/admin/addons', requireAuth, requireTenantContext, checkPermission('addons.create'), adminLimiter, validateAddon, async (req, res) => {
     try {
         const addonData = req.body;
         
@@ -5137,7 +5469,7 @@ app.post('/api/admin/addons', requireAuth, checkPermission('addons.create'), adm
             });
         }
         
-        const id = await db.createAddon(addonData);
+        const id = await db.createAddon(addonData, req.tenantId);
         res.json({
             success: true,
             message: '加購商品已新增',
@@ -5153,12 +5485,12 @@ app.post('/api/admin/addons', requireAuth, checkPermission('addons.create'), adm
 });
 
 // API: 更新加購商品
-app.put('/api/admin/addons/:id', requireAuth, checkPermission('addons.edit'), adminLimiter, validateAddon, async (req, res) => {
+app.put('/api/admin/addons/:id', requireAuth, requireTenantContext, checkPermission('addons.edit'), adminLimiter, validateAddon, async (req, res) => {
     try {
         const { id } = req.params;
         const addonData = req.body;
         
-        const result = await db.updateAddon(id, addonData);
+        const result = await db.updateAddon(id, addonData, req.tenantId);
         
         if (result) {
             res.json({
@@ -5181,12 +5513,12 @@ app.put('/api/admin/addons/:id', requireAuth, checkPermission('addons.edit'), ad
 });
 
 // API: 刪除加購商品
-app.delete('/api/admin/addons/:id', requireAuth, checkPermission('addons.delete'), adminLimiter, async (req, res) => {
+app.delete('/api/admin/addons/:id', requireAuth, requireTenantContext, checkPermission('addons.delete'), adminLimiter, async (req, res) => {
     try {
         const { id } = req.params;
         
         // 先檢查加購商品是否存在
-        const addon = await db.getAddonById(id);
+        const addon = await db.getAddonById(id, req.tenantId);
         if (!addon) {
             return res.status(404).json({
                 success: false,
@@ -5195,7 +5527,7 @@ app.delete('/api/admin/addons/:id', requireAuth, checkPermission('addons.delete'
         }
         
         // 執行刪除
-        const result = await db.deleteAddon(id);
+        const result = await db.deleteAddon(id, req.tenantId);
         
         if (result) {
             res.json({
@@ -5222,7 +5554,7 @@ app.delete('/api/admin/addons/:id', requireAuth, checkPermission('addons.delete'
 // API: 取得目前系統模式（公開）
 app.get('/api/system/mode', publicLimiter, async (req, res) => {
     try {
-        const systemMode = ((await db.getSetting('system_mode')) || 'retail').toString().trim() || 'retail';
+        const systemMode = ((await db.getSetting('system_mode', getRequestTenantId(req))) || 'retail').toString().trim() || 'retail';
         return res.json({
             success: true,
             data: {
@@ -5258,7 +5590,7 @@ app.post('/api/admin/system/mode/switch', requireAuth, checkPermission('settings
             });
         }
 
-        const fromMode = ((await db.getSetting('system_mode')) || 'retail').toString().trim() || 'retail';
+        const fromMode = ((await db.getSetting('system_mode', getRequestTenantId(req))) || 'retail').toString().trim() || 'retail';
         if (fromMode === targetMode) {
             return res.json({
                 success: true,
@@ -5268,7 +5600,7 @@ app.post('/api/admin/system/mode/switch', requireAuth, checkPermission('settings
         }
 
         // 切換前檢查：避免仍有未完成訂單時直接切換模式
-        const allBookings = await db.getAllBookings();
+        const allBookings = await db.getAllBookings(undefined, undefined, getRequestTenantId(req));
         const currentModeBookings = (allBookings || []).filter((booking) => {
             const mode = (booking.booking_mode || 'retail').toString().trim() || 'retail';
             return mode === fromMode;
@@ -5298,7 +5630,7 @@ app.post('/api/admin/system/mode/switch', requireAuth, checkPermission('settings
             });
         }
 
-        await db.updateSetting('system_mode', targetMode, '系統模式（retail=一般訂房，whole_property=包棟訂房；每次僅啟用一種）');
+        await db.updateSetting('system_mode', targetMode, '系統模式（retail=一般訂房，whole_property=包棟訂房；每次僅啟用一種）', getRequestTenantId(req));
 
         // 操作日誌（不影響主要流程）
         try {
@@ -5341,9 +5673,9 @@ app.post('/api/admin/system/mode/switch', requireAuth, checkPermission('settings
 });
 
 // API: 取得系統設定
-app.get('/api/settings', publicLimiter, async (req, res) => {
+app.get('/api/settings', requireTenantContext, publicLimiter, async (req, res) => {
     try {
-        const settings = await db.getAllSettings();
+        const settings = await db.getAllSettings(getRequestTenantId(req));
         const settingsObj = {};
         settings.forEach(setting => {
             settingsObj[setting.key] = setting.value;
@@ -5383,7 +5715,7 @@ app.get('/api/settings', publicLimiter, async (req, res) => {
 });
 
 // API: 更新系統設定
-app.put('/api/admin/settings/:key', requireAuth, checkPermission('settings.edit'), adminLimiter, async (req, res) => {
+app.put('/api/admin/settings/:key', requireAuth, requireTenantContext, checkPermission('settings.edit'), adminLimiter, async (req, res) => {
     try {
         const { key } = req.params;
         const { value, description } = req.body;
@@ -5395,7 +5727,7 @@ app.put('/api/admin/settings/:key', requireAuth, checkPermission('settings.edit'
             });
         }
         
-        await db.updateSetting(key, value, description);
+        await db.updateSetting(key, value, description, req.tenantId);
         res.json({
             success: true,
             message: '設定已更新'
@@ -5488,7 +5820,7 @@ app.get('/api/admin/email-service-status', requireAuth, checkPermission('email_t
         const resendPackageInstalled = Resend !== null;
         
         // 檢查 Resend API Key（資料庫和環境變數）
-        const resendApiKeyFromDB = await db.getSetting('resend_api_key');
+        const resendApiKeyFromDB = await db.getSetting('resend_api_key', getRequestTenantId(req));
         const resendApiKeyFromEnv = process.env.RESEND_API_KEY;
         const resendApiKey = resendApiKeyFromDB || resendApiKeyFromEnv;
         const resendApiKeySource = resendApiKeyFromDB ? '資料庫' : (resendApiKeyFromEnv ? '環境變數' : '未設定');
@@ -5498,14 +5830,14 @@ app.get('/api/admin/email-service-status', requireAuth, checkPermission('email_t
         const currentProvider = emailRuntime.emailServiceProvider;
         
         // 檢查發件人資訊
-        const resendSenderName = (await db.getSetting('resend_sender_name') || '').trim();
-        const emailUser = (await db.getSetting('email_user') || '').trim();
+        const resendSenderName = (await db.getSetting('resend_sender_name', getRequestTenantId(req)) || '').trim();
+        const emailUser = (await db.getSetting('email_user', getRequestTenantId(req)) || '').trim();
         const effectiveSenderEmail = getConfiguredSenderEmail(emailRuntime) || emailUser;
         
         // 檢查 Gmail 設定（作為備用）
-        const gmailClientID = await db.getSetting('gmail_client_id') || process.env.GMAIL_CLIENT_ID;
-        const gmailClientSecret = await db.getSetting('gmail_client_secret') || process.env.GMAIL_CLIENT_SECRET;
-        const gmailRefreshToken = await db.getSetting('gmail_refresh_token') || process.env.GMAIL_REFRESH_TOKEN;
+        const gmailClientID = await db.getSetting('gmail_client_id', getRequestTenantId(req)) || process.env.GMAIL_CLIENT_ID;
+        const gmailClientSecret = await db.getSetting('gmail_client_secret', getRequestTenantId(req)) || process.env.GMAIL_CLIENT_SECRET;
+        const gmailRefreshToken = await db.getSetting('gmail_refresh_token', getRequestTenantId(req)) || process.env.GMAIL_REFRESH_TOKEN;
         const gmailOAuth2Configured = !!(gmailClientID && gmailClientSecret && gmailRefreshToken);
         
         // 構建狀態報告
@@ -5916,10 +6248,10 @@ app.post('/api/email-templates/:key/test', requireAuth, checkPermission('email_t
         
         // 準備測試用的 bankInfo（與實際發送時一致）
         const testBankInfo = {
-            bankName: await db.getSetting('bank_name') || testData.bankName,
-            bankBranch: await db.getSetting('bank_branch') || testData.bankBranch,
-            account: await db.getSetting('bank_account') || testData.bankAccount,
-            accountName: await db.getSetting('account_name') || testData.accountName
+            bankName: await db.getSetting('bank_name', getRequestTenantId(req)) || testData.bankName,
+            bankBranch: await db.getSetting('bank_branch', getRequestTenantId(req)) || testData.bankBranch,
+            account: await db.getSetting('bank_account', getRequestTenantId(req)) || testData.bankAccount,
+            accountName: await db.getSetting('account_name', getRequestTenantId(req)) || testData.accountName
         };
         
         // 使用與實際發送相同的 generateEmailFromTemplate 函數（與訂房確認邏輯一致）
@@ -9000,23 +9332,23 @@ app.post('/api/email-templates/checkin_reminder/clear-blocks', requireAuth, chec
         
         // 同時清除系統設定中的舊內容，確保使用代碼中的新預設值
         console.log('🔄 開始清除系統設定中的舊內容...');
-        const oldTransport = await db.getSetting('checkin_reminder_transport');
-        const oldParking = await db.getSetting('checkin_reminder_parking');
-        const oldNotes = await db.getSetting('checkin_reminder_notes');
+        const oldTransport = await db.getSetting('checkin_reminder_transport', getRequestTenantId(req));
+        const oldParking = await db.getSetting('checkin_reminder_parking', getRequestTenantId(req));
+        const oldNotes = await db.getSetting('checkin_reminder_notes', getRequestTenantId(req));
         console.log('   清除前的系統設定:', {
             transport: oldTransport ? `有內容 (${oldTransport.length} 字元)` : '空',
             parking: oldParking ? `有內容 (${oldParking.length} 字元)` : '空',
             notes: oldNotes ? `有內容 (${oldNotes.length} 字元)` : '空'
         });
         
-        await db.updateSetting('checkin_reminder_transport', '');
-        await db.updateSetting('checkin_reminder_parking', '');
-        await db.updateSetting('checkin_reminder_notes', '');
+        await db.updateSetting('checkin_reminder_transport', '', null, getRequestTenantId(req));
+        await db.updateSetting('checkin_reminder_parking', '', null, getRequestTenantId(req));
+        await db.updateSetting('checkin_reminder_notes', '', null, getRequestTenantId(req));
         
         // 驗證清除是否成功
-        const newTransport = await db.getSetting('checkin_reminder_transport');
-        const newParking = await db.getSetting('checkin_reminder_parking');
-        const newNotes = await db.getSetting('checkin_reminder_notes');
+        const newTransport = await db.getSetting('checkin_reminder_transport', getRequestTenantId(req));
+        const newParking = await db.getSetting('checkin_reminder_parking', getRequestTenantId(req));
+        const newNotes = await db.getSetting('checkin_reminder_notes', getRequestTenantId(req));
         console.log('   清除後的系統設定:', {
             transport: newTransport || '空',
             parking: newParking || '空',
@@ -9155,7 +9487,7 @@ function injectSpecialRequestRowForLegacyTemplate(content, specialRequest) {
 async function resolveShowBuildingInEmail() {
     try {
         if (typeof db.getActiveBuildingsPublic !== 'function') return false;
-        const list = await db.getActiveBuildingsPublic();
+        const list = await db.getActiveBuildingsPublic(defaultTenantId);
         return Array.isArray(list) && list.length > 1;
     } catch (_) {
         return false;
@@ -9765,7 +10097,7 @@ ${htmlEnd}`;
         try {
             const parsedAddons = typeof booking.addons === 'string' ? JSON.parse(booking.addons) : booking.addons;
             if (parsedAddons && parsedAddons.length > 0) {
-                const allAddons = await db.getAllAddonsAdmin();
+                const allAddons = await db.getAllAddonsAdmin(getRequestTenantId(req));
                 addonsList = parsedAddons.map(addon => {
                     const addonInfo = allAddons.find(a => a.name === addon.name);
                     const rawDisplayName = String(
@@ -9972,18 +10304,18 @@ ${htmlEnd}`;
     if (!variables['{{bookingUrl}}']) {
         // 優先使用環境變數，其次使用系統設定，最後使用預設值
         const bookingUrl = process.env.FRONTEND_URL || 
-                          await db.getSetting('frontend_url') || 
+                          await db.getSetting('frontend_url', getRequestTenantId(req)) || 
                           (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'https://your-booking-site.com');
         variables['{{bookingUrl}}'] = bookingUrl;
     }
     // 官方 LINE 連結：供模板中直接使用 {{officialLineUrl}}
     if (!variables['{{officialLineUrl}}']) {
-        const officialLineUrl = await db.getSetting('landing_social_line') || '';
+        const officialLineUrl = await db.getSetting('landing_social_line', getRequestTenantId(req)) || '';
         variables['{{officialLineUrl}}'] = officialLineUrl;
     }
     // Google 評價連結：供模板中直接使用 {{googleReviewUrl}}
     if (!variables['{{googleReviewUrl}}']) {
-        const googleReviewUrl = await db.getSetting('landing_google_review_url') || '';
+        const googleReviewUrl = await db.getSetting('landing_google_review_url', getRequestTenantId(req)) || '';
         variables['{{googleReviewUrl}}'] = googleReviewUrl;
     }
     
@@ -10287,7 +10619,8 @@ startServer({
     cron,
     backup,
     bookingJobs: bookingNotificationJobs,
-    adminLogCleanupJobs
+    adminLogCleanupJobs,
+    subscriptionJobs
 }).catch((error) => {
     console.error('❌ 應用程式啟動失敗:', error.message);
     console.error('錯誤詳情:', error.stack);

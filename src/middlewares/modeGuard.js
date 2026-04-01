@@ -9,7 +9,7 @@ function createModeGuard(deps) {
 
     return async function modeGuard(req, res, next) {
         try {
-            const currentMode = normalizeMode(await db.getSetting('system_mode'));
+            const currentMode = normalizeMode(await db.getSetting('system_mode', req.tenantId));
             req.systemMode = currentMode;
 
             if (!allowed.includes(currentMode)) {

@@ -11,7 +11,8 @@ async function startServer(deps) {
         cron,
         backup,
         bookingJobs,
-        adminLogCleanupJobs
+        adminLogCleanupJobs,
+        subscriptionJobs
     } = deps;
 
     console.log('📋 開始啟動伺服器...');
@@ -49,6 +50,7 @@ async function startServer(deps) {
             backup,
             bookingJobs,
             adminLogCleanupJobs,
+            subscriptionJobs,
             timezone: 'Asia/Taipei'
         });
     });
