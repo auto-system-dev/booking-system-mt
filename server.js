@@ -3101,120 +3101,7 @@ app.post('/api/public/resend-tenant-verification', publicLimiter, async (req, re
     }
 });
 
-const bookingService = createBookingService({ db });
-const retailModeGuard = createModeGuard({
-    db,
-    allowedModes: ['retail'],
-    getMessage: () => '目前為包棟模式，一般訂房功能未啟用'
-});
-const wholePropertyModeGuard = createModeGuard({
-    db,
-    allowedModes: ['whole_property'],
-    getMessage: () => '目前為一般模式，包棟訂房功能未啟用'
-});
-app.use('/api', createBookingRoutes({
-    bookingService,
-    handlers: {
-        createBooking: handleCreateBooking,
-        updateBooking: handleUpdateBooking,
-        cancelBooking: handleCancelBooking,
-        deleteBooking: handleDeleteBooking
-    },
-    publicLimiter,
-    retailModeGuard,
-    wholePropertyModeGuard,
-    verifyCsrfToken,
-    validateBooking,
-    validateWholePropertyBooking,
-    requireAuth,
-    requireTenantContext,
-    checkPermission,
-    adminLimiter
-}));
-
-const emailService = createEmailService({
-    getRequiredEmailUser,
-    sendEmail
-});
-
-const fallbackTemplateService = createEmailFallbackTemplatesService({
-    getHotelSettingsWithFallback,
-    generateEmailFromTemplate,
-    db
-});
-
-const templateService = createTemplateService({
-    generateEmailFromTemplate,
-    generateCustomerEmail: fallbackTemplateService.generateCustomerEmail,
-    generateAdminEmail: fallbackTemplateService.generateAdminEmail
-});
-
-const notificationService = createNotificationService({
-    db,
-    lineBot,
-    emailService,
-    templateService,
-    processEnv: process.env,
-    replaceTemplateVariables,
-    generatePaymentReceivedEmail: fallbackTemplateService.generatePaymentReceivedEmail,
-    generateCancellationEmail: fallbackTemplateService.generateCancellationEmail
-});
-
-const bookingNotificationJobs = createBookingNotificationJobs({
-    db,
-    notificationService,
-    getHotelSettingsWithFallback,
-    calculateDynamicPaymentDeadline
-});
-
-const adminLogCleanupJobs = createAdminLogCleanupJobs({
-    db,
-    processEnv: process.env
-});
-const subscriptionJobs = createSubscriptionJobs({ db });
-
-const orderQueryService = createOrderQueryService({
-    db,
-    dataProtection,
-    notificationService
-});
-app.use('/api/order-query', createOrderQueryRoutes({
-    orderQueryService,
-    publicLimiter
-}));
-app.use('/api/order-query', requireTenantContext, subscriptionGate.requireFeature('api_access'));
-
-app.get('/api/subscription/status', requireAuth, requireTenantContext, async (req, res) => {
-    try {
-        const snapshot = await db.getTenantSubscriptionSnapshot(req.tenantId);
-        res.json({ success: true, data: snapshot });
-    } catch (error) {
-        res.status(500).json({ success: false, message: '取得訂閱狀態失敗: ' + error.message });
-    }
-});
-
-app.get('/api/admin/subscription/plans', requireAuth, requireTenantContext, checkPermission('settings.view'), adminLimiter, async (_req, res) => {
-    try {
-        const plans = await db.getSubscriptionPlans();
-        return res.json({ success: true, data: plans });
-    } catch (error) {
-        return res.status(500).json({ success: false, message: '取得方案清單失敗: ' + error.message });
-    }
-});
-
-app.post('/api/admin/subscription/switch-plan', requireAuth, requireTenantContext, checkPermission('settings.edit'), adminLimiter, async (req, res) => {
-    try {
-        const { planCode, status } = req.body || {};
-        if (!planCode) {
-            return res.status(400).json({ success: false, message: '缺少 planCode' });
-        }
-        const snapshot = await db.setTenantSubscriptionPlan(req.tenantId, String(planCode).trim(), status || 'active');
-        return res.json({ success: true, message: '訂閱方案已更新', data: snapshot });
-    } catch (error) {
-        return res.status(400).json({ success: false, message: '更新訂閱方案失敗: ' + error.message });
-    }
-});
-
+// 超管租戶／訂閱總覽：須在 app.use('/api', createBookingRoutes) 之前註冊，否則請求會先經訂房 router 的 requireTenantContext，超管無 tenant_id 時失敗
 app.get('/api/admin/subscription/overview', requireAuth, adminLimiter, async (req, res) => {
     try {
         if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
@@ -3360,6 +3247,120 @@ app.put('/api/admin/tenants/:id', requireAuth, adminLimiter, async (req, res) =>
             success: false,
             message: '更新租戶失敗：' + error.message
         });
+    }
+});
+
+const bookingService = createBookingService({ db });
+const retailModeGuard = createModeGuard({
+    db,
+    allowedModes: ['retail'],
+    getMessage: () => '目前為包棟模式，一般訂房功能未啟用'
+});
+const wholePropertyModeGuard = createModeGuard({
+    db,
+    allowedModes: ['whole_property'],
+    getMessage: () => '目前為一般模式，包棟訂房功能未啟用'
+});
+app.use('/api', createBookingRoutes({
+    bookingService,
+    handlers: {
+        createBooking: handleCreateBooking,
+        updateBooking: handleUpdateBooking,
+        cancelBooking: handleCancelBooking,
+        deleteBooking: handleDeleteBooking
+    },
+    publicLimiter,
+    retailModeGuard,
+    wholePropertyModeGuard,
+    verifyCsrfToken,
+    validateBooking,
+    validateWholePropertyBooking,
+    requireAuth,
+    requireTenantContext,
+    checkPermission,
+    adminLimiter
+}));
+
+const emailService = createEmailService({
+    getRequiredEmailUser,
+    sendEmail
+});
+
+const fallbackTemplateService = createEmailFallbackTemplatesService({
+    getHotelSettingsWithFallback,
+    generateEmailFromTemplate,
+    db
+});
+
+const templateService = createTemplateService({
+    generateEmailFromTemplate,
+    generateCustomerEmail: fallbackTemplateService.generateCustomerEmail,
+    generateAdminEmail: fallbackTemplateService.generateAdminEmail
+});
+
+const notificationService = createNotificationService({
+    db,
+    lineBot,
+    emailService,
+    templateService,
+    processEnv: process.env,
+    replaceTemplateVariables,
+    generatePaymentReceivedEmail: fallbackTemplateService.generatePaymentReceivedEmail,
+    generateCancellationEmail: fallbackTemplateService.generateCancellationEmail
+});
+
+const bookingNotificationJobs = createBookingNotificationJobs({
+    db,
+    notificationService,
+    getHotelSettingsWithFallback,
+    calculateDynamicPaymentDeadline
+});
+
+const adminLogCleanupJobs = createAdminLogCleanupJobs({
+    db,
+    processEnv: process.env
+});
+const subscriptionJobs = createSubscriptionJobs({ db });
+
+const orderQueryService = createOrderQueryService({
+    db,
+    dataProtection,
+    notificationService
+});
+app.use('/api/order-query', createOrderQueryRoutes({
+    orderQueryService,
+    publicLimiter
+}));
+app.use('/api/order-query', requireTenantContext, subscriptionGate.requireFeature('api_access'));
+
+app.get('/api/subscription/status', requireAuth, requireTenantContext, async (req, res) => {
+    try {
+        const snapshot = await db.getTenantSubscriptionSnapshot(req.tenantId);
+        res.json({ success: true, data: snapshot });
+    } catch (error) {
+        res.status(500).json({ success: false, message: '取得訂閱狀態失敗: ' + error.message });
+    }
+});
+
+app.get('/api/admin/subscription/plans', requireAuth, requireTenantContext, checkPermission('settings.view'), adminLimiter, async (_req, res) => {
+    try {
+        const plans = await db.getSubscriptionPlans();
+        return res.json({ success: true, data: plans });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: '取得方案清單失敗: ' + error.message });
+    }
+});
+
+app.post('/api/admin/subscription/switch-plan', requireAuth, requireTenantContext, checkPermission('settings.edit'), adminLimiter, async (req, res) => {
+    try {
+        const { planCode, status } = req.body || {};
+        if (!planCode) {
+            return res.status(400).json({ success: false, message: '缺少 planCode' });
+        }
+        const snapshot = await db.setTenantSubscriptionPlan(req.tenantId, String(planCode).trim(), status || 'active');
+        return res.json({ success: true, message: '訂閱方案已更新', data: snapshot });
+    } catch (error) {
+        return res.status(400).json({ success: false, message: '更新訂閱方案失敗: ' + error.message });
     }
 });
 
