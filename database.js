@@ -745,6 +745,30 @@ async function getTenantById(tenantId) {
     );
 }
 
+/** 公開子網域辨識：label 為 DNS 最左側標籤（可含 -），會對應到 tenants.code（- 視為 _） */
+async function getTenantBySubdomainLabel(label) {
+    const raw = String(label || '').trim().toLowerCase();
+    if (!raw || raw === 'www') return null;
+    const asCode = raw.replace(/-/g, '_');
+    const row = await queryOne(
+        usePostgreSQL
+            ? `SELECT id, code, name, status, timezone, plan_code, created_at, updated_at
+               FROM tenants WHERE lower(code) = lower($1)`
+            : `SELECT id, code, name, status, timezone, plan_code, created_at, updated_at
+               FROM tenants WHERE lower(code) = lower(?)`,
+        [asCode]
+    );
+    if (row) return row;
+    return queryOne(
+        usePostgreSQL
+            ? `SELECT id, code, name, status, timezone, plan_code, created_at, updated_at
+               FROM tenants WHERE lower(code) = lower($1)`
+            : `SELECT id, code, name, status, timezone, plan_code, created_at, updated_at
+               FROM tenants WHERE lower(code) = lower(?)`,
+        [raw]
+    );
+}
+
 async function getTenantsOverview({ status = '', keyword = '', limit = 50, offset = 0 } = {}) {
     await ensureAdminTenantColumn();
     const safeLimit = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
@@ -9477,6 +9501,7 @@ module.exports = {
     activateTenantOnboarding,
     getTenantVerificationByEmail,
     getTenantById,
+    getTenantBySubdomainLabel,
     getTenantsOverview,
     updateTenantProfile,
     getSubscriptionPlans,

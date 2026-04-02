@@ -67,7 +67,8 @@ const { createEmailRuntime, resetEmailRuntime, getConfiguredSenderEmail } = requ
 const { createBookingRoutes } = require('./src/routes/booking.routes');
 const { createOrderQueryRoutes } = require('./src/routes/order-query.routes');
 const { createModeGuard } = require('./src/middlewares/modeGuard');
-const { requireTenantContext } = require('./src/middlewares/tenant');
+const { requireTenantContext, resolveTenantId } = require('./src/middlewares/tenant');
+const { createSubdomainTenantMiddleware } = require('./src/middlewares/subdomainTenant');
 const { createSubscriptionGate } = require('./src/middlewares/subscriptionGate');
 
 // 本地 uploads 目錄（當未設定 R2 時作為回退儲存）
@@ -135,7 +136,8 @@ const checkPermission = createCheckPermission(db);
 const subscriptionGate = createSubscriptionGate(db);
 const defaultTenantId = parseInt(process.env.DEFAULT_TENANT_ID || '1', 10);
 function getRequestTenantId(req) {
-    return parseInt(req?.tenantId || req?.session?.admin?.tenant_id || defaultTenantId, 10);
+    const resolved = resolveTenantId(req);
+    return resolved || defaultTenantId;
 }
 
 // Railway 使用代理，需要信任代理以正確處理 HTTPS 和 Cookie
@@ -225,6 +227,14 @@ app.use(session({
         sameSite: 'lax' // 改善跨站 Cookie 處理
     }
 }));
+
+app.use(createSubdomainTenantMiddleware({
+    db,
+    publicBaseDomain: process.env.PUBLIC_BASE_DOMAIN || ''
+}));
+if (process.env.PUBLIC_BASE_DOMAIN) {
+    console.log('🌐 子網域租戶識別已啟用，PUBLIC_BASE_DOMAIN =', process.env.PUBLIC_BASE_DOMAIN);
+}
 
 // ============================================
 // CSRF 保護設定
@@ -1964,7 +1974,8 @@ function renderLandingTemplate(templateHtml, landingSettings, landingRoomTypes, 
 
 async function handleLandingPageRequest(req, res) {
     try {
-        const { landingSettings, landingRoomTypes, systemMode } = await getLandingPagePayload();
+        const tenantId = getRequestTenantId(req);
+        const { landingSettings, landingRoomTypes, systemMode } = await getLandingPagePayload(tenantId);
         const templateHtml = await fs.promises.readFile(path.join(__dirname, 'landing.html'), 'utf8');
         const renderedHtml = renderLandingTemplate(templateHtml, landingSettings, landingRoomTypes, systemMode);
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -5778,7 +5789,8 @@ app.post('/api/admin/landing/upload-image', requireAuth, (req, res) => {
 // API: 取得銷售頁設定（公開）
 app.get('/api/landing-settings', publicLimiter, async (req, res) => {
     try {
-        const { landingSettings, landingRoomTypes, systemMode } = await getLandingPagePayload();
+        const tenantId = getRequestTenantId(req);
+        const { landingSettings, landingRoomTypes, systemMode } = await getLandingPagePayload(tenantId);
 
         res.json({
             success: true,

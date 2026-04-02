@@ -10,6 +10,9 @@ function resolveTenantId(req) {
     const fromHeader = parseTenantId(req?.headers?.['x-tenant-id']);
     if (fromHeader) return fromHeader;
 
+    const fromSubdomain = parseTenantId(req?.subdomainTenantId);
+    if (fromSubdomain) return fromSubdomain;
+
     const fromQuery = parseTenantId(req?.query?.tenant_id);
     if (fromQuery) return fromQuery;
 
