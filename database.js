@@ -882,28 +882,28 @@ async function seedSubscriptionMvpDefaults() {
     const planSeeds = [
         {
             code: 'basic_monthly',
-            name: 'Basic Monthly',
+            name: '基礎方案（月繳）',
             cycle: 'monthly',
             price: 999,
             features: { reports: false, api_access: false, max_buildings: 1 }
         },
         {
             code: 'basic_yearly',
-            name: 'Basic Yearly',
+            name: '基礎方案（年繳）',
             cycle: 'yearly',
             price: 9990,
             features: { reports: false, api_access: false, max_buildings: 1 }
         },
         {
             code: 'pro_monthly',
-            name: 'Pro Monthly',
+            name: '專業方案（月繳）',
             cycle: 'monthly',
             price: 2999,
             features: { reports: true, api_access: true, max_buildings: 5 }
         },
         {
             code: 'pro_yearly',
-            name: 'Pro Yearly',
+            name: '專業方案（年繳）',
             cycle: 'yearly',
             price: 29990,
             features: { reports: true, api_access: true, max_buildings: 20 }
@@ -7508,13 +7508,13 @@ async function getTenantSubscriptionSnapshot(tenantId) {
 
     const row = await queryOne(
         usePostgreSQL
-            ? `SELECT s.*, p.code AS plan_code, p.feature_flags
+            ? `SELECT s.*, p.code AS plan_code, p.name AS plan_name, p.feature_flags
                FROM subscriptions s
                LEFT JOIN plans p ON p.id = s.plan_id
                WHERE s.tenant_id = $1
                ORDER BY s.id DESC
                LIMIT 1`
-            : `SELECT s.*, p.code AS plan_code, p.feature_flags
+            : `SELECT s.*, p.code AS plan_code, p.name AS plan_name, p.feature_flags
                FROM subscriptions s
                LEFT JOIN plans p ON p.id = s.plan_id
                WHERE s.tenant_id = ?
@@ -7537,6 +7537,7 @@ async function getTenantSubscriptionSnapshot(tenantId) {
         tenantId: safeTenantId,
         subscriptionId: row.id,
         planCode: row.plan_code || 'basic_monthly',
+        planName: row.plan_name || null,
         status: row.status || 'trialing',
         billingCycle: row.billing_cycle || 'monthly',
         periodEnd: row.current_period_end || row.trial_ends_at || null,

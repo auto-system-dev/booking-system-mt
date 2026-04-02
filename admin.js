@@ -7280,6 +7280,24 @@ function mapTenantStatusLabel(status) {
     return map[normalized] || (status || '-');
 }
 
+/** 與 database 種子一致；DB 尚未寫入中文名稱時作備援 */
+function formatPlanCodeLabel(planCode) {
+    const code = String(planCode || '').trim();
+    const map = {
+        basic_monthly: '基礎方案（月繳）',
+        basic_yearly: '基礎方案（年繳）',
+        pro_monthly: '專業方案（月繳）',
+        pro_yearly: '專業方案（年繳）'
+    };
+    return map[code] || code || '-';
+}
+
+function formatSubscriptionPlanDisplay(planCode, planName) {
+    const name = String(planName || '').trim();
+    if (name) return name;
+    return formatPlanCodeLabel(planCode);
+}
+
 function escapeHtml(value) {
     return String(value || '')
         .replace(/&/g, '&amp;')
@@ -7345,7 +7363,7 @@ function renderSubscriptionSnapshot(snapshot) {
     }
 
     const statusText = mapSubscriptionStatusLabel(snapshot?.status);
-    const planText = snapshot?.planCode || 'basic_monthly';
+    const planText = formatSubscriptionPlanDisplay(snapshot?.planCode, snapshot?.planName);
     const periodEndText = toReadableDate(snapshot?.periodEnd);
     const reports = snapshot?.features?.reports ? '開啟' : '關閉';
     const apiAccess = snapshot?.features?.api_access ? '開啟' : '關閉';
@@ -7463,7 +7481,10 @@ async function loadSubscriptionOverview() {
             return;
         }
         tbody.innerHTML = rows.map((row) => {
-            const planText = row.planCode ? `${row.planCode}${row.planName ? ` (${row.planName})` : ''}` : '-';
+            const planText =
+                row.planCode || row.planName
+                    ? formatSubscriptionPlanDisplay(row.planCode, row.planName)
+                    : '-';
             const subStatus = row.subscriptionStatus || 'none';
             const cycleLabel = row.billingCycle === 'yearly' ? '年繳' : (row.billingCycle === 'monthly' ? '月繳' : '-');
             return `
