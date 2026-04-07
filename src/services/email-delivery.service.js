@@ -32,10 +32,11 @@ function createEmailDeliveryService(deps) {
 
                     const senderEmail = (emailRuntime.configuredSenderEmail || 'resend@resend.dev').trim();
                     let fromEmail = senderEmail;
-                    const resendSenderName = ((await db.getSetting('resend_sender_name', defaultTenantId)) || (await getHotelSettingsWithFallback()).hotelName || '').trim();
-                    if (resendSenderName) {
-                        fromEmail = `"${resendSenderName}" <${senderEmail}>`;
-                        console.log('   使用寄件人名稱:', resendSenderName);
+                    const hotelSettings = await getHotelSettingsWithFallback();
+                    const senderName = String(hotelSettings?.hotelName || '').trim();
+                    if (senderName) {
+                        fromEmail = `"${senderName}" <${senderEmail}>`;
+                        console.log('   使用寄件人名稱:', senderName);
                     }
 
                     const result = await emailRuntime.resendClient.emails.send({

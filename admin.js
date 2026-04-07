@@ -1939,7 +1939,8 @@ function loadInitialAdminRoute() {
     } else if (urlHash === '#landing-page') {
         switchSection('landing-page');
     } else if (!urlHash) {
-        switchSection('dashboard');
+        const isSuperAdmin = !!(window.currentAdminInfo && window.currentAdminInfo.role === 'super_admin');
+        switchSection(isSuperAdmin ? 'subscription-overview' : 'dashboard');
     }
 }
 
@@ -5078,7 +5079,7 @@ function escapeHtml(text) {
 let allRoomTypesRetail = [];
 let allRoomTypesWholeProperty = [];
 let allBuildings = [];
-let selectedBuildingIdForRoomTypes = 1;
+let selectedBuildingIdForRoomTypes = null;
 
 function getActiveRoomTypesListScope() {
     const tab = localStorage.getItem('roomTypeTab') || 'room-types';
@@ -5140,7 +5141,7 @@ function syncIncludedItemsEditor() {
 // 載入房型列表（房型管理 / 包棟方案依 listScope 分開）
 async function loadRoomTypes() {
     try {
-        const bid = Number(selectedBuildingIdForRoomTypes) || 1;
+        const bid = resolveRoomTypesBuildingId();
         const scope = getActiveRoomTypesListScope();
         if (scope === 'retail') {
             updateRoomTypesSectionLabelsForSystemMode();
@@ -5242,17 +5243,21 @@ function syncRoomTypesBuildingSelect() {
     wrap.style.display = 'inline-flex';
 
     // 只在「房型管理／包棟方案」分頁顯示（假日分頁會在 switchRoomTypeTab 隱藏）
-    const saved = parseInt(localStorage.getItem('roomTypesBuildingId') || '1', 10);
-    selectedBuildingIdForRoomTypes = Number.isFinite(saved) && saved > 0 ? saved : 1;
+    const saved = parseInt(localStorage.getItem('roomTypesBuildingId') || '', 10);
+    selectedBuildingIdForRoomTypes = Number.isFinite(saved) && saved > 0 ? saved : null;
 
-    const opts = (allBuildings && allBuildings.length > 0) ? allBuildings : [{ id: 1, name: '預設館', code: 'default', is_active: 1, display_order: 0 }];
+    const opts = (allBuildings && allBuildings.length > 0) ? allBuildings : [];
     const visibleOpts = opts.filter((b) => Number(b.is_active) !== 0 || Number(b.id) === selectedBuildingIdForRoomTypes);
 
     // 若 localStorage 記住的館別不存在/不可見，瀏覽器會顯示第一個選項但 JS 仍用舊值查詢，導致列表看起來空白
     const hasSelected = visibleOpts.some((b) => Number(b.id) === Number(selectedBuildingIdForRoomTypes));
     if (!hasSelected) {
-        selectedBuildingIdForRoomTypes = 1;
-        localStorage.setItem('roomTypesBuildingId', '1');
+        selectedBuildingIdForRoomTypes = visibleOpts.length > 0 ? Number(visibleOpts[0].id) : null;
+        if (selectedBuildingIdForRoomTypes) {
+            localStorage.setItem('roomTypesBuildingId', String(selectedBuildingIdForRoomTypes));
+        } else {
+            localStorage.removeItem('roomTypesBuildingId');
+        }
     }
 
     sel.innerHTML = visibleOpts
@@ -5260,7 +5265,27 @@ function syncRoomTypesBuildingSelect() {
         .join('');
 
     // 強制同步 select 實際值，避免顯示與查詢不一致
-    sel.value = String(selectedBuildingIdForRoomTypes);
+    if (selectedBuildingIdForRoomTypes) {
+        sel.value = String(selectedBuildingIdForRoomTypes);
+    }
+}
+
+function resolveRoomTypesBuildingId() {
+    const current = Number(selectedBuildingIdForRoomTypes);
+    if (Number.isFinite(current) && current > 0) return current;
+
+    const activeBuildings = Array.isArray(allBuildings)
+        ? allBuildings.filter((b) => Number(b.is_active) !== 0)
+        : [];
+    if (activeBuildings.length > 0) {
+        selectedBuildingIdForRoomTypes = Number(activeBuildings[0].id);
+    } else if (Array.isArray(allBuildings) && allBuildings.length > 0) {
+        selectedBuildingIdForRoomTypes = Number(allBuildings[0].id);
+    } else {
+        selectedBuildingIdForRoomTypes = 1;
+    }
+    localStorage.setItem('roomTypesBuildingId', String(selectedBuildingIdForRoomTypes));
+    return selectedBuildingIdForRoomTypes;
 }
 
 function showBuildingModal(buildingId) {
@@ -5376,8 +5401,10 @@ async function deleteBuilding(id) {
 
 function onRoomTypesBuildingChange(buildingId) {
     const bid = parseInt(String(buildingId || '').trim(), 10);
-    selectedBuildingIdForRoomTypes = Number.isFinite(bid) && bid > 0 ? bid : 1;
-    localStorage.setItem('roomTypesBuildingId', String(selectedBuildingIdForRoomTypes));
+    selectedBuildingIdForRoomTypes = Number.isFinite(bid) && bid > 0 ? bid : resolveRoomTypesBuildingId();
+    if (selectedBuildingIdForRoomTypes) {
+        localStorage.setItem('roomTypesBuildingId', String(selectedBuildingIdForRoomTypes));
+    }
     loadRoomTypes();
 }
 
@@ -7138,6 +7165,11 @@ function switchSettingsTab(tab) {
         tab = 'basic';
         localStorage.setItem('settingsTab', 'basic');
     }
+    // 郵件設定已改為環境變數統一管理，舊快取分頁一律導回基本設定
+    if (tab === 'email') {
+        tab = 'basic';
+        localStorage.setItem('settingsTab', 'basic');
+    }
 
     // 隱藏所有分頁內容
     const allTabContents = document.querySelectorAll('#settings-section .tab-content');
@@ -7243,11 +7275,15 @@ async function loadSettings() {
                 resendSenderNameInput.value = settings.resend_sender_name || '';
             }
             
-            // Gmail 發信設定
-            document.getElementById('emailUser').value = settings.email_user || '';
-            document.getElementById('gmailClientID').value = settings.gmail_client_id || '';
-            document.getElementById('gmailClientSecret').value = settings.gmail_client_secret || '';
-            document.getElementById('gmailRefreshToken').value = settings.gmail_refresh_token || '';
+            // Gmail 發信設定（郵件設定分頁可能已隱藏，需做存在檢查）
+            const emailUserInput = document.getElementById('emailUser');
+            if (emailUserInput) emailUserInput.value = settings.email_user || '';
+            const gmailClientIdInput = document.getElementById('gmailClientID');
+            if (gmailClientIdInput) gmailClientIdInput.value = settings.gmail_client_id || '';
+            const gmailClientSecretInput = document.getElementById('gmailClientSecret');
+            if (gmailClientSecretInput) gmailClientSecretInput.value = settings.gmail_client_secret || '';
+            const gmailRefreshTokenInput = document.getElementById('gmailRefreshToken');
+            if (gmailRefreshTokenInput) gmailRefreshTokenInput.value = settings.gmail_refresh_token || '';
 
             await loadSubscriptionSettings();
         } else {
@@ -7318,11 +7354,84 @@ function toReadableDate(dateValue) {
     return d.toLocaleString('zh-TW');
 }
 
+function toDateTimeLocalValue(dateValue) {
+    if (!dateValue) return '';
+    const d = new Date(dateValue);
+    if (Number.isNaN(d.getTime())) return '';
+    const tzOffsetMs = d.getTimezoneOffset() * 60000;
+    const local = new Date(d.getTime() - tzOffsetMs);
+    return local.toISOString().slice(0, 16);
+}
+
+function getSubscriptionRemainingDays(periodEnd) {
+    if (!periodEnd) return null;
+    const end = new Date(periodEnd);
+    if (Number.isNaN(end.getTime())) return null;
+    const diffMs = end.getTime() - Date.now();
+    return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+}
+
+function getSubscriptionStatusStyle(status) {
+    const s = String(status || '').trim().toLowerCase();
+    if (s === 'active') return { bg: '#dcfce7', color: '#166534', border: '#86efac' };
+    if (s === 'trialing') return { bg: '#dbeafe', color: '#1d4ed8', border: '#93c5fd' };
+    if (s === 'past_due') return { bg: '#ffedd5', color: '#9a3412', border: '#fdba74' };
+    if (s === 'canceled') return { bg: '#fee2e2', color: '#991b1b', border: '#fecaca' };
+    return { bg: '#e5e7eb', color: '#374151', border: '#d1d5db' };
+}
+
+function getSubscriptionUrgencyRank(periodEnd) {
+    const days = getSubscriptionRemainingDays(periodEnd);
+    if (days === null) return 4;
+    if (days < 0) return 0;
+    if (days <= 3) return 1;
+    if (days <= 7) return 2;
+    return 3;
+}
+
+function renderSubscriptionRiskBadge(periodEnd) {
+    const days = getSubscriptionRemainingDays(periodEnd);
+    if (days === null) {
+        return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#e5e7eb;color:#374151;font-size:12px;">未設定</span>';
+    }
+    if (days < 0) {
+        return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#fee2e2;color:#991b1b;font-size:12px;">已逾期</span>';
+    }
+    if (days <= 3) {
+        return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#ffedd5;color:#9a3412;font-size:12px;">3天內到期</span>';
+    }
+    if (days <= 7) {
+        return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#fffbeb;color:#92400e;font-size:12px;">7天內到期</span>';
+    }
+    return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#dcfce7;color:#166534;font-size:12px;">正常</span>';
+}
+
+function isSubscriptionRiskMatch(periodEnd, filterValue) {
+    const f = String(filterValue || '').trim();
+    if (!f) return true;
+    const days = getSubscriptionRemainingDays(periodEnd);
+    if (f === 'unset') return days === null;
+    if (days === null) return false;
+    if (f === 'expired') return days < 0;
+    if (f === 'due_3d') return days >= 0 && days <= 3;
+    if (f === 'due_7d') return days >= 0 && days <= 7;
+    if (f === 'normal') return days > 7;
+    return true;
+}
+
+function isSubscriptionModeMatch(systemMode, filterValue) {
+    const f = String(filterValue || '').trim();
+    if (!f) return true;
+    const mode = normalizeSystemMode(systemMode || 'retail');
+    return mode === f;
+}
+
 function renderSubscriptionNotice(snapshot) {
     const noticeEl = document.getElementById('subscriptionStatusNotice');
     if (!noticeEl || !snapshot) {
         return;
     }
+    const remainingDays = getSubscriptionRemainingDays(snapshot?.periodEnd);
 
     if (snapshot.status === 'canceled') {
         noticeEl.style.display = 'block';
@@ -7351,6 +7460,33 @@ function renderSubscriptionNotice(snapshot) {
         return;
     }
 
+    if (remainingDays !== null && remainingDays < 0) {
+        noticeEl.style.display = 'block';
+        noticeEl.style.background = '#fee2e2';
+        noticeEl.style.color = '#991b1b';
+        noticeEl.style.border = '1px solid #fecaca';
+        noticeEl.textContent = `訂閱已逾期 ${Math.abs(remainingDays)} 天，部分功能可能受限，請盡快聯繫超級管理員。`;
+        return;
+    }
+
+    if (remainingDays !== null && remainingDays <= 3) {
+        noticeEl.style.display = 'block';
+        noticeEl.style.background = '#fff7ed';
+        noticeEl.style.color = '#9a3412';
+        noticeEl.style.border = '1px solid #fed7aa';
+        noticeEl.textContent = `訂閱將於 ${remainingDays} 天內到期，建議立即續約以避免功能中斷。`;
+        return;
+    }
+
+    if (remainingDays !== null && remainingDays <= 7) {
+        noticeEl.style.display = 'block';
+        noticeEl.style.background = '#fffbeb';
+        noticeEl.style.color = '#92400e';
+        noticeEl.style.border = '1px solid #fde68a';
+        noticeEl.textContent = `訂閱將於 ${remainingDays} 天內到期，請預先安排續約。`;
+        return;
+    }
+
     noticeEl.style.display = 'none';
 }
 
@@ -7358,20 +7494,63 @@ function renderSubscriptionSnapshot(snapshot) {
     const planInput = document.getElementById('subscriptionCurrentPlan');
     const metaEl = document.getElementById('subscriptionCurrentMeta');
     const featureSummaryInput = document.getElementById('subscriptionFeatureSummary');
-    if (!planInput || !metaEl || !featureSummaryInput) {
+    const expiryInput = document.getElementById('subscriptionExpirySummary');
+    const expiryHint = document.getElementById('subscriptionExpiryHint');
+    const statusBadge = document.getElementById('subscriptionStatusBadge');
+    const statusSelect = document.getElementById('subscriptionStatusSelect');
+    const periodEndInput = document.getElementById('subscriptionPeriodEndInput');
+    if (!planInput || !metaEl || !featureSummaryInput || !expiryInput || !expiryHint) {
         return;
     }
 
     const statusText = mapSubscriptionStatusLabel(snapshot?.status);
     const planText = formatSubscriptionPlanDisplay(snapshot?.planCode, snapshot?.planName);
     const periodEndText = toReadableDate(snapshot?.periodEnd);
+    const remainingDays = getSubscriptionRemainingDays(snapshot?.periodEnd);
     const reports = snapshot?.features?.reports ? '開啟' : '關閉';
     const apiAccess = snapshot?.features?.api_access ? '開啟' : '關閉';
     const maxBuildings = Number(snapshot?.limits?.max_buildings || 1);
 
     planInput.value = `${planText}（${statusText}）`;
     metaEl.textContent = `到期時間：${periodEndText}`;
+    if (statusBadge) {
+        const style = getSubscriptionStatusStyle(snapshot?.status);
+        statusBadge.textContent = statusText;
+        statusBadge.style.background = style.bg;
+        statusBadge.style.color = style.color;
+        statusBadge.style.border = `1px solid ${style.border}`;
+    }
+    if (remainingDays === null) {
+        expiryInput.value = '未設定到期時間';
+        expiryHint.textContent = '請由超級管理員設定使用期限。';
+        expiryInput.style.color = '#374151';
+        expiryInput.style.background = '#f9fafb';
+    } else if (remainingDays >= 0) {
+        expiryInput.value = `剩餘 ${remainingDays} 天`;
+        expiryHint.textContent = `到期時間：${periodEndText}`;
+        if (remainingDays <= 3) {
+            expiryInput.style.color = '#9a3412';
+            expiryInput.style.background = '#fff7ed';
+        } else if (remainingDays <= 7) {
+            expiryInput.style.color = '#92400e';
+            expiryInput.style.background = '#fffbeb';
+        } else {
+            expiryInput.style.color = '#166534';
+            expiryInput.style.background = '#f0fdf4';
+        }
+    } else {
+        expiryInput.value = `已逾期 ${Math.abs(remainingDays)} 天`;
+        expiryHint.textContent = `原到期時間：${periodEndText}`;
+        expiryInput.style.color = '#991b1b';
+        expiryInput.style.background = '#fef2f2';
+    }
     featureSummaryInput.value = `報表：${reports} / API：${apiAccess} / 館別上限：${maxBuildings}`;
+    if (statusSelect) {
+        statusSelect.value = String(snapshot?.status || 'active');
+    }
+    if (periodEndInput) {
+        periodEndInput.value = toDateTimeLocalValue(snapshot?.periodEnd);
+    }
     renderSubscriptionNotice(snapshot);
 }
 
@@ -7401,6 +7580,12 @@ async function loadSubscriptionSettings() {
         return;
     }
     try {
+        const isSuperAdmin = !!(window.currentAdminInfo && window.currentAdminInfo.role === 'super_admin');
+        const adminControls = document.getElementById('subscriptionAdminControls');
+        const updateBtn = document.getElementById('subscriptionUpdateBtn');
+        if (adminControls) adminControls.style.display = isSuperAdmin ? 'block' : 'none';
+        if (updateBtn) updateBtn.style.display = isSuperAdmin ? 'inline-flex' : 'none';
+
         const [statusResp, plansResp] = await Promise.all([
             adminFetch('/api/subscription/status'),
             adminFetch('/api/admin/subscription/plans')
@@ -7421,15 +7606,24 @@ async function loadSubscriptionSettings() {
         const plans = Array.isArray(plansResult.data) ? plansResult.data : [];
         subscriptionPlansCache = plans;
         renderSubscriptionSnapshot(snapshot);
-        renderSubscriptionPlans(plans, snapshot.planCode);
+        if (isSuperAdmin) {
+            renderSubscriptionPlans(plans, snapshot.planCode);
+        }
     } catch (error) {
         console.error('載入訂閱狀態失敗:', error);
         showError('載入訂閱方案資訊失敗：' + error.message);
     }
 }
 
-async function switchTenantSubscriptionPlan() {
+async function saveSubscriptionSettingsAsSuperAdmin() {
+    const isSuperAdmin = !!(window.currentAdminInfo && window.currentAdminInfo.role === 'super_admin');
+    if (!isSuperAdmin) {
+        showError('只有超級管理員可以調整訂閱設定');
+        return;
+    }
     const selectEl = document.getElementById('subscriptionPlanSelect');
+    const statusSelect = document.getElementById('subscriptionStatusSelect');
+    const periodEndInput = document.getElementById('subscriptionPeriodEndInput');
     if (!selectEl) {
         return;
     }
@@ -7438,6 +7632,8 @@ async function switchTenantSubscriptionPlan() {
         showError('請先選擇方案');
         return;
     }
+    const status = String(statusSelect?.value || 'active').trim();
+    const nextPeriodEnd = periodEndInput?.value ? new Date(periodEndInput.value).toISOString() : null;
 
     try {
         const response = await adminFetch('/api/admin/subscription/switch-plan', {
@@ -7445,7 +7641,8 @@ async function switchTenantSubscriptionPlan() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 planCode,
-                status: 'active'
+                status,
+                nextPeriodEnd
             })
         });
         const result = await response.json();
@@ -7453,7 +7650,7 @@ async function switchTenantSubscriptionPlan() {
             throw new Error(result.message || '更新失敗');
         }
 
-        showSuccess('訂閱方案已更新，功能權限已同步。');
+        showSuccess('訂閱設定已更新，功能權限已同步。');
         const snapshot = result.data || {};
         renderSubscriptionSnapshot(snapshot);
         if (subscriptionPlansCache.length > 0) {
@@ -7468,25 +7665,44 @@ async function switchTenantSubscriptionPlan() {
 async function loadSubscriptionOverview() {
     const tbody = document.getElementById('subscriptionOverviewTableBody');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#666;">載入中...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#666;">載入中...</td></tr>';
     try {
         const response = await adminFetch('/api/admin/subscription/overview');
         const result = await response.json().catch(() => ({}));
         if (!response.ok || !result.success) {
             throw new Error(result.message || `HTTP ${response.status}`);
         }
+        const modeFilter = String(document.getElementById('subscriptionModeFilter')?.value || '').trim();
+        const riskFilter = String(document.getElementById('subscriptionRiskFilter')?.value || '').trim();
         const rows = Array.isArray(result.data) ? result.data : [];
-        if (rows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#666;">目前沒有租戶資料</td></tr>';
+        const filteredRows = rows.filter(
+            (row) => isSubscriptionModeMatch(row.systemMode, modeFilter) && isSubscriptionRiskMatch(row.periodEnd, riskFilter)
+        );
+        if (filteredRows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#666;">目前沒有租戶資料</td></tr>';
             return;
         }
-        tbody.innerHTML = rows.map((row) => {
+        const sortedRows = filteredRows.slice().sort((a, b) => {
+            const tenantIdA = parseInt(a.tenantId, 10) || 0;
+            const tenantIdB = parseInt(b.tenantId, 10) || 0;
+            return tenantIdB - tenantIdA;
+        });
+        tbody.innerHTML = sortedRows.map((row) => {
             const planText =
                 row.planCode || row.planName
                     ? formatSubscriptionPlanDisplay(row.planCode, row.planName)
                     : '-';
             const subStatus = row.subscriptionStatus || 'none';
+            const systemModeLabel = getSystemModeLabel(row.systemMode || 'retail');
             const cycleLabel = row.billingCycle === 'yearly' ? '年繳' : (row.billingCycle === 'monthly' ? '月繳' : '-');
+            const riskBadge = renderSubscriptionRiskBadge(row.periodEnd);
+            const tenantNameEscaped = String(row.tenantName || '').replace(/'/g, "\\'");
+            const tenantCodeEscaped = String(row.tenantCode || '').replace(/'/g, "\\'");
+            const planCodeEscaped = String(row.planCode || 'basic_monthly').replace(/'/g, "\\'");
+            const tenantStatusEscaped = String(row.tenantStatus || 'active').replace(/'/g, "\\'");
+            const subStatusEscaped = String(row.subscriptionStatus || 'active').replace(/'/g, "\\'");
+            const periodEndEscaped = String(row.periodEnd || '').replace(/'/g, "\\'");
+            const systemModeEscaped = String(row.systemMode || 'retail').replace(/'/g, "\\'");
             return `
                 <tr>
                     <td>${escapeHtml(row.tenantId)}</td>
@@ -7494,15 +7710,20 @@ async function loadSubscriptionOverview() {
                     <td>${escapeHtml(mapTenantStatusLabel(row.tenantStatus || '-'))}</td>
                     <td>${escapeHtml(planText)}</td>
                     <td>${escapeHtml(mapSubscriptionStatusLabel(subStatus))}</td>
+                    <td>${escapeHtml(systemModeLabel)}</td>
+                    <td>${riskBadge}</td>
                     <td>${escapeHtml(cycleLabel)}</td>
                     <td>${escapeHtml(toReadableDate(row.periodEnd))}</td>
                     <td>${escapeHtml(toReadableDate(row.updatedAt))}</td>
+                    <td>
+                        <button class="btn-refresh" onclick="showEditTenantModal(${escapeHtml(row.tenantId)}, '${tenantNameEscaped}', '${tenantCodeEscaped}', '${planCodeEscaped}', '${tenantStatusEscaped}', '${subStatusEscaped}', '${periodEndEscaped}', '${systemModeEscaped}')">編輯</button>
+                    </td>
                 </tr>
             `;
         }).join('');
     } catch (error) {
         console.error('載入訂閱總覽失敗:', error);
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
     }
 }
 
@@ -7634,6 +7855,8 @@ function showCreateTenantModal() {
     loadTenantPlanOptions('tenantCreatePlanCode', 'basic_monthly');
     const defaultStatus = document.getElementById('tenantCreateStatus');
     if (defaultStatus) defaultStatus.value = 'active';
+    const defaultSystemMode = document.getElementById('tenantCreateSystemMode');
+    if (defaultSystemMode) defaultSystemMode.value = 'retail';
     modal.style.display = 'block';
 }
 
@@ -7653,7 +7876,8 @@ async function saveTenant(event) {
         adminEmail: String(document.getElementById('tenantCreateAdminEmail')?.value || '').trim(),
         adminPassword: String(document.getElementById('tenantCreateAdminPassword')?.value || ''),
         planCode: String(document.getElementById('tenantCreatePlanCode')?.value || 'basic_monthly').trim(),
-        subscriptionStatus: String(document.getElementById('tenantCreateStatus')?.value || 'active').trim()
+        subscriptionStatus: String(document.getElementById('tenantCreateStatus')?.value || 'active').trim(),
+        systemMode: String(document.getElementById('tenantCreateSystemMode')?.value || 'retail').trim()
     };
 
     if (!payload.tenantName || !payload.adminUsername || !payload.adminPassword) {
@@ -7683,13 +7907,25 @@ async function saveTenant(event) {
     }
 }
 
-function showEditTenantModal(tenantId, tenantName, tenantCode, planCode, status) {
+function showEditTenantModal(tenantId, tenantName, tenantCode, planCode, status, subscriptionStatus = 'active', periodEnd = '', systemMode = 'retail') {
     const modal = document.getElementById('tenantEditModal');
     if (!modal) return;
     document.getElementById('tenantEditId').value = String(tenantId || '');
     document.getElementById('tenantEditDisplay').value = `${tenantName || '-'} (${tenantCode || '-'})`;
     loadTenantPlanOptions('tenantEditPlanCode', planCode || 'basic_monthly');
     document.getElementById('tenantEditStatus').value = status || 'active';
+    const subscriptionStatusSelect = document.getElementById('tenantEditSubscriptionStatus');
+    if (subscriptionStatusSelect) {
+        subscriptionStatusSelect.value = String(subscriptionStatus || 'active');
+    }
+    const periodEndInput = document.getElementById('tenantEditPeriodEnd');
+    if (periodEndInput) {
+        periodEndInput.value = toDateTimeLocalValue(periodEnd);
+    }
+    const systemModeSelect = document.getElementById('tenantEditSystemMode');
+    if (systemModeSelect) {
+        systemModeSelect.value = normalizeSystemMode(systemMode || 'retail');
+    }
     modal.style.display = 'block';
 }
 
@@ -7705,6 +7941,10 @@ async function saveTenantEdit(event) {
     const tenantId = parseInt(document.getElementById('tenantEditId')?.value, 10);
     const planCode = String(document.getElementById('tenantEditPlanCode')?.value || '').trim();
     const status = String(document.getElementById('tenantEditStatus')?.value || '').trim();
+    const subscriptionStatus = String(document.getElementById('tenantEditSubscriptionStatus')?.value || 'active').trim();
+    const periodEndRaw = String(document.getElementById('tenantEditPeriodEnd')?.value || '').trim();
+    const systemMode = String(document.getElementById('tenantEditSystemMode')?.value || 'retail').trim();
+    const nextPeriodEnd = periodEndRaw ? new Date(periodEndRaw).toISOString() : null;
     if (!Number.isInteger(tenantId) || tenantId <= 0) {
         showError('租戶 ID 錯誤');
         return;
@@ -7718,7 +7958,7 @@ async function saveTenantEdit(event) {
         const response = await adminFetch(`/api/admin/tenants/${tenantId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ planCode, status })
+            body: JSON.stringify({ planCode, status, subscriptionStatus, nextPeriodEnd, systemMode })
         });
         const result = await response.json().catch(() => ({}));
         if (!response.ok || !result.success) {
@@ -7727,6 +7967,7 @@ async function saveTenantEdit(event) {
         showSuccess(`租戶 #${tenantId} 已更新`);
         closeEditTenantModal();
         loadTenantManagementList();
+        loadSubscriptionOverview();
     } catch (error) {
         showError('更新租戶失敗：' + error.message);
     }
@@ -13116,7 +13357,7 @@ async function loadLandingSettings() {
 }
 
 const LANDING_ROOMS_BUILDING_STORAGE_KEY = 'landingRoomsBuildingId_v1';
-let selectedBuildingIdForLandingRooms = 1;
+let selectedBuildingIdForLandingRooms = null;
 
 function getSelectedBuildingIdForLandingRooms() {
     try {
@@ -13127,15 +13368,19 @@ function getSelectedBuildingIdForLandingRooms() {
             return parsed;
         }
     } catch (_) {}
-    return selectedBuildingIdForLandingRooms || 1;
+    return selectedBuildingIdForLandingRooms || null;
 }
 
 function setSelectedBuildingIdForLandingRooms(nextId) {
     const parsed = parseInt(String(nextId ?? ''), 10);
-    const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
     selectedBuildingIdForLandingRooms = safe;
     try {
-        localStorage.setItem(LANDING_ROOMS_BUILDING_STORAGE_KEY, String(safe));
+        if (safe) {
+            localStorage.setItem(LANDING_ROOMS_BUILDING_STORAGE_KEY, String(safe));
+        } else {
+            localStorage.removeItem(LANDING_ROOMS_BUILDING_STORAGE_KEY);
+        }
     } catch (_) {}
 }
 
@@ -13148,14 +13393,15 @@ function syncLandingRoomsBuildingSelect() {
     const show = buildings.length > 1;
     wrap.style.display = show ? 'flex' : 'none';
     if (!show) {
-        setSelectedBuildingIdForLandingRooms(1);
+        const single = Number(buildings[0]?.id || 0);
+        setSelectedBuildingIdForLandingRooms(single > 0 ? single : null);
         selectEl.innerHTML = '';
         return;
     }
 
     const current = getSelectedBuildingIdForLandingRooms();
     const exists = buildings.some((b) => Number(b?.id) === Number(current));
-    const effective = exists ? current : Number(buildings[0]?.id || 1);
+    const effective = exists ? current : Number(buildings[0]?.id || 0);
     setSelectedBuildingIdForLandingRooms(effective);
 
     selectEl.innerHTML = buildings
@@ -13768,7 +14014,12 @@ async function loadLandingRoomTypes(landingData) {
 
     try {
         syncLandingRoomsBuildingSelect();
-        const bid = getSelectedBuildingIdForLandingRooms();
+        let bid = getSelectedBuildingIdForLandingRooms();
+        if (!Number.isFinite(Number(bid)) || Number(bid) <= 0) {
+            const activeBuildings = Array.isArray(allBuildings) ? allBuildings.filter((b) => Number(b?.is_active) !== 0) : [];
+            bid = Number(activeBuildings[0]?.id || allBuildings?.[0]?.id || 1);
+            setSelectedBuildingIdForLandingRooms(bid);
+        }
         // 銷售頁房型展示與後台「房型管理」同一資料（retail）；包棟模式下亦不取「包棟方案」
         const rtScope = 'retail';
         const response = await adminFetch(
@@ -13787,7 +14038,7 @@ async function loadLandingRoomTypes(landingData) {
 
         // 只顯示啟用中的房型
         const activeRooms = result.data
-            .filter(r => r.is_active === 1)
+            .filter((r) => Number(r?.is_active ?? 1) === 1)
             .filter((r) => {
                 const raw = r?.building_id ?? r?.buildingId ?? 1;
                 const rBid = raw === null || raw === undefined ? 1 : Number(raw);

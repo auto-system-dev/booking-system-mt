@@ -96,7 +96,14 @@ async function loadLandingConfig() {
 async function refreshLandingRoomTypesByBuilding(buildingId) {
     try {
         const bid = parseInt(String(buildingId ?? ''), 10);
-        const safeBid = Number.isFinite(bid) && bid > 0 ? bid : 1;
+        let safeBid = Number.isFinite(bid) && bid > 0 ? bid : null;
+        if (!safeBid) {
+            const activeBuildings = Array.isArray(landingAllBuildings)
+                ? landingAllBuildings.filter((b) => Number(b?.is_active ?? 1) !== 0)
+                : [];
+            safeBid = Number(activeBuildings[0]?.id || landingAllBuildings?.[0]?.id || 1);
+            setLandingSelectedBuildingId(safeBid);
+        }
         const res = await fetch(
             `/api/room-types?buildingId=${encodeURIComponent(String(safeBid))}&listScope=retail&_ts=${Date.now()}`,
             { cache: 'no-store' }
@@ -1170,7 +1177,7 @@ function storeUTMParams() {
 // ===== 訂房按鈕 URL 處理 =====
 const LANDING_SELECTED_BUILDING_STORAGE_KEY = 'selected_building_id_v1';
 let landingAllBuildings = [];
-let landingSelectedBuildingId = 1;
+let landingSelectedBuildingId = null;
 
 function getLandingSelectedBuildingId() {
     try {
@@ -1181,15 +1188,19 @@ function getLandingSelectedBuildingId() {
             return parsed;
         }
     } catch (_) {}
-    return landingSelectedBuildingId || 1;
+    return landingSelectedBuildingId || null;
 }
 
 function setLandingSelectedBuildingId(nextId) {
     const parsed = parseInt(String(nextId ?? ''), 10);
-    const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
     landingSelectedBuildingId = safe;
     try {
-        localStorage.setItem(LANDING_SELECTED_BUILDING_STORAGE_KEY, String(safe));
+        if (safe) {
+            localStorage.setItem(LANDING_SELECTED_BUILDING_STORAGE_KEY, String(safe));
+        } else {
+            localStorage.removeItem(LANDING_SELECTED_BUILDING_STORAGE_KEY);
+        }
     } catch (_) {}
 }
 
@@ -1274,14 +1285,15 @@ function syncLandingBuildingSwitch(cfg) {
     wrap.style.display = show ? '' : 'none';
 
     if (!show) {
-        setLandingSelectedBuildingId(1);
+        const single = Number(buildings[0]?.id || 0);
+        setLandingSelectedBuildingId(single > 0 ? single : null);
         selectEl.innerHTML = '';
         return;
     }
 
     const current = getLandingSelectedBuildingId();
     const exists = buildings.some((b) => Number(b?.id) === Number(current));
-    const effective = exists ? current : Number(buildings[0]?.id || 1);
+    const effective = exists ? current : Number(buildings[0]?.id || 0);
     setLandingSelectedBuildingId(effective);
 
     selectEl.innerHTML = buildings

@@ -3138,13 +3138,22 @@ app.post('/api/admin/tenants', requireAuth, adminLimiter, async (req, res) => {
             adminEmail,
             adminPassword,
             planCode,
-            subscriptionStatus
+            subscriptionStatus,
+            systemMode
         } = req.body || {};
 
         if (!tenantName || !adminUsername || !adminPassword) {
             return res.status(400).json({
                 success: false,
                 message: '缺少必要欄位：tenantName、adminUsername、adminPassword'
+            });
+        }
+
+        const safeSystemMode = String(systemMode || 'retail').trim();
+        if (!['retail', 'whole_property'].includes(safeSystemMode)) {
+            return res.status(400).json({
+                success: false,
+                message: 'systemMode 只允許 retail 或 whole_property'
             });
         }
 
@@ -3155,7 +3164,8 @@ app.post('/api/admin/tenants', requireAuth, adminLimiter, async (req, res) => {
             adminEmail,
             adminPassword,
             planCode: String(planCode || 'basic_monthly').trim(),
-            subscriptionStatus: String(subscriptionStatus || 'active').trim()
+            subscriptionStatus: String(subscriptionStatus || 'active').trim(),
+            systemMode: safeSystemMode
         });
         return res.json({
             success: true,
@@ -3239,7 +3249,7 @@ app.put('/api/admin/tenants/:id', requireAuth, adminLimiter, async (req, res) =>
             return res.status(400).json({ success: false, message: 'tenant id 格式錯誤' });
         }
 
-        const { status, planCode } = req.body || {};
+        const { status, planCode, subscriptionStatus, nextPeriodEnd, systemMode } = req.body || {};
         if (!status || !planCode) {
             return res.status(400).json({ success: false, message: '缺少必要欄位：status、planCode' });
         }
@@ -3248,10 +3258,35 @@ app.put('/api/admin/tenants/:id', requireAuth, adminLimiter, async (req, res) =>
             status: String(status).trim(),
             planCode: String(planCode).trim()
         });
+        const safeSubscriptionStatus = String(subscriptionStatus || '').trim();
+        if (safeSubscriptionStatus || nextPeriodEnd) {
+            await db.updateLatestSubscriptionStatus(
+                tenantId,
+                safeSubscriptionStatus || (String(status).trim() === 'pending' ? 'trialing' : String(status).trim()),
+                nextPeriodEnd || null
+            );
+        }
+        const safeSystemMode = String(systemMode || '').trim();
+        if (safeSystemMode) {
+            if (!['retail', 'whole_property'].includes(safeSystemMode)) {
+                return res.status(400).json({ success: false, message: 'systemMode 只允許 retail 或 whole_property' });
+            }
+            await db.updateSetting(
+                'system_mode',
+                safeSystemMode,
+                '系統模式（retail=一般訂房，whole_property=包棟訂房；每次僅啟用一種）',
+                tenantId
+            );
+        }
+        const subscription = await db.getTenantSubscriptionSnapshot(tenantId);
         return res.json({
             success: true,
             message: '租戶資料已更新',
-            data: updated
+            data: {
+                ...updated,
+                subscription,
+                systemMode: safeSystemMode || null
+            }
         });
     } catch (error) {
         return res.status(400).json({
@@ -3364,11 +3399,18 @@ app.get('/api/admin/subscription/plans', requireAuth, requireTenantContext, chec
 
 app.post('/api/admin/subscription/switch-plan', requireAuth, requireTenantContext, checkPermission('settings.edit'), adminLimiter, async (req, res) => {
     try {
-        const { planCode, status } = req.body || {};
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可調整訂閱設定' });
+        }
+
+        const { planCode, status, nextPeriodEnd } = req.body || {};
         if (!planCode) {
             return res.status(400).json({ success: false, message: '缺少 planCode' });
         }
-        const snapshot = await db.setTenantSubscriptionPlan(req.tenantId, String(planCode).trim(), status || 'active');
+        let snapshot = await db.setTenantSubscriptionPlan(req.tenantId, String(planCode).trim(), status || 'active');
+        if (nextPeriodEnd) {
+            snapshot = await db.updateLatestSubscriptionStatus(req.tenantId, status || 'active', nextPeriodEnd);
+        }
         return res.json({ success: true, message: '訂閱方案已更新', data: snapshot });
     } catch (error) {
         return res.status(400).json({ success: false, message: '更新訂閱方案失敗: ' + error.message });
@@ -5005,7 +5047,26 @@ app.get('/api/admin/room-types', requireAuth, requireTenantContext, checkPermiss
         const buildingId = req.query.buildingId;
         const rawScope = String(req.query.listScope || '').trim();
         const listScope = rawScope === 'whole_property' ? 'whole_property' : (rawScope === 'retail' ? 'retail' : undefined);
-        const roomTypes = await db.getAllRoomTypesAdmin(buildingId, listScope, req.tenantId);
+        let roomTypes = await db.getAllRoomTypesAdmin(buildingId, listScope, req.tenantId);
+        const maybeNeedDefaultImages = Array.isArray(roomTypes) && roomTypes.some((rt) => {
+            const key = String(rt?.name || '').trim().toLowerCase();
+            const isDefaultRetail = ['standard', 'deluxe', 'suite', 'family'].includes(key);
+            const noImage = !String(rt?.image_url || '').trim();
+            return isDefaultRetail && noImage;
+        });
+        if (maybeNeedDefaultImages && typeof db.seedTenantDefaultRoomTypes === 'function') {
+            await db.seedTenantDefaultRoomTypes(req.tenantId);
+            roomTypes = await db.getAllRoomTypesAdmin(buildingId, listScope, req.tenantId);
+        }
+        if (!Array.isArray(roomTypes) || roomTypes.length === 0) {
+            const tenantAllRoomTypes = await db.getAllRoomTypesAdmin(null, undefined, req.tenantId);
+            if (!Array.isArray(tenantAllRoomTypes) || tenantAllRoomTypes.length === 0) {
+                if (typeof db.seedTenantDefaultRoomTypes === 'function') {
+                    await db.seedTenantDefaultRoomTypes(req.tenantId);
+                    roomTypes = await db.getAllRoomTypesAdmin(buildingId, listScope, req.tenantId);
+                }
+            }
+        }
         res.json({
             success: true,
             data: roomTypes
@@ -10103,6 +10164,8 @@ ${htmlEnd}`;
     // 如果有折扣，使用折後總額；如果沒有折扣，discountedTotal 等於 totalAmount
     const remainingAmount = Math.max(0, discountedTotal - finalAmount);
     
+    const emailTenantId = Number.parseInt(booking?.tenant_id ?? booking?.tenantId ?? defaultTenantId, 10) || defaultTenantId;
+
     // 處理加購商品顯示
     let addonsList = '';
     let addonsTotal = 0;
@@ -10110,7 +10173,7 @@ ${htmlEnd}`;
         try {
             const parsedAddons = typeof booking.addons === 'string' ? JSON.parse(booking.addons) : booking.addons;
             if (parsedAddons && parsedAddons.length > 0) {
-                const allAddons = await db.getAllAddonsAdmin(getRequestTenantId(req));
+                const allAddons = await db.getAllAddonsAdmin(emailTenantId);
                 addonsList = parsedAddons.map(addon => {
                     const addonInfo = allAddons.find(a => a.name === addon.name);
                     const rawDisplayName = String(
@@ -10317,18 +10380,18 @@ ${htmlEnd}`;
     if (!variables['{{bookingUrl}}']) {
         // 優先使用環境變數，其次使用系統設定，最後使用預設值
         const bookingUrl = process.env.FRONTEND_URL || 
-                          await db.getSetting('frontend_url', getRequestTenantId(req)) || 
+                          await db.getSetting('frontend_url', emailTenantId) || 
                           (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'https://your-booking-site.com');
         variables['{{bookingUrl}}'] = bookingUrl;
     }
     // 官方 LINE 連結：供模板中直接使用 {{officialLineUrl}}
     if (!variables['{{officialLineUrl}}']) {
-        const officialLineUrl = await db.getSetting('landing_social_line', getRequestTenantId(req)) || '';
+        const officialLineUrl = await db.getSetting('landing_social_line', emailTenantId) || '';
         variables['{{officialLineUrl}}'] = officialLineUrl;
     }
     // Google 評價連結：供模板中直接使用 {{googleReviewUrl}}
     if (!variables['{{googleReviewUrl}}']) {
-        const googleReviewUrl = await db.getSetting('landing_google_review_url', getRequestTenantId(req)) || '';
+        const googleReviewUrl = await db.getSetting('landing_google_review_url', emailTenantId) || '';
         variables['{{googleReviewUrl}}'] = googleReviewUrl;
     }
     

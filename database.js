@@ -318,6 +318,21 @@ async function initMultiTenantCoreTablesPostgreSQL() {
     await query(`ALTER TABLE addons ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
     await query(`ALTER TABLE holidays ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
     await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
+    await query(`UPDATE settings SET tenant_id = COALESCE(tenant_id, 1)`);
+    await query(`
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1
+                FROM information_schema.table_constraints
+                WHERE table_name = 'settings'
+                  AND constraint_name = 'settings_key_key'
+            ) THEN
+                ALTER TABLE settings DROP CONSTRAINT settings_key_key;
+            END IF;
+        END $$;
+    `);
+    await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_settings_tenant_key_unique ON settings (tenant_id, key)`);
 
     await query(`CREATE INDEX IF NOT EXISTS idx_bookings_tenant_id ON bookings (tenant_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_room_types_tenant_id ON room_types (tenant_id)`);
@@ -533,6 +548,133 @@ function normalizeTenantCode(input) {
         .slice(0, 40);
 }
 
+async function ensureTenantDefaultBuildingId(tenantId) {
+    const safeTenantId = assertTenantScope(tenantId, 'ensureTenantDefaultBuildingId');
+    const existing = await queryOne(
+        usePostgreSQL
+            ? `SELECT id
+               FROM buildings
+               WHERE tenant_id = $1
+               ORDER BY (CASE WHEN code LIKE 'default%' THEN 0 ELSE 1 END), display_order ASC, id ASC
+               LIMIT 1`
+            : `SELECT id
+               FROM buildings
+               WHERE tenant_id = ?
+               ORDER BY CASE WHEN code LIKE 'default%' THEN 0 ELSE 1 END, display_order ASC, id ASC
+               LIMIT 1`,
+        [safeTenantId]
+    );
+    if (existing?.id) return parseInt(existing.id, 10);
+
+    const code = `default_t${safeTenantId}`;
+    const insert = await query(
+        usePostgreSQL
+            ? `INSERT INTO buildings (tenant_id, code, name, display_order, is_active)
+               VALUES ($1, $2, $3, 0, 1)
+               RETURNING id`
+            : `INSERT INTO buildings (tenant_id, code, name, display_order, is_active)
+               VALUES (?, ?, ?, 0, 1)`,
+        [safeTenantId, code, '預設館']
+    );
+    return usePostgreSQL
+        ? parseInt(insert.rows?.[0]?.id || 0, 10)
+        : parseInt(insert.lastID || 0, 10);
+}
+
+async function seedTenantDefaultRoomTypes(tenantId) {
+    const safeTenantId = assertTenantScope(tenantId, 'seedTenantDefaultRoomTypes');
+    const defaultBuildingId = await ensureTenantDefaultBuildingId(safeTenantId);
+    const retailCountRow = await queryOne(
+        usePostgreSQL
+            ? `SELECT COUNT(*)::int AS cnt
+               FROM room_types
+               WHERE tenant_id = $1 AND COALESCE(NULLIF(TRIM(list_scope), ''), 'retail') = 'retail'`
+            : `SELECT COUNT(*) AS cnt
+               FROM room_types
+               WHERE tenant_id = ? AND COALESCE(NULLIF(TRIM(list_scope), ''), 'retail') = 'retail'`,
+        [safeTenantId]
+    );
+    const wholeCountRow = await queryOne(
+        usePostgreSQL
+            ? `SELECT COUNT(*)::int AS cnt
+               FROM room_types
+               WHERE tenant_id = $1 AND list_scope = 'whole_property'`
+            : `SELECT COUNT(*) AS cnt
+               FROM room_types
+               WHERE tenant_id = ? AND list_scope = 'whole_property'`,
+        [safeTenantId]
+    );
+    const retailCount = parseInt(retailCountRow?.cnt || 0, 10);
+    const wholeCount = parseInt(wholeCountRow?.cnt || 0, 10);
+
+    const defaultRetailImageMap = [
+        ['standard', 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800&q=80'],
+        ['deluxe', 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&q=80'],
+        ['suite', 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=800&q=80'],
+        ['family', 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=800&q=80']
+    ];
+
+    if (retailCount === 0) {
+        const retailSeeds = [
+            ['standard', '標準雙人房', 2000, 2, '🏠', 1, defaultRetailImageMap[0][1]],
+            ['deluxe', '豪華雙人房', 3500, 2, '✨', 2, defaultRetailImageMap[1][1]],
+            ['suite', '尊爵套房', 5000, 2, '👑', 3, defaultRetailImageMap[2][1]],
+            ['family', '家庭四人房', 4500, 4, '👨‍👩‍👧‍👦', 4, defaultRetailImageMap[3][1]]
+        ];
+        for (const [name, displayName, price, maxOcc, icon, orderNo, imageUrl] of retailSeeds) {
+            await query(
+                usePostgreSQL
+                    ? `INSERT INTO room_types
+                       (tenant_id, building_id, name, display_name, price, max_occupancy, extra_beds, extra_bed_price, icon, image_url, show_on_landing, display_order, is_active, list_scope)
+                       VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7, $8, 1, $9, 1, 'retail')`
+                    : `INSERT INTO room_types
+                       (tenant_id, building_id, name, display_name, price, max_occupancy, extra_beds, extra_bed_price, icon, image_url, show_on_landing, display_order, is_active, list_scope)
+                       VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?, 1, ?, 1, 'retail')`,
+                [safeTenantId, defaultBuildingId, name, displayName, price, maxOcc, icon, imageUrl, orderNo]
+            );
+        }
+    }
+
+    if (wholeCount === 0) {
+        const wholeSeeds = [
+            ['wp_10', '10人包棟', 10, 1],
+            ['wp_16', '16人包棟', 16, 2],
+            ['wp_20', '20人包棟', 20, 3],
+            ['wp_30', '30人包棟', 30, 4]
+        ];
+        for (const [name, displayName, maxOcc, orderNo] of wholeSeeds) {
+            await query(
+                usePostgreSQL
+                    ? `INSERT INTO room_types
+                       (tenant_id, building_id, name, display_name, price, max_occupancy, extra_beds, extra_bed_price, icon, show_on_landing, display_order, is_active, list_scope)
+                       VALUES ($1, $2, $3, $4, 0, $5, 0, 0, '🏠', 1, $6, 1, 'whole_property')`
+                    : `INSERT INTO room_types
+                       (tenant_id, building_id, name, display_name, price, max_occupancy, extra_beds, extra_bed_price, icon, show_on_landing, display_order, is_active, list_scope)
+                       VALUES (?, ?, ?, ?, 0, ?, 0, 0, '🏠', 1, ?, 1, 'whole_property')`,
+                [safeTenantId, defaultBuildingId, name, displayName, maxOcc, orderNo]
+            );
+        }
+    }
+
+    // 補齊既有租戶預設房型照片（舊資料可能只有 icon 沒有 image_url）
+    for (const [name, imageUrl] of defaultRetailImageMap) {
+        await query(
+            usePostgreSQL
+                ? `UPDATE room_types
+                   SET image_url = $1
+                   WHERE tenant_id = $2
+                     AND name = $3
+                     AND (image_url IS NULL OR TRIM(COALESCE(image_url, '')) = '')`
+                : `UPDATE room_types
+                   SET image_url = ?
+                   WHERE tenant_id = ?
+                     AND name = ?
+                     AND (image_url IS NULL OR TRIM(COALESCE(image_url, '')) = '')`,
+            [imageUrl, safeTenantId, name]
+        );
+    }
+}
+
 async function createTenantOnboarding(input = {}) {
     const {
         tenantName,
@@ -542,6 +684,7 @@ async function createTenantOnboarding(input = {}) {
         adminPassword,
         planCode = 'basic_monthly',
         subscriptionStatus = 'trialing',
+        systemMode = 'retail',
         requireEmailVerification = false
     } = input;
 
@@ -549,6 +692,9 @@ async function createTenantOnboarding(input = {}) {
     const safeAdminUsername = String(adminUsername || '').trim();
     const safeAdminEmail = String(adminEmail || '').trim().toLowerCase();
     const safeAdminPassword = String(adminPassword || '').trim();
+    const safeSystemMode = ['retail', 'whole_property'].includes(String(systemMode || '').trim())
+        ? String(systemMode).trim()
+        : 'retail';
     const safeTenantCodeBase = normalizeTenantCode(tenantCode || slugifyTenantCode(safeTenantName || safeAdminUsername));
     if (!safeTenantName) throw new Error('tenantName 為必填');
     if (!safeAdminUsername) throw new Error('adminUsername 為必填');
@@ -598,14 +744,28 @@ async function createTenantOnboarding(input = {}) {
     try {
         const bcrypt = require('bcrypt');
         const passwordHash = await bcrypt.hash(safeAdminPassword, 10);
+        const adminRole = await queryOne(
+            usePostgreSQL
+                ? `SELECT id FROM roles WHERE role_name = $1 LIMIT 1`
+                : `SELECT id FROM roles WHERE role_name = ? LIMIT 1`,
+            ['admin']
+        );
         await query(
             usePostgreSQL
-                ? `INSERT INTO admins (username, password_hash, email, role, tenant_id, created_at, is_active)
-                   VALUES ($1, $2, $3, 'admin', $4, CURRENT_TIMESTAMP, $5)`
-                : `INSERT INTO admins (username, password_hash, email, role, tenant_id, created_at, is_active)
-                   VALUES (?, ?, ?, 'admin', ?, CURRENT_TIMESTAMP, ?)`,
-            [safeAdminUsername, passwordHash, safeAdminEmail, tenantId, requireEmailVerification ? 0 : 1]
+                ? `INSERT INTO admins (username, password_hash, email, role, role_id, tenant_id, created_at, is_active)
+                   VALUES ($1, $2, $3, 'admin', $4, $5, CURRENT_TIMESTAMP, $6)`
+                : `INSERT INTO admins (username, password_hash, email, role, role_id, tenant_id, created_at, is_active)
+                   VALUES (?, ?, ?, 'admin', ?, ?, CURRENT_TIMESTAMP, ?)`,
+            [safeAdminUsername, passwordHash, safeAdminEmail, adminRole?.id || null, tenantId, requireEmailVerification ? 0 : 1]
         );
+
+        await updateSetting(
+            'system_mode',
+            safeSystemMode,
+            '系統模式（retail=一般訂房，whole_property=包棟訂房；每次僅啟用一種）',
+            tenantId
+        );
+        await seedTenantDefaultRoomTypes(tenantId);
 
         const snapshot = await setTenantSubscriptionPlan(tenantId, String(planCode || 'basic_monthly'), subscriptionStatus);
         return {
@@ -614,6 +774,7 @@ async function createTenantOnboarding(input = {}) {
             tenantName: safeTenantName,
             adminUsername: safeAdminUsername,
             adminEmail: safeAdminEmail,
+            systemMode: safeSystemMode,
             subscription: snapshot
         };
     } catch (error) {
@@ -6797,7 +6958,31 @@ async function getAllRoomTypesAdmin(buildingId, listScope, tenantId) {
             : [safeTenantId];
 
         const result = params.length ? await query(sql, params) : await query(sql);
-        return result.rows || [];
+        const rows = result.rows || [];
+        if (!hasBuildingFilter || rows.length > 0) {
+            return rows;
+        }
+
+        // 相容舊快取館別：若指定館別查無資料，回退到該租戶全部館別，避免新租戶首次進入看到空白
+        const fallbackSql = usePostgreSQL
+            ? `
+                SELECT rt.*, COALESCE(inv.qty_total, 1) AS qty_total
+                FROM room_types rt
+                LEFT JOIN room_type_inventory inv
+                  ON inv.building_id = rt.building_id AND inv.room_type_id = rt.id
+                WHERE rt.tenant_id = $1${scopeClause}
+                ORDER BY rt.display_order ASC, rt.id ASC
+              `
+            : `
+                SELECT rt.*, COALESCE(inv.qty_total, 1) AS qty_total
+                FROM room_types rt
+                LEFT JOIN room_type_inventory inv
+                  ON inv.building_id = rt.building_id AND inv.room_type_id = rt.id
+                WHERE rt.tenant_id = ?${scopeClause}
+                ORDER BY rt.display_order ASC, rt.id ASC
+              `;
+        const fallback = await query(fallbackSql, [safeTenantId]);
+        return fallback.rows || [];
     } catch (error) {
         console.error('❌ 查詢房型失敗:', error.message);
         throw error;
@@ -7622,7 +7807,7 @@ async function setTenantSubscriptionPlan(tenantId, planCode, status = 'active') 
         usePostgreSQL
             ? `INSERT INTO subscriptions
                (tenant_id, plan_id, status, billing_cycle, current_period_start, current_period_end, trial_ends_at, updated_at)
-               VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, $5, $5, CURRENT_TIMESTAMP)`
+               VALUES ($1::int, $2::int, $3::varchar, $4::varchar, CURRENT_TIMESTAMP, $5::timestamp, $5::timestamp, CURRENT_TIMESTAMP)`
             : `INSERT INTO subscriptions
                (tenant_id, plan_id, status, billing_cycle, current_period_start, current_period_end, trial_ends_at, updated_at)
                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, CURRENT_TIMESTAMP)`,
@@ -7654,11 +7839,11 @@ async function updateLatestSubscriptionStatus(tenantId, status, nextPeriodEnd = 
 
     const sql = usePostgreSQL
         ? `UPDATE subscriptions
-           SET status = $1,
-               current_period_end = COALESCE($2, current_period_end),
-               canceled_at = CASE WHEN $1 = 'canceled' THEN COALESCE(canceled_at, CURRENT_TIMESTAMP) ELSE canceled_at END,
+           SET status = $1::varchar,
+               current_period_end = COALESCE($2::timestamp, current_period_end),
+               canceled_at = CASE WHEN $1::varchar = 'canceled' THEN COALESCE(canceled_at, CURRENT_TIMESTAMP) ELSE canceled_at END,
                updated_at = CURRENT_TIMESTAMP
-           WHERE id = $3`
+           WHERE id = $3::int`
         : `UPDATE subscriptions
            SET status = ?,
                current_period_end = COALESCE(?, current_period_end),
@@ -7735,6 +7920,7 @@ async function getAllTenantSubscriptionOverview() {
         usePostgreSQL
             ? `SELECT
                    t.id AS tenant_id,
+                   t.code AS tenant_code,
                    t.name AS tenant_name,
                    t.status AS tenant_status,
                    t.timezone,
@@ -7746,7 +7932,8 @@ async function getAllTenantSubscriptionOverview() {
                    s.trial_ends_at,
                    s.updated_at,
                    p.code AS plan_code,
-                   p.name AS plan_name
+                   p.name AS plan_name,
+                   sm.value AS system_mode
                FROM tenants t
                LEFT JOIN LATERAL (
                    SELECT *
@@ -7756,9 +7943,17 @@ async function getAllTenantSubscriptionOverview() {
                    LIMIT 1
                ) s ON true
                LEFT JOIN plans p ON p.id = s.plan_id
+               LEFT JOIN LATERAL (
+                   SELECT value
+                   FROM settings st
+                   WHERE st.tenant_id = t.id AND st.key = 'system_mode'
+                   ORDER BY st.id DESC
+                   LIMIT 1
+               ) sm ON true
                ORDER BY t.id ASC`
             : `SELECT
                    t.id AS tenant_id,
+                   t.code AS tenant_code,
                    t.name AS tenant_name,
                    t.status AS tenant_status,
                    t.timezone,
@@ -7770,7 +7965,14 @@ async function getAllTenantSubscriptionOverview() {
                    s.trial_ends_at,
                    s.updated_at,
                    p.code AS plan_code,
-                   p.name AS plan_name
+                   p.name AS plan_name,
+                   (
+                       SELECT st.value
+                       FROM settings st
+                       WHERE st.tenant_id = t.id AND st.key = 'system_mode'
+                       ORDER BY st.id DESC
+                       LIMIT 1
+                   ) AS system_mode
                FROM tenants t
                LEFT JOIN subscriptions s ON s.id = (
                    SELECT s1.id
@@ -7785,6 +7987,7 @@ async function getAllTenantSubscriptionOverview() {
 
     return (result.rows || []).map((row) => ({
         tenantId: row.tenant_id,
+        tenantCode: row.tenant_code || '',
         tenantName: row.tenant_name || `tenant_${row.tenant_id}`,
         tenantStatus: row.tenant_status || 'active',
         timezone: row.timezone || 'Asia/Taipei',
@@ -7796,6 +7999,7 @@ async function getAllTenantSubscriptionOverview() {
         trialEndsAt: row.trial_ends_at || null,
         planCode: row.plan_code || null,
         planName: row.plan_name || null,
+        systemMode: row.system_mode || 'retail',
         updatedAt: row.updated_at || null
     }));
 }
@@ -8412,6 +8616,32 @@ async function verifyAdminPassword(username, password) {
         const isValid = await bcrypt.compare(password, admin.password_hash);
         
         if (isValid) {
+            if (!admin.role_id) {
+                const legacyRoleName = String(admin.role || 'admin').trim();
+                const roleMapping = {
+                    super_admin: 'super_admin',
+                    admin: 'admin',
+                    staff: 'staff',
+                    finance: 'finance',
+                    viewer: 'viewer'
+                };
+                const targetRoleName = roleMapping[legacyRoleName] || 'admin';
+                const roleRow = await queryOne(
+                    usePostgreSQL
+                        ? `SELECT id FROM roles WHERE role_name = $1 LIMIT 1`
+                        : `SELECT id FROM roles WHERE role_name = ? LIMIT 1`,
+                    [targetRoleName]
+                );
+                if (roleRow?.id) {
+                    await query(
+                        usePostgreSQL
+                            ? `UPDATE admins SET role_id = $1 WHERE id = $2`
+                            : `UPDATE admins SET role_id = ? WHERE id = ?`,
+                        [roleRow.id, admin.id]
+                    );
+                    admin.role_id = roleRow.id;
+                }
+            }
             // 更新最後登入時間
             await updateAdminLastLogin(admin.id);
             return admin;
@@ -9308,7 +9538,18 @@ async function getAllAdmins() {
     try {
         const sql = `SELECT a.id, a.username, a.email, a.role, a.role_id, a.department, a.phone, a.notes,
                      a.created_at, a.last_login, a.is_active,
-                     r.display_name as role_display_name, r.role_name
+                     COALESCE(
+                        r.display_name,
+                        CASE
+                            WHEN a.role = 'super_admin' THEN '超級管理員'
+                            WHEN a.role = 'admin' THEN '一般管理員'
+                            WHEN a.role = 'staff' THEN '員工'
+                            WHEN a.role = 'finance' THEN '財務'
+                            WHEN a.role = 'viewer' THEN '檢視者'
+                            ELSE a.role
+                        END
+                     ) as role_display_name,
+                     COALESCE(r.role_name, a.role) as role_name
                      FROM admins a
                      LEFT JOIN roles r ON a.role_id = r.id
                      ORDER BY a.id`;
@@ -9496,6 +9737,7 @@ module.exports = {
     runSubscriptionDailyCheck,
     setTenantSubscriptionPlan,
     updateLatestSubscriptionStatus,
+    seedTenantDefaultRoomTypes,
     createTenantOnboarding,
     createTenantVerificationToken,
     verifyTenantEmailToken,
