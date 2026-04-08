@@ -3355,6 +3355,38 @@ app.put('/api/admin/tenants/:id', requireAuth, adminLimiter, async (req, res) =>
     }
 });
 
+app.delete('/api/admin/tenants/:id', requireAuth, adminLimiter, async (req, res) => {
+    try {
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可刪除租戶' });
+        }
+        const tenantId = parseInt(req.params?.id, 10);
+        if (!Number.isInteger(tenantId) || tenantId <= 0) {
+            return res.status(400).json({ success: false, message: 'tenant id 格式錯誤' });
+        }
+        const currentAdminTenantId = parseInt(req.session?.admin?.tenant_id, 10);
+        if (Number.isInteger(currentAdminTenantId) && currentAdminTenantId === tenantId) {
+            return res.status(400).json({ success: false, message: '不可刪除目前登入中的租戶' });
+        }
+
+        const deleted = await db.deleteTenantSafely(tenantId);
+        await logAction(req, 'delete_tenant', 'tenant', tenantId, {
+            mode: 'soft_delete',
+            status: 'canceled'
+        });
+        return res.json({
+            success: true,
+            message: '租戶已刪除（軟刪除）',
+            data: deleted
+        });
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: '刪除租戶失敗：' + error.message
+        });
+    }
+});
+
 const bookingService = createBookingService({ db });
 const retailModeGuard = createModeGuard({
     db,

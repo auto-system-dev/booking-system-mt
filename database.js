@@ -1175,6 +1175,49 @@ async function updateTenantProfile(tenantId, { status, planCode } = {}) {
     return getTenantById(safeTenantId);
 }
 
+/**
+ * 租戶軟刪除：保留資料、停用帳號、取消訂閱
+ */
+async function deleteTenantSafely(tenantId) {
+    const safeTenantId = assertTenantScope(tenantId, 'deleteTenantSafely');
+    const defaultTenantId = defaultTenantIdFromEnv();
+    if (safeTenantId === defaultTenantId) {
+        throw new Error('預設租戶不可刪除');
+    }
+
+    const tenant = await getTenantById(safeTenantId);
+    if (!tenant) {
+        throw new Error('找不到租戶');
+    }
+
+    await query(
+        usePostgreSQL
+            ? `UPDATE tenants
+               SET status = 'canceled',
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $1`
+            : `UPDATE tenants
+               SET status = 'canceled',
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = ?`,
+        [safeTenantId]
+    );
+
+    await query(
+        usePostgreSQL
+            ? `UPDATE admins
+               SET is_active = 0
+               WHERE tenant_id = $1`
+            : `UPDATE admins
+               SET is_active = 0
+               WHERE tenant_id = ?`,
+        [safeTenantId]
+    );
+
+    await updateLatestSubscriptionStatus(safeTenantId, 'canceled', null);
+    return getTenantById(safeTenantId);
+}
+
 async function seedSubscriptionMvpDefaults() {
     const defaultTenantId = assertTenantScope(defaultTenantIdFromEnv(), 'seedSubscriptionMvpDefaults');
 
@@ -9956,6 +9999,7 @@ module.exports = {
     getTenantBySubdomainLabel,
     getTenantsOverview,
     updateTenantProfile,
+    deleteTenantSafely,
     getSubscriptionPlans,
     getAllTenantSubscriptionOverview,
     insertPaymentEventIfAbsent,

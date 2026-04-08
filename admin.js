@@ -7807,6 +7807,7 @@ async function loadSubscriptionOverview() {
             const subStatusEscaped = String(row.subscriptionStatus || 'active').replace(/'/g, "\\'");
             const periodEndEscaped = String(row.periodEnd || '').replace(/'/g, "\\'");
             const systemModeEscaped = String(row.systemMode || 'retail').replace(/'/g, "\\'");
+            const tenantNameForDelete = String(row.tenantName || '').replace(/'/g, "\\'");
             return `
                 <tr>
                     <td>${escapeHtml(row.tenantId)}</td>
@@ -7821,6 +7822,7 @@ async function loadSubscriptionOverview() {
                     <td>${escapeHtml(toReadableDate(row.updatedAt))}</td>
                     <td>
                         <button class="btn-refresh" onclick="showEditTenantModal(${escapeHtml(row.tenantId)}, '${tenantNameEscaped}', '${tenantCodeEscaped}', '${planCodeEscaped}', '${tenantStatusEscaped}', '${subStatusEscaped}', '${periodEndEscaped}', '${systemModeEscaped}')">編輯</button>
+                        <button class="btn-cancel" onclick="deleteTenantById(${escapeHtml(row.tenantId)}, '${tenantNameForDelete}')">刪除</button>
                     </td>
                 </tr>
             `;
@@ -7859,6 +7861,7 @@ async function loadTenantManagementList() {
             const canActivate = String(row.status || '').toLowerCase() !== 'active';
             const tenantId = escapeHtml(row.id);
             const email = escapeHtml(row.admin_email || '');
+            const tenantNameForDelete = escapeHtml(row.name || '').replace(/'/g, "\\'");
             return `
                 <tr>
                     <td>${tenantId}</td>
@@ -7872,6 +7875,7 @@ async function loadTenantManagementList() {
                         <button class="btn-refresh" onclick="showEditTenantModal(${tenantId}, '${escapeHtml(row.name || '').replace(/'/g, "\\'")}', '${escapeHtml(row.code || '').replace(/'/g, "\\'")}', '${escapeHtml(row.plan_code || 'basic_monthly').replace(/'/g, "\\'")}', '${escapeHtml(row.status || 'active').replace(/'/g, "\\'")}')">編輯</button>
                         <button class="btn-refresh" onclick="activateTenantById(${tenantId})" ${canActivate ? '' : 'disabled'}>啟用</button>
                         <button class="btn-refresh" onclick="resendTenantVerificationByEmail('${email.replace(/'/g, "\\'")}')" ${email ? '' : 'disabled'}>重寄驗證</button>
+                        <button class="btn-cancel" onclick="deleteTenantById(${tenantId}, '${tenantNameForDelete}')">刪除</button>
                     </td>
                 </tr>
             `;
@@ -7925,6 +7929,25 @@ async function activateTenantById(tenantId) {
         loadTenantManagementList();
     } catch (error) {
         showError('啟用租戶失敗：' + error.message);
+    }
+}
+
+async function deleteTenantById(tenantId, tenantName = '') {
+    if (!tenantId) return;
+    const label = tenantName ? `${tenantName} (#${tenantId})` : `#${tenantId}`;
+    if (!(await appConfirm(`確定要刪除租戶 ${label} 嗎？\n\n此為軟刪除：會停用租戶與管理員帳號，並取消訂閱狀態。`))) return;
+    if (!(await appConfirm('再次確認：刪除後此租戶將無法正常登入使用，確定繼續嗎？'))) return;
+    try {
+        const response = await adminFetch(`/api/admin/tenants/${tenantId}`, { method: 'DELETE' });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+        showSuccess('租戶已刪除（軟刪除）');
+        loadTenantManagementList();
+        loadSubscriptionOverview();
+    } catch (error) {
+        showError('刪除租戶失敗：' + error.message);
     }
 }
 
