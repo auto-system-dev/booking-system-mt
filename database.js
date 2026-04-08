@@ -1418,6 +1418,7 @@ async function initDatabase() {
         await normalizeRetailRoomTypeDisplayNamesIfPackagedByMistake();
         await applyRetailRoomTypesSeedDefaultsBuilding1Once();
         await repairWholePropertyPlansListScopeMisassignedAsRetail();
+        await syncWholePropertyDefaultImageForWpPlans();
     } catch (error) {
         console.error('❌ 資料庫初始化失敗:', error);
         throw error;
@@ -7685,6 +7686,32 @@ async function repairWholePropertyPlansListScopeMisassignedAsRetail() {
         }
     } catch (e) {
         console.warn('⚠️ 包棟方案 list_scope 修正略過:', e.message || e);
+    }
+}
+
+/**
+ * 將 wp_ 開頭包棟方案的圖片統一為系統預設外觀圖（多租戶全量同步）
+ */
+async function syncWholePropertyDefaultImageForWpPlans() {
+    const defaultImage = '/assets/defaults/whole-property.jpg';
+    try {
+        const wpPrefix = usePostgreSQL
+            ? `SUBSTRING(TRIM(name) FROM 1 FOR 3) = 'wp_'`
+            : `SUBSTR(TRIM(name), 1, 3) = 'wp_'`;
+        const wholePropertyScope = `COALESCE(NULLIF(TRIM(list_scope), ''), 'retail') = 'whole_property'`;
+        const res = await query(
+            `UPDATE room_types
+             SET image_url = ${usePostgreSQL ? '$1' : '?'},
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE ${wpPrefix} AND ${wholePropertyScope}`,
+            [defaultImage]
+        );
+        const n = res.changes || 0;
+        if (n > 0) {
+            console.log(`✅ 已同步 ${n} 筆包棟方案預設圖為 ${defaultImage}`);
+        }
+    } catch (e) {
+        console.warn('⚠️ 包棟方案預設圖同步略過:', e.message || e);
     }
 }
 
