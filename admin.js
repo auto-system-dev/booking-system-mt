@@ -2178,12 +2178,15 @@ async function loadDashboard(options = {}) {
             : getOpsRangeParams();
 
         const buildingId = getSelectedBuildingIdForDashboard();
-        const opsQuery = new URLSearchParams({
+        const opsParams = new URLSearchParams({
             startDate: rangeParams.startDate,
             endDate: rangeParams.endDate,
-            buildingId: String(buildingId),
             bookingMode: normalizeSystemMode(currentSystemMode)
-        }).toString();
+        });
+        if (Number(buildingId) > 0) {
+            opsParams.set('buildingId', String(buildingId));
+        }
+        const opsQuery = opsParams.toString();
         const bundleUrl = `/api/dashboard/bundle?${opsQuery}`;
 
         let data;
@@ -2209,7 +2212,10 @@ async function loadDashboard(options = {}) {
         }
 
         if (data === undefined) {
-            const dashRes = await fetchJsonWithRetry(`/api/dashboard?buildingId=${encodeURIComponent(String(buildingId))}`, 3, 700);
+            const dashUrl = Number(buildingId) > 0
+                ? `/api/dashboard?buildingId=${encodeURIComponent(String(buildingId))}`
+                : `/api/dashboard`;
+            const dashRes = await fetchJsonWithRetry(dashUrl, 3, 700);
             if (!dashRes || !isLatestRequest()) return;
             if (!dashRes.success) {
                 showError('載入儀表板數據失敗：' + (dashRes.message || '未知錯誤'));
@@ -2248,8 +2254,15 @@ async function loadDashboard(options = {}) {
             // 若仍為全 0，再用 /api/bookings 回填一次，避免 API 冷啟動瞬間造成假 0
             if (!options.__bookingsFallbackDone && isDashboardAllZero(data)) {
                 try {
-                    const mode = currentSystemMode || 'retail';
-                    const bookingsResult = await fetchJsonWithRetry(`/api/bookings?buildingId=${encodeURIComponent(String(buildingId))}&bookingMode=${encodeURIComponent(mode)}`, 2, 700);
+                    const mode = normalizeSystemMode(currentSystemMode || 'retail');
+                    const bqs = new URLSearchParams();
+                    if (Number(buildingId) > 0) {
+                        bqs.set('buildingId', String(buildingId));
+                    }
+                    if (mode === 'retail' || mode === 'whole_property') {
+                        bqs.set('bookingMode', mode);
+                    }
+                    const bookingsResult = await fetchJsonWithRetry(`/api/bookings?${bqs.toString()}`, 2, 700);
                     if (!bookingsResult || !isLatestRequest()) return;
                     if (bookingsResult.success && Array.isArray(bookingsResult.data) && bookingsResult.data.length > 0) {
                         const fallbackData = deriveDashboardFromBookings(bookingsResult.data);
@@ -2300,8 +2313,10 @@ async function loadDashboard(options = {}) {
                 const statsParams = new URLSearchParams({
                     startDate: rangeParams.startDate,
                     endDate: rangeParams.endDate,
-                    buildingId: String(buildingId)
                 });
+                if (Number(buildingId) > 0) {
+                    statsParams.set('buildingId', String(buildingId));
+                }
                 const statsRes = await fetchJsonWithRetry(
                     `/api/dashboard/interval-summary?${statsParams.toString()}`,
                     2,
@@ -2658,17 +2673,18 @@ function getSelectedBuildingIdForStats() {
     try {
         const raw = localStorage.getItem(STATS_BUILDING_STORAGE_KEY);
         const parsed = raw ? parseInt(raw, 10) : NaN;
-        if (Number.isFinite(parsed) && parsed > 0) {
+        // 0 代表「全部館別」
+        if (Number.isFinite(parsed) && parsed >= 0) {
             selectedBuildingIdForStats = parsed;
             return parsed;
         }
     } catch (_) {}
-    return selectedBuildingIdForStats || 1;
+    return Number.isFinite(selectedBuildingIdForStats) ? selectedBuildingIdForStats : 0;
 }
 
 function setSelectedBuildingIdForStats(nextId) {
     const parsed = parseInt(String(nextId ?? ''), 10);
-    const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    const safe = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
     selectedBuildingIdForStats = safe;
     try {
         localStorage.setItem(STATS_BUILDING_STORAGE_KEY, String(safe));
@@ -2679,17 +2695,18 @@ function getSelectedBuildingIdForDashboard() {
     try {
         const raw = localStorage.getItem(DASHBOARD_BUILDING_STORAGE_KEY);
         const parsed = raw ? parseInt(raw, 10) : NaN;
-        if (Number.isFinite(parsed) && parsed > 0) {
+        // 0 代表「全部館別」
+        if (Number.isFinite(parsed) && parsed >= 0) {
             selectedBuildingIdForDashboard = parsed;
             return parsed;
         }
     } catch (_) {}
-    return selectedBuildingIdForDashboard || 1;
+    return Number.isFinite(selectedBuildingIdForDashboard) ? selectedBuildingIdForDashboard : 0;
 }
 
 function setSelectedBuildingIdForDashboard(nextId) {
     const parsed = parseInt(String(nextId ?? ''), 10);
-    const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    const safe = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
     selectedBuildingIdForDashboard = safe;
     try {
         localStorage.setItem(DASHBOARD_BUILDING_STORAGE_KEY, String(safe));
@@ -2705,17 +2722,19 @@ function syncDashboardBuildingSelect() {
     const show = buildings.length > 1;
     wrapEl.style.display = show ? 'inline-flex' : 'none';
     if (!show) {
-        setSelectedBuildingIdForDashboard(1);
-        selectEl.innerHTML = '';
+        setSelectedBuildingIdForDashboard(0);
+        selectEl.innerHTML = '<option value="0">全部館別</option>';
         return;
     }
 
     const current = getSelectedBuildingIdForDashboard();
-    const exists = buildings.some((b) => Number(b?.id) === Number(current));
-    const effective = exists ? current : Number(buildings[0]?.id || 1);
+    const exists = current > 0 && buildings.some((b) => Number(b?.id) === Number(current));
+    const effective = exists ? current : 0;
     setSelectedBuildingIdForDashboard(effective);
 
-    selectEl.innerHTML = buildings
+    selectEl.innerHTML =
+        `<option value="0">全部館別</option>` +
+        buildings
         .map((b) => `<option value="${Number(b.id)}">${escapeHtml(String(b.name || b.code || `館別 ${b.id}`))}</option>`)
         .join('');
     selectEl.value = String(effective);
@@ -2733,16 +2752,18 @@ function syncStatisticsBuildingSelect() {
     const showSelect = buildings.length > 1;
     selectEl.style.display = showSelect ? '' : 'none';
     if (!showSelect) {
-        setSelectedBuildingIdForStats(1);
-        selectEl.innerHTML = '<option value="1">預設館</option>';
+        setSelectedBuildingIdForStats(0);
+        selectEl.innerHTML = '<option value="0">全部館別</option>';
         return;
     }
 
     const current = getSelectedBuildingIdForStats();
-    const exists = buildings.some((b) => Number(b?.id) === Number(current));
-    const effective = exists ? current : Number(buildings[0]?.id || 1);
+    const exists = current > 0 && buildings.some((b) => Number(b?.id) === Number(current));
+    const effective = exists ? current : 0;
     setSelectedBuildingIdForStats(effective);
-    selectEl.innerHTML = buildings
+    selectEl.innerHTML =
+        `<option value="0">全部館別</option>` +
+        buildings
         .map((b) => `<option value="${Number(b.id)}">${escapeHtml(String(b.name || b.code || `館別 ${b.id}`))}</option>`)
         .join('');
     selectEl.value = String(effective);
