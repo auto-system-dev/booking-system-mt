@@ -7446,7 +7446,7 @@ async function seedDefaultWholePropertyPlansIfEmpty() {
         if (c > 0) return;
 
         const img =
-            'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=400&h=300&fit=crop&q=80';
+            'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&h=600&fit=crop&q=80';
         const plans = [
             ['wp_10', '10人包棟', 10, 1],
             ['wp_16', '16人包棟', 16, 2],

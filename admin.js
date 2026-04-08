@@ -5476,7 +5476,7 @@ function onRoomTypesBuildingChange(buildingId) {
     loadRoomTypes();
 }
 
-const DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE = 'https://images.unsplash.com/photo-1512918728675-ed5a9ecdebfd?w=800&h=600&fit=crop&q=80';
+const DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE = 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&h=600&fit=crop&q=80';
 
 // 渲染房型列表（依分頁只更新對應表格）
 function renderRoomTypes(scope = 'retail') {

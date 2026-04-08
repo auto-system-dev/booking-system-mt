@@ -7,6 +7,7 @@
 let landingConfig = {};
 let countdownDays = 7;
 const DEFAULT_HERO_IMAGE = 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=1920';
+const DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE = 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&h=600&fit=crop&q=80';
 const DEFAULT_FEATURE_ITEMS = [
     { icon: 'landscape', title: '絕美山景', desc: '每間房間都能欣賞到壯闊的山巒美景', enabled: true, order: 1 },
     { icon: 'spa', title: '私人湯屋', desc: '獨立溫泉湯屋，24 小時供應天然溫泉', enabled: true, order: 2 },
@@ -815,10 +816,12 @@ function renderRoomCards(cfg) {
         const displayName = room.display_name || room.name || '房型';
 
         // 組合所有圖片：主圖 + 圖庫
+        const fallbackRoomImage = isWholeProperty ? DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE : '';
+        const roomImageUrl = String(room.image_url || fallbackRoomImage || '').trim();
         const allImages = [];
-        if (room.image_url) allImages.push(room.image_url);
+        if (roomImageUrl) allImages.push(roomImageUrl);
         if (room.gallery_images && room.gallery_images.length > 0) {
-            room.gallery_images.forEach(url => { if (url !== room.image_url) allImages.push(url); });
+            room.gallery_images.forEach(url => { if (url && url !== roomImageUrl) allImages.push(url); });
         }
         window._roomGalleryData[room.id] = { images: allImages, name: displayName };
         
@@ -840,7 +843,7 @@ function renderRoomCards(cfg) {
         return `
             <div class="room-card" onclick="trackViewContent('${displayName}', ${trackPrice})">
                 <div class="room-image" onclick="event.stopPropagation(); ${hasGallery ? `openRoomGallery(${room.id})` : ''};" style="${hasGallery ? 'cursor:pointer;' : ''}">
-                    ${room.image_url ? `<img src="${room.image_url}" alt="${displayName}" loading="lazy">` : '<div style="height:200px;background:#e0e0e0;display:flex;align-items:center;justify-content:center;color:#999;">尚無圖片</div>'}
+                    ${roomImageUrl ? `<img src="${roomImageUrl}" alt="${displayName}" loading="lazy" onerror="this.onerror=null;this.src='${DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE}'">` : '<div style="height:200px;background:#e0e0e0;display:flex;align-items:center;justify-content:center;color:#999;">尚無圖片</div>'}
                     ${badge ? `<span class="room-badge ${badgeClass}">${badge}</span>` : ''}
                     ${hasGallery ? `<span class="room-gallery-hint"><span class="material-symbols-outlined">photo_library</span> ${allImages.length} 張照片</span>` : ''}
                 </div>
