@@ -32,6 +32,10 @@ function createSubscriptionGate(db) {
 
     function requireFeature(featureKey) {
         return (req, res, next) => {
+            // 超級管理員略過方案功能限制（仍需通過其他權限/租戶檢查）
+            if (req?.session?.admin?.role === 'super_admin') {
+                return next();
+            }
             readSnapshot(req)
                 .then((snapshot) => {
                     if (snapshot.status === 'canceled') {
