@@ -595,10 +595,34 @@ function buildFeatureHTML(featuresStr) {
 }
 
 function getRoomFeatureItemsForLanding(room, cfg) {
+    const isWholeProperty = String(cfg?._systemMode || '').trim() === 'whole_property';
     const bedTypes = Array.isArray(room?.bed_types) ? room.bed_types.filter(Boolean) : [];
     const roomFacilities = Array.isArray(room?.room_facilities) ? room.room_facilities.filter(Boolean) : [];
     const merged = [...new Set([...bedTypes, ...roomFacilities])];
-    return merged;
+    if (!isWholeProperty || merged.length > 0) {
+        return merged;
+    }
+
+    const fallback = [];
+    const bedConfig = String(room?.bed_config || '').trim();
+    if (bedConfig) fallback.push(bedConfig);
+
+    const includedItems = Array.isArray(room?.included_items_list)
+        ? room.included_items_list
+        : String(room?.included_items || '').split(',').map((x) => x.trim()).filter(Boolean);
+    if (includedItems.length > 0) {
+        fallback.push(...includedItems.slice(0, 3));
+    }
+
+    if (fallback.length === 0) {
+        const landingFacilities = String(cfg?.landing_facilities || '')
+            .split(',')
+            .map((x) => x.trim())
+            .filter(Boolean);
+        fallback.push(...landingFacilities.slice(0, 3));
+    }
+
+    return [...new Set(fallback)];
 }
 
 // ===== 動態生成旅宿設施區塊 =====
