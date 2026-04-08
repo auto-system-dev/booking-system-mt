@@ -7384,6 +7384,42 @@ function mapTenantStatusLabel(status) {
     return map[normalized] || (status || '-');
 }
 
+function mapSubscriptionStatusBadgeClass(status) {
+    const normalized = String(status || '').trim().toLowerCase();
+    const map = {
+        trialing: 'badge-info',
+        active: 'badge-success',
+        past_due: 'badge-warning',
+        canceled: 'badge-danger',
+        none: 'badge-secondary'
+    };
+    return map[normalized] || 'badge-secondary';
+}
+
+function mapTenantStatusBadgeClass(status) {
+    const normalized = String(status || '').trim().toLowerCase();
+    const map = {
+        pending: 'badge-warning',
+        active: 'badge-success',
+        suspended: 'badge-secondary',
+        canceled: 'badge-danger'
+    };
+    return map[normalized] || 'badge-secondary';
+}
+
+function renderTenantStatusBadge(status) {
+    const label = mapTenantStatusLabel(status);
+    const cls = mapTenantStatusBadgeClass(status);
+    return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
+}
+
+function renderSubscriptionStatusBadge(status) {
+    const normalized = String(status || '').trim().toLowerCase() || 'none';
+    const label = mapSubscriptionStatusLabel(normalized);
+    const cls = mapSubscriptionStatusBadgeClass(normalized);
+    return `<span class="badge ${cls}">${escapeHtml(label)}</span>`;
+}
+
 /** 與 database 種子一致；DB 尚未寫入中文名稱時作備援 */
 function formatPlanCodeLabel(planCode) {
     const code = String(planCode || '').trim();
@@ -7775,9 +7811,9 @@ async function loadSubscriptionOverview() {
                 <tr>
                     <td>${escapeHtml(row.tenantId)}</td>
                     <td>${escapeHtml(row.tenantName || '-')}</td>
-                    <td>${escapeHtml(mapTenantStatusLabel(row.tenantStatus || '-'))}</td>
+                    <td>${renderTenantStatusBadge(row.tenantStatus || '-')}</td>
                     <td>${escapeHtml(planText)}</td>
-                    <td>${escapeHtml(mapSubscriptionStatusLabel(subStatus))}</td>
+                    <td>${renderSubscriptionStatusBadge(subStatus)}</td>
                     <td>${escapeHtml(systemModeLabel)}</td>
                     <td>${riskBadge}</td>
                     <td>${escapeHtml(cycleLabel)}</td>
@@ -7828,7 +7864,7 @@ async function loadTenantManagementList() {
                     <td>${tenantId}</td>
                     <td>${escapeHtml(row.code || '-')}</td>
                     <td>${escapeHtml(row.name || '-')}</td>
-                    <td>${escapeHtml(mapTenantStatusLabel(row.status || '-'))}</td>
+                    <td>${renderTenantStatusBadge(row.status || '-')}</td>
                     <td>${escapeHtml(row.admin_username || '-')}</td>
                     <td>${email || '-'}</td>
                     <td>${String(row.admin_is_active) === '1' || row.admin_is_active === true ? '是' : '否'}</td>
