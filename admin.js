@@ -2336,7 +2336,10 @@ async function loadBookings() {
         if (Number(bid) > 0) {
             qs.set('buildingId', String(bid));
         }
-        qs.set('bookingMode', String(currentSystemMode));
+        const mode = normalizeSystemMode(currentSystemMode || '');
+        if (mode === 'retail' || mode === 'whole_property') {
+            qs.set('bookingMode', mode);
+        }
         const response = await adminFetch(`/api/bookings?${qs.toString()}`);
         if (response.status === 401) {
             console.warn('載入訂房記錄收到 401，登入已過期');
@@ -2511,7 +2514,10 @@ async function loadBookingCalendar() {
         if (Number(bid) > 0) {
             cqs.set('buildingId', String(bid));
         }
-        cqs.set('bookingMode', String(currentSystemMode));
+        const mode = normalizeSystemMode(currentSystemMode || '');
+        if (mode === 'retail' || mode === 'whole_property') {
+            cqs.set('bookingMode', mode);
+        }
         const calendarUrl = `${window.location.origin}/api/bookings?${cqs.toString()}`;
         const bookingsResponse = await adminFetch(calendarUrl);
         if (bookingsResponse.status === 401) {
