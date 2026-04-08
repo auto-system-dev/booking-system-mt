@@ -157,6 +157,95 @@
         });
     }
 
+    /**
+     * 帶 checkbox 的 confirm（回傳 { ok, checked }）
+     * options: { message, checkboxLabel, defaultChecked, okText, cancelText }
+     */
+    function appConfirmWithCheckbox(options) {
+        ensureDom();
+        var opts = options && typeof options === 'object' ? options : {};
+        var msg = opts.message == null ? '' : String(opts.message);
+        var checkboxLabel = opts.checkboxLabel == null ? '' : String(opts.checkboxLabel);
+        var defaultChecked = opts.defaultChecked !== false;
+        var okText = opts.okText == null ? '確定' : String(opts.okText);
+        var cancelText = opts.cancelText == null ? '取消' : String(opts.cancelText);
+
+        var msgEl = overlay.querySelector('#appDialogMessage');
+        var btnOk = overlay.querySelector('#appDialogOk');
+        var btnCancel = overlay.querySelector('#appDialogCancel');
+
+        return new Promise(function (resolve) {
+            var checkbox = null;
+
+            function finish(ok) {
+                var checked = checkbox ? !!checkbox.checked : defaultChecked;
+                closeOverlay();
+                btnOk.onclick = null;
+                btnCancel.onclick = null;
+                // 清回純文字，避免殘留 HTML
+                msgEl.textContent = '';
+                resolve({ ok: !!ok, checked: checked });
+            }
+
+            // message + checkbox
+            msgEl.innerHTML = '';
+            var messageNode = document.createElement('div');
+            messageNode.style.whiteSpace = 'pre-wrap';
+            messageNode.style.wordBreak = 'break-word';
+            messageNode.textContent = msg;
+            msgEl.appendChild(messageNode);
+
+            if (checkboxLabel) {
+                var wrap = document.createElement('label');
+                wrap.style.display = 'flex';
+                wrap.style.alignItems = 'center';
+                wrap.style.gap = '10px';
+                wrap.style.marginTop = '14px';
+                wrap.style.fontSize = '14px';
+                wrap.style.color = '#334155';
+
+                checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = !!defaultChecked;
+                checkbox.style.width = '18px';
+                checkbox.style.height = '18px';
+                checkbox.style.flex = '0 0 auto';
+
+                var labelText = document.createElement('span');
+                labelText.textContent = checkboxLabel;
+
+                wrap.appendChild(checkbox);
+                wrap.appendChild(labelText);
+                msgEl.appendChild(wrap);
+            }
+
+            btnCancel.style.display = '';
+            btnOk.textContent = okText;
+            btnCancel.textContent = cancelText;
+            overlay._backdropCallback = function () {
+                finish(false);
+            };
+            bindEscape(function () {
+                finish(false);
+            });
+            btnOk.onclick = function () {
+                finish(true);
+            };
+            btnCancel.onclick = function () {
+                finish(false);
+            };
+            openOverlay();
+            setTimeout(function () {
+                if (checkbox) {
+                    checkbox.focus();
+                } else {
+                    btnOk.focus();
+                }
+            }, 0);
+        });
+    }
+
     global.appAlert = appAlert;
     global.appConfirm = appConfirm;
+    global.appConfirmWithCheckbox = appConfirmWithCheckbox;
 })(typeof window !== 'undefined' ? window : this);

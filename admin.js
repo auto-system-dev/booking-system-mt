@@ -13091,7 +13091,16 @@ async function deleteBackup(fileName) {
 
 // 還原備份
 async function restoreBackup(fileName) {
-    if (!(await appConfirm(`⚠️ 警告：還原備份將會覆蓋目前所有資料！\n\n備份檔案：${fileName}\n\n系統會在還原前自動建立一份安全備份。\n\n確定要繼續嗎？`))) return;
+    const choice = await (typeof appConfirmWithCheckbox === 'function'
+        ? appConfirmWithCheckbox({
+              message: `⚠️ 警告：還原備份將會覆蓋目前所有資料！\n\n備份檔案：${fileName}\n\n你可以選擇是否在還原前自動建立一份安全備份。`,
+              checkboxLabel: '還原前自動建立安全備份（建議）',
+              defaultChecked: true,
+              okText: '繼續',
+              cancelText: '取消'
+          })
+        : (async () => ({ ok: await appConfirm(`⚠️ 警告：還原備份將會覆蓋目前所有資料！\n\n備份檔案：${fileName}\n\n確定要繼續嗎？`), checked: true }))());
+    if (!choice || !choice.ok) return;
     
     // 二次確認
     if (!(await appConfirm('再次確認：此操作將覆蓋資料庫中的所有現有資料，確定要還原嗎？'))) return;
@@ -13100,7 +13109,9 @@ async function restoreBackup(fileName) {
         showSuccess('正在還原備份，請稍候...');
         
         const response = await adminFetch(`/api/admin/backups/restore/${encodeURIComponent(fileName)}`, {
-            method: 'POST'
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ preBackup: !!choice.checked })
         });
         
         const result = await response.json();

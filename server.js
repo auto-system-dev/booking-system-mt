@@ -2963,12 +2963,19 @@ app.post('/api/admin/backups/restore/:fileName', requireAuth, checkPermission('b
     try {
         const { fileName } = req.params;
         
-        // 還原前先自動建立一份備份（安全措施）
-        console.log('⚠️ 還原前自動建立安全備份...');
-        try {
-            await backup.performBackup();
-        } catch (preBackupError) {
-            console.warn('⚠️ 還原前安全備份失敗（繼續還原）:', preBackupError.message);
+        const wantsPreBackup = req.body && Object.prototype.hasOwnProperty.call(req.body, 'preBackup')
+            ? !!req.body.preBackup
+            : true;
+        if (wantsPreBackup) {
+            // 還原前先自動建立一份備份（安全措施）
+            console.log('⚠️ 還原前自動建立安全備份...');
+            try {
+                await backup.performBackup();
+            } catch (preBackupError) {
+                console.warn('⚠️ 還原前安全備份失敗（繼續還原）:', preBackupError.message);
+            }
+        } else {
+            console.log('ℹ️ 已略過還原前自動備份（使用者選擇）');
         }
         
         const result = await backup.restoreBackup(fileName);
