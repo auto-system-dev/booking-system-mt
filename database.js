@@ -164,6 +164,73 @@ function convertSQL(sql) {
         .replace(/DATE\(([^)]+)\)/g, 'DATE($1)');
 }
 
+/** SQLite：將 addons 從 name 全域 UNIQUE 改為 (tenant_id, name)，以支援多租戶 */
+async function ensureSqliteAddonsTenantNameUnique() {
+    if (usePostgreSQL) return;
+    try {
+        const idx = await queryOne(
+            `SELECT 1 AS ok FROM sqlite_master WHERE type='index' AND tbl_name='addons' AND name='idx_addons_tenant_name_unique'`
+        );
+        if (idx?.ok) return;
+
+        const tbl = await queryOne(`SELECT sql FROM sqlite_master WHERE type='table' AND name='addons'`);
+        const ddl = String(tbl?.sql || '');
+        if (!ddl || !ddl.includes('name')) return;
+        if (ddl.includes('UNIQUE (tenant_id, name)') || ddl.includes('UNIQUE(tenant_id, name)')) return;
+        if (!ddl.includes('UNIQUE')) return;
+
+        await query(`PRAGMA foreign_keys = OFF`);
+        await query(`BEGIN IMMEDIATE`);
+        try {
+            await query(`
+                CREATE TABLE addons__mt (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tenant_id INTEGER NOT NULL DEFAULT 1,
+                    name TEXT NOT NULL,
+                    display_name TEXT NOT NULL,
+                    price INTEGER NOT NULL,
+                    unit_label TEXT DEFAULT '人',
+                    summary TEXT DEFAULT '',
+                    details TEXT DEFAULT '',
+                    terms TEXT DEFAULT '',
+                    icon TEXT DEFAULT '➕',
+                    display_order INTEGER DEFAULT 0,
+                    is_active INTEGER DEFAULT 1,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (tenant_id, name)
+                )
+            `);
+            await query(`
+                INSERT INTO addons__mt (id, tenant_id, name, display_name, price, unit_label, summary, details, terms, icon, display_order, is_active, created_at, updated_at)
+                SELECT id, COALESCE(tenant_id, 1), name, display_name, price,
+                       COALESCE(unit_label, '人'),
+                       COALESCE(summary, ''),
+                       COALESCE(details, ''),
+                       COALESCE(terms, ''),
+                       COALESCE(icon, '➕'),
+                       COALESCE(display_order, 0),
+                       COALESCE(is_active, 1),
+                       created_at,
+                       updated_at
+                FROM addons
+            `);
+            await query(`DROP TABLE addons`);
+            await query(`ALTER TABLE addons__mt RENAME TO addons`);
+            await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_addons_tenant_name_unique ON addons (tenant_id, name)`);
+            await query(`COMMIT`);
+            console.log('✅ SQLite addons 已改為 (tenant_id, name) 唯一約束');
+        } catch (inner) {
+            await query(`ROLLBACK`).catch(() => {});
+            throw inner;
+        } finally {
+            await query(`PRAGMA foreign_keys = ON`);
+        }
+    } catch (error) {
+        console.warn('⚠️ SQLite addons 多租戶唯一約束調整失敗:', error.message);
+    }
+}
+
 async function initMultiTenantCoreTables() {
     if (usePostgreSQL) {
         await initMultiTenantCoreTablesPostgreSQL();
@@ -342,6 +409,27 @@ async function initMultiTenantCoreTablesPostgreSQL() {
     `);
     await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_settings_tenant_key_unique ON settings (tenant_id, key)`);
 
+    // addons：解除舊版 name 全域 UNIQUE，改為 (tenant_id, name) 以支援多租戶
+    try {
+        await query(`
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1
+                    FROM information_schema.table_constraints
+                    WHERE table_schema = 'public'
+                      AND table_name = 'addons'
+                      AND constraint_name = 'addons_name_key'
+                ) THEN
+                    ALTER TABLE addons DROP CONSTRAINT addons_name_key;
+                END IF;
+            END $$;
+        `);
+        await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_addons_tenant_name_unique ON addons (tenant_id, name)`);
+    } catch (error) {
+        console.warn('⚠️ addons 多租戶唯一索引調整失敗（請檢查是否已有重複的 tenant_id+name）:', error.message);
+    }
+
     await query(`CREATE INDEX IF NOT EXISTS idx_bookings_tenant_id ON bookings (tenant_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_room_types_tenant_id ON room_types (tenant_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_customers_tenant_id ON customers (tenant_id)`);
@@ -509,6 +597,8 @@ async function initMultiTenantCoreTablesSQLite() {
     await query(`CREATE INDEX IF NOT EXISTS idx_room_types_tenant_id ON room_types (tenant_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_customers_tenant_id ON customers (tenant_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_prices_tenant_room_type ON prices (tenant_id, room_type_id)`);
+
+    await ensureSqliteAddonsTenantNameUnique();
 }
 
 function parseFeatureFlags(raw) {
@@ -683,6 +773,55 @@ async function seedTenantDefaultRoomTypes(tenantId) {
     }
 }
 
+/** 與 initPostgreSQL / initSQLite 內建預設加購商品相同，依租戶各寫入一組 */
+const TENANT_DEFAULT_ADDON_SEEDS = [
+    ['breakfast', '早餐', 200, '人', '🍳', 1],
+    ['afternoon_tea', '下午茶', 300, '份', '☕', 2],
+    ['dinner', '晚餐', 600, '份', '🍽️', 3],
+    ['bbq', '烤肉', 800, '份', '🔥', 4],
+    ['spa', 'SPA', 1000, '人', '💆', 5]
+];
+
+async function seedTenantDefaultAddons(tenantId) {
+    const safeTenantId = assertTenantScope(tenantId, 'seedTenantDefaultAddons');
+    const cntRow = await queryOne(
+        usePostgreSQL
+            ? `SELECT COUNT(*)::int AS cnt FROM addons WHERE tenant_id = $1`
+            : `SELECT COUNT(*) AS cnt FROM addons WHERE tenant_id = ?`,
+        [safeTenantId]
+    );
+    const cnt = parseInt(cntRow?.cnt || 0, 10);
+    if (cnt > 0) return;
+
+    for (const [name, displayName, price, unitLabel, icon, displayOrder] of TENANT_DEFAULT_ADDON_SEEDS) {
+        await query(
+            usePostgreSQL
+                ? `INSERT INTO addons (tenant_id, name, display_name, price, unit_label, summary, details, terms, icon, display_order, is_active)
+                   VALUES ($1, $2, $3, $4, $5, '', '', '', $6, $7, 1)`
+                : `INSERT INTO addons (tenant_id, name, display_name, price, unit_label, summary, details, terms, icon, display_order, is_active)
+                   VALUES (?, ?, ?, ?, ?, '', '', '', ?, ?, 1)`,
+            [safeTenantId, name, displayName, price, unitLabel, icon, displayOrder]
+        );
+    }
+}
+
+/** 既有租戶若尚無任何加購商品，補上預設範本 */
+async function backfillTenantsDefaultAddons() {
+    try {
+        const result = await query(
+            usePostgreSQL ? `SELECT id FROM tenants ORDER BY id ASC` : `SELECT id FROM tenants ORDER BY id ASC`
+        );
+        for (const row of result.rows || []) {
+            const tid = parseInt(row.id, 10);
+            if (Number.isInteger(tid) && tid > 0) {
+                await seedTenantDefaultAddons(tid);
+            }
+        }
+    } catch (error) {
+        console.warn('⚠️ 補齊租戶預設加購商品失敗:', error.message);
+    }
+}
+
 async function createTenantOnboarding(input = {}) {
     const {
         tenantName,
@@ -774,6 +913,7 @@ async function createTenantOnboarding(input = {}) {
             tenantId
         );
         await seedTenantDefaultRoomTypes(tenantId);
+        await seedTenantDefaultAddons(tenantId);
 
         const snapshot = await setTenantSubscriptionPlan(tenantId, String(planCode || 'basic_monthly'), subscriptionStatus);
         return {
@@ -1183,6 +1323,7 @@ async function initDatabase() {
         await initMultiTenantCoreTables();
         await backfillLegacyTenantIds();
         await seedSubscriptionMvpDefaults();
+        await backfillTenantsDefaultAddons();
         await seedDefaultWholePropertyPlansIfEmpty();
         await normalizeRetailRoomTypeDisplayNamesIfPackagedByMistake();
         await applyRetailRoomTypesSeedDefaultsBuilding1Once();
@@ -9791,6 +9932,7 @@ module.exports = {
     setTenantSubscriptionPlan,
     updateLatestSubscriptionStatus,
     seedTenantDefaultRoomTypes,
+    seedTenantDefaultAddons,
     createTenantOnboarding,
     createTenantVerificationToken,
     verifyTenantEmailToken,
