@@ -7821,7 +7821,7 @@ async function loadSubscriptionOverview() {
                     <td>${escapeHtml(toReadableDate(row.periodEnd))}</td>
                     <td>${escapeHtml(toReadableDate(row.updatedAt))}</td>
                     <td>
-                        <button class="btn-refresh tenant-action-btn" onclick="showEditTenantModal(${escapeHtml(row.tenantId)}, '${tenantNameEscaped}', '${tenantCodeEscaped}', '${planCodeEscaped}', '${tenantStatusEscaped}', '${subStatusEscaped}', '${periodEndEscaped}', '${systemModeEscaped}')">編輯</button>
+                        <button class="btn-refresh tenant-action-btn" onclick="showEditTenantModal(${escapeHtml(row.tenantId)}, '${tenantNameEscaped}', '${tenantCodeEscaped}', '${planCodeEscaped}', '${tenantStatusEscaped}', '${subStatusEscaped}', '${periodEndEscaped}', '${systemModeEscaped}', '', '')">編輯</button>
                         <button class="btn-cancel tenant-action-btn" onclick="deleteTenantById(${escapeHtml(row.tenantId)}, '${tenantNameForDelete}')">刪除</button>
                     </td>
                 </tr>
@@ -7872,7 +7872,7 @@ async function loadTenantManagementList() {
                     <td>${email || '-'}</td>
                     <td>${String(row.admin_is_active) === '1' || row.admin_is_active === true ? '是' : '否'}</td>
                     <td style="white-space:nowrap;">
-                        <button class="btn-refresh tenant-action-btn" onclick="showEditTenantModal(${tenantId}, '${escapeHtml(row.name || '').replace(/'/g, "\\'")}', '${escapeHtml(row.code || '').replace(/'/g, "\\'")}', '${escapeHtml(row.plan_code || 'basic_monthly').replace(/'/g, "\\'")}', '${escapeHtml(row.status || 'active').replace(/'/g, "\\'")}')">編輯</button>
+                        <button class="btn-refresh tenant-action-btn" onclick="showEditTenantModal(${tenantId}, '${escapeHtml(row.name || '').replace(/'/g, "\\'")}', '${escapeHtml(row.code || '').replace(/'/g, "\\'")}', '${escapeHtml(row.plan_code || 'basic_monthly').replace(/'/g, "\\'")}', '${escapeHtml(row.status || 'active').replace(/'/g, "\\'")}', 'active', '', 'retail', '${escapeHtml(row.admin_username || '').replace(/'/g, "\\'")}', '${escapeHtml(row.admin_email || '').replace(/'/g, "\\'")}')">編輯</button>
                         <button class="btn-refresh tenant-action-btn" onclick="activateTenantById(${tenantId})" ${canActivate ? '' : 'disabled'}>啟用</button>
                         <button class="btn-refresh tenant-action-btn" onclick="resendTenantVerificationByEmail('${email.replace(/'/g, "\\'")}')" ${email ? '' : 'disabled'}>重寄驗證</button>
                         <button class="btn-cancel tenant-action-btn" onclick="deleteTenantById(${tenantId}, '${tenantNameForDelete}')">刪除</button>
@@ -8034,11 +8034,15 @@ async function saveTenant(event) {
     }
 }
 
-function showEditTenantModal(tenantId, tenantName, tenantCode, planCode, status, subscriptionStatus = 'active', periodEnd = '', systemMode = 'retail') {
+function showEditTenantModal(tenantId, tenantName, tenantCode, planCode, status, subscriptionStatus = 'active', periodEnd = '', systemMode = 'retail', adminUsername = '', adminEmail = '') {
     const modal = document.getElementById('tenantEditModal');
     if (!modal) return;
     document.getElementById('tenantEditId').value = String(tenantId || '');
     document.getElementById('tenantEditDisplay').value = `${tenantName || '-'} (${tenantCode || '-'})`;
+    const adminUsernameInput = document.getElementById('tenantEditAdminUsername');
+    if (adminUsernameInput) adminUsernameInput.value = String(adminUsername || '');
+    const adminEmailInput = document.getElementById('tenantEditAdminEmail');
+    if (adminEmailInput) adminEmailInput.value = String(adminEmail || '');
     loadTenantPlanOptions('tenantEditPlanCode', planCode || 'basic_monthly');
     document.getElementById('tenantEditStatus').value = status || 'active';
     const subscriptionStatusSelect = document.getElementById('tenantEditSubscriptionStatus');
@@ -8071,6 +8075,8 @@ async function saveTenantEdit(event) {
     const subscriptionStatus = String(document.getElementById('tenantEditSubscriptionStatus')?.value || 'active').trim();
     const periodEndRaw = String(document.getElementById('tenantEditPeriodEnd')?.value || '').trim();
     const systemMode = String(document.getElementById('tenantEditSystemMode')?.value || 'retail').trim();
+    const adminUsername = String(document.getElementById('tenantEditAdminUsername')?.value || '').trim();
+    const adminEmail = String(document.getElementById('tenantEditAdminEmail')?.value || '').trim();
     const nextPeriodEnd = periodEndRaw ? new Date(periodEndRaw).toISOString() : null;
     if (!Number.isInteger(tenantId) || tenantId <= 0) {
         showError('租戶 ID 錯誤');
@@ -8085,7 +8091,7 @@ async function saveTenantEdit(event) {
         const response = await adminFetch(`/api/admin/tenants/${tenantId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ planCode, status, subscriptionStatus, nextPeriodEnd, systemMode })
+            body: JSON.stringify({ planCode, status, subscriptionStatus, nextPeriodEnd, systemMode, adminUsername, adminEmail })
         });
         const result = await response.json().catch(() => ({}));
         if (!response.ok || !result.success) {

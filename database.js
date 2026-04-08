@@ -1175,6 +1175,53 @@ async function updateTenantProfile(tenantId, { status, planCode } = {}) {
     return getTenantById(safeTenantId);
 }
 
+async function updateTenantPrimaryAdminContact(tenantId, { username, email } = {}) {
+    const safeTenantId = assertTenantScope(tenantId, 'updateTenantPrimaryAdminContact');
+    const nextUsername = String(username || '').trim();
+    const nextEmail = String(email || '').trim();
+    if (!nextUsername) {
+        throw new Error('管理員帳號不可為空');
+    }
+
+    const primaryAdmin = await queryOne(
+        usePostgreSQL
+            ? `SELECT id FROM admins WHERE tenant_id = $1 ORDER BY id ASC LIMIT 1`
+            : `SELECT id FROM admins WHERE tenant_id = ? ORDER BY id ASC LIMIT 1`,
+        [safeTenantId]
+    );
+    if (!primaryAdmin?.id) {
+        throw new Error('找不到此租戶的管理員');
+    }
+
+    const duplicated = await queryOne(
+        usePostgreSQL
+            ? `SELECT id FROM admins WHERE lower(username) = lower($1) AND id <> $2 LIMIT 1`
+            : `SELECT id FROM admins WHERE lower(username) = lower(?) AND id <> ? LIMIT 1`,
+        [nextUsername, primaryAdmin.id]
+    );
+    if (duplicated?.id) {
+        throw new Error('管理員帳號已存在，請改用其他帳號');
+    }
+
+    await query(
+        usePostgreSQL
+            ? `UPDATE admins
+               SET username = $1, email = $2
+               WHERE id = $3`
+            : `UPDATE admins
+               SET username = ?, email = ?
+               WHERE id = ?`,
+        [nextUsername, nextEmail, primaryAdmin.id]
+    );
+
+    return queryOne(
+        usePostgreSQL
+            ? `SELECT id, username, email FROM admins WHERE id = $1`
+            : `SELECT id, username, email FROM admins WHERE id = ?`,
+        [primaryAdmin.id]
+    );
+}
+
 /**
  * 租戶軟刪除：保留資料、停用帳號、取消訂閱
  */
@@ -9999,6 +10046,7 @@ module.exports = {
     getTenantBySubdomainLabel,
     getTenantsOverview,
     updateTenantProfile,
+    updateTenantPrimaryAdminContact,
     deleteTenantSafely,
     getSubscriptionPlans,
     getAllTenantSubscriptionOverview,

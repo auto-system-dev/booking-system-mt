@@ -3308,7 +3308,7 @@ app.put('/api/admin/tenants/:id', requireAuth, adminLimiter, async (req, res) =>
             return res.status(400).json({ success: false, message: 'tenant id 格式錯誤' });
         }
 
-        const { status, planCode, subscriptionStatus, nextPeriodEnd, systemMode } = req.body || {};
+        const { status, planCode, subscriptionStatus, nextPeriodEnd, systemMode, adminUsername, adminEmail } = req.body || {};
         if (!status || !planCode) {
             return res.status(400).json({ success: false, message: '缺少必要欄位：status、planCode' });
         }
@@ -3336,6 +3336,14 @@ app.put('/api/admin/tenants/:id', requireAuth, adminLimiter, async (req, res) =>
                 '系統模式（retail=一般訂房，whole_property=包棟訂房；每次僅啟用一種）',
                 tenantId
             );
+        }
+        const safeAdminUsername = String(adminUsername || '').trim();
+        const safeAdminEmail = String(adminEmail || '').trim();
+        if (safeAdminUsername || safeAdminEmail) {
+            await db.updateTenantPrimaryAdminContact(tenantId, {
+                username: safeAdminUsername,
+                email: safeAdminEmail
+            });
         }
         const subscription = await db.getTenantSubscriptionSnapshot(tenantId);
         return res.json({
