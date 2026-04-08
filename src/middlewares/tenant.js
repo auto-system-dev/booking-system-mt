@@ -7,6 +7,13 @@ function resolveTenantId(req) {
     const fromSession = parseTenantId(req?.session?.admin?.tenant_id);
     if (fromSession) return fromSession;
 
+    // 已登入的一般管理員：若 session 未綁定有效租戶，不可再套用 header／環境預設租戶，
+    // 否則儀表板等 API 會誤讀 DEFAULT_TENANT_ID（常為 1）的訂房資料。
+    const admin = req?.session?.admin;
+    if (admin && admin.role !== 'super_admin') {
+        return null;
+    }
+
     const fromHeader = parseTenantId(req?.headers?.['x-tenant-id']);
     if (fromHeader) return fromHeader;
 

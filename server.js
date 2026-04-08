@@ -137,7 +137,12 @@ const subscriptionGate = createSubscriptionGate(db);
 const defaultTenantId = parseInt(process.env.DEFAULT_TENANT_ID || '1', 10);
 function getRequestTenantId(req) {
     const resolved = resolveTenantId(req);
-    return resolved || defaultTenantId;
+    if (resolved) return resolved;
+    // 一般管理員在 resolveTenantId 已回傳 null 時，不可再強制使用預設租戶
+    if (req?.session?.admin && req.session.admin.role !== 'super_admin') {
+        return null;
+    }
+    return defaultTenantId;
 }
 
 // Railway 使用代理，需要信任代理以正確處理 HTTPS 和 Cookie
@@ -2029,12 +2034,18 @@ app.post('/api/admin/login', loginLimiter, validateLogin, async (req, res) => {
             const adminDetail = await db.getAdminById(admin.id);
             const roleName = adminDetail?.role_display_name || admin.role || '管理員';
             
-            // 建立 Session
+            // 建立 Session（訂閱者管理員必須綁定真實 tenant_id，不可在為空時套用預設租戶 1）
+            const parsedAdminTenant = admin.tenant_id != null ? parseInt(admin.tenant_id, 10) : NaN;
+            const sessionTenantId = Number.isInteger(parsedAdminTenant) && parsedAdminTenant > 0
+                ? parsedAdminTenant
+                : (admin.role === 'super_admin'
+                    ? (parseInt(process.env.DEFAULT_TENANT_ID || '1', 10) || 1)
+                    : null);
             req.session.admin = {
                 id: admin.id,
                 username: admin.username,
                 email: admin.email,
-                tenant_id: parseInt(admin.tenant_id, 10) || parseInt(process.env.DEFAULT_TENANT_ID || '1', 10),
+                tenant_id: sessionTenantId,
                 role: admin.role,
                 role_id: adminDetail?.role_id,
                 role_display_name: roleName,
@@ -4659,6 +4670,7 @@ app.get('/api/dashboard/ops', requireTenantContext, subscriptionGate.requireFeat
 app.get(
     '/api/dashboard/interval-summary',
     requireAuth,
+    requireTenantContext,
     checkPermission('dashboard.view'),
     adminLimiter,
     async (req, res) => {
@@ -4676,7 +4688,7 @@ app.get(
                     message: '開始日期不能晚於結束日期'
                 });
             }
-            const stats = await db.getStatistics(startDate, endDate, buildingId, getRequestTenantId(req));
+            const stats = await db.getStatistics(startDate, endDate, buildingId, req.tenantId);
             const data = {
                 totalBookings: stats.totalBookings,
                 totalBookingsDetail: stats.totalBookingsDetail,

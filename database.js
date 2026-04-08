@@ -133,8 +133,10 @@ async function queryOne(sql, params = []) {
 }
 
 function assertTenantScope(tenantId, operation = 'database operation') {
-    const raw = tenantId ?? process.env.DEFAULT_TENANT_ID ?? 1;
-    const n = Number.parseInt(raw, 10);
+    if (tenantId === null || tenantId === undefined || tenantId === '') {
+        throw new Error(`tenant_id is required for ${operation}`);
+    }
+    const n = Number.parseInt(String(tenantId), 10);
     if (!Number.isInteger(n) || n <= 0) {
         throw new Error(`tenant_id is required for ${operation}`);
     }
