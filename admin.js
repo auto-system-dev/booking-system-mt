@@ -13256,6 +13256,7 @@ const landingFieldMap = {
     landing_price_prefix: 'landingPricePrefix',
     landing_price_amount: 'landingPriceAmount',
     landing_price_original: 'landingPriceOriginal',
+    landing_about_enabled: 'landingAboutEnabled',
     landing_about_title: 'landingAboutTitle',
     landing_about_subtitle: 'landingAboutSubtitle',
     landing_about_card_desc: 'landingAboutCardDesc',
@@ -14378,7 +14379,7 @@ async function saveLandingSettings(tab) {
             break;
         case 'about':
             keysToSave = Object.keys(landingFieldMap).filter(k =>
-                ['landing_about_title', 'landing_about_subtitle', 'landing_about_card_desc'].includes(k)
+                ['landing_about_enabled', 'landing_about_title', 'landing_about_subtitle', 'landing_about_card_desc'].includes(k)
             );
             break;
         case 'features':
@@ -14461,6 +14462,7 @@ async function saveLandingSettings(tab) {
             landing_price_prefix: '銷售頁-價格前綴',
             landing_price_amount: '銷售頁-促銷價格',
             landing_price_original: '銷售頁-原價',
+            landing_about_enabled: '銷售頁-關於我們是否顯示',
             landing_about_title: '銷售頁-關於我們主標',
             landing_about_subtitle: '銷售頁-關於我們副標',
             landing_about_card_desc: '銷售頁-關於我們重點卡內容',

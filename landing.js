@@ -68,6 +68,7 @@ function landingJsonArrayEmptyOrAllDisabled(raw) {
 
 function syncLandingNavVisibility() {
     const pairs = [
+        ['navLinkAbout', 'about'],
         ['navLinkPublicFacilities', 'public-facilities'],
         ['navLinkFeatures', 'features'],
         ['navLinkRooms', 'rooms'],
@@ -238,6 +239,19 @@ async function applyConfig(cfg) {
     setText('aboutSectionTitle', cfg.landing_about_title);
     setText('aboutSectionSubtitle', cfg.landing_about_subtitle);
     setText('aboutCardDesc', cfg.landing_about_card_desc);
+
+    // ===== 關於我們顯示開關 =====
+    const aboutSection = document.getElementById('about');
+    const aboutEnabledRaw = cfg.landing_about_enabled;
+    const aboutEnabled = aboutEnabledRaw === undefined || aboutEnabledRaw === null || aboutEnabledRaw === ''
+        ? true
+        : (() => {
+            const normalized = String(aboutEnabledRaw).trim().toLowerCase();
+            return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+        })();
+    if (aboutSection) {
+        aboutSection.style.display = aboutEnabled ? '' : 'none';
+    }
 
     // Hero 背景圖片（先預載再套用，避免刷新時先看到預設圖再切換）
     const heroSection = document.getElementById('hero');

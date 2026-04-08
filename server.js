@@ -1894,6 +1894,10 @@ function renderLandingTemplate(templateHtml, landingSettings, landingRoomTypes, 
     html = replaceElementContentById(html, 'aboutCardDesc', cfg.landing_about_card_desc);
     html = replaceElementContentById(html, 'countdownText', cfg.landing_countdown_text, { allowHtml: true });
 
+    const aboutVisible = isLandingSettingEnabled(cfg.landing_about_enabled, true);
+    html = setElementDisplayById(html, 'about', aboutVisible);
+    html = setElementDisplayById(html, 'navLinkAbout', aboutVisible);
+
     html = replaceElementContentById(html, 'heroTrust1', cfg.landing_hero_trust_1);
     html = replaceElementContentById(html, 'heroTrust2', cfg.landing_hero_trust_2);
     html = replaceElementContentById(html, 'heroTrust3', cfg.landing_hero_trust_3);
