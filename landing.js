@@ -595,11 +595,10 @@ function buildFeatureHTML(featuresStr) {
 }
 
 function getRoomFeatureItemsForLanding(room, cfg) {
-    const isWholeProperty = String(cfg?._systemMode || '').trim() === 'whole_property';
     const bedTypes = Array.isArray(room?.bed_types) ? room.bed_types.filter(Boolean) : [];
     const roomFacilities = Array.isArray(room?.room_facilities) ? room.room_facilities.filter(Boolean) : [];
     const merged = [...new Set([...bedTypes, ...roomFacilities])];
-    if (!isWholeProperty || merged.length > 0) {
+    if (merged.length > 0) {
         return merged;
     }
 
