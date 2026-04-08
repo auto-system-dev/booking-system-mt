@@ -595,40 +595,10 @@ function buildFeatureHTML(featuresStr) {
 }
 
 function getRoomFeatureItemsForLanding(room, cfg) {
+    void cfg;
     const bedTypes = Array.isArray(room?.bed_types) ? room.bed_types.filter(Boolean) : [];
     const roomFacilities = Array.isArray(room?.room_facilities) ? room.room_facilities.filter(Boolean) : [];
-    const merged = [...new Set([...bedTypes, ...roomFacilities])];
-    if (merged.length > 0) {
-        return merged;
-    }
-
-    const fallback = [];
-    const bedConfig = String(room?.bed_config || '').trim();
-    if (bedConfig) fallback.push(bedConfig);
-
-    const includedItems = Array.isArray(room?.included_items_list)
-        ? room.included_items_list
-        : String(room?.included_items || '').split(',').map((x) => x.trim()).filter(Boolean);
-    if (includedItems.length > 0) {
-        fallback.push(...includedItems.slice(0, 3));
-    }
-
-    if (fallback.length === 0) {
-        const landingFacilities = String(cfg?.landing_facilities || '')
-            .split(',')
-            .map((x) => x.trim())
-            .filter(Boolean);
-        fallback.push(...landingFacilities.slice(0, 3));
-    }
-
-    // 最後保底：避免包棟卡片完全沒有「房型/設施」資訊
-    if (fallback.length === 0) {
-        const occupancy = Number(room?.max_occupancy || 0);
-        if (occupancy > 0) fallback.push(`${occupancy}人入住`);
-        fallback.push('獨立衛浴', '免費 WiFi');
-    }
-
-    return [...new Set(fallback)];
+    return [...new Set([...bedTypes, ...roomFacilities])];
 }
 
 // ===== 動態生成旅宿設施區塊 =====
@@ -845,13 +815,20 @@ function renderRoomCards(cfg) {
         const holidaySurcharge = room.holiday_surcharge || 0;
         const displayName = room.display_name || room.name || '房型';
 
-        // 組合所有圖片：主圖 + 圖庫
+        // 圖片來源優先順序：房型管理圖庫 > 房型主圖 > 預設圖
         const fallbackRoomImage = isWholeProperty ? DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE : '';
-        const roomImageUrl = String(room.image_url || fallbackRoomImage || '').trim();
+        const roomImageUrlRaw = String(room.image_url || '').trim();
+        const galleryImages = Array.isArray(room.gallery_images)
+            ? room.gallery_images.map((url) => String(url || '').trim()).filter(Boolean)
+            : [];
+        const primaryRoomImage = galleryImages[0] || roomImageUrlRaw || fallbackRoomImage || '';
         const allImages = [];
-        if (roomImageUrl) allImages.push(roomImageUrl);
-        if (room.gallery_images && room.gallery_images.length > 0) {
-            room.gallery_images.forEach(url => { if (url && url !== roomImageUrl) allImages.push(url); });
+        if (primaryRoomImage) allImages.push(primaryRoomImage);
+        if (galleryImages.length > 0) {
+            galleryImages.forEach((url) => { if (url && url !== primaryRoomImage) allImages.push(url); });
+        }
+        if (roomImageUrlRaw && roomImageUrlRaw !== primaryRoomImage) {
+            allImages.push(roomImageUrlRaw);
         }
         window._roomGalleryData[room.id] = { images: allImages, name: displayName };
         
@@ -873,7 +850,7 @@ function renderRoomCards(cfg) {
         return `
             <div class="room-card" onclick="trackViewContent('${displayName}', ${trackPrice})">
                 <div class="room-image" onclick="event.stopPropagation(); ${hasGallery ? `openRoomGallery(${room.id})` : ''};" style="${hasGallery ? 'cursor:pointer;' : ''}">
-                    ${roomImageUrl ? `<img src="${roomImageUrl}" alt="${displayName}" loading="lazy" onerror="this.onerror=null;this.src='${DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE}'">` : '<div style="height:200px;background:#e0e0e0;display:flex;align-items:center;justify-content:center;color:#999;">尚無圖片</div>'}
+                    ${primaryRoomImage ? `<img src="${primaryRoomImage}" alt="${displayName}" loading="lazy" onerror="this.onerror=null;this.src='${DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE}'">` : '<div style="height:200px;background:#e0e0e0;display:flex;align-items:center;justify-content:center;color:#999;">尚無圖片</div>'}
                     ${badge ? `<span class="room-badge ${badgeClass}">${badge}</span>` : ''}
                     ${hasGallery ? `<span class="room-gallery-hint"><span class="material-symbols-outlined">photo_library</span> ${allImages.length} 張照片</span>` : ''}
                 </div>
