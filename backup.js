@@ -19,12 +19,30 @@ function ensureBackupDir() {
     }
 }
 
+function assertTenantId(tenantId) {
+    const n = Number.parseInt(tenantId, 10);
+    if (!Number.isInteger(n) || n <= 0) {
+        throw new Error('缺少 tenant_id，無法進行備份操作');
+    }
+    return n;
+}
+
+function getTenantBackupDir(tenantId) {
+    ensureBackupDir();
+    const tid = assertTenantId(tenantId);
+    const dir = path.join(BACKUP_DIR, String(tid));
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+    return dir;
+}
+
 /**
  * 備份 SQLite 資料庫
  */
-async function backupSQLite(dbPath) {
+async function backupSQLite(dbPath, tenantId) {
     try {
-        ensureBackupDir();
+        const tenantDir = getTenantBackupDir(tenantId);
         
         // 檢查資料庫檔案是否存在
         if (!fs.existsSync(dbPath)) {
@@ -35,7 +53,7 @@ async function backupSQLite(dbPath) {
         const now = new Date();
         const dateStr = now.toISOString().replace(/[-:]/g, '').replace('T', '_').split('.')[0];
         const backupFileName = `backup_${dateStr}.db`;
-        const backupPath = path.join(BACKUP_DIR, backupFileName);
+        const backupPath = path.join(tenantDir, backupFileName);
         
         // 複製資料庫檔案
         fs.copyFileSync(dbPath, backupPath);
@@ -64,9 +82,9 @@ async function backupSQLite(dbPath) {
  * 備份 PostgreSQL 資料庫（使用 JavaScript 原生 SQL 查詢匯出）
  * 不依賴 pg_dump，適用於 Railway 等無 pg_dump 的環境
  */
-async function backupPostgreSQL(databaseUrl) {
+async function backupPostgreSQL(databaseUrl, tenantId) {
     try {
-        ensureBackupDir();
+        const tenantDir = getTenantBackupDir(tenantId);
         
         // 建立獨立連線池進行備份
         const pool = new Pool({
@@ -78,7 +96,7 @@ async function backupPostgreSQL(databaseUrl) {
         const now = new Date();
         const dateStr = now.toISOString().replace(/[-:]/g, '').replace('T', '_').split('.')[0];
         const backupFileName = `backup_${dateStr}.json`;
-        const backupPath = path.join(BACKUP_DIR, backupFileName);
+        const backupPath = path.join(tenantDir, backupFileName);
         
         console.log('📦 開始匯出 PostgreSQL 資料...');
         
@@ -174,7 +192,7 @@ async function backupPostgreSQL(databaseUrl) {
 /**
  * 執行資料庫備份（自動偵測資料庫類型）
  */
-async function performBackup() {
+async function performBackup(tenantId) {
     try {
         console.log('\n[備份任務] 開始執行資料庫備份...');
         
@@ -182,13 +200,13 @@ async function performBackup() {
         
         if (usePostgreSQL) {
             // PostgreSQL 備份
-            const result = await backupPostgreSQL(process.env.DATABASE_URL);
+            const result = await backupPostgreSQL(process.env.DATABASE_URL, tenantId);
             console.log(`✅ 備份完成: ${result.fileName}`);
             return result;
         } else {
             // SQLite 備份
             const dbPath = path.join(__dirname, 'bookings.db');
-            const result = await backupSQLite(dbPath);
+            const result = await backupSQLite(dbPath, tenantId);
             console.log(`✅ 備份完成: ${result.fileName}`);
             return result;
         }
@@ -201,11 +219,11 @@ async function performBackup() {
 /**
  * 清理舊備份（保留最近 N 天）
  */
-async function cleanupOldBackups(daysToKeep = 30) {
+async function cleanupOldBackups(daysToKeep = 30, tenantId) {
     try {
-        ensureBackupDir();
+        const tenantDir = getTenantBackupDir(tenantId);
         
-        const files = fs.readdirSync(BACKUP_DIR);
+        const files = fs.readdirSync(tenantDir);
         const now = new Date();
         const cutoffDate = new Date(now);
         cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
@@ -219,7 +237,7 @@ async function cleanupOldBackups(daysToKeep = 30) {
                 continue;
             }
             
-            const filePath = path.join(BACKUP_DIR, file);
+            const filePath = path.join(tenantDir, file);
             const stats = fs.statSync(filePath);
             const fileDate = stats.mtime;
             
@@ -253,11 +271,11 @@ async function cleanupOldBackups(daysToKeep = 30) {
 /**
  * 取得備份列表
  */
-function getBackupList() {
+function getBackupList(tenantId) {
     try {
-        ensureBackupDir();
+        const tenantDir = getTenantBackupDir(tenantId);
         
-        const files = fs.readdirSync(BACKUP_DIR);
+        const files = fs.readdirSync(tenantDir);
         const backups = [];
         
         for (const file of files) {
@@ -265,7 +283,7 @@ function getBackupList() {
                 continue;
             }
             
-            const filePath = path.join(BACKUP_DIR, file);
+            const filePath = path.join(tenantDir, file);
             const stats = fs.statSync(filePath);
             
             backups.push({
@@ -291,9 +309,9 @@ function getBackupList() {
 /**
  * 取得備份統計資訊
  */
-function getBackupStats() {
+function getBackupStats(tenantId) {
     try {
-        const backups = getBackupList();
+        const backups = getBackupList(tenantId);
         const totalSize = backups.reduce((sum, backup) => sum + backup.fileSize, 0);
         const totalSizeMB = parseFloat((totalSize / (1024 * 1024)).toFixed(2));
         
@@ -313,9 +331,9 @@ function getBackupStats() {
 /**
  * 刪除指定備份檔案
  */
-function deleteBackup(fileName) {
+function deleteBackup(fileName, tenantId) {
     try {
-        ensureBackupDir();
+        const tenantDir = getTenantBackupDir(tenantId);
         
         // 防止路徑遍歷攻擊
         const safeName = path.basename(fileName);
@@ -323,7 +341,7 @@ function deleteBackup(fileName) {
             throw new Error('無效的備份檔案名稱');
         }
         
-        const filePath = path.join(BACKUP_DIR, safeName);
+        const filePath = path.join(tenantDir, safeName);
         
         if (!fs.existsSync(filePath)) {
             throw new Error('備份檔案不存在');
@@ -350,12 +368,12 @@ function deleteBackup(fileName) {
 /**
  * 還原 PostgreSQL 備份（從 JSON 備份檔案）
  */
-async function restorePostgreSQL(databaseUrl, fileName) {
+async function restorePostgreSQL(databaseUrl, fileName, tenantId) {
     try {
-        ensureBackupDir();
+        const tenantDir = getTenantBackupDir(tenantId);
         
         const safeName = path.basename(fileName);
-        const filePath = path.join(BACKUP_DIR, safeName);
+        const filePath = path.join(tenantDir, safeName);
         
         if (!fs.existsSync(filePath)) {
             throw new Error('備份檔案不存在');
@@ -493,12 +511,12 @@ async function restorePostgreSQL(databaseUrl, fileName) {
 /**
  * 還原 SQLite 備份
  */
-async function restoreSQLite(fileName) {
+async function restoreSQLite(fileName, tenantId) {
     try {
-        ensureBackupDir();
+        const tenantDir = getTenantBackupDir(tenantId);
         
         const safeName = path.basename(fileName);
-        const filePath = path.join(BACKUP_DIR, safeName);
+        const filePath = path.join(tenantDir, safeName);
         
         if (!fs.existsSync(filePath)) {
             throw new Error('備份檔案不存在');
@@ -514,7 +532,7 @@ async function restoreSQLite(fileName) {
         const now = new Date();
         const dateStr = now.toISOString().replace(/[-:]/g, '').replace('T', '_').split('.')[0];
         const preRestoreBackup = `backup_pre_restore_${dateStr}.db`;
-        const preRestorePath = path.join(BACKUP_DIR, preRestoreBackup);
+        const preRestorePath = path.join(tenantDir, preRestoreBackup);
         
         if (fs.existsSync(dbPath)) {
             fs.copyFileSync(dbPath, preRestorePath);
@@ -544,16 +562,16 @@ async function restoreSQLite(fileName) {
 /**
  * 還原備份（自動偵測資料庫類型）
  */
-async function restoreBackup(fileName) {
+async function restoreBackup(fileName, tenantId) {
     try {
         console.log(`\n[還原任務] 開始還原備份: ${fileName}`);
         
         const usePostgreSQL = !!process.env.DATABASE_URL;
         
         if (usePostgreSQL) {
-            return await restorePostgreSQL(process.env.DATABASE_URL, fileName);
+            return await restorePostgreSQL(process.env.DATABASE_URL, fileName, tenantId);
         } else {
-            return await restoreSQLite(fileName);
+            return await restoreSQLite(fileName, tenantId);
         }
     } catch (error) {
         console.error('❌ 還原備份失敗:', error.message);
@@ -579,10 +597,10 @@ function assertSafeBackupBasename(name) {
 /**
  * 下載用：回傳安全路徑
  */
-function getBackupFileForDownload(fileName) {
-    ensureBackupDir();
+function getBackupFileForDownload(fileName, tenantId) {
+    const tenantDir = getTenantBackupDir(tenantId);
     const safeName = assertSafeBackupBasename(fileName);
-    const filePath = path.join(BACKUP_DIR, safeName);
+    const filePath = path.join(tenantDir, safeName);
     if (!fs.existsSync(filePath)) {
         throw new Error('備份檔案不存在');
     }
@@ -592,10 +610,10 @@ function getBackupFileForDownload(fileName) {
 /**
  * 上傳備份至備份目錄（與手動備份相同位置）
  */
-function saveUploadedBackup(buffer, originalName) {
-    ensureBackupDir();
+function saveUploadedBackup(buffer, originalName, tenantId) {
+    const tenantDir = getTenantBackupDir(tenantId);
     const safeName = assertSafeBackupBasename(originalName);
-    const dest = path.join(BACKUP_DIR, safeName);
+    const dest = path.join(tenantDir, safeName);
     if (fs.existsSync(dest)) {
         throw new Error('已存在同名備份檔，請先刪除或使用不同檔名');
     }

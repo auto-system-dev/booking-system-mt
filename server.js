@@ -2797,10 +2797,10 @@ app.get('/api/admin/logs/filters', requireAuth, checkPermission('logs.view'), ad
 });
 
 // API: 取得備份列表
-app.get('/api/admin/backups', requireAuth, checkPermission('backup.view'), adminLimiter, async (req, res) => {
+app.get('/api/admin/backups', requireAuth, requireTenantContext, checkPermission('backup.view'), adminLimiter, async (req, res) => {
     try {
-        const backups = backup.getBackupList();
-        const stats = backup.getBackupStats();
+        const backups = backup.getBackupList(req.tenantId);
+        const stats = backup.getBackupStats(req.tenantId);
         
         res.json({
             success: true,
@@ -2817,10 +2817,10 @@ app.get('/api/admin/backups', requireAuth, checkPermission('backup.view'), admin
 });
 
 // API: 下載備份檔
-app.get('/api/admin/backups/download/:fileName', requireAuth, checkPermission('backup.view'), adminLimiter, (req, res) => {
+app.get('/api/admin/backups/download/:fileName', requireAuth, requireTenantContext, checkPermission('backup.view'), adminLimiter, (req, res) => {
     try {
         const fileName = decodeURIComponent(req.params.fileName || '');
-        const { safeName, filePath } = backup.getBackupFileForDownload(fileName);
+        const { safeName, filePath } = backup.getBackupFileForDownload(fileName, req.tenantId);
         res.download(filePath, safeName, (err) => {
             if (err) {
                 console.error('備份下載傳送錯誤:', err.message);
@@ -2842,6 +2842,7 @@ app.get('/api/admin/backups/download/:fileName', requireAuth, checkPermission('b
 app.post(
     '/api/admin/backups/upload',
     requireAuth,
+    requireTenantContext,
     checkPermission('backup.create'),
     adminLimiter,
     (req, res, next) => {
@@ -2861,7 +2862,7 @@ app.post(
             if (!req.file || !req.file.buffer) {
                 return res.status(400).json({ success: false, message: '請選擇備份檔案' });
             }
-            const result = backup.saveUploadedBackup(req.file.buffer, req.file.originalname);
+            const result = backup.saveUploadedBackup(req.file.buffer, req.file.originalname, req.tenantId);
             await logAction(req, 'upload_backup', 'backup', result.fileName, {
                 fileName: result.fileName,
                 fileSizeMB: result.fileSizeMB
@@ -2882,9 +2883,9 @@ app.post(
 );
 
 // API: 手動執行備份
-app.post('/api/admin/backups/create', requireAuth, checkPermission('backup.create'), adminLimiter, async (req, res) => {
+app.post('/api/admin/backups/create', requireAuth, requireTenantContext, checkPermission('backup.create'), adminLimiter, async (req, res) => {
     try {
-        const result = await backup.performBackup();
+        const result = await backup.performBackup(req.tenantId);
         
         // 記錄備份操作日誌
         await logAction(req, 'create_backup', 'backup', result.fileName, {
@@ -2907,10 +2908,10 @@ app.post('/api/admin/backups/create', requireAuth, checkPermission('backup.creat
 });
 
 // API: 清理舊備份
-app.post('/api/admin/backups/cleanup', requireAuth, checkPermission('backup.delete'), adminLimiter, async (req, res) => {
+app.post('/api/admin/backups/cleanup', requireAuth, requireTenantContext, checkPermission('backup.delete'), adminLimiter, async (req, res) => {
     try {
         const { daysToKeep = 30 } = req.body;
-        const result = await backup.cleanupOldBackups(parseInt(daysToKeep));
+        const result = await backup.cleanupOldBackups(parseInt(daysToKeep), req.tenantId);
         
         // 記錄清理操作日誌
         await logAction(req, 'cleanup_backups', 'backup', null, {
@@ -2933,10 +2934,10 @@ app.post('/api/admin/backups/cleanup', requireAuth, checkPermission('backup.dele
 });
 
 // API: 刪除單一備份
-app.delete('/api/admin/backups/:fileName', requireAuth, checkPermission('backup.delete'), adminLimiter, async (req, res) => {
+app.delete('/api/admin/backups/:fileName', requireAuth, requireTenantContext, checkPermission('backup.delete'), adminLimiter, async (req, res) => {
     try {
         const { fileName } = req.params;
-        const result = backup.deleteBackup(fileName);
+        const result = backup.deleteBackup(fileName, req.tenantId);
         
         // 記錄刪除操作日誌
         await logAction(req, 'delete_backup', 'backup', fileName, {
@@ -2959,7 +2960,7 @@ app.delete('/api/admin/backups/:fileName', requireAuth, checkPermission('backup.
 });
 
 // API: 還原備份
-app.post('/api/admin/backups/restore/:fileName', requireAuth, checkPermission('backup.restore'), adminLimiter, async (req, res) => {
+app.post('/api/admin/backups/restore/:fileName', requireAuth, requireTenantContext, checkPermission('backup.restore'), adminLimiter, async (req, res) => {
     try {
         const { fileName } = req.params;
         
@@ -2970,7 +2971,7 @@ app.post('/api/admin/backups/restore/:fileName', requireAuth, checkPermission('b
             // 還原前先自動建立一份備份（安全措施）
             console.log('⚠️ 還原前自動建立安全備份...');
             try {
-                await backup.performBackup();
+                await backup.performBackup(req.tenantId);
             } catch (preBackupError) {
                 console.warn('⚠️ 還原前安全備份失敗（繼續還原）:', preBackupError.message);
             }
@@ -2978,7 +2979,7 @@ app.post('/api/admin/backups/restore/:fileName', requireAuth, checkPermission('b
             console.log('ℹ️ 已略過還原前自動備份（使用者選擇）');
         }
         
-        const result = await backup.restoreBackup(fileName);
+        const result = await backup.restoreBackup(fileName, req.tenantId);
         
         // 記錄還原操作日誌
         await logAction(req, 'restore_backup', 'backup', fileName, {
