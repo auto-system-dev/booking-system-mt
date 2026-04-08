@@ -10253,7 +10253,18 @@ ${htmlEnd}`;
     
     // 支援多種欄位格式（駝峰和底線）
     const guestName = booking.guest_name || booking.guestName || '';
-    const roomType = booking.room_type || booking.roomType || '';
+    let roomType = String(booking.room_type || booking.roomType || '').trim();
+    try {
+        const bidForRoomEmail = booking.building_id ?? booking.buildingId ?? null;
+        const resolvedRoomLabel = await db.resolveRoomTypeDisplayNameForEmail(
+            emailTenantId,
+            roomType,
+            bidForRoomEmail
+        );
+        if (resolvedRoomLabel) roomType = resolvedRoomLabel;
+    } catch (e) {
+        console.warn('⚠️ 郵件房型顯示名稱解析失敗:', e.message);
+    }
     const guestPhone = booking.guest_phone || booking.guestPhone || '';
     const guestEmail = booking.guest_email || booking.guestEmail || '';
     const specialRequest = booking.special_request || booking.specialRequest || '';

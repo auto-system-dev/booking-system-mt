@@ -7003,6 +7003,50 @@ async function getRoomTypeById(id, tenantId) {
     }
 }
 
+/**
+ * 將訂單上的房型代碼（name）或舊資料轉成顯示名稱（display_name），供郵件模板使用。
+ * 若 bookings.room_type 已是中文顯示名稱且與 name 欄位不一致，則查無對應時會原樣回傳。
+ */
+async function resolveRoomTypeDisplayNameForEmail(tenantId, roomTypeValue, buildingId) {
+    const safeTenantId = assertTenantScope(tenantId, 'resolveRoomTypeDisplayNameForEmail');
+    const raw = String(roomTypeValue || '').trim();
+    if (!raw) return '';
+
+    const bidRaw = buildingId !== undefined && buildingId !== null && buildingId !== ''
+        ? parseInt(String(buildingId), 10)
+        : NaN;
+    const hasBid = Number.isFinite(bidRaw) && bidRaw > 0;
+
+    try {
+        if (usePostgreSQL) {
+            const row = await queryOne(
+                `SELECT COALESCE(NULLIF(TRIM(display_name), ''), name) AS dn
+                 FROM room_types
+                 WHERE tenant_id = $1::int AND name = $2::varchar
+                 ORDER BY CASE WHEN $3::int IS NOT NULL AND building_id = $3::int THEN 0 ELSE 1 END,
+                          id ASC
+                 LIMIT 1`,
+                [safeTenantId, raw, hasBid ? bidRaw : null]
+            );
+            if (row?.dn) return String(row.dn).trim();
+        } else {
+            const row = await queryOne(
+                `SELECT COALESCE(NULLIF(TRIM(display_name), ''), name) AS dn
+                 FROM room_types
+                 WHERE tenant_id = ? AND name = ?
+                 ORDER BY CASE WHEN ? IS NOT NULL AND building_id = ? THEN 0 ELSE 1 END,
+                          id ASC
+                 LIMIT 1`,
+                [safeTenantId, raw, hasBid ? bidRaw : null, hasBid ? bidRaw : null]
+            );
+            if (row?.dn) return String(row.dn).trim();
+        }
+    } catch (error) {
+        console.warn('⚠️ resolveRoomTypeDisplayNameForEmail 失敗:', error.message);
+    }
+    return raw;
+}
+
 // 新增房型
 async function createRoomType(roomData, tenantId) {
     try {
@@ -9712,6 +9756,7 @@ module.exports = {
     getRoomTypesByBuilding,
     getAllRoomTypesAdmin,
     getRoomTypeById,
+    resolveRoomTypeDisplayNameForEmail,
     createRoomType,
     updateRoomType,
     deleteRoomType,

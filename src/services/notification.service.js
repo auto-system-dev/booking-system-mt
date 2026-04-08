@@ -104,6 +104,17 @@ function createNotificationService(deps) {
         const discountAmount = booking.discount_amount || booking.discountAmount || 0;
         const discountedTotal = booking.discountedTotal || (discountAmount > 0 ? Math.max(0, originalAmount - discountAmount) : originalAmount);
 
+        let roomTypeForEmail = String(booking.room_type || '').trim();
+        try {
+            roomTypeForEmail = await db.resolveRoomTypeDisplayNameForEmail(
+                resolveTenantId(booking),
+                roomTypeForEmail,
+                booking.building_id ?? booking.buildingId
+            );
+        } catch (_) {
+            /* 保持原字串 */
+        }
+
         const bookingData = {
             bookingId: booking.booking_id,
             guestName: booking.guest_name,
@@ -112,7 +123,7 @@ function createNotificationService(deps) {
             specialRequest: booking.special_request || '',
             checkInDate: booking.check_in_date,
             checkOutDate: booking.check_out_date,
-            roomType: booking.room_type,
+            roomType: roomTypeForEmail,
             pricePerNight: booking.price_per_night,
             nights: booking.nights,
             originalAmount: originalAmount,
@@ -199,7 +210,7 @@ function createNotificationService(deps) {
                     guestName: booking.guest_name,
                     checkInDate: booking.check_in_date,
                     checkOutDate: booking.check_out_date,
-                    roomType: booking.room_type,
+                    roomType: roomTypeForEmail,
                     totalAmount: originalAmount,
                     discountAmount: discountAmount,
                     discountedTotal: discountedTotal,
