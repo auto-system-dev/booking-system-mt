@@ -1670,8 +1670,10 @@ async function getLandingPagePayload(tenantId = defaultTenantId) {
         settingsMap[setting.key] = setting.value;
     });
 
-    const allRoomTypes = await db.getAllRoomTypes(tenantId);
-    const landingRoomTypes = (allRoomTypes || []).filter(r => r.show_on_landing === 1);
+    const systemModeEarly = String(settingsMap.system_mode || 'retail').trim() || 'retail';
+    const landingListScope = systemModeEarly === 'whole_property' ? 'whole_property' : 'retail';
+    const allRoomTypes = await db.getAllRoomTypes(tenantId, landingListScope);
+    const landingRoomTypes = (allRoomTypes || []).filter((r) => Number(r.show_on_landing ?? 1) === 1);
     const bedTypeKeywords = new Set(['單人床', '雙人床', '加大雙人床', '特大雙人床', '上下鋪', '和式床墊', '沙發床']);
 
     const allGalleryImages = await db.getAllRoomTypeGalleryImages(tenantId);
@@ -1696,7 +1698,7 @@ async function getLandingPagePayload(tenantId = defaultTenantId) {
         room.gallery_images = galleryMap[room.id] || [];
     });
 
-    const systemMode = String(settingsMap.system_mode || 'retail').trim() || 'retail';
+    const systemMode = systemModeEarly;
 
     return { landingSettings, landingRoomTypes, systemMode };
 }
@@ -4966,7 +4968,10 @@ app.get('/api/admin/debug/room-types-building-stats', requireAuth, requireTenant
 // 可選 query：listScope=retail|whole_property（銷售頁精選房型需固定 retail 時傳入，不受系統模式影響）
 app.get('/api/room-types', requireTenantContext, publicLimiter, async (req, res) => {
     try {
-        const buildingId = req.query.buildingId ? parseInt(req.query.buildingId, 10) : 1;
+        let buildingId = req.query.buildingId ? parseInt(req.query.buildingId, 10) : NaN;
+        if (!Number.isFinite(buildingId) || buildingId <= 0) {
+            buildingId = await db.ensureTenantDefaultBuildingId(req.tenantId);
+        }
         const rawScope = String(req.query.listScope || '').trim().toLowerCase();
         let listScope = 'retail';
         if (rawScope === 'retail' || rawScope === 'whole_property') {
@@ -5427,7 +5432,10 @@ app.get('/api/check-holiday', requireTenantContext, publicLimiter, async (req, r
 app.get('/api/calculate-price', publicLimiter, async (req, res) => {
     try {
         const { checkInDate, checkOutDate, roomTypeName } = req.query;
-        const buildingId = req.query.buildingId ? parseInt(req.query.buildingId, 10) : 1;
+        let buildingId = req.query.buildingId ? parseInt(req.query.buildingId, 10) : NaN;
+        if (!Number.isFinite(buildingId) || buildingId <= 0) {
+            buildingId = await db.ensureTenantDefaultBuildingId(getRequestTenantId(req));
+        }
         
         if (!checkInDate || !checkOutDate || !roomTypeName) {
             return res.status(400).json({

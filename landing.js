@@ -101,11 +101,15 @@ async function refreshLandingRoomTypesByBuilding(buildingId) {
             const activeBuildings = Array.isArray(landingAllBuildings)
                 ? landingAllBuildings.filter((b) => Number(b?.is_active ?? 1) !== 0)
                 : [];
-            safeBid = Number(activeBuildings[0]?.id || landingAllBuildings?.[0]?.id || 1);
-            setLandingSelectedBuildingId(safeBid);
+            safeBid = Number(activeBuildings[0]?.id || landingAllBuildings?.[0]?.id || 0);
+            if (safeBid > 0) {
+                setLandingSelectedBuildingId(safeBid);
+            }
         }
+        const mode = String(landingConfig._systemMode || 'retail').trim();
+        const listScope = mode === 'whole_property' ? 'whole_property' : 'retail';
         const res = await fetch(
-            `/api/room-types?buildingId=${encodeURIComponent(String(safeBid))}&listScope=retail&_ts=${Date.now()}`,
+            `/api/room-types?buildingId=${encodeURIComponent(String(safeBid || 0))}&listScope=${encodeURIComponent(listScope)}&_ts=${Date.now()}`,
             { cache: 'no-store' }
         );
         const j = await res.json();
@@ -659,6 +663,10 @@ function renderRoomCards(cfg) {
     const allRoomTypes = cfg._roomTypes || [];
     const bid = getLandingSelectedBuildingId();
     const roomTypes = allRoomTypes.filter((rt) => {
+        // 尚未選定館別時顯示全部（多租戶預設館 ID 通常不是 1，避免被誤篩成 0 筆）
+        if (bid == null || !Number.isFinite(Number(bid)) || Number(bid) <= 0) {
+            return true;
+        }
         const raw = rt?.building_id ?? rt?.buildingId ?? 1;
         const rtBid = raw === null || raw === undefined ? 1 : Number(raw);
         // 相容舊資料：預設館時也包含 building_id 為 null/0 的房型
@@ -1311,7 +1319,7 @@ function syncLandingBuildingSwitch(cfg) {
             setLandingSelectedBuildingId(selectEl.value);
             const bid = getLandingSelectedBuildingId();
             landingConfig._roomTypes = await refreshLandingRoomTypesByBuilding(bid);
-            renderRoomCards(cfg);
+            renderRoomCards(landingConfig);
             updateBookingLinks();
         });
         selectEl.dataset.boundChange = '1';

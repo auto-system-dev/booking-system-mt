@@ -7012,10 +7012,23 @@ async function getRoomTypesBuildingStatsAdmin(tenantId) {
 }
 
 // 取得所有房型（只包含啟用的，供前台使用）
-async function getAllRoomTypes(tenantId) {
+// 多租戶各館 building_id 不同，不可寫死 building_id = 1；改為該租戶底下所有啟用房型（依 list_scope）
+async function getAllRoomTypes(tenantId, listScope = 'retail') {
     try {
-        // 兼容舊簽名：不帶參數時回傳預設館（一般房型，不含包棟專用方案）
-        return await getRoomTypesByBuilding(1, { activeOnly: true, listScope: 'retail', tenantId });
+        const safeTenantId = assertTenantScope(tenantId, 'getAllRoomTypes');
+        const activeClause = 'AND is_active = 1';
+        const scope = listScope === 'whole_property' ? 'whole_property' : 'retail';
+        const scopeClause =
+            scope === 'whole_property'
+                ? ` AND list_scope = 'whole_property'`
+                : usePostgreSQL
+                  ? ` AND (COALESCE(NULLIF(TRIM(list_scope), ''), 'retail') = 'retail')`
+                  : ` AND (COALESCE(NULLIF(TRIM(list_scope), ''), 'retail') = 'retail')`;
+        const sql = usePostgreSQL
+            ? `SELECT * FROM room_types WHERE tenant_id = $1 ${activeClause}${scopeClause} ORDER BY display_order ASC, id ASC`
+            : `SELECT * FROM room_types WHERE tenant_id = ? ${activeClause}${scopeClause} ORDER BY display_order ASC, id ASC`;
+        const result = await query(sql, [safeTenantId]);
+        return result.rows || [];
     } catch (error) {
         console.error('❌ 查詢房型失敗:', error.message);
         throw error;
@@ -9931,6 +9944,7 @@ module.exports = {
     runSubscriptionDailyCheck,
     setTenantSubscriptionPlan,
     updateLatestSubscriptionStatus,
+    ensureTenantDefaultBuildingId,
     seedTenantDefaultRoomTypes,
     seedTenantDefaultAddons,
     createTenantOnboarding,
