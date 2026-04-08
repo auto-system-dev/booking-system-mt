@@ -385,42 +385,79 @@ async function restorePostgreSQL(databaseUrl, fileName) {
             const tables = backupData.metadata.tables || Object.keys(backupData.data);
             let restoredTables = 0;
             let totalRowsRestored = 0;
-            
-            for (const table of tables) {
+
+            // 僅處理有資料的表（避免白跑）
+            const tablesWithRows = (tables || []).filter((t) => {
+                const td = backupData.data?.[t];
+                return td && Array.isArray(td.rows) && td.rows.length > 0;
+            });
+
+            // 還原順序：先父表後子表（最小化 FK 失敗）
+            const priority = [
+                // core
+                'tenants',
+                'roles',
+                'admins',
+                'users',
+                'plans',
+                'subscriptions',
+                'invoices',
+                'settings',
+                // business
+                'buildings',
+                'room_types',
+                'room_type_inventory',
+                'prices',
+                'customers',
+                'bookings',
+                // misc
+                'holidays',
+                'email_templates',
+                'payment_events',
+                'tenant_verifications',
+                'promo_codes',
+                'promo_code_usages',
+                'member_levels',
+                'action_logs'
+            ];
+            const priorityIndex = new Map(priority.map((name, idx) => [name, idx]));
+            const orderedTables = [...tablesWithRows].sort((a, b) => {
+                const ai = priorityIndex.has(a) ? priorityIndex.get(a) : 9999;
+                const bi = priorityIndex.has(b) ? priorityIndex.get(b) : 9999;
+                if (ai !== bi) return ai - bi;
+                return String(a).localeCompare(String(b));
+            });
+
+            // Phase 1: 先清空所有表（避免後面 TRUNCATE ... CASCADE 把先插入的資料清掉）
+            for (const table of orderedTables) {
+                await client.query(`TRUNCATE TABLE "${table}" CASCADE`);
+            }
+
+            // Phase 2: 再依順序插入
+            for (const table of orderedTables) {
                 const tableData = backupData.data[table];
-                if (!tableData || !tableData.rows || tableData.rows.length === 0) {
-                    console.log(`  ⏭️ ${table}: 無資料，跳過`);
-                    continue;
-                }
-                
                 try {
-                    // 清空資料表（使用 TRUNCATE CASCADE 處理外鍵）
-                    await client.query(`TRUNCATE TABLE "${table}" CASCADE`);
-                    
-                    // 批次插入資料
                     const columns = Object.keys(tableData.rows[0]);
-                    const columnNames = columns.map(c => `"${c}"`).join(', ');
-                    
+                    const columnNames = columns.map((c) => `"${c}"`).join(', ');
+
                     for (const row of tableData.rows) {
-                        const values = columns.map(c => row[c]);
+                        const values = columns.map((c) => row[c]);
                         const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
-                        
                         await client.query(
                             `INSERT INTO "${table}" (${columnNames}) VALUES (${placeholders})`,
                             values
                         );
                     }
-                    
-                    // 重設序列（auto-increment）
+
                     if (columns.includes('id')) {
-                        await client.query(`
-                            SELECT setval(pg_get_serial_sequence('"${table}"', 'id'), 
+                        await client.query(
+                            `
+                            SELECT setval(pg_get_serial_sequence('"${table}"', 'id'),
                                 COALESCE((SELECT MAX(id) FROM "${table}"), 0) + 1, false)
-                        `).catch(() => {
-                            // 如果沒有序列就跳過
-                        });
+                        `
+                        ).catch(() => {});
                     }
-                    
+
                     restoredTables++;
                     totalRowsRestored += tableData.rows.length;
                     console.log(`  ✅ ${table}: 還原 ${tableData.rows.length} 筆資料`);
