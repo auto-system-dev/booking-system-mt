@@ -5476,20 +5476,7 @@ function onRoomTypesBuildingChange(buildingId) {
     loadRoomTypes();
 }
 
-const DEFAULT_WHOLE_PROPERTY_PLAN_IMAGES = [
-    'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&h=600&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&h=600&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=800&h=600&fit=crop&q=80',
-    'https://images.unsplash.com/photo-1512918728675-ed5a9ecdebfd?w=800&h=600&fit=crop&q=80'
-];
-
-function getDefaultWholePropertyPlanImage(seed = 0) {
-    const list = DEFAULT_WHOLE_PROPERTY_PLAN_IMAGES;
-    if (!Array.isArray(list) || list.length === 0) return '';
-    const n = Number.isFinite(Number(seed)) ? Number(seed) : 0;
-    const idx = Math.abs(Math.floor(n)) % list.length;
-    return list[idx];
-}
+const DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE = 'https://images.unsplash.com/photo-1512918728675-ed5a9ecdebfd?w=800&h=600&fit=crop&q=80';
 
 // 渲染房型列表（依分頁只更新對應表格）
 function renderRoomTypes(scope = 'retail') {
@@ -5519,7 +5506,7 @@ function renderRoomTypes(scope = 'retail') {
             const t = String(s ?? '').trim();
             return t ? escapeHtml(t) : '—';
         };
-        const rowsHtml = filteredRoomTypes.map((room, idx) => {
+        const rowsHtml = filteredRoomTypes.map((room) => {
             const price = n(room.price);
             const originalPrice = n(room.original_price);
             const holidaySurcharge = n(room.holiday_surcharge);
@@ -5530,9 +5517,7 @@ function renderRoomTypes(scope = 'retail') {
             const oldLine = originalPrice > 0
                 ? `<br><small style="color:#aaa;text-decoration:line-through;">NT$ ${originalPrice.toLocaleString()}</small>`
                 : '';
-            const fallbackImageUrl = scope === 'whole_property'
-                ? getDefaultWholePropertyPlanImage(Number(room.id) || Number(room.display_order) || idx)
-                : '';
+            const fallbackImageUrl = scope === 'whole_property' ? DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE : '';
             const imageUrl = String(room.image_url || fallbackImageUrl || '').trim();
             const imgCell = imageUrl
                 ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(room.display_name || '')}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid #eee;">`
@@ -5628,7 +5613,7 @@ function showRoomTypeModal(room, listScopeHint) {
     const initialDisplay = isEdit ? room.display_name : (isPlan ? '包棟方案（請修改）' : '');
     const currentImageUrl = isEdit
         ? (room.image_url || '')
-        : (isPlan ? getDefaultWholePropertyPlanImage(Date.now()) : '');
+        : (isPlan ? DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE : '');
     const includedConfig = parseIncludedItemsConfig(isEdit ? (room.included_items || '') : '');
     const includedPresetHtml = ROOM_INCLUDED_ITEM_PRESETS.map((item) => `
         <label style="display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; white-space: nowrap;">

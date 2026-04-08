@@ -6,6 +6,7 @@ let enableAddons = true; // 前台加購商品功能是否啟用
 let allBuildings = [];
 let selectedBuildingId = 1;
 const SELECTED_BUILDING_STORAGE_KEY = 'selected_building_id_v1';
+const DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE = 'https://images.unsplash.com/photo-1512918728675-ed5a9ecdebfd?w=800&h=600&fit=crop&q=80';
 
 function formatAddonUnit(unitLabel) {
     const normalized = String(unitLabel || '人').trim();
@@ -1193,8 +1194,10 @@ async function renderRoomTypes() {
         const includedItems = Array.isArray(room.included_items_list) ? room.included_items_list.filter(Boolean) : [];
         roomFacilitiesData[roomId] = roomFacilities;
 
+        const fallbackRoomImage = isWholePropertyMode ? DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE : '';
+        const roomImageUrl = String(room.image_url || fallbackRoomImage || '').trim();
         const galleryImages = [];
-        if (room.image_url) galleryImages.push(room.image_url);
+        if (roomImageUrl) galleryImages.push(roomImageUrl);
         if (Array.isArray(room.gallery_images)) {
             room.gallery_images.forEach((imageUrl) => {
                 if (imageUrl && !galleryImages.includes(imageUrl)) {
@@ -1236,10 +1239,10 @@ async function renderRoomTypes() {
                 <div class="room-name">${escapeRoomText(displayName)}</div>
                 <div class="room-card-layout">
                     <div class="room-card-left">
-                        ${room.image_url 
+                        ${roomImageUrl 
                             ? `<div class="room-icon room-icon-image">
                                 ${bookingBadge ? `<span class="room-photo-badge">${escapeRoomText(bookingBadge)}</span>` : ''}
-                                <img src="${room.image_url}" alt="${escapeRoomText(displayName)}" loading="lazy" ${galleryImages.length > 0 ? `onclick="openRoomGallery(event, '${roomId}')"` : ''}>
+                                <img src="${roomImageUrl}" alt="${escapeRoomText(displayName)}" loading="lazy" ${galleryImages.length > 0 ? `onclick="openRoomGallery(event, '${roomId}')"` : ''}>
                                 ${galleryImages.length > 1 ? `<span class="room-gallery-hint"><span class="material-symbols-outlined">photo_library</span> ${galleryImages.length} 張照片</span>` : ''}
                             </div>` 
                             : `<div class="room-icon">${room.icon || '🏠'}</div>`}
