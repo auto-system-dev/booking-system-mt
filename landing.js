@@ -622,6 +622,13 @@ function getRoomFeatureItemsForLanding(room, cfg) {
         fallback.push(...landingFacilities.slice(0, 3));
     }
 
+    // 最後保底：避免包棟卡片完全沒有「房型/設施」資訊
+    if (fallback.length === 0) {
+        const occupancy = Number(room?.max_occupancy || 0);
+        if (occupancy > 0) fallback.push(`${occupancy}人入住`);
+        fallback.push('獨立衛浴', '免費 WiFi');
+    }
+
     return [...new Set(fallback)];
 }
 
