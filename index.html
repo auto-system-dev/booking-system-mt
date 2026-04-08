@@ -26,7 +26,8 @@
                 if (landingName && String(landingName).trim()) {
                     document.title = String(landingName).trim();
                 }
-                const pixelId = result.success && result.data && result.data.landing_fb_pixel_id;
+                const rawPixel = result.success && result.data && result.data.landing_fb_pixel_id;
+                const pixelId = rawPixel != null ? String(rawPixel).trim() : '';
                 if (pixelId && pixelId !== 'YOUR_PIXEL_ID_HERE' && /^\d+$/.test(pixelId)) {
                     !function(f,b,e,v,n,t,s)
                     {if(f.fbq)return;n=f.fbq=function(){n.callMethod?

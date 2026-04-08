@@ -304,11 +304,11 @@ async function applyConfig(cfg) {
     setLink('socialLine', cfg.landing_social_line);
 
     // ===== Facebook Pixel（僅在 Pixel ID 為有效數字時載入）=====
-    const pixelId = cfg.landing_fb_pixel_id;
+    const pixelId = cfg.landing_fb_pixel_id != null ? String(cfg.landing_fb_pixel_id).trim() : '';
     if (pixelId && pixelId !== 'YOUR_PIXEL_ID_HERE' && /^\d+$/.test(pixelId)) {
         initFacebookPixel(pixelId);
     } else if (pixelId && !/^\d+$/.test(pixelId)) {
-        console.warn('⚠️ Facebook Pixel ID 格式不正確（應為純數字）:', pixelId);
+        console.warn('⚠️ Facebook Pixel ID 格式不正確（應為純數字、勿含空白）:', pixelId);
     } else {
         console.log('ℹ️ Facebook Pixel 未設定，跳過初始化');
     }
@@ -852,7 +852,8 @@ function renderReviewCards(cfg) {
 // ===== 動態載入 Facebook Pixel =====
 function initFacebookPixel(pixelId) {
     try {
-        if (!pixelId || typeof fbq !== 'undefined') return;
+        const id = pixelId != null ? String(pixelId).trim() : '';
+        if (!id || typeof fbq !== 'undefined') return;
 
         !function(f,b,e,v,n,t,s)
         {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -863,9 +864,9 @@ function initFacebookPixel(pixelId) {
         s.parentNode.insertBefore(t,s)}(window, document,'script',
         'https://connect.facebook.net/en_US/fbevents.js');
 
-        fbq('init', pixelId);
+        fbq('init', id);
         fbq('track', 'PageView');
-        console.log('✅ Facebook Pixel 已初始化:', pixelId);
+        console.log('✅ Facebook Pixel 已初始化:', id);
     } catch (error) {
         console.warn('⚠️ Facebook Pixel 初始化失敗:', error.message);
     }
