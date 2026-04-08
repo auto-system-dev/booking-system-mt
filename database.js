@@ -706,10 +706,10 @@ async function seedTenantDefaultRoomTypes(tenantId) {
     const wholeCount = parseInt(wholeCountRow?.cnt || 0, 10);
 
     const defaultRetailImageMap = [
-        ['standard', 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800&q=80'],
-        ['deluxe', 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&q=80'],
-        ['suite', 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=800&q=80'],
-        ['family', 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=800&q=80']
+        ['standard', '/assets/defaults/room-standard.jpg'],
+        ['deluxe', '/assets/defaults/room-deluxe.jpg'],
+        ['suite', '/assets/defaults/room-suite.jpg'],
+        ['family', '/assets/defaults/room-family.jpg']
     ];
 
     if (retailCount === 0) {
@@ -1910,10 +1910,10 @@ async function initPostgreSQL() {
             const roomCount = await queryOne('SELECT COUNT(*) as count FROM room_types');
             if (roomCount && parseInt(roomCount.count) === 0) {
                 const defaultRooms = [
-                    ['standard', '標準雙人房', 2000, 2, 0, '🏠', 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800&q=80', 1],
-                    ['deluxe', '豪華雙人房', 3500, 2, 0, '✨', 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&q=80', 2],
-                    ['suite', '尊爵套房', 5000, 2, 0, '👑', 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=800&q=80', 3],
-                    ['family', '家庭四人房', 4500, 4, 0, '👨‍👩‍👧‍👦', 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=800&q=80', 4]
+                    ['standard', '標準雙人房', 2000, 2, 0, '🏠', '/assets/defaults/room-standard.jpg', 1],
+                    ['deluxe', '豪華雙人房', 3500, 2, 0, '✨', '/assets/defaults/room-deluxe.jpg', 2],
+                    ['suite', '尊爵套房', 5000, 2, 0, '👑', '/assets/defaults/room-suite.jpg', 3],
+                    ['family', '家庭四人房', 4500, 4, 0, '👨‍👩‍👧‍👦', '/assets/defaults/room-family.jpg', 4]
                 ];
                 
                 for (const room of defaultRooms) {
@@ -1927,15 +1927,15 @@ async function initPostgreSQL() {
             
             // 為已有的房型補上預設照片（如果 image_url 為空）
             const defaultImages = {
-                'standard': 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800&q=80',
-                'deluxe': 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&q=80',
-                'suite': 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=800&q=80',
-                'family': 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=800&q=80'
+                'standard': '/assets/defaults/room-standard.jpg',
+                'deluxe': '/assets/defaults/room-deluxe.jpg',
+                'suite': '/assets/defaults/room-suite.jpg',
+                'family': '/assets/defaults/room-family.jpg'
             };
             
             // 需要被替換的舊照片 URL（用於更新已過時的預設照片）
             const oldImageUrls = [
-                'https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?w=800&q=80'
+                '/assets/defaults/room-deluxe.jpg'
             ];
             
             for (const [roomName, imageUrl] of Object.entries(defaultImages)) {
@@ -4021,10 +4021,10 @@ function initSQLite() {
                                         db.get('SELECT COUNT(*) as count FROM room_types', [], (err, row) => {
                                             if (!err && row && row.count === 0) {
                                                 const defaultRooms = [
-                                                    ['standard', '標準雙人房', 2000, 2, 0, '🏠', 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800&q=80', 1],
-                                                    ['deluxe', '豪華雙人房', 3500, 2, 0, '✨', 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&q=80', 2],
-                                                    ['suite', '尊爵套房', 5000, 2, 0, '👑', 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=800&q=80', 3],
-                                                    ['family', '家庭四人房', 4500, 4, 0, '👨‍👩‍👧‍👦', 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=800&q=80', 4]
+                                                    ['standard', '標準雙人房', 2000, 2, 0, '🏠', '/assets/defaults/room-standard.jpg', 1],
+                                                    ['deluxe', '豪華雙人房', 3500, 2, 0, '✨', '/assets/defaults/room-deluxe.jpg', 2],
+                                                    ['suite', '尊爵套房', 5000, 2, 0, '👑', '/assets/defaults/room-suite.jpg', 3],
+                                                    ['family', '家庭四人房', 4500, 4, 0, '👨‍👩‍👧‍👦', '/assets/defaults/room-family.jpg', 4]
                                                 ];
                                                 
                                                 const stmt = db.prepare('INSERT INTO room_types (name, display_name, price, max_occupancy, extra_beds, extra_bed_price, icon, image_url, display_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -4037,10 +4037,10 @@ function initSQLite() {
                                             
                                             // 為已有的房型補上預設照片（如果 image_url 為空）
                                             const defaultImages = {
-                                                'standard': 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800&q=80',
-                                                'deluxe': 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&q=80',
-                                                'suite': 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=800&q=80',
-                                                'family': 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=800&q=80'
+                                                'standard': '/assets/defaults/room-standard.jpg',
+                                                'deluxe': '/assets/defaults/room-deluxe.jpg',
+                                                'suite': '/assets/defaults/room-suite.jpg',
+                                                'family': '/assets/defaults/room-family.jpg'
                                             };
                                             
                                             Object.entries(defaultImages).forEach(([roomName, imageUrl]) => {
@@ -7446,7 +7446,7 @@ async function seedDefaultWholePropertyPlansIfEmpty() {
         if (c > 0) return;
 
         const img =
-            'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&h=600&fit=crop&q=80';
+            '/assets/defaults/whole-property.jpg';
         const plans = [
             ['wp_10', '10人包棟', 10, 1],
             ['wp_16', '16人包棟', 16, 2],
@@ -7543,7 +7543,7 @@ async function applyRetailRoomTypesSeedDefaultsBuilding1Once() {
                 extra_beds: 0,
                 display_order: 1,
                 icon: '🏠',
-                image_url: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=800&q=80'
+                image_url: '/assets/defaults/room-standard.jpg'
             },
             {
                 name: 'deluxe',
@@ -7553,7 +7553,7 @@ async function applyRetailRoomTypesSeedDefaultsBuilding1Once() {
                 extra_beds: 0,
                 display_order: 2,
                 icon: '✨',
-                image_url: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=800&q=80'
+                image_url: '/assets/defaults/room-deluxe.jpg'
             },
             {
                 name: 'suite',
@@ -7563,7 +7563,7 @@ async function applyRetailRoomTypesSeedDefaultsBuilding1Once() {
                 extra_beds: 0,
                 display_order: 3,
                 icon: '👑',
-                image_url: 'https://images.unsplash.com/photo-1631049307264-da0ec9d70304?w=800&q=80'
+                image_url: '/assets/defaults/room-suite.jpg'
             },
             {
                 name: 'family',
@@ -7573,7 +7573,7 @@ async function applyRetailRoomTypesSeedDefaultsBuilding1Once() {
                 extra_beds: 0,
                 display_order: 4,
                 icon: '👨‍👩‍👧‍👦',
-                image_url: 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?w=800&q=80'
+                image_url: '/assets/defaults/room-family.jpg'
             }
         ];
 

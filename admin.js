@@ -5476,7 +5476,7 @@ function onRoomTypesBuildingChange(buildingId) {
     loadRoomTypes();
 }
 
-const DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE = 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&h=600&fit=crop&q=80';
+const DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE = '/assets/defaults/whole-property.jpg';
 
 // 渲染房型列表（依分頁只更新對應表格）
 function renderRoomTypes(scope = 'retail') {
@@ -13348,7 +13348,7 @@ const DEFAULT_LANDING_FACILITY_GALLERY_ITEMS = [
         id: 'default_facility_lounge',
         title: '公共客廳',
         desc: '明亮寬敞的共享客廳，提供舒適沙發與閱讀角，適合聊天放鬆。',
-        images: ['https://images.unsplash.com/photo-1554995207-c18c203602cb?w=1200'],
+        images: ['/assets/defaults/facility-lounge.jpg'],
         enabled: true,
         order: 1
     },
@@ -13356,7 +13356,7 @@ const DEFAULT_LANDING_FACILITY_GALLERY_ITEMS = [
         id: 'default_facility_dining',
         title: '餐飲空間',
         desc: '溫馨餐飲區搭配開放式座位，早餐與晚間小聚都很自在。',
-        images: ['https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1200'],
+        images: ['/assets/defaults/facility-dining.jpg'],
         enabled: true,
         order: 2
     },
@@ -13364,7 +13364,7 @@ const DEFAULT_LANDING_FACILITY_GALLERY_ITEMS = [
         id: 'default_facility_courtyard',
         title: '戶外休憩區',
         desc: '綠意環繞的戶外空間，白天可享受陽光，夜晚可靜心放鬆。',
-        images: ['https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?w=1200'],
+        images: ['/assets/defaults/facility-courtyard.jpg'],
         enabled: true,
         order: 3
     }

@@ -6,7 +6,7 @@ let enableAddons = true; // 前台加購商品功能是否啟用
 let allBuildings = [];
 let selectedBuildingId = 1;
 const SELECTED_BUILDING_STORAGE_KEY = 'selected_building_id_v1';
-const DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE = 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&h=600&fit=crop&q=80';
+const DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE = '/assets/defaults/whole-property.jpg';
 
 function formatAddonUnit(unitLabel) {
     const normalized = String(unitLabel || '人').trim();
