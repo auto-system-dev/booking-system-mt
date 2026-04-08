@@ -2,6 +2,11 @@
 const axios = require('axios');
 const db = require('./database');
 
+function defaultTenantIdFromEnv() {
+    const n = Number.parseInt(String(process.env.DEFAULT_TENANT_ID || '1'), 10);
+    return Number.isInteger(n) && n > 0 ? n : 1;
+}
+
 class LineBotService {
     constructor() {
         this.channelAccessToken = '';
@@ -17,8 +22,9 @@ class LineBotService {
     async loadSettings() {
         try {
             // 優先使用資料庫設定，其次使用環境變數
-            const dbChannelAccessToken = await db.getSetting('line_channel_access_token');
-            const dbChannelSecret = await db.getSetting('line_channel_secret');
+            const tid = defaultTenantIdFromEnv();
+            const dbChannelAccessToken = await db.getSetting('line_channel_access_token', tid);
+            const dbChannelSecret = await db.getSetting('line_channel_secret', tid);
             
             this.channelAccessToken = dbChannelAccessToken || process.env.LINE_CHANNEL_ACCESS_TOKEN || '';
             this.channelSecret = dbChannelSecret || process.env.LINE_CHANNEL_SECRET || '';

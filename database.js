@@ -143,6 +143,12 @@ function assertTenantScope(tenantId, operation = 'database operation') {
     return n;
 }
 
+/** 啟動／遷移／無 Request 內容時使用的預設租戶（與環境變數一致） */
+function defaultTenantIdFromEnv() {
+    const n = Number.parseInt(String(process.env.DEFAULT_TENANT_ID || '1'), 10);
+    return Number.isInteger(n) && n > 0 ? n : 1;
+}
+
 // 轉換 SQL 語法（SQLite -> PostgreSQL）
 function convertSQL(sql) {
     if (!usePostgreSQL) return sql;
@@ -1030,7 +1036,7 @@ async function updateTenantProfile(tenantId, { status, planCode } = {}) {
 }
 
 async function seedSubscriptionMvpDefaults() {
-    const defaultTenantId = assertTenantScope(undefined, 'seedSubscriptionMvpDefaults');
+    const defaultTenantId = assertTenantScope(defaultTenantIdFromEnv(), 'seedSubscriptionMvpDefaults');
 
     await query(
         usePostgreSQL
@@ -7278,7 +7284,7 @@ async function normalizeRetailRoomTypeDisplayNamesIfPackagedByMistake() {
 async function applyRetailRoomTypesSeedDefaultsBuilding1Once() {
     const flagKey = 'retail_room_types_full_seed_v1';
     try {
-        const done = await getSetting(flagKey);
+        const done = await getSetting(flagKey, defaultTenantIdFromEnv());
         if (String(done || '').trim() === '1') {
             return;
         }
@@ -7482,7 +7488,7 @@ function isWeekend(dateString) {
 async function isCustomWeekend(dateString) {
     try {
         // 取得平日/假日設定
-        const settingsJson = await getSetting('weekday_settings');
+        const settingsJson = await getSetting('weekday_settings', defaultTenantIdFromEnv());
         let weekdays = [1, 2, 3, 4, 5]; // 預設：週一到週五為平日
         
         if (settingsJson) {
@@ -8434,7 +8440,7 @@ async function getRoomAvailability(checkInDate, checkOutDate, buildingId = 1, te
 
         let listScope = 'retail';
         try {
-            const mode = String((await getSetting('system_mode')) || 'retail').trim();
+            const mode = String((await getSetting('system_mode', safeTenantId)) || 'retail').trim();
             listScope = mode === 'whole_property' ? 'whole_property' : 'retail';
         } catch (_) {
             listScope = 'retail';
