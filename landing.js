@@ -45,6 +45,47 @@ const DEFAULT_REVIEW_ITEMS = [
     { name: '王小姐', date: '2025 年 12 月', rating: '4.9', text: '位置很好找，房間寬敞明亮，窗外風景很美。整體住宿體驗非常棒，大力推薦！', tags: '景觀優美,交通方便', enabled: true, order: 3 }
 ];
 
+/** 後台儲存的 JSON 陣列欄位；非陣列或無法解析回傳 null（表示沿用舊版／預設邏輯） */
+function parseLandingJsonArray(raw) {
+    if (raw == null) return null;
+    const s = String(raw).trim();
+    if (s === '') return null;
+    try {
+        const p = typeof raw === 'string' ? JSON.parse(s) : raw;
+        return Array.isArray(p) ? p : null;
+    } catch {
+        return null;
+    }
+}
+
+/** 已儲存 JSON 陣列且為空，或每一筆皆為「停用顯示」時，整區不顯示 */
+function landingJsonArrayEmptyOrAllDisabled(raw) {
+    const arr = parseLandingJsonArray(raw);
+    if (arr === null) return false;
+    if (arr.length === 0) return true;
+    return arr.every((item) => item && item.enabled === false);
+}
+
+function syncLandingNavVisibility() {
+    const pairs = [
+        ['navLinkPublicFacilities', 'public-facilities'],
+        ['navLinkFeatures', 'features'],
+        ['navLinkRooms', 'rooms'],
+        ['navLinkReviews', 'reviews']
+    ];
+    const isHidden = (sectionId) => {
+        const el = document.getElementById(sectionId);
+        if (!el) return true;
+        if (el.style.display === 'none') return true;
+        return window.getComputedStyle(el).display === 'none';
+    };
+    for (const [linkId, sectionId] of pairs) {
+        const link = document.getElementById(linkId);
+        if (!link) continue;
+        link.style.display = isHidden(sectionId) ? 'none' : '';
+    }
+}
+
 // 預設配色主題定義
 const landingThemes = {
     default: { primary: '#1a3a4a', primary_light: '#2d5a6e', accent: '#c9a962', accent_hover: '#b8954d', bg_cream: '#f8f6f3', text_dark: '#2d3436', text_light: '#636e72' },
@@ -334,58 +375,63 @@ async function applyConfig(cfg) {
     if (cfg.landing_favicon) {
         setFavicon(cfg.landing_favicon);
     }
+
+    syncLandingNavVisibility();
 }
 
 function resolveFeatureItems(cfg) {
-    let items = [];
     const raw = cfg.landing_features_items;
-    if (raw) {
-        try {
-            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-            if (Array.isArray(parsed)) {
-                items = parsed.map((item, index) => ({
-                    icon: normalizeIconName(item.icon) || 'check_circle',
-                    title: String(item.title || '').trim(),
-                    desc: String(item.desc || '').trim(),
-                    enabled: item.enabled !== false,
-                    order: Number(item.order) || (index + 1)
-                }));
-            }
-        } catch (error) {
-            console.warn('⚠️ landing_features_items JSON 解析失敗，改用舊版欄位:', error.message);
-        }
+    const rawArr = parseLandingJsonArray(raw);
+    if (rawArr !== null) {
+        if (rawArr.length === 0) return [];
+        const items = rawArr.map((item, index) => ({
+            icon: normalizeIconName(item.icon) || 'check_circle',
+            title: String(item.title || '').trim(),
+            desc: String(item.desc || '').trim(),
+            enabled: item.enabled !== false,
+            order: Number(item.order) || (index + 1)
+        }));
+        return items
+            .filter((item) => item.enabled !== false)
+            .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+    }
+
+    let items = [];
+    for (let i = 1; i <= 4; i++) {
+        const icon = normalizeIconName(cfg[`landing_feature_${i}_icon`]);
+        const title = String(cfg[`landing_feature_${i}_title`] || '').trim();
+        const desc = String(cfg[`landing_feature_${i}_desc`] || '').trim();
+        if (!icon && !title && !desc) continue;
+        items.push({
+            icon: icon || 'check_circle',
+            title,
+            desc,
+            enabled: true,
+            order: i
+        });
     }
 
     if (!items.length) {
-        for (let i = 1; i <= 4; i++) {
-            const icon = normalizeIconName(cfg[`landing_feature_${i}_icon`]);
-            const title = String(cfg[`landing_feature_${i}_title`] || '').trim();
-            const desc = String(cfg[`landing_feature_${i}_desc`] || '').trim();
-            if (!icon && !title && !desc) continue;
-            items.push({
-                icon: icon || 'check_circle',
-                title,
-                desc,
-                enabled: true,
-                order: i
-            });
-        }
-    }
-
-    if (!items.length) {
-        items = DEFAULT_FEATURE_ITEMS.map(item => ({ ...item }));
+        items = DEFAULT_FEATURE_ITEMS.map((item) => ({ ...item }));
     }
 
     return items
-        .filter(item => item.enabled !== false)
+        .filter((item) => item.enabled !== false)
         .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
 }
 
 function renderFeatureCards(cfg) {
+    const section = document.getElementById('features');
     const grid = document.getElementById('featuresGrid');
     if (!grid) return;
 
     const items = resolveFeatureItems(cfg);
+    if (!items.length) {
+        if (section) section.style.display = 'none';
+        grid.innerHTML = '';
+        return;
+    }
+    if (section) section.style.display = '';
     grid.innerHTML = items.map(item => `
         <div class="feature-card">
             <div class="feature-icon">
@@ -578,20 +624,70 @@ function renderFacilityGallery(cfg) {
     const grid = document.getElementById('facilityGalleryGrid');
     if (!section || !grid) return;
 
-    let items = [];
-    try {
-        const raw = cfg.landing_facility_gallery || '[]';
-        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        if (Array.isArray(parsed)) {
-            items = parsed
-                .map(item => {
+    const raw = cfg.landing_facility_gallery;
+    const rawArr = parseLandingJsonArray(raw);
+
+    if (rawArr !== null) {
+        if (landingJsonArrayEmptyOrAllDisabled(raw)) {
+            section.style.display = 'none';
+            grid.innerHTML = '';
+            window._facilityGalleryItems = [];
+            return;
+        }
+        let items = [];
+        try {
+            items = rawArr
+                .map((item) => {
                     const images = resolveFacilityGalleryImages(item);
                     return {
                         ...item,
                         images
                     };
                 })
-                .filter(item => item && item.images.length > 0 && item.enabled !== false)
+                .filter((item) => item && item.enabled !== false && item.images.length > 0)
+                .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+        } catch (error) {
+            console.warn('⚠️ landing_facility_gallery JSON 解析失敗:', error.message);
+        }
+        if (!items.length) {
+            section.style.display = 'none';
+            grid.innerHTML = '';
+            window._facilityGalleryItems = [];
+            return;
+        }
+        section.style.display = '';
+        window._facilityGalleryItems = items.map((item) => ({
+            title: item.title || '公共設施',
+            images: item.images
+        }));
+        grid.innerHTML = items.map((item, index) => `
+        <article class="facility-gallery-card" onclick="openFacilityGallery(${index})">
+            <div class="facility-gallery-image-wrap">
+                <img class="facility-gallery-image" src="${escapeHtml(item.images[0])}" alt="${escapeHtml(item.title || '公共設施照片')}" loading="lazy">
+                ${item.images.length > 1 ? `<span class="room-gallery-hint"><span class="material-symbols-outlined">photo_library</span> ${item.images.length} 張照片</span>` : ''}
+            </div>
+            <div class="facility-gallery-info">
+                <div class="facility-gallery-title">${escapeHtml(item.title || '公共設施')}</div>
+                ${item.desc ? `<div class="facility-gallery-desc">${escapeHtml(item.desc)}</div>` : ''}
+            </div>
+        </article>
+    `).join('');
+        return;
+    }
+
+    let items = [];
+    try {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (Array.isArray(parsed)) {
+            items = parsed
+                .map((item) => {
+                    const images = resolveFacilityGalleryImages(item);
+                    return {
+                        ...item,
+                        images
+                    };
+                })
+                .filter((item) => item && item.images.length > 0 && item.enabled !== false)
                 .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
         }
     } catch (error) {
@@ -607,7 +703,7 @@ function renderFacilityGallery(cfg) {
     }
 
     section.style.display = '';
-    window._facilityGalleryItems = items.map(item => ({
+    window._facilityGalleryItems = items.map((item) => ({
         title: item.title || '公共設施',
         images: item.images
     }));
@@ -674,40 +770,14 @@ function renderRoomCards(cfg) {
         return rtBid === Number(bid);
     });
 
+    const roomsSection = document.getElementById('rooms');
     if (roomTypes.length === 0) {
-        console.log('ℹ️ 無房型資料，使用預設房型卡片');
-        const bookingUrl = getLandingBookingUrl();
-        const priceRowClass = isWholeProperty ? 'room-price-row room-price-row--whole-property' : 'room-price-row';
-        const fallbackPrice = isWholeProperty
-            ? ''
-            : `
-                        <div class="room-price">
-                            <span class="price-current">NT$ 2,800</span>
-                            <span class="price-old">NT$ 3,500</span>
-                        </div>`;
-        const bookLabel = isWholeProperty ? '預訂包棟' : '預訂';
-        grid.innerHTML = `
-            <div class="room-card">
-                <div class="room-image">
-                    <img src="https://images.unsplash.com/photo-1590490360182-c33d57733427?w=600" alt="標準雙人房" loading="lazy">
-                    <span class="room-badge">熱門</span>
-                </div>
-                <div class="room-info">
-                    <h3>標準雙人房</h3>
-                    <div class="room-features">
-                        <span><span class="material-symbols-outlined">king_bed</span> 雙人床</span>
-                        <span><span class="material-symbols-outlined">bathtub</span> 獨立衛浴</span>
-                        <span><span class="material-symbols-outlined">wifi</span> 免費 WiFi</span>
-                    </div>
-                    <div class="${priceRowClass}">
-                        ${fallbackPrice}
-                        <a href="${bookingUrl}" class="room-book-btn" onclick="trackBookingClick()">${bookLabel}</a>
-                    </div>
-                </div>
-            </div>
-        `;
+        console.log('ℹ️ 無可顯示的房型（含已全部關閉銷售頁顯示），隱藏房型區塊');
+        grid.innerHTML = '';
+        if (roomsSection) roomsSection.style.display = 'none';
         return;
     }
+    if (roomsSection) roomsSection.style.display = '';
 
     const badgeClassMap = {
         '熱門': '',
@@ -775,64 +845,67 @@ function renderRoomCards(cfg) {
 }
 
 function resolveReviewItems(cfg) {
-    let items = [];
     const raw = cfg ? cfg.landing_reviews_items : null;
-    if (raw) {
-        try {
-            const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
-            if (Array.isArray(parsed)) {
-                items = parsed.map((item, index) => ({
-                    name: String(item.name || '').trim(),
-                    date: String(item.date || '').trim(),
-                    rating: String(item.rating || '').trim() || '5.0',
-                    text: String(item.text || '').trim(),
-                    tags: String(item.tags || '').trim(),
-                    enabled: item.enabled !== false,
-                    order: Number(item.order) || (index + 1)
-                }));
-            }
-        } catch (error) {
-            console.warn('解析 landing_reviews_items 失敗，將嘗試舊版評價欄位:', error);
-        }
+    const rawArr = parseLandingJsonArray(raw);
+    if (rawArr !== null) {
+        if (rawArr.length === 0) return [];
+        const items = rawArr.map((item, index) => ({
+            name: String(item.name || '').trim(),
+            date: String(item.date || '').trim(),
+            rating: String(item.rating || '').trim() || '5.0',
+            text: String(item.text || '').trim(),
+            tags: String(item.tags || '').trim(),
+            enabled: item.enabled !== false,
+            order: Number(item.order) || (index + 1)
+        }));
+        return items
+            .filter((item) => item.enabled !== false)
+            .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+    }
+
+    let items = [];
+    for (let i = 1; i <= 3; i++) {
+        const name = String(cfg[`landing_review_${i}_name`] || '').trim();
+        const text = String(cfg[`landing_review_${i}_text`] || '').trim();
+        const date = String(cfg[`landing_review_${i}_date`] || '').trim();
+        const rating = String(cfg[`landing_review_${i}_rating`] || '').trim();
+        const tags = String(cfg[`landing_review_${i}_tags`] || '').trim();
+        if (!name && !text && !date && !rating && !tags) continue;
+        items.push({
+            name,
+            date,
+            rating: rating || '5.0',
+            text,
+            tags,
+            enabled: true,
+            order: i
+        });
     }
 
     if (!items.length) {
-        for (let i = 1; i <= 3; i++) {
-            const name = String(cfg[`landing_review_${i}_name`] || '').trim();
-            const text = String(cfg[`landing_review_${i}_text`] || '').trim();
-            const date = String(cfg[`landing_review_${i}_date`] || '').trim();
-            const rating = String(cfg[`landing_review_${i}_rating`] || '').trim();
-            const tags = String(cfg[`landing_review_${i}_tags`] || '').trim();
-            if (!name && !text && !date && !rating && !tags) continue;
-            items.push({
-                name,
-                date,
-                rating: rating || '5.0',
-                text,
-                tags,
-                enabled: true,
-                order: i
-            });
-        }
-    }
-
-    if (!items.length) {
-        items = DEFAULT_REVIEW_ITEMS.map(item => ({ ...item }));
+        items = DEFAULT_REVIEW_ITEMS.map((item) => ({ ...item }));
     }
 
     return items
-        .filter(item => item.enabled !== false)
+        .filter((item) => item.enabled !== false)
         .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
 }
 
 // ===== 動態生成評價卡片 =====
 function renderReviewCards(cfg) {
+    const section = document.getElementById('reviews');
     const grid = document.getElementById('reviewsGrid');
     if (!grid) return;
 
     const reviews = resolveReviewItems(cfg);
+    if (!reviews.length) {
+        if (section) section.style.display = 'none';
+        grid.innerHTML = '';
+        return;
+    }
+    if (section) section.style.display = '';
     grid.innerHTML = reviews.map(review => {
-        const avatar = review.name.charAt(0);
+        const avatar = review.name && String(review.name).length ? String(review.name).charAt(0) : '?';
         const tagItems = review.tags
             ? review.tags.split(',').map(t => `<span>${t.trim()}</span>`).join('')
             : '';
@@ -1320,6 +1393,7 @@ function syncLandingBuildingSwitch(cfg) {
             const bid = getLandingSelectedBuildingId();
             landingConfig._roomTypes = await refreshLandingRoomTypesByBuilding(bid);
             renderRoomCards(landingConfig);
+            syncLandingNavVisibility();
             updateBookingLinks();
         });
         selectEl.dataset.boundChange = '1';
@@ -1339,6 +1413,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 依目前館別重新抓房型（含設施/標籤），確保與後台同步
     landingConfig._roomTypes = await refreshLandingRoomTypesByBuilding(getLandingSelectedBuildingId());
     renderRoomCards(landingConfig);
+    syncLandingNavVisibility();
     
     // 再初始化各元件
     initCountdown();
