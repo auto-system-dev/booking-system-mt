@@ -2211,6 +2211,40 @@ app.get('/api/admin/check-auth', adminLimiter, async (req, res) => {
     }
 });
 
+// 取得目前管理員對應的銷售頁網址（優先使用租戶子網域）
+app.get('/api/admin/landing-url', requireAuth, adminLimiter, async (req, res) => {
+    try {
+        const adminTenantId = Number.parseInt(req?.session?.admin?.tenant_id, 10);
+        const fallbackTenantId = Number.parseInt(process.env.DEFAULT_TENANT_ID || '1', 10) || 1;
+        const tenantId = Number.isInteger(adminTenantId) && adminTenantId > 0 ? adminTenantId : fallbackTenantId;
+        const tenant = await db.getTenantById(tenantId);
+        if (!tenant) {
+            return res.status(404).json({ success: false, message: '找不到租戶資料，無法產生銷售頁網址' });
+        }
+
+        const baseDomain = String(process.env.PUBLIC_BASE_DOMAIN || '').trim().toLowerCase();
+        const tenantCode = String(tenant.code || '').trim().toLowerCase();
+        const protoHeader = String(req.get('x-forwarded-proto') || '').split(',')[0].trim().toLowerCase();
+        const protocol = protoHeader || req.protocol || 'https';
+        let url = `${protocol}://${req.get('host') || ''}/landing`;
+
+        if (baseDomain && tenantCode) {
+            const label = tenantCode.replace(/_/g, '-');
+            url = `${protocol}://${label}.${baseDomain}/landing`;
+        }
+
+        return res.json({
+            success: true,
+            url,
+            tenant_id: tenant.id,
+            tenant_code: tenant.code
+        });
+    } catch (error) {
+        console.error('取得管理後台銷售頁網址失敗:', error);
+        return res.status(500).json({ success: false, message: '取得銷售頁網址失敗' });
+    }
+});
+
 // ==================== 權限管理 API ====================
 
 // 取得當前管理員的權限列表

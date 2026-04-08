@@ -322,6 +322,23 @@ async function checkAuthStatus(options = {}) {
     }
 }
 
+async function updateLandingPreviewLink() {
+    const linkEl = document.getElementById('landingPreviewLink');
+    if (!linkEl) return;
+    try {
+        const response = await adminFetch('/api/admin/landing-url');
+        const data = await response.json();
+        if (response.ok && data?.success && data?.url) {
+            linkEl.href = data.url;
+            linkEl.title = `租戶 ${data.tenant_code || ''} 銷售頁`;
+            return;
+        }
+    } catch (error) {
+        console.warn('更新銷售頁預覽網址失敗，改用預設相對路徑:', error?.message || error);
+    }
+    linkEl.href = 'landing.html';
+}
+
 // 顯示登入頁面
 function showLoginPage() {
     const loginPage = document.getElementById('loginPage');
@@ -521,6 +538,9 @@ function showAdminPage(admin) {
             updateSidebarByPermissions();
 
             updateSystemModeSwitchSectionVisibility();
+
+            // 讓「預覽銷售頁」按鈕自動帶入租戶子網域網址
+            updateLandingPreviewLink().catch(() => {});
 
             // 載入單一模式資訊並更新 UI（不阻塞主要流程）
             loadSystemModeContext().catch(() => {});
