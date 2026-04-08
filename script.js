@@ -1200,7 +1200,6 @@ async function renderRoomTypes() {
         const roomFacilities = isWholePropertyMode
             ? [...bookingLandingFacilitiesItems]
             : [...new Set([...roomBedTypes, ...roomFacilitiesRaw])];
-        const wholePropertyFacilitiesText = wholePropertyFacilities.join('、');
         const includedItems = Array.isArray(room.included_items_list) ? room.included_items_list.filter(Boolean) : [];
         roomFacilitiesData[roomId] = roomFacilities;
 
@@ -1263,8 +1262,8 @@ async function renderRoomTypes() {
                             <div class="room-meta-item"><strong>${isWholePropertyMode ? '開放房型：' : '床型：'}</strong>${escapeRoomText(bedConfig || '依現場安排')}</div>
                             <div class="room-meta-item"><strong>入住人數：</strong>${maxOccupancy} 人</div>
                             <div class="room-meta-item"><strong>可加床數：</strong>${extraBeds} 人</div>
-                            ${isWholePropertyMode && wholePropertyFacilitiesText
-                                ? `<div class="room-meta-item"><strong>旅宿設施：</strong>${escapeRoomText(wholePropertyFacilitiesText)}</div>`
+                            ${isWholePropertyMode && wholePropertyFacilities.length > 0
+                                ? `<div class="room-meta-item room-meta-item-facilities"><strong>旅宿設施：</strong></div><div id="roomFacilitiesBlock-${roomId}" class="room-facilities-block">${buildRoomFacilitiesBlock(roomId)}</div>`
                                 : ''}
                         </div>
                         ${extraBeds > 0 ? `
