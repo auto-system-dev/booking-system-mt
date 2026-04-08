@@ -523,25 +523,33 @@ async function loadRoomTypesAndSettings() {
     try {
         applyRoomCountSettings(null);
         // 同時載入房型、加購商品和設定
-        const [buildingsResponse, roomTypesResponse, addonsResponse, settingsResponse] = await Promise.all([
+        const [buildingsResponse, roomTypesResponse, addonsResponse, settingsResponse, landingSettingsResponse] = await Promise.all([
             fetch('/api/buildings'),
             fetch(`/api/room-types?buildingId=${encodeURIComponent(getSelectedBuildingId())}`),
             fetch('/api/addons'),
-            fetch('/api/settings')
+            fetch('/api/settings'),
+            fetch('/api/landing-settings')
         ]);
         
         const buildingsResult = await buildingsResponse.json();
         const roomTypesResult = await roomTypesResponse.json();
         const addonsResult = await addonsResponse.json();
         const settingsResult = await settingsResponse.json();
+        const landingSettingsResult = await landingSettingsResponse.json();
 
         allBuildings = buildingsResult.success ? (buildingsResult.data || []) : [];
         syncBuildingSelect();
         applyRoomCountSettings(settingsResult.success ? settingsResult.data : null);
         
         roomTypes = roomTypesResult.success ? (roomTypesResult.data || []) : [];
+        const landingFacilitiesRawFromSettings = settingsResult.success && settingsResult.data
+            ? settingsResult.data.landing_facilities
+            : '';
+        const landingFacilitiesRawFromLanding = landingSettingsResult.success && landingSettingsResult.data
+            ? landingSettingsResult.data.landing_facilities
+            : '';
         bookingLandingFacilitiesItems = parseLandingFacilitiesForBooking(
-            settingsResult.success && settingsResult.data ? settingsResult.data.landing_facilities : ''
+            landingFacilitiesRawFromSettings || landingFacilitiesRawFromLanding || ''
         );
         renderRoomTypes();
         autoSelectRoomTypeIfRequested();
@@ -1188,9 +1196,11 @@ async function renderRoomTypes() {
         const extraBedUnitPrice = room.extra_bed_price != null ? Number(room.extra_bed_price) : 0;
         const roomBedTypes = Array.isArray(room.bed_types) ? room.bed_types.filter(Boolean) : [];
         const roomFacilitiesRaw = Array.isArray(room.room_facilities) ? room.room_facilities.filter(Boolean) : [];
+        const wholePropertyFacilities = [...bookingLandingFacilitiesItems];
         const roomFacilities = isWholePropertyMode
             ? [...bookingLandingFacilitiesItems]
             : [...new Set([...roomBedTypes, ...roomFacilitiesRaw])];
+        const wholePropertyFacilitiesText = wholePropertyFacilities.join('、');
         const includedItems = Array.isArray(room.included_items_list) ? room.included_items_list.filter(Boolean) : [];
         roomFacilitiesData[roomId] = roomFacilities;
 
@@ -1253,6 +1263,9 @@ async function renderRoomTypes() {
                             <div class="room-meta-item"><strong>${isWholePropertyMode ? '開放房型：' : '床型：'}</strong>${escapeRoomText(bedConfig || '依現場安排')}</div>
                             <div class="room-meta-item"><strong>入住人數：</strong>${maxOccupancy} 人</div>
                             <div class="room-meta-item"><strong>可加床數：</strong>${extraBeds} 人</div>
+                            ${isWholePropertyMode && wholePropertyFacilitiesText
+                                ? `<div class="room-meta-item"><strong>旅宿設施：</strong>${escapeRoomText(wholePropertyFacilitiesText)}</div>`
+                                : ''}
                         </div>
                         ${extraBeds > 0 ? `
                             <div class="room-extra-bed-control" ${safeQty > 0 ? '' : 'style="display:none;"'}>
@@ -1265,7 +1278,7 @@ async function renderRoomTypes() {
                                 </div>
                             </div>
                         ` : ''}
-                        ${roomFacilities.length > 0
+                        ${!isWholePropertyMode && roomFacilities.length > 0
                             ? `<div class="room-meta-item room-meta-item-facilities"><strong>${isWholePropertyMode ? '旅宿設施：' : '房型設施：'}</strong></div><div id="roomFacilitiesBlock-${roomId}" class="room-facilities-block">${buildRoomFacilitiesBlock(roomId)}</div>`
                             : ''}
                         <div class="room-card-bottom">
