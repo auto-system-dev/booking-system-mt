@@ -378,6 +378,24 @@ body.login-page-active {
     background: #c82333;
 }
 
+.tenant-action-btn {
+    min-width: 74px;
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    vertical-align: middle;
+}
+
+.tenant-action-btn.btn-refresh:hover {
+    transform: none;
+    box-shadow: none;
+}
+
 .btn-delete {
     background: #dc3545;
     color: white;
