@@ -5476,6 +5476,8 @@ function onRoomTypesBuildingChange(buildingId) {
     loadRoomTypes();
 }
 
+const DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=400&h=300&fit=crop&q=80';
+
 // 渲染房型列表（依分頁只更新對應表格）
 function renderRoomTypes(scope = 'retail') {
     const tbodyId = scope === 'whole_property' ? 'wholePropertyPlansTableBody' : 'roomTypesTableBody';
@@ -5515,8 +5517,10 @@ function renderRoomTypes(scope = 'retail') {
             const oldLine = originalPrice > 0
                 ? `<br><small style="color:#aaa;text-decoration:line-through;">NT$ ${originalPrice.toLocaleString()}</small>`
                 : '';
-            const imgCell = room.image_url
-                ? `<img src="${escapeHtml(room.image_url)}" alt="${escapeHtml(room.display_name || '')}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid #eee;">`
+            const fallbackImageUrl = scope === 'whole_property' ? DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE : '';
+            const imageUrl = String(room.image_url || fallbackImageUrl || '').trim();
+            const imgCell = imageUrl
+                ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(room.display_name || '')}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px; border: 1px solid #eee;">`
                 : `<span style="font-size: 28px;">${room.icon || '🏠'}</span>`;
             if (retailCompact) {
                 return `
@@ -5605,10 +5609,9 @@ function showRoomTypeModal(room, listScopeHint) {
     const isPlan = listScope === 'whole_property';
     /** 包棟模式「房型管理」列表未顯示人數／加床／價格／庫存等，表單改以隱藏欄位帶入既有值 */
     const compactRetailWp = isWholePropertySystemMode() && listScope === 'retail';
-    const defaultPlanImage = 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=400&h=300&fit=crop&q=80';
     const initialName = isEdit ? room.name : (isPlan ? `wp_plan_${Date.now()}` : '');
     const initialDisplay = isEdit ? room.display_name : (isPlan ? '包棟方案（請修改）' : '');
-    const currentImageUrl = isEdit ? (room.image_url || '') : (isPlan ? defaultPlanImage : '');
+    const currentImageUrl = isEdit ? (room.image_url || '') : (isPlan ? DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE : '');
     const includedConfig = parseIncludedItemsConfig(isEdit ? (room.included_items || '') : '');
     const includedPresetHtml = ROOM_INCLUDED_ITEM_PRESETS.map((item) => `
         <label style="display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; white-space: nowrap;">
