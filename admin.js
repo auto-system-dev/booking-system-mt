@@ -2332,7 +2332,12 @@ async function loadBookings() {
             await loadSystemModeContext();
         }
         const bid = getSelectedBuildingIdForBookings();
-        const response = await adminFetch(`/api/bookings?buildingId=${encodeURIComponent(String(bid))}&bookingMode=${encodeURIComponent(currentSystemMode)}`);
+        const qs = new URLSearchParams();
+        if (Number(bid) > 0) {
+            qs.set('buildingId', String(bid));
+        }
+        qs.set('bookingMode', String(currentSystemMode));
+        const response = await adminFetch(`/api/bookings?${qs.toString()}`);
         if (response.status === 401) {
             console.warn('載入訂房記錄收到 401，登入已過期');
             showLoginPage();
@@ -2500,7 +2505,14 @@ async function loadBookingCalendar() {
         
         // 獲取訂房資料
         const bid = getSelectedBuildingIdForBookings();
-        const calendarUrl = `${window.location.origin}/api/bookings?startDate=${encodeURIComponent(startDateStr)}&endDate=${encodeURIComponent(endDateStr)}&buildingId=${encodeURIComponent(String(bid))}&bookingMode=${encodeURIComponent(currentSystemMode)}`;
+        const cqs = new URLSearchParams();
+        cqs.set('startDate', String(startDateStr));
+        cqs.set('endDate', String(endDateStr));
+        if (Number(bid) > 0) {
+            cqs.set('buildingId', String(bid));
+        }
+        cqs.set('bookingMode', String(currentSystemMode));
+        const calendarUrl = `${window.location.origin}/api/bookings?${cqs.toString()}`;
         const bookingsResponse = await adminFetch(calendarUrl);
         if (bookingsResponse.status === 401) {
             console.warn('載入訂房日曆收到 401，登入已過期');
@@ -2536,17 +2548,19 @@ function getSelectedBuildingIdForBookings() {
     try {
         const raw = localStorage.getItem(BOOKINGS_BUILDING_STORAGE_KEY);
         const parsed = raw ? parseInt(raw, 10) : NaN;
-        if (Number.isFinite(parsed) && parsed > 0) {
+        // 0 代表「全部館別」
+        if (Number.isFinite(parsed) && parsed >= 0) {
             selectedBuildingIdForBookings = parsed;
             return parsed;
         }
     } catch (_) {}
-    return selectedBuildingIdForBookings || 1;
+    // 預設顯示全部館別，避免新增館別後誤切到空館別造成「訂單不見」
+    return Number.isFinite(selectedBuildingIdForBookings) ? selectedBuildingIdForBookings : 0;
 }
 
 function setSelectedBuildingIdForBookings(nextId) {
     const parsed = parseInt(String(nextId ?? ''), 10);
-    const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+    const safe = Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
     selectedBuildingIdForBookings = safe;
     try {
         localStorage.setItem(BOOKINGS_BUILDING_STORAGE_KEY, String(safe));
@@ -2560,17 +2574,20 @@ function syncBookingsBuildingSelect() {
     const showSelect = buildings.length > 1;
     selectEl.style.display = showSelect ? '' : 'none';
     if (!showSelect) {
-        setSelectedBuildingIdForBookings(1);
-        selectEl.innerHTML = '<option value="1">預設館</option>';
+        // 只有 1 個館別時，訂房列表仍顯示全部（等同該館別）
+        setSelectedBuildingIdForBookings(0);
+        selectEl.innerHTML = '<option value="0">全部館別</option>';
         return;
     }
 
     const current = getSelectedBuildingIdForBookings();
-    const exists = buildings.some((b) => Number(b?.id) === Number(current));
-    const effective = exists ? current : Number(buildings[0]?.id || 1);
+    const exists = current > 0 && buildings.some((b) => Number(b?.id) === Number(current));
+    const effective = exists ? current : 0;
     setSelectedBuildingIdForBookings(effective);
 
-    selectEl.innerHTML = buildings
+    selectEl.innerHTML =
+        `<option value="0">全部館別</option>` +
+        buildings
         .map((b) => `<option value="${Number(b.id)}">${escapeHtml(String(b.name || b.code || `館別 ${b.id}`))}</option>`)
         .join('');
     selectEl.value = String(effective);
@@ -2598,6 +2615,10 @@ async function updateBookingRoomTypeFilterOptions() {
 
     try {
         const bid = getSelectedBuildingIdForBookings();
+        if (!(Number(bid) > 0)) {
+            // 全館別時，不額外載入房型清單（避免誤導）
+            return;
+        }
         const rtScope = normalizeSystemMode(currentSystemMode || 'retail') === 'whole_property' ? 'whole_property' : 'retail';
         const res = await adminFetch(
             `/api/admin/room-types?buildingId=${encodeURIComponent(String(bid))}&listScope=${encodeURIComponent(rtScope)}`
