@@ -149,17 +149,23 @@ async function refreshLandingRoomTypesByBuilding(buildingId) {
                 setLandingSelectedBuildingId(safeBid);
             }
         }
-        const mode = String(landingConfig._systemMode || 'retail').trim();
-        const listScope = mode === 'whole_property' ? 'whole_property' : 'retail';
-        const res = await fetch(
-            `/api/room-types?buildingId=${encodeURIComponent(String(safeBid || 0))}&listScope=${encodeURIComponent(listScope)}&_ts=${Date.now()}`,
-            { cache: 'no-store' }
-        );
+        // 需使用與 SSR 相同來源，避免覆蓋掉「銷售頁房型展示」的設施/徽章/圖庫合併資料
+        const res = await fetch(`/api/landing-settings?_ts=${Date.now()}`, { cache: 'no-store' });
         const j = await res.json();
         if (!j || !j.success) return [];
-        const list = Array.isArray(j.data) ? j.data : [];
+        if (j.system_mode) {
+            landingConfig._systemMode = String(j.system_mode || '').trim() || landingConfig._systemMode;
+        }
+        const list = Array.isArray(j.roomTypes) ? j.roomTypes : [];
+        const filteredByBuilding = list.filter((rt) => {
+            if (!safeBid || !Number.isFinite(Number(safeBid)) || Number(safeBid) <= 0) return true;
+            const raw = rt?.building_id ?? rt?.buildingId ?? 1;
+            const rtBid = raw === null || raw === undefined ? 1 : Number(raw);
+            if (Number(safeBid) === 1) return rtBid === 1 || rtBid === 0 || Number.isNaN(rtBid);
+            return rtBid === Number(safeBid);
+        });
         // 銷售頁只顯示 show_on_landing 的房型
-        return list.filter((r) => Number(r?.show_on_landing ?? 1) === 1);
+        return filteredByBuilding.filter((r) => Number(r?.show_on_landing ?? 1) === 1);
     } catch (_) {
         return [];
     }
