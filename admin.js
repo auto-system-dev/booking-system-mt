@@ -7774,21 +7774,63 @@ async function saveSubscriptionSettingsAsSuperAdmin() {
 async function loadSubscriptionOverview() {
     const tbody = document.getElementById('subscriptionOverviewTableBody');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#666;">載入中...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;color:#666;">載入中...</td></tr>';
     try {
-        const response = await adminFetch('/api/admin/subscription/overview');
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.success) {
-            throw new Error(result.message || `HTTP ${response.status}`);
-        }
         const modeFilter = String(document.getElementById('subscriptionModeFilter')?.value || '').trim();
         const riskFilter = String(document.getElementById('subscriptionRiskFilter')?.value || '').trim();
-        const rows = Array.isArray(result.data) ? result.data : [];
-        const filteredRows = rows.filter(
-            (row) => isSubscriptionModeMatch(row.systemMode, modeFilter) && isSubscriptionRiskMatch(row.periodEnd, riskFilter)
+        const tenantStatusFilter = String(document.getElementById('subscriptionTenantStatusFilter')?.value || '').trim().toLowerCase();
+        const keyword = String(document.getElementById('subscriptionKeywordFilter')?.value || '').trim().toLowerCase();
+
+        const [overviewResp, tenantsResp] = await Promise.all([
+            adminFetch('/api/admin/subscription/overview'),
+            adminFetch('/api/admin/tenants?limit=200&offset=0')
+        ]);
+        const overviewResult = await overviewResp.json().catch(() => ({}));
+        const tenantsResult = await tenantsResp.json().catch(() => ({}));
+        if (!overviewResp.ok || !overviewResult.success) {
+            throw new Error(overviewResult.message || `HTTP ${overviewResp.status}`);
+        }
+        if (!tenantsResp.ok || !tenantsResult.success) {
+            throw new Error(tenantsResult.message || `HTTP ${tenantsResp.status}`);
+        }
+
+        const overviewRows = Array.isArray(overviewResult.data) ? overviewResult.data : [];
+        const tenantRows = Array.isArray(tenantsResult.data) ? tenantsResult.data : [];
+        const overviewMap = new Map(
+            overviewRows.map((row) => [String(parseInt(row.tenantId, 10) || ''), row])
         );
+        const mergedRows = tenantRows.map((tenant) => {
+            const tenantId = String(parseInt(tenant.id, 10) || '');
+            const sub = overviewMap.get(tenantId) || {};
+            return {
+                tenantId: tenant.id,
+                tenantCode: tenant.code || '',
+                tenantName: tenant.name || sub.tenantName || '',
+                tenantStatus: tenant.status || sub.tenantStatus || '',
+                adminUsername: tenant.admin_username || '',
+                adminEmail: tenant.admin_email || '',
+                adminIsActive: tenant.admin_is_active,
+                planCode: sub.planCode || tenant.plan_code || '',
+                planName: sub.planName || '',
+                subscriptionStatus: sub.subscriptionStatus || 'none',
+                systemMode: sub.systemMode || 'retail',
+                billingCycle: sub.billingCycle || '',
+                periodEnd: sub.periodEnd || '',
+                updatedAt: sub.updatedAt || tenant.updated_at || ''
+            };
+        });
+
+        const filteredRows = mergedRows.filter((row) => {
+            const statusOk = !tenantStatusFilter || String(row.tenantStatus || '').toLowerCase() === tenantStatusFilter;
+            const modeOk = isSubscriptionModeMatch(row.systemMode, modeFilter);
+            const riskOk = isSubscriptionRiskMatch(row.periodEnd, riskFilter);
+            const haystack = `${row.tenantName || ''} ${row.tenantCode || ''} ${row.adminUsername || ''} ${row.adminEmail || ''}`.toLowerCase();
+            const keywordOk = !keyword || haystack.includes(keyword);
+            return statusOk && modeOk && riskOk && keywordOk;
+        });
+
         if (filteredRows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#666;">目前沒有租戶資料</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;color:#666;">目前沒有租戶資料</td></tr>';
             return;
         }
         const sortedRows = filteredRows.slice().sort((a, b) => {
@@ -7806,18 +7848,27 @@ async function loadSubscriptionOverview() {
             const cycleLabel = row.billingCycle === 'yearly' ? '年繳' : (row.billingCycle === 'monthly' ? '月繳' : '-');
             const riskBadge = renderSubscriptionRiskBadge(row.periodEnd);
             const tenantNameEscaped = String(row.tenantName || '').replace(/'/g, "\\'");
-            const tenantCodeEscaped = String(row.tenantCode || '').replace(/'/g, "\\'");
+            const tenantCodeEscaped = String(row.tenantCode || row.code || '').replace(/'/g, "\\'");
             const planCodeEscaped = String(row.planCode || 'basic_monthly').replace(/'/g, "\\'");
             const tenantStatusEscaped = String(row.tenantStatus || 'active').replace(/'/g, "\\'");
             const subStatusEscaped = String(row.subscriptionStatus || 'active').replace(/'/g, "\\'");
             const periodEndEscaped = String(row.periodEnd || '').replace(/'/g, "\\'");
             const systemModeEscaped = String(row.systemMode || 'retail').replace(/'/g, "\\'");
             const tenantNameForDelete = String(row.tenantName || '').replace(/'/g, "\\'");
+            const adminUsernameEscaped = String(row.adminUsername || '').replace(/'/g, "\\'");
+            const adminEmailEscaped = String(row.adminEmail || '').replace(/'/g, "\\'");
+            const canActivate = String(row.tenantStatus || '').toLowerCase() !== 'active';
+            const email = String(row.adminEmail || '');
+            const emailEscapedForJs = email.replace(/'/g, "\\'");
             return `
                 <tr>
                     <td>${escapeHtml(row.tenantId)}</td>
+                    <td>${escapeHtml(row.tenantCode || '-')}</td>
                     <td>${escapeHtml(row.tenantName || '-')}</td>
                     <td>${renderTenantStatusBadge(row.tenantStatus || '-')}</td>
+                    <td>${escapeHtml(row.adminUsername || '-')}</td>
+                    <td>${escapeHtml(row.adminEmail || '-')}</td>
+                    <td>${String(row.adminIsActive) === '1' || row.adminIsActive === true ? '是' : '否'}</td>
                     <td>${escapeHtml(planText)}</td>
                     <td>${renderSubscriptionStatusBadge(subStatus)}</td>
                     <td>${escapeHtml(systemModeLabel)}</td>
@@ -7826,7 +7877,9 @@ async function loadSubscriptionOverview() {
                     <td>${escapeHtml(toReadableDate(row.periodEnd))}</td>
                     <td>${escapeHtml(toReadableDate(row.updatedAt))}</td>
                     <td>
-                        <button class="btn-refresh tenant-action-btn" onclick="showEditTenantModal(${escapeHtml(row.tenantId)}, '${tenantNameEscaped}', '${tenantCodeEscaped}', '${planCodeEscaped}', '${tenantStatusEscaped}', '${subStatusEscaped}', '${periodEndEscaped}', '${systemModeEscaped}', '', '')">編輯</button>
+                        <button class="btn-refresh tenant-action-btn" onclick="showEditTenantModal(${escapeHtml(row.tenantId)}, '${tenantNameEscaped}', '${tenantCodeEscaped}', '${planCodeEscaped}', '${tenantStatusEscaped}', '${subStatusEscaped}', '${periodEndEscaped}', '${systemModeEscaped}', '${adminUsernameEscaped}', '${adminEmailEscaped}')">編輯</button>
+                        <button class="btn-refresh tenant-action-btn" onclick="activateTenantById(${escapeHtml(row.tenantId)})" ${canActivate ? '' : 'disabled'}>啟用</button>
+                        <button class="btn-refresh tenant-action-btn" onclick="resendTenantVerificationByEmail('${emailEscapedForJs}')" ${email ? '' : 'disabled'}>重寄驗證</button>
                         <button class="btn-cancel tenant-action-btn" onclick="deleteTenantById(${escapeHtml(row.tenantId)}, '${tenantNameForDelete}')">刪除</button>
                     </td>
                 </tr>
@@ -7834,7 +7887,7 @@ async function loadSubscriptionOverview() {
         }).join('');
     } catch (error) {
         console.error('載入訂閱總覽失敗:', error);
-        tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
     }
 }
 

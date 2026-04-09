@@ -66,11 +66,7 @@
                 <div id="systemModeBadgeMount" class="sidebar-mode-badge-mount"></div>
                 <a href="#subscription-overview" class="nav-item permission-required" data-super-admin-only="1" data-section="subscription-overview" data-permission="admins.view" onclick="handleNavClick(event, 'subscription-overview')">
                     <span class="nav-icon"><span class="material-symbols-outlined">subscriptions</span></span>
-                    <span>訂閱總覽</span>
-                </a>
-                <a href="#tenant-management" class="nav-item permission-required" data-super-admin-only="1" data-section="tenant-management" data-permission="admins.view" onclick="handleNavClick(event, 'tenant-management')">
-                    <span class="nav-icon"><span class="material-symbols-outlined">apartment</span></span>
-                    <span>租戶管理</span>
+                    <span>租戶總覽</span>
                 </a>
                 <a href="#dashboard" class="nav-item active permission-required" data-section="dashboard" data-permission="dashboard.view" onclick="handleNavClick(event, 'dashboard')">
                     <span class="nav-icon"><span class="material-symbols-outlined">speed</span></span>
@@ -1546,8 +1542,19 @@
 
             <section id="subscription-overview-section" class="content-section">
                 <div class="section-header">
-                    <h2><span class="material-symbols-outlined" style="font-size: 28px; vertical-align: middle; margin-right: 8px;">subscriptions</span> 訂閱總覽（全租戶）</h2>
+                    <h2><span class="material-symbols-outlined" style="font-size: 28px; vertical-align: middle; margin-right: 8px;">subscriptions</span> 租戶與訂閱管理（全租戶）</h2>
                     <div class="header-actions" style="display:flex; gap:8px; align-items:center;">
+                        <button class="btn-primary" onclick="showCreateTenantModal()">
+                            <span class="material-symbols-outlined">add</span> 新增租戶
+                        </button>
+                        <select id="subscriptionTenantStatusFilter" style="padding:8px;" onchange="loadSubscriptionOverview()">
+                            <option value="">全部租戶狀態</option>
+                            <option value="pending">待驗證</option>
+                            <option value="active">啟用中</option>
+                            <option value="suspended">已停用</option>
+                            <option value="canceled">已取消</option>
+                        </select>
+                        <input id="subscriptionKeywordFilter" type="text" placeholder="搜尋租戶名稱/代碼/管理員" style="padding:8px; min-width:220px;">
                         <select id="subscriptionModeFilter" style="padding:8px;" onchange="loadSubscriptionOverview()">
                             <option value="">全部模式</option>
                             <option value="retail">一般模式</option>
@@ -1562,49 +1569,6 @@
                             <option value="unset">未設定</option>
                         </select>
                         <button class="btn-refresh" onclick="loadSubscriptionOverview()">
-                            <span class="material-symbols-outlined">refresh</span> 重新整理
-                        </button>
-                    </div>
-                </div>
-                <div class="table-container">
-                    <table class="bookings-table">
-                        <thead>
-                            <tr>
-                                <th>Tenant ID</th>
-                                <th>租戶名稱</th>
-                                <th>租戶狀態</th>
-                                <th>方案</th>
-                                <th>訂閱狀態</th>
-                                <th>系統模式</th>
-                                <th>到期風險</th>
-                                <th>週期</th>
-                                <th>到期時間</th>
-                                <th>更新時間</th>
-                                <th>操作</th>
-                            </tr>
-                        </thead>
-                        <tbody id="subscriptionOverviewTableBody">
-                            <tr><td colspan="11" style="text-align:center;color:#666;">載入中...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-
-            <section id="tenant-management-section" class="content-section">
-                <div class="section-header">
-                    <h2><span class="material-symbols-outlined" style="font-size: 28px; vertical-align: middle; margin-right: 8px;">apartment</span> 租戶管理</h2>
-                    <div class="header-actions" style="display:flex; gap:8px; align-items:center;">
-                        <button class="btn-primary" onclick="showCreateTenantModal()">
-                            <span class="material-symbols-outlined">add</span> 新增租戶
-                        </button>
-                        <select id="tenantStatusFilter" style="padding:8px;">
-                            <option value="">全部狀態</option>
-                            <option value="pending">待驗證</option>
-                            <option value="active">啟用中</option>
-                            <option value="suspended">已停用</option>
-                        </select>
-                        <input id="tenantKeywordFilter" type="text" placeholder="搜尋租戶名稱/代碼" style="padding:8px; min-width:200px;">
-                        <button class="btn-refresh" onclick="loadTenantManagementList()">
                             <span class="material-symbols-outlined">search</span> 查詢
                         </button>
                     </div>
@@ -1620,11 +1584,18 @@
                                 <th>管理員帳號</th>
                                 <th>管理員信箱</th>
                                 <th>管理員啟用</th>
+                                <th>方案</th>
+                                <th>訂閱狀態</th>
+                                <th>系統模式</th>
+                                <th>到期風險</th>
+                                <th>週期</th>
+                                <th>到期時間</th>
+                                <th>更新時間</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
-                        <tbody id="tenantManagementTableBody">
-                            <tr><td colspan="8" style="text-align:center;color:#666;">載入中...</td></tr>
+                        <tbody id="subscriptionOverviewTableBody">
+                            <tr><td colspan="14" style="text-align:center;color:#666;">載入中...</td></tr>
                         </tbody>
                     </table>
                 </div>
