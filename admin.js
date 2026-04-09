@@ -14370,13 +14370,14 @@ async function loadLandingRoomTypes(landingData) {
                 <div class="form-group">
                     <label>銷售頁啟用</label>
                     <div style="display:flex; align-items:center; gap:10px;">
-                        <label style="position: relative; display: inline-block; width: 50px; height: 26px;">
-                            <input type="checkbox" id="landingRoomEnabled_${room.id}" ${room.show_on_landing === 1 ? 'checked' : ''} style="opacity:0; width:0; height:0; position:absolute;" onchange="syncLandingRoomEnabledSwitch(${room.id}, this.checked)">
-                            <span style="position:absolute; cursor:pointer; inset:0; background-color:${room.show_on_landing === 1 ? '#27ae60' : '#ccc'}; transition:0.3s; border-radius:26px;" onclick="const cb=this.previousElementSibling; cb.checked=!cb.checked; cb.dispatchEvent(new Event('change'));">
-                                <span style="position:absolute; height:20px; width:20px; left:3px; bottom:3px; background-color:white; transition:0.3s; border-radius:50%; transform:${room.show_on_landing === 1 ? 'translateX(24px)' : 'translateX(0)'};"></span>
+                        <!-- 勿用 label 包住 checkbox：點擊時瀏覽器會再觸發一次 label 預設切換，導致開關無法關閉／狀態被還原 -->
+                        <div class="landing-room-enabled-switch" style="position: relative; display: inline-block; width: 50px; height: 26px;">
+                            <input type="checkbox" id="landingRoomEnabled_${room.id}" ${Number(room.show_on_landing) === 1 ? 'checked' : ''} style="opacity:0; width:0; height:0; position:absolute;" onchange="syncLandingRoomEnabledSwitch(${room.id}, this.checked)">
+                            <span role="button" tabindex="0" aria-label="切換銷售頁顯示" style="position:absolute; cursor:pointer; inset:0; background-color:${Number(room.show_on_landing) === 1 ? '#27ae60' : '#ccc'}; transition:0.3s; border-radius:26px;" onclick="event.preventDefault(); event.stopPropagation(); const cb=this.previousElementSibling; if(!cb) return; cb.checked=!cb.checked; cb.dispatchEvent(new Event('change', { bubbles: true }));" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); this.click();}">
+                                <span style="position:absolute; height:20px; width:20px; left:3px; bottom:3px; background-color:white; transition:0.3s; border-radius:50%; transform:${Number(room.show_on_landing) === 1 ? 'translateX(24px)' : 'translateX(0)'}; pointer-events:none;"></span>
                             </span>
-                        </label>
-                        <span id="landingRoomEnabledText_${room.id}" style="color:#666; font-size:14px;">${room.show_on_landing === 1 ? '顯示在銷售頁' : '不顯示在銷售頁'}</span>
+                        </div>
+                        <span id="landingRoomEnabledText_${room.id}" style="color:#666; font-size:14px;">${Number(room.show_on_landing) === 1 ? '顯示在銷售頁' : '不顯示在銷售頁'}</span>
                     </div>
                 </div>
                 <div class="form-group">
