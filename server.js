@@ -1062,7 +1062,7 @@ async function handleCreateBooking(req, res) {
         let daysReserved = 3; // 預設值
         if (paymentMethod === 'transfer') {
             try {
-                const paymentTemplate = await db.getEmailTemplateByKey('payment_reminder');
+                const paymentTemplate = await db.getEmailTemplateByKey('payment_reminder', getRequestTenantId(req));
                 if (paymentTemplate && paymentTemplate.days_reserved) {
                     daysReserved = parseInt(paymentTemplate.days_reserved) || 3;
                 }
@@ -6098,9 +6098,9 @@ app.get('/api/admin/email-service-status', requireAuth, checkPermission('email_t
 // ==================== 郵件模板 API ====================
 
 // API: 取得所有郵件模板
-app.get('/api/email-templates', requireAuth, checkPermission('email_templates.view'), adminLimiter, async (req, res) => {
+app.get('/api/email-templates', requireAuth, requireTenantContext, checkPermission('email_templates.view'), adminLimiter, async (req, res) => {
     try {
-        const templates = await db.getAllEmailTemplates();
+        const templates = await db.getAllEmailTemplates(req.tenantId);
         res.json({
             success: true,
             data: templates
@@ -6115,11 +6115,11 @@ app.get('/api/email-templates', requireAuth, checkPermission('email_templates.vi
 });
 
 // API: 取得單一郵件模板
-app.get('/api/email-templates/:key', requireAuth, checkPermission('email_templates.view'), adminLimiter, async (req, res) => {
+app.get('/api/email-templates/:key', requireAuth, requireTenantContext, checkPermission('email_templates.view'), adminLimiter, async (req, res) => {
     try {
         const { key } = req.params;
         console.log(`📧 取得郵件模板: ${key}`);
-        const template = await db.getEmailTemplateByKey(key);
+        const template = await db.getEmailTemplateByKey(key, req.tenantId);
         if (template) {
             console.log(`✅ 找到模板: ${template.template_name}, 內容長度: ${template.content ? template.content.length : 0}`);
             console.log(`   設定值:`, {
@@ -6151,7 +6151,7 @@ app.get('/api/email-templates/:key', requireAuth, checkPermission('email_templat
 });
 
 // API: 更新郵件模板
-app.put('/api/email-templates/:key', requireAuth, checkPermission('email_templates.edit'), adminLimiter, async (req, res) => {
+app.put('/api/email-templates/:key', requireAuth, requireTenantContext, checkPermission('email_templates.edit'), adminLimiter, async (req, res) => {
     try {
         const { key } = req.params;
         const { 
@@ -6256,7 +6256,7 @@ app.put('/api/email-templates/:key', requireAuth, checkPermission('email_templat
             console.log('✅ 包含區塊設定，將一併更新');
         }
         
-        const result = await db.updateEmailTemplate(key, updateData);
+        const result = await db.updateEmailTemplate(key, updateData, req.tenantId);
         
         console.log(`✅ 郵件模板已更新，影響行數: ${result.changes}`);
         
@@ -6274,7 +6274,7 @@ app.put('/api/email-templates/:key', requireAuth, checkPermission('email_templat
 });
 
 // API: 發送測試郵件
-app.post('/api/email-templates/:key/test', requireAuth, checkPermission('email_templates.send_test'), adminLimiter, async (req, res) => {
+app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, checkPermission('email_templates.send_test'), adminLimiter, async (req, res) => {
     try {
         const { key } = req.params;
         const { email, useEditorContent } = req.body;
@@ -6295,7 +6295,7 @@ app.post('/api/email-templates/:key/test', requireAuth, checkPermission('email_t
         let template = null; // 確保 template 變數在整個函數中可用
         
         // 先從資料庫讀取最新的模板內容（確保使用最新的優化版本）
-        template = await db.getEmailTemplateByKey(key);
+        template = await db.getEmailTemplateByKey(key, req.tenantId);
         if (!template) {
             return res.status(404).json({
                 success: false,
@@ -6832,7 +6832,7 @@ app.post('/api/email-templates/:key/test', requireAuth, checkPermission('email_t
 });
 
 // API: 重置郵件模板為預設圖卡樣式
-app.post('/api/email-templates/reset-to-default', requireAuth, checkPermission('email_templates.edit'), adminLimiter, async (req, res) => {
+app.post('/api/email-templates/reset-to-default', requireAuth, requireTenantContext, checkPermission('email_templates.edit'), adminLimiter, async (req, res) => {
     try {
         // 使用圖卡樣式的模板
         const fallbackTemplates = [
@@ -7956,7 +7956,7 @@ app.post('/api/email-templates/reset-to-default', requireAuth, checkPermission('
                 console.log(`   是否包含新的優化 CSS: ${hasNewCSS}`);
             }
             
-            await db.updateEmailTemplate(template.key, updateData);
+            await db.updateEmailTemplate(template.key, updateData, req.tenantId);
             
             console.log(`✅ 郵件模板「${template.name}」已重置為預設的圖卡樣式`);
             
@@ -7985,7 +7985,7 @@ app.post('/api/email-templates/reset-to-default', requireAuth, checkPermission('
                     updateData.block_settings = template.block_settings;
                 }
                 
-                await db.updateEmailTemplate(template.key, updateData);
+                await db.updateEmailTemplate(template.key, updateData, req.tenantId);
             }
             
             res.json({
@@ -8024,7 +8024,7 @@ app.post('/api/email-templates/force-update', requireAuth, checkPermission('emai
 });
 
 // API: 獲取預設郵件模板內容（用於還原功能）
-app.get('/api/email-templates/:key/default', requireAuth, checkPermission('email_templates.view'), adminLimiter, async (req, res) => {
+app.get('/api/email-templates/:key/default', requireAuth, requireTenantContext, checkPermission('email_templates.view'), adminLimiter, async (req, res) => {
     try {
         const { key } = req.params;
         
@@ -8887,7 +8887,7 @@ app.get('/api/email-templates/:key/default', requireAuth, checkPermission('email
                     template.content = fs.readFileSync(templatePath, 'utf8');
                 } else {
                     // 如果文件不存在，從資料庫讀取
-                    const dbTemplate = await db.getEmailTemplateByKey('checkin_reminder');
+                    const dbTemplate = await db.getEmailTemplateByKey('checkin_reminder', req.tenantId);
                     if (dbTemplate && dbTemplate.content) {
                         template.content = dbTemplate.content;
                     }
@@ -8896,7 +8896,7 @@ app.get('/api/email-templates/:key/default', requireAuth, checkPermission('email
                 console.error('讀取入住提醒預設模板失敗:', error);
                 // 如果讀取失敗，嘗試從資料庫讀取
                 try {
-                    const dbTemplate = await db.getEmailTemplateByKey('checkin_reminder');
+                    const dbTemplate = await db.getEmailTemplateByKey('checkin_reminder', req.tenantId);
                     if (dbTemplate && dbTemplate.content) {
                         template.content = dbTemplate.content;
                     }
@@ -9130,7 +9130,7 @@ app.post('/api/email-templates/checkin_reminder/regenerate', requireAuth, checkP
         const template = defaultTemplates[0];
         
         // 取得現有模板以保留設定
-        const existingTemplate = await db.getEmailTemplateByKey('checkin_reminder');
+        const existingTemplate = await db.getEmailTemplateByKey('checkin_reminder', req.tenantId);
         
         // 強制更新模板，使用最新的格式和預設 block_settings
         await db.updateEmailTemplate('checkin_reminder', {
@@ -9145,7 +9145,7 @@ app.post('/api/email-templates/checkin_reminder/regenerate', requireAuth, checkP
             days_reserved: existingTemplate?.days_reserved || null,
             send_hour_payment_reminder: existingTemplate?.send_hour_payment_reminder || null,
             block_settings: template.block_settings
-        });
+        }, req.tenantId);
         
         console.log('✅ 已重新生成入住提醒郵件模板（使用最新格式）');
         
@@ -9282,7 +9282,7 @@ app.post('/api/email-templates/checkin_reminder/force-update-card-format', requi
         // 更新資料庫中的模板
         await db.updateEmailTemplate('checkin_reminder', {
             content: cardFormatTemplate
-        });
+        }, req.tenantId);
         
         // 重新初始化所有郵件模板，確保所有模板都是完整的
         await db.initEmailTemplates();
@@ -9306,7 +9306,7 @@ app.post('/api/email-templates/checkin_reminder/force-update-card-format', requi
 app.post('/api/email-templates/checkin_reminder/clear-blocks', requireAuth, checkPermission('email_templates.edit'), adminLimiter, async (req, res) => {
     try {
         // 取得入住提醒模板
-        const template = await db.getEmailTemplateByKey('checkin_reminder');
+        const template = await db.getEmailTemplateByKey('checkin_reminder', req.tenantId);
         if (!template) {
             return res.status(404).json({
                 success: false,
@@ -9530,7 +9530,7 @@ app.post('/api/email-templates/checkin_reminder/clear-blocks', requireAuth, chec
             days_reserved: template.days_reserved !== undefined ? template.days_reserved : null,
             send_hour_payment_reminder: template.send_hour_payment_reminder !== undefined ? template.send_hour_payment_reminder : null,
             block_settings: JSON.stringify(blockSettings)
-        });
+        }, req.tenantId);
         
         // 同時清除系統設定中的舊內容，確保使用代碼中的新預設值
         console.log('🔄 開始清除系統設定中的舊內容...');
@@ -9578,7 +9578,7 @@ app.post('/api/email-templates/checkin_reminder/clear-blocks', requireAuth, chec
 async function generateEmailFromTemplate(templateKey, booking, bankInfo = null, additionalData = {}) {
     try {
         // 從數據庫讀取模板
-        const template = await db.getEmailTemplateByKey(templateKey);
+        const template = await db.getEmailTemplateByKey(templateKey, booking?.tenant_id || getRequestTenantId(req));
         if (!template) {
             throw new Error(`找不到郵件模板: ${templateKey}`);
         }
@@ -9774,7 +9774,7 @@ async function replaceTemplateVariables(template, booking, bankInfo = null, addi
     // 確保使用資料庫中的完整 HTML 內容
     if (!content || content.trim() === '') {
         // 如果模板內容為空，嘗試從資料庫重新讀取
-        const dbTemplate = await db.getEmailTemplateByKey(templateKey);
+        const dbTemplate = await db.getEmailTemplateByKey(templateKey, booking?.tenant_id || getRequestTenantId(req));
         if (dbTemplate && dbTemplate.content) {
             content = dbTemplate.content;
             console.log(`⚠️ 模板內容為空，已從資料庫重新讀取完整 HTML 模板 (${templateKey})`);
@@ -9852,7 +9852,7 @@ async function replaceTemplateVariables(template, booking, bankInfo = null, addi
         
         try {
             // 從資料庫讀取原始模板（包含完整的 HTML 結構和樣式）
-            const originalTemplate = await db.getEmailTemplateByKey(templateKey);
+            const originalTemplate = await db.getEmailTemplateByKey(templateKey, booking?.tenant_id || getRequestTenantId(req));
             if (originalTemplate && originalTemplate.content && 
                 (originalTemplate.content.includes('<!DOCTYPE html>') || originalTemplate.content.includes('<html'))) {
                 // 提取原始模板的 HTML 結構和樣式

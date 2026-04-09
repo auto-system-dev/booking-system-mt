@@ -2014,11 +2014,12 @@ async function initPostgreSQL() {
             }
             console.log('✅ 預設設定已初始化');
             
-            // 建立郵件模板表
+            // 建立郵件模板表（多租戶：以 tenant_id 隔離）
             await query(`
                 CREATE TABLE IF NOT EXISTS email_templates (
                     id SERIAL PRIMARY KEY,
-                    template_key VARCHAR(255) UNIQUE NOT NULL,
+                    tenant_id INTEGER NOT NULL DEFAULT 1,
+                    template_key VARCHAR(255) NOT NULL,
                     template_name VARCHAR(255) NOT NULL,
                     subject TEXT NOT NULL,
                     content TEXT NOT NULL,
@@ -2041,6 +2042,20 @@ async function initPostgreSQL() {
             } catch (e) {
                 // 欄位可能已存在，忽略錯誤
             }
+            // 多租戶遷移：補齊 tenant_id 與複合唯一鍵（PostgreSQL）
+            try {
+                await query(`ALTER TABLE email_templates ADD COLUMN IF NOT EXISTS tenant_id INTEGER DEFAULT 1`);
+            } catch (_e) {}
+            try {
+                await query(`UPDATE email_templates SET tenant_id = COALESCE(tenant_id, 1)`);
+            } catch (_e) {}
+            try {
+                // 移除舊的 template_key 唯一約束（若存在），改為 (tenant_id, template_key)
+                await query(`ALTER TABLE email_templates DROP CONSTRAINT IF EXISTS email_templates_template_key_key`);
+            } catch (_e) {}
+            try {
+                await query(`CREATE UNIQUE INDEX IF NOT EXISTS email_templates_tenant_key_uq ON email_templates (tenant_id, template_key)`);
+            } catch (_e) {}
             console.log('✅ 郵件模板表已準備就緒');
             
             // 建立管理員資料表
@@ -8367,10 +8382,13 @@ async function updateSetting(key, value, description = null, tenantId) {
 
 // ==================== 郵件模板相關函數 ====================
 
-async function getAllEmailTemplates() {
+async function getAllEmailTemplates(tenantId) {
     try {
-        const sql = `SELECT * FROM email_templates ORDER BY template_key`;
-        const result = await query(sql);
+        const safeTenantId = assertTenantScope(tenantId, 'getAllEmailTemplates');
+        const sql = usePostgreSQL
+            ? `SELECT * FROM email_templates WHERE tenant_id = $1 ORDER BY template_key`
+            : `SELECT * FROM email_templates WHERE tenant_id = ? ORDER BY template_key`;
+        const result = await query(sql, [safeTenantId]);
         return result.rows || [];
     } catch (error) {
         console.error('❌ 查詢郵件模板失敗:', error.message);
@@ -8378,20 +8396,22 @@ async function getAllEmailTemplates() {
     }
 }
 
-async function getEmailTemplateByKey(templateKey) {
+async function getEmailTemplateByKey(templateKey, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getEmailTemplateByKey');
         const sql = usePostgreSQL
-            ? `SELECT * FROM email_templates WHERE template_key = $1`
-            : `SELECT * FROM email_templates WHERE template_key = ?`;
-        return await queryOne(sql, [templateKey]);
+            ? `SELECT * FROM email_templates WHERE template_key = $1 AND tenant_id = $2`
+            : `SELECT * FROM email_templates WHERE template_key = ? AND tenant_id = ?`;
+        return await queryOne(sql, [templateKey, safeTenantId]);
     } catch (error) {
         console.error('❌ 查詢郵件模板失敗:', error.message);
         throw error;
     }
 }
 
-async function updateEmailTemplate(templateKey, data) {
+async function updateEmailTemplate(templateKey, data, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'updateEmailTemplate');
         const { template_name, subject, content, is_enabled, days_before_checkin, send_hour_checkin, days_after_checkout, send_hour_feedback, days_reserved, send_hour_payment_reminder, block_settings } = data;
         
         console.log(`📝 資料庫更新郵件模板: ${templateKey}`);
@@ -8413,7 +8433,7 @@ async function updateEmailTemplate(templateKey, data) {
                 days_reserved = $9, send_hour_payment_reminder = $10,
                 block_settings = $11,
                 updated_at = CURRENT_TIMESTAMP 
-            WHERE template_key = $12
+            WHERE template_key = $12 AND tenant_id = $13
         ` : `
             UPDATE email_templates 
             SET template_name = ?, subject = ?, content = ?, is_enabled = ?,
@@ -8422,7 +8442,7 @@ async function updateEmailTemplate(templateKey, data) {
                 days_reserved = ?, send_hour_payment_reminder = ?,
                 block_settings = ?,
                 updated_at = CURRENT_TIMESTAMP 
-            WHERE template_key = ?
+            WHERE template_key = ? AND tenant_id = ?
         `;
         
         // 處理數值：如果是 undefined 或 null，設為 null；否則保持原值（包括 0）
@@ -8435,7 +8455,8 @@ async function updateEmailTemplate(templateKey, data) {
             days_reserved !== undefined ? days_reserved : null,
             send_hour_payment_reminder !== undefined ? send_hour_payment_reminder : null,
             block_settings || null,
-            templateKey
+            templateKey,
+            safeTenantId
         ];
         
         console.log(`   準備更新的值:`, values);
