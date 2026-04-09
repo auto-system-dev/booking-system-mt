@@ -1769,6 +1769,31 @@ function setElementDisplayById(html, id, visible) {
     });
 }
 
+function setFirstElementDisplayByClass(html, className, visible) {
+    const classToken = String(className || '').trim();
+    if (!classToken) return html;
+    const pattern = new RegExp(`(<[^>]*\\sclass="[^"]*\\b${classToken}\\b[^"]*"[^>]*)(>)`);
+    return html.replace(pattern, (_, openTag, closeTag) => {
+        if (/\sstyle="/i.test(openTag)) {
+            const updatedOpenTag = openTag.replace(/\sstyle="([^"]*)"/i, (__m, styleValue) => {
+                const cleaned = String(styleValue || '')
+                    .replace(/display\s*:\s*none;?/gi, '')
+                    .replace(/\s*;\s*$/g, '')
+                    .trim();
+                if (visible) {
+                    return cleaned ? ` style="${cleaned}"` : '';
+                }
+                const merged = cleaned ? `${cleaned}; display: none;` : 'display: none;';
+                return ` style="${merged}"`;
+            });
+            return `${updatedOpenTag}${closeTag}`;
+        }
+        return visible
+            ? `${openTag}${closeTag}`
+            : `${openTag} style="display: none;"${closeTag}`;
+    });
+}
+
 function normalizeMaterialIconName(value) {
     return String(value || '')
         .trim()
@@ -1896,6 +1921,7 @@ function renderLandingTemplate(templateHtml, landingSettings, landingRoomTypes, 
     html = replaceElementContentById(html, 'countdownText', cfg.landing_countdown_text, { allowHtml: true });
     const countdownVisible = isLandingSettingEnabled(cfg.landing_countdown_enabled, true);
     html = setElementDisplayById(html, 'countdownSection', countdownVisible);
+    html = setFirstElementDisplayByClass(html, 'countdown-section', countdownVisible);
 
     const aboutVisible = isLandingSettingEnabled(cfg.landing_about_enabled, true);
     html = setElementDisplayById(html, 'about', aboutVisible);

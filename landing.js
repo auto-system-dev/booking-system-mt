@@ -311,7 +311,7 @@ async function applyConfig(cfg) {
     }
 
     // 倒數計時
-    const countdownSection = document.getElementById('countdownSection');
+    const countdownSection = document.getElementById('countdownSection') || document.querySelector('.countdown-section');
     const countdownEnabled = isTrustEnabled(cfg.landing_countdown_enabled);
     if (countdownSection) {
         countdownSection.style.display = countdownEnabled ? '' : 'none';
