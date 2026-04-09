@@ -7709,6 +7709,13 @@ async function loadSubscriptionSettings() {
     if (!planInput) {
         return;
     }
+    // 尚未進入後台或尚未取得管理員資訊時，不應觸發需要 tenant context 的訂閱 API
+    if (typeof isAdminPageVisible === 'function' && !isAdminPageVisible()) {
+        return;
+    }
+    if (!window.currentAdminInfo) {
+        return;
+    }
     try {
         const isSuperAdmin = !!(window.currentAdminInfo && window.currentAdminInfo.role === 'super_admin');
         const adminControls = document.getElementById('subscriptionAdminControls');
@@ -7741,7 +7748,13 @@ async function loadSubscriptionSettings() {
         }
     } catch (error) {
         console.error('載入訂閱狀態失敗:', error);
-        showError('載入訂閱方案資訊失敗：' + error.message);
+        const msg = String(error?.message || '');
+        if (msg.includes('缺少 tenant_id') || msg.includes('TENANT_REQUIRED')) {
+            // 例如超管未綁定租戶時，避免在登入頁/初始化期間彈出干擾訊息
+            console.warn('ℹ️ 略過訂閱方案載入（尚未綁定租戶）');
+            return;
+        }
+        showError('載入訂閱方案資訊失敗：' + msg);
     }
 }
 
