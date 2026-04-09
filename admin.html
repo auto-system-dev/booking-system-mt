@@ -1579,17 +1579,27 @@
                             <tr>
                                 <th>Tenant ID</th>
                                 <th>租戶</th>
-                                <th>系統/租戶狀態</th>
-                                <th>訂閱方案/狀態</th>
-                                <th>到期/續扣</th>
+                                <th>管理員</th>
+                                <th>系統模式</th>
+                                <th>租戶狀態</th>
+                                <th>訂閱</th>
+                                <th>到期時間</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
                         <tbody id="subscriptionOverviewTableBody">
-                            <tr><td colspan="6" style="text-align:center;color:#666;">載入中...</td></tr>
+                            <tr><td colspan="8" style="text-align:center;color:#666;">載入中...</td></tr>
                         </tbody>
                     </table>
                 </div>
+                <div id="tenantDetailDrawerBackdrop" class="tenant-detail-drawer-backdrop" onclick="closeTenantDetailDrawer()"></div>
+                <aside id="tenantDetailDrawer" class="tenant-detail-drawer" aria-hidden="true">
+                    <div class="tenant-detail-drawer-header">
+                        <h3 id="tenantDetailDrawerTitle">租戶詳細</h3>
+                        <button type="button" class="tenant-detail-drawer-close" onclick="closeTenantDetailDrawer()">✕</button>
+                    </div>
+                    <div id="tenantDetailDrawerBody" class="tenant-detail-drawer-body"></div>
+                </aside>
             </section>
 
             <!-- 郵件模板區 -->

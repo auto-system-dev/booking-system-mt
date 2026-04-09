@@ -7808,7 +7808,7 @@ async function saveSubscriptionSettingsAsSuperAdmin() {
 async function loadSubscriptionOverview() {
     const tbody = document.getElementById('subscriptionOverviewTableBody');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#666;">載入中...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#666;">載入中...</td></tr>';
     try {
         const modeFilter = String(document.getElementById('subscriptionModeFilter')?.value || '').trim();
         const riskFilter = String(document.getElementById('subscriptionRiskFilter')?.value || '').trim();
@@ -7869,13 +7869,19 @@ async function loadSubscriptionOverview() {
         });
 
         if (filteredRows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#666;">目前沒有租戶資料</td></tr>';
+            window.__tenantOverviewRows = {};
+            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#666;">目前沒有租戶資料</td></tr>';
             return;
         }
         const sortedRows = filteredRows.slice().sort((a, b) => {
             const tenantIdA = parseInt(a.tenantId, 10) || 0;
             const tenantIdB = parseInt(b.tenantId, 10) || 0;
             return tenantIdB - tenantIdA;
+        });
+        window.__tenantOverviewRows = {};
+        sortedRows.forEach((row) => {
+            const id = parseInt(row.tenantId, 10) || 0;
+            if (id > 0) window.__tenantOverviewRows[id] = row;
         });
         tbody.innerHTML = sortedRows.map((row) => {
             const planText =
@@ -7884,7 +7890,6 @@ async function loadSubscriptionOverview() {
                     : '-';
             const subStatus = row.subscriptionStatus || 'none';
             const systemModeLabel = getSystemModeLabel(row.systemMode || 'retail');
-            const riskBadge = renderSubscriptionRiskBadge(row.periodEnd);
             const tenantNameEscaped = String(row.tenantName || '').replace(/'/g, "\\'");
             const tenantCodeEscaped = String(row.tenantCode || row.code || '').replace(/'/g, "\\'");
             const planCodeEscaped = String(row.planCode || 'basic_monthly').replace(/'/g, "\\'");
@@ -7896,91 +7901,105 @@ async function loadSubscriptionOverview() {
             const adminUsernameEscaped = String(row.adminUsername || '').replace(/'/g, "\\'");
             const adminEmailEscaped = String(row.adminEmail || '').replace(/'/g, "\\'");
             const canActivate = String(row.tenantStatus || '').toLowerCase() !== 'active';
-            const email = String(row.adminEmail || '');
-            const emailEscapedForJs = email.replace(/'/g, "\\'");
-            const recurringReady = String(row.provider || '').toLowerCase() === 'newebpay'
-                && String(row.providerSubscriptionId || '').trim()
-                && String(row.providerOrderNo || '').trim();
-            const recurringHint = recurringReady
-                ? `藍新 / 失敗 ${parseInt(row.failedPaymentCount || 0, 10) || 0} 次`
-                : '未綁定';
             const tenantIdNum = parseInt(row.tenantId, 10) || 0;
-            const nextBillingText = row.nextBillingAt ? formatDateTime(row.nextBillingAt) : '-';
             return `
-                <tr>
+                <tr onclick="openTenantDetailDrawer(${tenantIdNum})" style="cursor:pointer;">
                     <td>${escapeHtml(row.tenantId)}</td>
                     <td>
                         <div>${escapeHtml(row.tenantName || '-')}</div>
                         <div style="font-size:11px;color:#64748b;">${escapeHtml(row.tenantCode || '-')}</div>
                     </td>
                     <td>
-                        <div>${escapeHtml(systemModeLabel)}</div>
-                        <div style="margin-top:4px;">${renderTenantStatusBadge(row.tenantStatus || '-')}</div>
+                        <div>${escapeHtml(row.adminUsername || '-')}</div>
+                        <div style="font-size:11px;color:#64748b;">${escapeHtml(row.adminEmail || '-')}</div>
                     </td>
+                    <td>${escapeHtml(systemModeLabel)}</td>
+                    <td>${renderTenantStatusBadge(row.tenantStatus || '-')}</td>
                     <td>
                         <div>${renderPlanTwoLines(planText)}</div>
                         <div style="margin-top:4px;">${renderSubscriptionStatusBadge(subStatus)}</div>
                     </td>
+                    <td>${renderDateTimeTwoLines(row.periodEnd)}</td>
                     <td>
-                        <div>${riskBadge}</div>
-                        <div style="margin-top:4px;">${renderDateTimeTwoLines(row.periodEnd)}</div>
-                        <div style="margin-top:4px;font-size:11px;color:#64748b;">下次扣款：${escapeHtml(nextBillingText)}</div>
-                    </td>
-                    <td>
-                        <div style="font-size:11px;color:#64748b;margin-bottom:4px;">${escapeHtml(recurringHint)}</div>
-                        <button class="btn-refresh tenant-action-btn" onclick="showEditTenantModal(${escapeHtml(row.tenantId)}, '${tenantNameEscaped}', '${tenantCodeEscaped}', '${planCodeEscaped}', '${tenantStatusEscaped}', '${subStatusEscaped}', '${periodEndEscaped}', '${systemModeEscaped}', '${adminUsernameEscaped}', '${adminEmailEscaped}')">編輯</button>
-                        <button class="btn-refresh tenant-action-btn" onclick="showTenantOverviewDetail(${tenantIdNum}, '${tenantNameEscaped}', '${tenantCodeEscaped}', '${adminUsernameEscaped}', '${adminEmailEscaped}', '${escapeHtml(String(row.provider || '')).replace(/'/g, "\\'")}', '${escapeHtml(String(row.providerSubscriptionId || '')).replace(/'/g, "\\'")}', '${escapeHtml(String(row.providerOrderNo || '')).replace(/'/g, "\\'")}', '${escapeHtml(String(row.failedPaymentCount || 0)).replace(/'/g, "\\'")}', '${escapeHtml(String(row.nextBillingAt || '')).replace(/'/g, "\\'")}')">詳情</button>
-                        <button class="btn-refresh tenant-action-btn" onclick="openTenantRecurringActionPrompt(${tenantIdNum})" ${recurringReady ? '' : 'disabled'}>扣款管理</button>
-                        <button class="btn-refresh tenant-action-btn" onclick="activateTenantById(${escapeHtml(row.tenantId)})" ${canActivate ? '' : 'disabled'}>啟用</button>
-                        <button class="btn-cancel tenant-action-btn" onclick="deleteTenantById(${escapeHtml(row.tenantId)}, '${tenantNameForDelete}')">刪除</button>
+                        <button class="btn-refresh tenant-action-btn" onclick="event.stopPropagation(); showEditTenantModal(${escapeHtml(row.tenantId)}, '${tenantNameEscaped}', '${tenantCodeEscaped}', '${planCodeEscaped}', '${tenantStatusEscaped}', '${subStatusEscaped}', '${periodEndEscaped}', '${systemModeEscaped}', '${adminUsernameEscaped}', '${adminEmailEscaped}')">編輯</button>
+                        <button class="btn-refresh tenant-action-btn" onclick="event.stopPropagation(); openTenantDetailDrawer(${tenantIdNum})">更多</button>
+                        <button class="btn-refresh tenant-action-btn" onclick="event.stopPropagation(); activateTenantById(${escapeHtml(row.tenantId)})" ${canActivate ? '' : 'disabled'}>啟用</button>
+                        <button class="btn-cancel tenant-action-btn" onclick="event.stopPropagation(); deleteTenantById(${escapeHtml(row.tenantId)}, '${tenantNameForDelete}')">刪除</button>
                     </td>
                 </tr>
             `;
         }).join('');
     } catch (error) {
         console.error('載入訂閱總覽失敗:', error);
-        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
     }
 }
 
-function showTenantOverviewDetail(
-    tenantId,
-    tenantName,
-    tenantCode,
-    adminUsername,
-    adminEmail,
-    provider,
-    providerSubscriptionId,
-    providerOrderNo,
-    failedPaymentCount,
-    nextBillingAt
-) {
-    const lines = [
-        `租戶：${tenantName || '-'} (#${tenantId || '-'})`,
-        `租戶代碼：${tenantCode || '-'}`,
-        `管理員帳號：${adminUsername || '-'}`,
-        `管理員信箱：${adminEmail || '-'}`,
-        `金流供應商：${provider || '未綁定'}`,
-        `PeriodNo：${providerSubscriptionId || '-'}`,
-        `MerOrderNo：${providerOrderNo || '-'}`,
-        `失敗次數：${failedPaymentCount || '0'}`,
-        `下次扣款：${nextBillingAt ? formatDateTime(nextBillingAt) : '-'}`
-    ];
-    appAlert(lines.join('\n'));
-}
-
-async function openTenantRecurringActionPrompt(tenantId) {
+function openTenantDetailDrawer(tenantId) {
     const safeTenantId = parseInt(tenantId, 10);
     if (!Number.isInteger(safeTenantId) || safeTenantId <= 0) return;
-    const input = String(window.prompt('請輸入操作代碼：suspend（暫停） / restart（恢復） / terminate（終止）', 'suspend') || '')
-        .trim()
-        .toLowerCase();
-    if (!input) return;
-    if (!['suspend', 'restart', 'terminate'].includes(input)) {
-        showError('操作代碼不正確，請輸入 suspend / restart / terminate');
-        return;
+    const row = window.__tenantOverviewRows?.[safeTenantId];
+    if (!row) return;
+
+    const recurringReady = String(row.provider || '').toLowerCase() === 'newebpay'
+        && String(row.providerSubscriptionId || '').trim()
+        && String(row.providerOrderNo || '').trim();
+    const titleEl = document.getElementById('tenantDetailDrawerTitle');
+    const bodyEl = document.getElementById('tenantDetailDrawerBody');
+    const drawer = document.getElementById('tenantDetailDrawer');
+    const backdrop = document.getElementById('tenantDetailDrawerBackdrop');
+    if (!bodyEl || !drawer || !backdrop) return;
+
+    if (titleEl) {
+        titleEl.textContent = `${row.tenantName || '租戶'} 詳細資訊`;
     }
-    await triggerTenantRecurringAction(safeTenantId, input);
+
+    bodyEl.innerHTML = `
+        <div class="tenant-detail-section-title">基本資訊</div>
+        <div class="tenant-detail-grid">
+            <div class="k">Tenant ID</div><div class="v">${escapeHtml(String(row.tenantId || '-'))}</div>
+            <div class="k">租戶代碼</div><div class="v">${escapeHtml(row.tenantCode || '-')}</div>
+            <div class="k">系統模式</div><div class="v">${escapeHtml(getSystemModeLabel(row.systemMode || 'retail'))}</div>
+            <div class="k">租戶狀態</div><div class="v">${renderTenantStatusBadge(row.tenantStatus || '-')}</div>
+            <div class="k">管理員帳號</div><div class="v">${escapeHtml(row.adminUsername || '-')}</div>
+            <div class="k">管理員信箱</div><div class="v">${escapeHtml(row.adminEmail || '-')}</div>
+            <div class="k">管理員啟用</div><div class="v">${String(row.adminIsActive) === '1' || row.adminIsActive === true ? '是' : '否'}</div>
+        </div>
+        <div class="tenant-detail-section-title">訂閱資訊</div>
+        <div class="tenant-detail-grid">
+            <div class="k">方案</div><div class="v">${renderPlanTwoLines(formatSubscriptionPlanDisplay(row.planCode || '', row.planName || ''))}</div>
+            <div class="k">訂閱狀態</div><div class="v">${renderSubscriptionStatusBadge(row.subscriptionStatus || 'none')}</div>
+            <div class="k">到期時間</div><div class="v">${renderDateTimeTwoLines(row.periodEnd)}</div>
+            <div class="k">下次扣款</div><div class="v">${escapeHtml(row.nextBillingAt ? formatDateTime(row.nextBillingAt) : '-')}</div>
+        </div>
+        <div class="tenant-detail-section-title">Recurring（金流）</div>
+        <div class="tenant-detail-grid">
+            <div class="k">供應商</div><div class="v">${escapeHtml(row.provider || '未綁定')}</div>
+            <div class="k">PeriodNo</div><div class="v">${escapeHtml(row.providerSubscriptionId || '-')}</div>
+            <div class="k">MerOrderNo</div><div class="v">${escapeHtml(row.providerOrderNo || '-')}</div>
+            <div class="k">失敗次數</div><div class="v">${escapeHtml(String(parseInt(row.failedPaymentCount || 0, 10) || 0))}</div>
+        </div>
+        <div class="tenant-detail-section-title">操作</div>
+        <div class="tenant-detail-action-row">
+            <button class="btn-refresh tenant-action-btn" onclick="triggerTenantRecurringAction(${safeTenantId}, 'suspend')" ${recurringReady ? '' : 'disabled'}>暫停扣款</button>
+            <button class="btn-refresh tenant-action-btn" onclick="triggerTenantRecurringAction(${safeTenantId}, 'restart')" ${recurringReady ? '' : 'disabled'}>恢復扣款</button>
+            <button class="btn-cancel tenant-action-btn" onclick="triggerTenantRecurringAction(${safeTenantId}, 'terminate')" ${recurringReady ? '' : 'disabled'}>終止扣款</button>
+        </div>
+    `;
+
+    drawer.classList.add('is-open');
+    backdrop.classList.add('is-open');
+    drawer.setAttribute('aria-hidden', 'false');
+}
+
+function closeTenantDetailDrawer() {
+    const drawer = document.getElementById('tenantDetailDrawer');
+    const backdrop = document.getElementById('tenantDetailDrawerBackdrop');
+    if (drawer) {
+        drawer.classList.remove('is-open');
+        drawer.setAttribute('aria-hidden', 'true');
+    }
+    if (backdrop) backdrop.classList.remove('is-open');
 }
 
 async function triggerTenantRecurringAction(tenantId, action) {
