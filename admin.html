@@ -68,6 +68,10 @@
                     <span class="nav-icon"><span class="material-symbols-outlined">subscriptions</span></span>
                     <span>租戶總覽</span>
                 </a>
+                <a href="#plan-management" class="nav-item permission-required" data-super-admin-only="1" data-section="plan-management" data-permission="admins.view" onclick="handleNavClick(event, 'plan-management')">
+                    <span class="nav-icon"><span class="material-symbols-outlined">sell</span></span>
+                    <span>方案管理</span>
+                </a>
                 <a href="#dashboard" class="nav-item active permission-required" data-section="dashboard" data-permission="dashboard.view" onclick="handleNavClick(event, 'dashboard')">
                     <span class="nav-icon"><span class="material-symbols-outlined">speed</span></span>
                     <span>儀表板</span>
@@ -1594,39 +1598,6 @@
                         </tbody>
                     </table>
                 </div>
-                <div style="margin-top: 18px;">
-                    <div class="section-header" style="margin-bottom: 10px;">
-                        <h3 style="margin:0; font-size:18px; color:#2c3e50;">方案管理（MVP）</h3>
-                        <div class="header-actions" style="display:flex; gap:8px;">
-                            <button class="btn-primary" onclick="openPlanManagementModal('create')">
-                                <span class="material-symbols-outlined">add</span> 新增方案
-                            </button>
-                            <button class="btn-refresh" onclick="loadPlanManagementList()">
-                                <span class="material-symbols-outlined">refresh</span> 重新整理
-                            </button>
-                        </div>
-                    </div>
-                    <div class="table-container">
-                        <table class="bookings-table">
-                            <thead>
-                                <tr>
-                                    <th>代碼</th>
-                                    <th>名稱</th>
-                                    <th>週期</th>
-                                    <th>價格</th>
-                                    <th>功能</th>
-                                    <th>館別上限</th>
-                                    <th>啟用</th>
-                                    <th>使用租戶數</th>
-                                    <th>操作</th>
-                                </tr>
-                            </thead>
-                            <tbody id="planManagementTableBody">
-                                <tr><td colspan="9" style="text-align:center;color:#666;">載入中...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
                 <div id="tenantDetailDrawerBackdrop" class="tenant-detail-drawer-backdrop" onclick="closeTenantDetailDrawer()"></div>
                 <aside id="tenantDetailDrawer" class="tenant-detail-drawer" aria-hidden="true">
                     <div class="tenant-detail-drawer-header">
@@ -1635,6 +1606,40 @@
                     </div>
                     <div id="tenantDetailDrawerBody" class="tenant-detail-drawer-body"></div>
                 </aside>
+            </section>
+
+            <section id="plan-management-section" class="content-section">
+                <div class="section-header">
+                    <h2><span class="material-symbols-outlined" style="font-size: 28px; vertical-align: middle; margin-right: 8px;">sell</span> 方案管理（MVP）</h2>
+                    <div class="header-actions" style="display:flex; gap:8px;">
+                        <button class="btn-primary" onclick="openPlanManagementModal('create')">
+                            <span class="material-symbols-outlined">add</span> 新增方案
+                        </button>
+                        <button class="btn-refresh" onclick="loadPlanManagementList()">
+                            <span class="material-symbols-outlined">refresh</span> 重新整理
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="bookings-table">
+                        <thead>
+                            <tr>
+                                <th>代碼</th>
+                                <th>名稱</th>
+                                <th>週期</th>
+                                <th>價格</th>
+                                <th>功能</th>
+                                <th>館別上限</th>
+                                <th>啟用</th>
+                                <th>使用租戶數</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="planManagementTableBody">
+                            <tr><td colspan="9" style="text-align:center;color:#666;">載入中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </section>
 
             <!-- 郵件模板區 -->

@@ -1795,6 +1795,7 @@ function switchSection(section) {
         'promotions': 'promo_codes.view',
         'settings': 'settings.view',
         'subscription-overview': 'admins.view',
+        'plan-management': 'admins.view',
         'tenant-management': 'admins.view',
         'email-templates': 'email_templates.view',
         'statistics': 'statistics.view',
@@ -1807,7 +1808,7 @@ function switchSection(section) {
     // 檢查權限（僅在已登入後才檢查）
     const requiredPermission = sectionPermissions[section];
     const isLoggedIn = window.currentAdminInfo || (window.currentAdminPermissions && window.currentAdminPermissions.length > 0);
-    if ((section === 'subscription-overview' || section === 'tenant-management') && (!window.currentAdminInfo || window.currentAdminInfo.role !== 'super_admin')) {
+    if ((section === 'subscription-overview' || section === 'plan-management' || section === 'tenant-management') && (!window.currentAdminInfo || window.currentAdminInfo.role !== 'super_admin')) {
         showError('僅超級管理員可查看此功能');
         if (section !== 'dashboard') switchSection('dashboard');
         return;
@@ -1874,6 +1875,8 @@ function switchSection(section) {
         switchSettingsTab(savedTab);
     } else if (section === 'subscription-overview') {
         loadSubscriptionOverview();
+    } else if (section === 'plan-management') {
+        loadPlanManagementList();
     } else if (section === 'tenant-management') {
         loadTenantManagementList();
     } else if (section === 'email-templates') {
@@ -1929,6 +1932,8 @@ function loadInitialAdminRoute() {
         if (typeof loadHolidays === 'function') loadHolidays();
     } else if (urlHash === '#subscription-overview') {
         switchSection('subscription-overview');
+    } else if (urlHash === '#plan-management') {
+        switchSection('plan-management');
     } else if (urlHash === '#tenant-management') {
         switchSection('tenant-management');
     } else if (urlHash === '#addons') {
@@ -7929,7 +7934,6 @@ async function loadSubscriptionOverview() {
                 </tr>
             `;
         }).join('');
-        loadPlanManagementList();
     } catch (error) {
         console.error('載入訂閱總覽失敗:', error);
         tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
