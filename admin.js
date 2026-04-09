@@ -7886,12 +7886,12 @@ async function loadSubscriptionOverview() {
                     <td>${escapeHtml(row.tenantCode || '-')}</td>
                     <td>${escapeHtml(row.tenantName || '-')}</td>
                     <td>${renderTenantStatusBadge(row.tenantStatus || '-')}</td>
+                    <td>${escapeHtml(systemModeLabel)}</td>
                     <td>${escapeHtml(row.adminUsername || '-')}</td>
                     <td>${escapeHtml(row.adminEmail || '-')}</td>
                     <td>${String(row.adminIsActive) === '1' || row.adminIsActive === true ? '是' : '否'}</td>
                     <td>${renderPlanTwoLines(planText)}</td>
                     <td>${renderSubscriptionStatusBadge(subStatus)}</td>
-                    <td>${escapeHtml(systemModeLabel)}</td>
                     <td>${riskBadge}</td>
                     <td>${renderDateTimeTwoLines(row.periodEnd)}</td>
                     <td>
