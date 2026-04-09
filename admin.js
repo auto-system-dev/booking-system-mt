@@ -7463,6 +7463,27 @@ function toReadableDate(dateValue) {
     return d.toLocaleString('zh-TW');
 }
 
+function renderDateTimeTwoLines(dateValue) {
+    if (!dateValue) return '未設定';
+    const d = new Date(dateValue);
+    if (Number.isNaN(d.getTime())) {
+        return escapeHtml(String(dateValue));
+    }
+    const dateText = d.toLocaleDateString('zh-TW');
+    const timeText = d.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: true });
+    return `<div class="table-datetime-two-line"><div>${escapeHtml(dateText)}</div><div>${escapeHtml(timeText)}</div></div>`;
+}
+
+function renderPlanTwoLines(planText) {
+    const raw = String(planText || '').trim();
+    if (!raw || raw === '-') return '-';
+    const matched = raw.match(/^(.*?)(（[^）]+）|\([^)]+\))$/);
+    if (!matched) return escapeHtml(raw);
+    const main = String(matched[1] || '').trim();
+    const cycle = String(matched[2] || '').trim();
+    return `<div class="table-plan-two-line"><div>${escapeHtml(main)}</div><div>${escapeHtml(cycle)}</div></div>`;
+}
+
 function toDateTimeLocalValue(dateValue) {
     if (!dateValue) return '';
     const d = new Date(dateValue);
@@ -7830,7 +7851,7 @@ async function loadSubscriptionOverview() {
         });
 
         if (filteredRows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:#666;">目前沒有租戶資料</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;color:#666;">目前沒有租戶資料</td></tr>';
             return;
         }
         const sortedRows = filteredRows.slice().sort((a, b) => {
@@ -7845,7 +7866,6 @@ async function loadSubscriptionOverview() {
                     : '-';
             const subStatus = row.subscriptionStatus || 'none';
             const systemModeLabel = getSystemModeLabel(row.systemMode || 'retail');
-            const cycleLabel = row.billingCycle === 'yearly' ? '年繳' : (row.billingCycle === 'monthly' ? '月繳' : '-');
             const riskBadge = renderSubscriptionRiskBadge(row.periodEnd);
             const tenantNameEscaped = String(row.tenantName || '').replace(/'/g, "\\'");
             const tenantCodeEscaped = String(row.tenantCode || row.code || '').replace(/'/g, "\\'");
@@ -7869,12 +7889,11 @@ async function loadSubscriptionOverview() {
                     <td>${escapeHtml(row.adminUsername || '-')}</td>
                     <td>${escapeHtml(row.adminEmail || '-')}</td>
                     <td>${String(row.adminIsActive) === '1' || row.adminIsActive === true ? '是' : '否'}</td>
-                    <td>${escapeHtml(planText)}</td>
+                    <td>${renderPlanTwoLines(planText)}</td>
                     <td>${renderSubscriptionStatusBadge(subStatus)}</td>
                     <td>${escapeHtml(systemModeLabel)}</td>
                     <td>${riskBadge}</td>
-                    <td>${escapeHtml(cycleLabel)}</td>
-                    <td>${escapeHtml(toReadableDate(row.periodEnd))}</td>
+                    <td>${renderDateTimeTwoLines(row.periodEnd)}</td>
                     <td>
                         <button class="btn-refresh tenant-action-btn" onclick="showEditTenantModal(${escapeHtml(row.tenantId)}, '${tenantNameEscaped}', '${tenantCodeEscaped}', '${planCodeEscaped}', '${tenantStatusEscaped}', '${subStatusEscaped}', '${periodEndEscaped}', '${systemModeEscaped}', '${adminUsernameEscaped}', '${adminEmailEscaped}')">編輯</button>
                         <button class="btn-refresh tenant-action-btn" onclick="activateTenantById(${escapeHtml(row.tenantId)})" ${canActivate ? '' : 'disabled'}>啟用</button>
@@ -7886,7 +7905,7 @@ async function loadSubscriptionOverview() {
         }).join('');
     } catch (error) {
         console.error('載入訂閱總覽失敗:', error);
-        tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
     }
 }
 

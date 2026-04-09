@@ -396,6 +396,22 @@ body.login-page-active {
     box-shadow: none;
 }
 
+.table-datetime-two-line {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
+.table-plan-two-line {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.25;
+    white-space: nowrap;
+}
+
 .btn-delete {
     background: #dc3545;
     color: white;
