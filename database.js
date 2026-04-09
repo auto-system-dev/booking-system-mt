@@ -2298,8 +2298,9 @@ async function initPostgreSQL() {
     });
 }
 
-// 初始化郵件模板（PostgreSQL 和 SQLite 共用）
-async function initEmailTemplates() {
+// 初始化郵件模板（多租戶：每個 tenant 各一份；未帶 tenantId 則視為 1）
+async function initEmailTemplates(tenantId) {
+    const safeTenantId = assertTenantScope(tenantId || 1, 'initEmailTemplates');
     const defaultTemplates = [
         {
             key: 'payment_reminder',
@@ -3345,10 +3346,10 @@ async function initEmailTemplates() {
     for (const template of defaultTemplates) {
         try {
             const existing = await queryOne(
-                usePostgreSQL 
-                    ? 'SELECT content, template_name FROM email_templates WHERE template_key = $1'
-                    : 'SELECT content, template_name FROM email_templates WHERE template_key = ?',
-                [template.key]
+                usePostgreSQL
+                    ? 'SELECT content, template_name FROM email_templates WHERE template_key = $1 AND tenant_id = $2'
+                    : 'SELECT content, template_name FROM email_templates WHERE template_key = ? AND tenant_id = ?',
+                [template.key, safeTenantId]
             );
             
             // 如果模板不存在、內容為空、內容過短（可能是被誤刪）、或名稱需要更新，則插入或更新
@@ -3522,9 +3523,9 @@ async function initEmailTemplates() {
             if (!existing || !existing.content || existing.content.trim() === '' || existing.template_name !== template.name || isContentTooShort || needsUpdateForHtmlStructure || forceUpdateCheckinReminder || forceUpdatePaymentReminder || needsUpdateForPaymentReminder || needsUpdateForFeedbackResponsive || needsUpdateForFeedbackOfficialLine || needsUpdateForFeedbackContactStyle || needsUpdateForFeedbackContactTextColorAndSpacing || needsUpdateForBookingContactInfo || needsUpdateForBookingTransferLineNotice || needsUpdateForBookingFooterText || needsUpdateForBookingAdminContactAlign || needsUpdateForPaymentCompletedContactInfo || needsUpdateForCancelNotificationOfficialLine) {
                 if (usePostgreSQL) {
                     await query(
-                        `INSERT INTO email_templates (template_key, template_name, subject, content, is_enabled, days_before_checkin, send_hour_checkin, days_after_checkout, send_hour_feedback, days_reserved, send_hour_payment_reminder)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-                         ON CONFLICT (template_key) DO UPDATE SET
+                        `INSERT INTO email_templates (tenant_id, template_key, template_name, subject, content, is_enabled, days_before_checkin, send_hour_checkin, days_after_checkout, send_hour_feedback, days_reserved, send_hour_payment_reminder)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                         ON CONFLICT (tenant_id, template_key) DO UPDATE SET
                          template_name = EXCLUDED.template_name,
                          subject = EXCLUDED.subject,
                          content = EXCLUDED.content,
@@ -3537,7 +3538,12 @@ async function initEmailTemplates() {
                          send_hour_payment_reminder = EXCLUDED.send_hour_payment_reminder,
                          updated_at = CURRENT_TIMESTAMP`,
                         [
-                            template.key, template.name, template.subject, template.content, template.enabled,
+                            safeTenantId,
+                            template.key,
+                            template.name,
+                            template.subject,
+                            template.content,
+                            template.enabled ? 1 : 0,
                             template.days_before_checkin || null,
                             template.send_hour_checkin || null,
                             template.days_after_checkout || null,
@@ -3548,9 +3554,14 @@ async function initEmailTemplates() {
                     );
                 } else {
                     await query(
-                        'INSERT OR REPLACE INTO email_templates (template_key, template_name, subject, content, is_enabled, days_before_checkin, send_hour_checkin, days_after_checkout, send_hour_feedback, days_reserved, send_hour_payment_reminder) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                        'INSERT OR REPLACE INTO email_templates (tenant_id, template_key, template_name, subject, content, is_enabled, days_before_checkin, send_hour_checkin, days_after_checkout, send_hour_feedback, days_reserved, send_hour_payment_reminder) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                         [
-                            template.key, template.name, template.subject, template.content, template.enabled,
+                            safeTenantId,
+                            template.key,
+                            template.name,
+                            template.subject,
+                            template.content,
+                            template.enabled ? 1 : 0,
                             template.days_before_checkin || null,
                             template.send_hour_checkin || null,
                             template.days_after_checkout || null,
@@ -3584,7 +3595,20 @@ async function initEmailTemplates() {
         }
     }
     
-    console.log('✅ 預設郵件模板已初始化');
+    console.log(`✅ 預設郵件模板已初始化 (tenant_id=${safeTenantId})`);
+}
+
+async function ensureEmailTemplatesForTenant(tenantId) {
+    const safeTenantId = assertTenantScope(tenantId, 'ensureEmailTemplatesForTenant');
+    const row = await queryOne(
+        usePostgreSQL
+            ? 'SELECT COUNT(*) AS count FROM email_templates WHERE tenant_id = $1'
+            : 'SELECT COUNT(*) AS count FROM email_templates WHERE tenant_id = ?',
+        [safeTenantId]
+    );
+    const count = Number(row?.count || 0);
+    if (count > 0) return;
+    await initEmailTemplates(safeTenantId);
 }
 
 // 初始化 SQLite（保持原有邏輯）
@@ -8385,6 +8409,7 @@ async function updateSetting(key, value, description = null, tenantId) {
 async function getAllEmailTemplates(tenantId) {
     try {
         const safeTenantId = assertTenantScope(tenantId, 'getAllEmailTemplates');
+        await ensureEmailTemplatesForTenant(safeTenantId);
         const sql = usePostgreSQL
             ? `SELECT * FROM email_templates WHERE tenant_id = $1 ORDER BY template_key`
             : `SELECT * FROM email_templates WHERE tenant_id = ? ORDER BY template_key`;
@@ -8399,6 +8424,7 @@ async function getAllEmailTemplates(tenantId) {
 async function getEmailTemplateByKey(templateKey, tenantId) {
     try {
         const safeTenantId = assertTenantScope(tenantId, 'getEmailTemplateByKey');
+        await ensureEmailTemplatesForTenant(safeTenantId);
         const sql = usePostgreSQL
             ? `SELECT * FROM email_templates WHERE template_key = $1 AND tenant_id = $2`
             : `SELECT * FROM email_templates WHERE template_key = ? AND tenant_id = ?`;
