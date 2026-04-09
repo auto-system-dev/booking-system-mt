@@ -2034,6 +2034,28 @@ app.post('/api/admin/login', loginLimiter, validateLogin, async (req, res) => {
         const admin = await db.verifyAdminPassword(username, password);
         
         if (admin) {
+            // 多租戶登入限制：
+            // - 若目前網址有子網域租戶上下文（如 {tenant}.domain），一般租戶管理員只能登入自己的租戶
+            // - super_admin 不受此限制（可用統一入口管理全租戶）
+            const parsedAdminTenantId = admin.tenant_id != null ? parseInt(admin.tenant_id, 10) : NaN;
+            const adminTenantId = Number.isInteger(parsedAdminTenantId) && parsedAdminTenantId > 0 ? parsedAdminTenantId : null;
+            const subdomainTenantId = req.subdomainTenantId != null ? parseInt(req.subdomainTenantId, 10) : NaN;
+            const hostTenantId = Number.isInteger(subdomainTenantId) && subdomainTenantId > 0 ? subdomainTenantId : null;
+            if (hostTenantId && admin.role !== 'super_admin') {
+                if (!adminTenantId) {
+                    return res.status(403).json({
+                        success: false,
+                        message: '此帳號未綁定租戶，請使用超級管理員帳號登入'
+                    });
+                }
+                if (adminTenantId !== hostTenantId) {
+                    return res.status(403).json({
+                        success: false,
+                        message: '此帳號不屬於目前子網域租戶，請使用正確租戶網址登入'
+                    });
+                }
+            }
+
             // 取得管理員權限列表
             const permissions = await db.getAdminPermissions(admin.id);
             
@@ -2042,9 +2064,8 @@ app.post('/api/admin/login', loginLimiter, validateLogin, async (req, res) => {
             const roleName = adminDetail?.role_display_name || admin.role || '管理員';
             
             // 建立 Session（訂閱者管理員必須綁定真實 tenant_id，不可在為空時套用預設租戶 1）
-            const parsedAdminTenant = admin.tenant_id != null ? parseInt(admin.tenant_id, 10) : NaN;
-            const sessionTenantId = Number.isInteger(parsedAdminTenant) && parsedAdminTenant > 0
-                ? parsedAdminTenant
+            const sessionTenantId = adminTenantId
+                ? adminTenantId
                 : (admin.role === 'super_admin'
                     ? (parseInt(process.env.DEFAULT_TENANT_ID || '1', 10) || 1)
                     : null);
