@@ -8405,9 +8405,16 @@ async function getAllSubscriptionPlansForAdmin() {
                    COALESCE(usage_stats.tenant_count, 0) AS tenant_count
                FROM plans p
                LEFT JOIN (
-                   SELECT plan_id, COUNT(DISTINCT tenant_id) AS tenant_count
-                   FROM subscriptions
-                   GROUP BY plan_id
+                   SELECT latest.plan_id, COUNT(*) AS tenant_count
+                   FROM (
+                       SELECT DISTINCT ON (s.tenant_id)
+                           s.tenant_id,
+                           s.plan_id
+                       FROM subscriptions s
+                       ORDER BY s.tenant_id, s.id DESC
+                   ) latest
+                   WHERE latest.plan_id IS NOT NULL
+                   GROUP BY latest.plan_id
                ) usage_stats ON usage_stats.plan_id = p.id
                ORDER BY p.code ASC`
             : `SELECT
@@ -8421,9 +8428,15 @@ async function getAllSubscriptionPlansForAdmin() {
                    COALESCE(usage_stats.tenant_count, 0) AS tenant_count
                FROM plans p
                LEFT JOIN (
-                   SELECT plan_id, COUNT(DISTINCT tenant_id) AS tenant_count
-                   FROM subscriptions
-                   GROUP BY plan_id
+                   SELECT latest.plan_id, COUNT(*) AS tenant_count
+                   FROM subscriptions latest
+                   INNER JOIN (
+                       SELECT tenant_id, MAX(id) AS max_id
+                       FROM subscriptions
+                       GROUP BY tenant_id
+                   ) pick ON pick.max_id = latest.id
+                   WHERE latest.plan_id IS NOT NULL
+                   GROUP BY latest.plan_id
                ) usage_stats ON usage_stats.plan_id = p.id
                ORDER BY p.code ASC`
     );
