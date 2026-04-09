@@ -7522,18 +7522,18 @@ function getSubscriptionUrgencyRank(periodEnd) {
 function renderSubscriptionRiskBadge(periodEnd) {
     const days = getSubscriptionRemainingDays(periodEnd);
     if (days === null) {
-        return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#e5e7eb;color:#374151;font-size:12px;">未設定</span>';
+        return '<span class="risk-badge risk-unset">未設定</span>';
     }
     if (days < 0) {
-        return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#fee2e2;color:#991b1b;font-size:12px;">已逾期</span>';
+        return '<span class="risk-badge risk-expired">已逾期</span>';
     }
     if (days <= 3) {
-        return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#ffedd5;color:#9a3412;font-size:12px;">3天內到期</span>';
+        return '<span class="risk-badge risk-due-3d">3天內到期</span>';
     }
     if (days <= 7) {
-        return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#fffbeb;color:#92400e;font-size:12px;">7天內到期</span>';
+        return '<span class="risk-badge risk-due-7d">7天內到期</span>';
     }
-    return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#dcfce7;color:#166534;font-size:12px;">正常</span>';
+    return '<span class="risk-badge risk-normal">正常</span>';
 }
 
 function isSubscriptionRiskMatch(periodEnd, filterValue) {
@@ -7808,7 +7808,7 @@ async function saveSubscriptionSettingsAsSuperAdmin() {
 async function loadSubscriptionOverview() {
     const tbody = document.getElementById('subscriptionOverviewTableBody');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#666;">載入中...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#666;">載入中...</td></tr>';
     try {
         const modeFilter = String(document.getElementById('subscriptionModeFilter')?.value || '').trim();
         const riskFilter = String(document.getElementById('subscriptionRiskFilter')?.value || '').trim();
@@ -7870,7 +7870,7 @@ async function loadSubscriptionOverview() {
 
         if (filteredRows.length === 0) {
             window.__tenantOverviewRows = {};
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#666;">目前沒有租戶資料</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#666;">目前沒有租戶資料</td></tr>';
             return;
         }
         const sortedRows = filteredRows.slice().sort((a, b) => {
@@ -7890,6 +7890,7 @@ async function loadSubscriptionOverview() {
                     : '-';
             const subStatus = row.subscriptionStatus || 'none';
             const systemModeLabel = getSystemModeLabel(row.systemMode || 'retail');
+            const riskBadge = renderSubscriptionRiskBadge(row.periodEnd);
             const tenantNameEscaped = String(row.tenantName || '').replace(/'/g, "\\'");
             const tenantCodeEscaped = String(row.tenantCode || row.code || '').replace(/'/g, "\\'");
             const planCodeEscaped = String(row.planCode || 'basic_monthly').replace(/'/g, "\\'");
@@ -7915,10 +7916,9 @@ async function loadSubscriptionOverview() {
                     </td>
                     <td>${escapeHtml(systemModeLabel)}</td>
                     <td>${renderTenantStatusBadge(row.tenantStatus || '-')}</td>
-                    <td>
-                        <div>${renderPlanTwoLines(planText)}</div>
-                        <div style="margin-top:4px;">${renderSubscriptionStatusBadge(subStatus)}</div>
-                    </td>
+                    <td>${renderPlanTwoLines(planText)}</td>
+                    <td>${renderSubscriptionStatusBadge(subStatus)}</td>
+                    <td>${riskBadge}</td>
                     <td>${renderDateTimeTwoLines(row.periodEnd)}</td>
                     <td>
                         <button class="btn-refresh tenant-action-btn" onclick="event.stopPropagation(); showEditTenantModal(${escapeHtml(row.tenantId)}, '${tenantNameEscaped}', '${tenantCodeEscaped}', '${planCodeEscaped}', '${tenantStatusEscaped}', '${subStatusEscaped}', '${periodEndEscaped}', '${systemModeEscaped}', '${adminUsernameEscaped}', '${adminEmailEscaped}')">編輯</button>
@@ -7931,7 +7931,7 @@ async function loadSubscriptionOverview() {
         }).join('');
     } catch (error) {
         console.error('載入訂閱總覽失敗:', error);
-        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
     }
 }
 
