@@ -1594,6 +1594,39 @@
                         </tbody>
                     </table>
                 </div>
+                <div style="margin-top: 18px;">
+                    <div class="section-header" style="margin-bottom: 10px;">
+                        <h3 style="margin:0; font-size:18px; color:#2c3e50;">方案管理（MVP）</h3>
+                        <div class="header-actions" style="display:flex; gap:8px;">
+                            <button class="btn-primary" onclick="openPlanManagementModal('create')">
+                                <span class="material-symbols-outlined">add</span> 新增方案
+                            </button>
+                            <button class="btn-refresh" onclick="loadPlanManagementList()">
+                                <span class="material-symbols-outlined">refresh</span> 重新整理
+                            </button>
+                        </div>
+                    </div>
+                    <div class="table-container">
+                        <table class="bookings-table">
+                            <thead>
+                                <tr>
+                                    <th>代碼</th>
+                                    <th>名稱</th>
+                                    <th>週期</th>
+                                    <th>價格</th>
+                                    <th>功能</th>
+                                    <th>館別上限</th>
+                                    <th>啟用</th>
+                                    <th>使用租戶數</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="planManagementTableBody">
+                                <tr><td colspan="9" style="text-align:center;color:#666;">載入中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
                 <div id="tenantDetailDrawerBackdrop" class="tenant-detail-drawer-backdrop" onclick="closeTenantDetailDrawer()"></div>
                 <aside id="tenantDetailDrawer" class="tenant-detail-drawer" aria-hidden="true">
                     <div class="tenant-detail-drawer-header">
@@ -3198,6 +3231,76 @@
                     <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
                         <button type="button" class="btn-primary btn-danger" onclick="closeEditTenantModal()">取消</button>
                         <button type="submit" class="btn-save">儲存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="planManagementModal" class="modal">
+        <div class="modal-content" style="max-width: 560px;">
+            <div class="modal-header">
+                <h3 id="planManagementModalTitle">新增方案</h3>
+                <span class="modal-close" onclick="closePlanManagementModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="planManagementForm" onsubmit="savePlanManagement(event)">
+                    <input type="hidden" id="planFormMode" value="create">
+                    <input type="hidden" id="planOriginalCode" value="">
+                    <div class="form-group">
+                        <label>方案代碼</label>
+                        <input type="text" id="planCodeInput" placeholder="例如：plus_monthly" required>
+                        <small>僅限小寫英文、數字、底線（3-40字元）</small>
+                    </div>
+                    <div class="form-group">
+                        <label>方案名稱</label>
+                        <input type="text" id="planNameInput" required>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div class="form-group">
+                            <label>週期</label>
+                            <select id="planBillingCycleInput">
+                                <option value="monthly">月繳</option>
+                                <option value="yearly">年繳</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>價格（TWD）</label>
+                            <input type="number" id="planPriceInput" min="0" step="1" required>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div class="form-group">
+                            <label>報表功能</label>
+                            <select id="planFeatureReportsInput">
+                                <option value="1">啟用</option>
+                                <option value="0">停用</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>API 功能</label>
+                            <select id="planFeatureApiInput">
+                                <option value="1">啟用</option>
+                                <option value="0">停用</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <div class="form-group">
+                            <label>館別上限</label>
+                            <input type="number" id="planMaxBuildingsInput" min="1" step="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label>方案啟用</label>
+                            <select id="planIsActiveInput">
+                                <option value="1">啟用</option>
+                                <option value="0">停用</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;">
+                        <button type="button" class="btn-primary btn-danger" onclick="closePlanManagementModal()">取消</button>
+                        <button type="submit" class="btn-save">儲存方案</button>
                     </div>
                 </form>
             </div>

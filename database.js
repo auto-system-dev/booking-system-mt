@@ -8391,6 +8391,136 @@ async function getSubscriptionPlans() {
     }));
 }
 
+async function getAllSubscriptionPlansForAdmin() {
+    const result = await query(
+        usePostgreSQL
+            ? `SELECT
+                   p.code,
+                   p.name,
+                   p.billing_cycle,
+                   p.price_amount,
+                   p.currency,
+                   p.feature_flags,
+                   p.is_active,
+                   COALESCE(usage_stats.tenant_count, 0) AS tenant_count
+               FROM plans p
+               LEFT JOIN (
+                   SELECT plan_id, COUNT(DISTINCT tenant_id) AS tenant_count
+                   FROM subscriptions
+                   GROUP BY plan_id
+               ) usage_stats ON usage_stats.plan_id = p.id
+               ORDER BY p.code ASC`
+            : `SELECT
+                   p.code,
+                   p.name,
+                   p.billing_cycle,
+                   p.price_amount,
+                   p.currency,
+                   p.feature_flags,
+                   p.is_active,
+                   COALESCE(usage_stats.tenant_count, 0) AS tenant_count
+               FROM plans p
+               LEFT JOIN (
+                   SELECT plan_id, COUNT(DISTINCT tenant_id) AS tenant_count
+                   FROM subscriptions
+                   GROUP BY plan_id
+               ) usage_stats ON usage_stats.plan_id = p.id
+               ORDER BY p.code ASC`
+    );
+    return (result.rows || []).map((row) => ({
+        code: row.code,
+        name: row.name,
+        billing_cycle: row.billing_cycle,
+        price_amount: Number(row.price_amount || 0),
+        currency: row.currency || 'TWD',
+        is_active: parseInt(row.is_active || 0, 10) === 1,
+        tenant_count: parseInt(row.tenant_count || 0, 10) || 0,
+        feature_flags: parseFeatureFlags(row.feature_flags)
+    }));
+}
+
+async function createSubscriptionPlanByAdmin(data = {}) {
+    const code = String(data.code || '').trim().toLowerCase();
+    const name = String(data.name || '').trim();
+    const billingCycle = String(data.billing_cycle || '').trim();
+    const priceAmount = Number(data.price_amount || 0);
+    const currency = String(data.currency || 'TWD').trim().toUpperCase() || 'TWD';
+    const isActive = data.is_active === false || String(data.is_active) === '0' ? 0 : 1;
+    const features = {
+        reports: !!data?.feature_flags?.reports,
+        api_access: !!data?.feature_flags?.api_access,
+        max_buildings: Math.max(1, parseInt(data?.feature_flags?.max_buildings || 1, 10) || 1)
+    };
+    if (!/^[a-z0-9_]{3,40}$/.test(code)) {
+        throw new Error('方案代碼格式錯誤（僅限小寫英文、數字、底線，3-40字元）');
+    }
+    if (!name) throw new Error('方案名稱為必填');
+    if (!['monthly', 'yearly'].includes(billingCycle)) throw new Error('billing_cycle 僅接受 monthly 或 yearly');
+    if (!Number.isFinite(priceAmount) || priceAmount < 0) throw new Error('price_amount 格式錯誤');
+
+    await query(
+        usePostgreSQL
+            ? `INSERT INTO plans (code, name, billing_cycle, price_amount, currency, feature_flags, is_active, updated_at)
+               VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, CURRENT_TIMESTAMP)`
+            : `INSERT INTO plans (code, name, billing_cycle, price_amount, currency, feature_flags, is_active, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [code, name, billingCycle, priceAmount, currency, JSON.stringify(features), isActive]
+    );
+    return { code };
+}
+
+async function updateSubscriptionPlanByAdmin(planCode, data = {}) {
+    const safeCode = String(planCode || '').trim().toLowerCase();
+    if (!safeCode) throw new Error('缺少方案代碼');
+    const existing = await queryOne(
+        usePostgreSQL
+            ? `SELECT id, code FROM plans WHERE code = $1`
+            : `SELECT id, code FROM plans WHERE code = ?`,
+        [safeCode]
+    );
+    if (!existing) {
+        throw new Error(`找不到方案：${safeCode}`);
+    }
+
+    const name = String(data.name || '').trim();
+    const billingCycle = String(data.billing_cycle || '').trim();
+    const priceAmount = Number(data.price_amount || 0);
+    const currency = String(data.currency || 'TWD').trim().toUpperCase() || 'TWD';
+    const isActive = data.is_active === false || String(data.is_active) === '0' ? 0 : 1;
+    const features = {
+        reports: !!data?.feature_flags?.reports,
+        api_access: !!data?.feature_flags?.api_access,
+        max_buildings: Math.max(1, parseInt(data?.feature_flags?.max_buildings || 1, 10) || 1)
+    };
+    if (!name) throw new Error('方案名稱為必填');
+    if (!['monthly', 'yearly'].includes(billingCycle)) throw new Error('billing_cycle 僅接受 monthly 或 yearly');
+    if (!Number.isFinite(priceAmount) || priceAmount < 0) throw new Error('price_amount 格式錯誤');
+
+    await query(
+        usePostgreSQL
+            ? `UPDATE plans
+               SET name = $1,
+                   billing_cycle = $2,
+                   price_amount = $3,
+                   currency = $4,
+                   feature_flags = $5::jsonb,
+                   is_active = $6,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE code = $7`
+            : `UPDATE plans
+               SET name = ?,
+                   billing_cycle = ?,
+                   price_amount = ?,
+                   currency = ?,
+                   feature_flags = ?,
+                   is_active = ?,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE code = ?`,
+        [name, billingCycle, priceAmount, currency, JSON.stringify(features), isActive, safeCode]
+    );
+    return { code: safeCode };
+}
+
 async function getAllTenantSubscriptionOverview() {
     const result = await query(
         usePostgreSQL
@@ -10259,6 +10389,9 @@ module.exports = {
     updateTenantPrimaryAdminContact,
     deleteTenantSafely,
     getSubscriptionPlans,
+    getAllSubscriptionPlansForAdmin,
+    createSubscriptionPlanByAdmin,
+    updateSubscriptionPlanByAdmin,
     getAllTenantSubscriptionOverview,
     insertPaymentEventIfAbsent,
     // 郵件模板

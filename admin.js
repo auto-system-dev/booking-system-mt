@@ -7929,9 +7929,193 @@ async function loadSubscriptionOverview() {
                 </tr>
             `;
         }).join('');
+        loadPlanManagementList();
     } catch (error) {
         console.error('載入訂閱總覽失敗:', error);
         tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
+    }
+}
+
+let planManagementRowsCache = [];
+
+async function loadPlanManagementList() {
+    const tbody = document.getElementById('planManagementTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#666;">載入中...</td></tr>';
+    try {
+        const response = await adminFetch('/api/admin/subscription/plans/manage');
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+        const rows = Array.isArray(result.data) ? result.data : [];
+        planManagementRowsCache = rows;
+        if (rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#666;">目前沒有方案資料</td></tr>';
+            return;
+        }
+        tbody.innerHTML = rows.map((plan) => {
+            const code = String(plan.code || '').replace(/'/g, "\\'");
+            const isActive = plan.is_active === true || String(plan.is_active) === '1';
+            const features = plan.feature_flags || {};
+            const featureTexts = [];
+            featureTexts.push(features.reports ? '報表' : '無報表');
+            featureTexts.push(features.api_access ? 'API' : '無API');
+            return `
+                <tr>
+                    <td><code>${escapeHtml(plan.code || '-')}</code></td>
+                    <td>${escapeHtml(plan.name || '-')}</td>
+                    <td>${String(plan.billing_cycle || '') === 'yearly' ? '年繳' : '月繳'}</td>
+                    <td>NT$ ${Number(plan.price_amount || 0).toLocaleString()}</td>
+                    <td>${escapeHtml(featureTexts.join(' / '))}</td>
+                    <td>${escapeHtml(String(parseInt(features.max_buildings || 1, 10) || 1))}</td>
+                    <td>${isActive ? '<span class="badge badge-success">啟用</span>' : '<span class="badge badge-secondary">停用</span>'}</td>
+                    <td>${escapeHtml(String(parseInt(plan.tenant_count || 0, 10) || 0))}</td>
+                    <td>
+                        <button class="btn-refresh tenant-action-btn" onclick="openPlanManagementModal('edit', '${code}')">編輯</button>
+                        <button class="btn-refresh tenant-action-btn" onclick="togglePlanActive('${code}', ${isActive ? 0 : 1})">${isActive ? '停用' : '啟用'}</button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
+    }
+}
+
+function openPlanManagementModal(mode = 'create', planCode = '') {
+    const modal = document.getElementById('planManagementModal');
+    if (!modal) return;
+    const titleEl = document.getElementById('planManagementModalTitle');
+    const modeEl = document.getElementById('planFormMode');
+    const originalCodeEl = document.getElementById('planOriginalCode');
+    const codeEl = document.getElementById('planCodeInput');
+    const nameEl = document.getElementById('planNameInput');
+    const cycleEl = document.getElementById('planBillingCycleInput');
+    const priceEl = document.getElementById('planPriceInput');
+    const reportsEl = document.getElementById('planFeatureReportsInput');
+    const apiEl = document.getElementById('planFeatureApiInput');
+    const maxBuildingsEl = document.getElementById('planMaxBuildingsInput');
+    const activeEl = document.getElementById('planIsActiveInput');
+    if (!modeEl || !codeEl || !nameEl || !cycleEl || !priceEl || !reportsEl || !apiEl || !maxBuildingsEl || !activeEl || !originalCodeEl) return;
+
+    if (mode === 'edit') {
+        const row = planManagementRowsCache.find((p) => String(p.code) === String(planCode));
+        if (!row) {
+            showError('找不到要編輯的方案');
+            return;
+        }
+        if (titleEl) titleEl.textContent = `編輯方案：${row.code}`;
+        modeEl.value = 'edit';
+        originalCodeEl.value = String(row.code || '');
+        codeEl.value = String(row.code || '');
+        codeEl.readOnly = true;
+        nameEl.value = String(row.name || '');
+        cycleEl.value = String(row.billing_cycle || 'monthly');
+        priceEl.value = String(parseInt(row.price_amount || 0, 10) || 0);
+        const features = row.feature_flags || {};
+        reportsEl.value = features.reports ? '1' : '0';
+        apiEl.value = features.api_access ? '1' : '0';
+        maxBuildingsEl.value = String(parseInt(features.max_buildings || 1, 10) || 1);
+        activeEl.value = row.is_active === true || String(row.is_active) === '1' ? '1' : '0';
+    } else {
+        if (titleEl) titleEl.textContent = '新增方案';
+        modeEl.value = 'create';
+        originalCodeEl.value = '';
+        codeEl.readOnly = false;
+        codeEl.value = '';
+        nameEl.value = '';
+        cycleEl.value = 'monthly';
+        priceEl.value = '0';
+        reportsEl.value = '1';
+        apiEl.value = '0';
+        maxBuildingsEl.value = '1';
+        activeEl.value = '1';
+    }
+    modal.style.display = 'block';
+}
+
+function closePlanManagementModal() {
+    const modal = document.getElementById('planManagementModal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function savePlanManagement(event) {
+    event?.preventDefault?.();
+    const mode = String(document.getElementById('planFormMode')?.value || 'create');
+    const originalCode = String(document.getElementById('planOriginalCode')?.value || '').trim();
+    const payload = {
+        code: String(document.getElementById('planCodeInput')?.value || '').trim().toLowerCase(),
+        name: String(document.getElementById('planNameInput')?.value || '').trim(),
+        billing_cycle: String(document.getElementById('planBillingCycleInput')?.value || 'monthly').trim(),
+        price_amount: parseInt(document.getElementById('planPriceInput')?.value || '0', 10) || 0,
+        currency: 'TWD',
+        is_active: String(document.getElementById('planIsActiveInput')?.value || '1') === '1',
+        feature_flags: {
+            reports: String(document.getElementById('planFeatureReportsInput')?.value || '0') === '1',
+            api_access: String(document.getElementById('planFeatureApiInput')?.value || '0') === '1',
+            max_buildings: Math.max(1, parseInt(document.getElementById('planMaxBuildingsInput')?.value || '1', 10) || 1)
+        }
+    };
+    try {
+        let response;
+        if (mode === 'edit') {
+            response = await adminFetch(`/api/admin/subscription/plans/${encodeURIComponent(originalCode || payload.code)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        } else {
+            response = await adminFetch('/api/admin/subscription/plans', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        }
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+        showSuccess(mode === 'edit' ? '方案已更新' : '方案已建立');
+        closePlanManagementModal();
+        loadPlanManagementList();
+        await loadTenantPlanOptions('tenantCreatePlanCode');
+        await loadTenantPlanOptions('tenantEditPlanCode');
+    } catch (error) {
+        showError('儲存方案失敗：' + error.message);
+    }
+}
+
+async function togglePlanActive(planCode, nextIsActive) {
+    const row = planManagementRowsCache.find((p) => String(p.code) === String(planCode));
+    if (!row) return;
+    const label = String(nextIsActive) === '1' ? '啟用' : '停用';
+    if (!(await appConfirm(`確定要${label}方案 ${row.code} 嗎？`))) return;
+    const payload = {
+        code: row.code,
+        name: row.name,
+        billing_cycle: row.billing_cycle,
+        price_amount: Number(row.price_amount || 0),
+        currency: row.currency || 'TWD',
+        is_active: String(nextIsActive) === '1',
+        feature_flags: row.feature_flags || {}
+    };
+    try {
+        const response = await adminFetch(`/api/admin/subscription/plans/${encodeURIComponent(row.code)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+        showSuccess(`方案 ${row.code} 已${label}`);
+        loadPlanManagementList();
+        await loadTenantPlanOptions('tenantCreatePlanCode');
+        await loadTenantPlanOptions('tenantEditPlanCode');
+    } catch (error) {
+        showError('切換方案狀態失敗：' + error.message);
     }
 }
 

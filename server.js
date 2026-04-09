@@ -3546,6 +3546,42 @@ app.get('/api/admin/subscription/plans', requireAuth, requireTenantContext, chec
     }
 });
 
+app.get('/api/admin/subscription/plans/manage', requireAuth, adminLimiter, async (req, res) => {
+    try {
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可管理方案' });
+        }
+        const plans = await db.getAllSubscriptionPlansForAdmin();
+        return res.json({ success: true, data: plans, count: plans.length });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: '取得方案清單失敗: ' + error.message });
+    }
+});
+
+app.post('/api/admin/subscription/plans', requireAuth, adminLimiter, async (req, res) => {
+    try {
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可管理方案' });
+        }
+        const created = await db.createSubscriptionPlanByAdmin(req.body || {});
+        return res.json({ success: true, message: '方案已建立', data: created });
+    } catch (error) {
+        return res.status(400).json({ success: false, message: '建立方案失敗: ' + error.message });
+    }
+});
+
+app.put('/api/admin/subscription/plans/:code', requireAuth, adminLimiter, async (req, res) => {
+    try {
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可管理方案' });
+        }
+        const updated = await db.updateSubscriptionPlanByAdmin(req.params?.code, req.body || {});
+        return res.json({ success: true, message: '方案已更新', data: updated });
+    } catch (error) {
+        return res.status(400).json({ success: false, message: '更新方案失敗: ' + error.message });
+    }
+});
+
 app.post('/api/admin/subscription/switch-plan', requireAuth, requireTenantContext, checkPermission('settings.edit'), adminLimiter, async (req, res) => {
     try {
         if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
