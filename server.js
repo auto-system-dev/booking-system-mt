@@ -10811,7 +10811,6 @@ startServer({
     storage,
     registerScheduledJobs,
     cron,
-    backup,
     bookingJobs: bookingNotificationJobs,
     adminLogCleanupJobs,
     subscriptionJobs

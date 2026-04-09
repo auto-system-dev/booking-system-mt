@@ -1,7 +1,6 @@
 function registerScheduledJobs(deps) {
     const {
         cron,
-        backup,
         bookingJobs,
         adminLogCleanupJobs,
         subscriptionJobs,
@@ -28,17 +27,9 @@ function registerScheduledJobs(deps) {
     });
     console.log('✅ 自動取消過期保留訂房定時任務已啟動（每小時 30 分檢查）');
 
-    cron.schedule('0 2 * * *', async () => {
-        try {
-            await backup.performBackup();
-            await backup.cleanupOldBackups(30);
-        } catch (error) {
-            console.error('❌ 備份任務失敗:', error.message);
-        }
-    }, {
-        timezone
-    });
-    console.log('✅ 資料庫備份定時任務已啟動（每天 02:00 台灣時間，保留 30 天）');
+    // 多租戶：不自動每日全庫備份（租戶一多會重複佔用空間）。
+    // 各租戶請於後台「資料備份管理」手動備份；還原前可選安全備份。
+    console.log('ℹ️ 資料庫備份：未啟用排程備份（多租戶改由租戶手動備份）');
 
     if (adminLogCleanupJobs.isEnabled()) {
         cron.schedule('15 3 * * *', async () => {

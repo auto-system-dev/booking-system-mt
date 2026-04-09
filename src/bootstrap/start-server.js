@@ -9,7 +9,6 @@ async function startServer(deps) {
         storage,
         registerScheduledJobs,
         cron,
-        backup,
         bookingJobs,
         adminLogCleanupJobs,
         subscriptionJobs
@@ -47,7 +46,6 @@ async function startServer(deps) {
 
         registerScheduledJobs({
             cron,
-            backup,
             bookingJobs,
             adminLogCleanupJobs,
             subscriptionJobs,
