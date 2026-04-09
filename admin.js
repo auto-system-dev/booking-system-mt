@@ -7774,7 +7774,7 @@ async function saveSubscriptionSettingsAsSuperAdmin() {
 async function loadSubscriptionOverview() {
     const tbody = document.getElementById('subscriptionOverviewTableBody');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;color:#666;">載入中...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:#666;">載入中...</td></tr>';
     try {
         const modeFilter = String(document.getElementById('subscriptionModeFilter')?.value || '').trim();
         const riskFilter = String(document.getElementById('subscriptionRiskFilter')?.value || '').trim();
@@ -7830,7 +7830,7 @@ async function loadSubscriptionOverview() {
         });
 
         if (filteredRows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;color:#666;">目前沒有租戶資料</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;color:#666;">目前沒有租戶資料</td></tr>';
             return;
         }
         const sortedRows = filteredRows.slice().sort((a, b) => {
@@ -7875,7 +7875,6 @@ async function loadSubscriptionOverview() {
                     <td>${riskBadge}</td>
                     <td>${escapeHtml(cycleLabel)}</td>
                     <td>${escapeHtml(toReadableDate(row.periodEnd))}</td>
-                    <td>${escapeHtml(toReadableDate(row.updatedAt))}</td>
                     <td>
                         <button class="btn-refresh tenant-action-btn" onclick="showEditTenantModal(${escapeHtml(row.tenantId)}, '${tenantNameEscaped}', '${tenantCodeEscaped}', '${planCodeEscaped}', '${tenantStatusEscaped}', '${subStatusEscaped}', '${periodEndEscaped}', '${systemModeEscaped}', '${adminUsernameEscaped}', '${adminEmailEscaped}')">編輯</button>
                         <button class="btn-refresh tenant-action-btn" onclick="activateTenantById(${escapeHtml(row.tenantId)})" ${canActivate ? '' : 'disabled'}>啟用</button>
@@ -7887,7 +7886,7 @@ async function loadSubscriptionOverview() {
         }).join('');
     } catch (error) {
         console.error('載入訂閱總覽失敗:', error);
-        tbody.innerHTML = `<tr><td colspan="14" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
     }
 }
 

@@ -379,11 +379,11 @@ body.login-page-active {
 }
 
 .tenant-action-btn {
-    min-width: 74px;
-    height: 32px;
-    padding: 0 10px;
-    border-radius: 6px;
-    font-size: 12px;
+    min-width: 62px;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 5px;
+    font-size: 11px;
     line-height: 1;
     display: inline-flex;
     align-items: center;
