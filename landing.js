@@ -311,6 +311,11 @@ async function applyConfig(cfg) {
     }
 
     // 倒數計時
+    const countdownSection = document.getElementById('countdownSection');
+    const countdownEnabled = isTrustEnabled(cfg.landing_countdown_enabled);
+    if (countdownSection) {
+        countdownSection.style.display = countdownEnabled ? '' : 'none';
+    }
     if (cfg.landing_countdown_days) {
         countdownDays = parseInt(cfg.landing_countdown_days) || 7;
     }
