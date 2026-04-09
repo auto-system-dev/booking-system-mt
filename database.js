@@ -295,6 +295,13 @@ async function initMultiTenantCoreTablesPostgreSQL() {
             plan_id INTEGER REFERENCES plans(id) ON DELETE SET NULL,
             status VARCHAR(30) NOT NULL DEFAULT 'trialing',
             billing_cycle VARCHAR(20) NOT NULL CHECK (billing_cycle IN ('monthly', 'yearly')),
+            provider VARCHAR(50),
+            provider_subscription_id VARCHAR(150),
+            provider_customer_id VARCHAR(150),
+            provider_order_no VARCHAR(120),
+            failed_payment_count INTEGER NOT NULL DEFAULT 0,
+            last_payment_failed_at TIMESTAMP,
+            next_billing_at TIMESTAMP,
             current_period_start TIMESTAMP,
             current_period_end TIMESTAMP,
             trial_ends_at TIMESTAMP,
@@ -393,6 +400,13 @@ async function initMultiTenantCoreTablesPostgreSQL() {
     await query(`ALTER TABLE addons ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
     await query(`ALTER TABLE holidays ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
     await query(`ALTER TABLE settings ADD COLUMN IF NOT EXISTS tenant_id INTEGER`);
+    await query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS provider VARCHAR(50)`);
+    await query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS provider_subscription_id VARCHAR(150)`);
+    await query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS provider_customer_id VARCHAR(150)`);
+    await query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS provider_order_no VARCHAR(120)`);
+    await query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS failed_payment_count INTEGER NOT NULL DEFAULT 0`);
+    await query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS last_payment_failed_at TIMESTAMP`);
+    await query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS next_billing_at TIMESTAMP`);
     await query(`UPDATE settings SET tenant_id = COALESCE(tenant_id, 1)`);
     await query(`
         DO $$
@@ -489,6 +503,13 @@ async function initMultiTenantCoreTablesSQLite() {
             plan_id INTEGER,
             status TEXT NOT NULL DEFAULT 'trialing',
             billing_cycle TEXT NOT NULL CHECK (billing_cycle IN ('monthly', 'yearly')),
+            provider TEXT,
+            provider_subscription_id TEXT,
+            provider_customer_id TEXT,
+            provider_order_no TEXT,
+            failed_payment_count INTEGER NOT NULL DEFAULT 0,
+            last_payment_failed_at DATETIME,
+            next_billing_at DATETIME,
             current_period_start DATETIME,
             current_period_end DATETIME,
             trial_ends_at DATETIME,
@@ -552,6 +573,7 @@ async function initMultiTenantCoreTablesSQLite() {
 
     await query(`CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users (tenant_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_subscriptions_tenant_status ON subscriptions (tenant_id, status)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_subscriptions_provider_subscription ON subscriptions (provider, provider_subscription_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_invoices_tenant_status ON invoices (tenant_id, status)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_payment_events_tenant ON payment_events (tenant_id, created_at DESC)`);
 
@@ -592,6 +614,13 @@ async function initMultiTenantCoreTablesSQLite() {
     try { await query(`ALTER TABLE addons ADD COLUMN tenant_id INTEGER`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
     try { await query(`ALTER TABLE holidays ADD COLUMN tenant_id INTEGER`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
     try { await query(`ALTER TABLE settings ADD COLUMN tenant_id INTEGER`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
+    try { await query(`ALTER TABLE subscriptions ADD COLUMN provider TEXT`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
+    try { await query(`ALTER TABLE subscriptions ADD COLUMN provider_subscription_id TEXT`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
+    try { await query(`ALTER TABLE subscriptions ADD COLUMN provider_customer_id TEXT`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
+    try { await query(`ALTER TABLE subscriptions ADD COLUMN provider_order_no TEXT`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
+    try { await query(`ALTER TABLE subscriptions ADD COLUMN failed_payment_count INTEGER NOT NULL DEFAULT 0`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
+    try { await query(`ALTER TABLE subscriptions ADD COLUMN last_payment_failed_at DATETIME`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
+    try { await query(`ALTER TABLE subscriptions ADD COLUMN next_billing_at DATETIME`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
 
     await query(`CREATE INDEX IF NOT EXISTS idx_bookings_tenant_id ON bookings (tenant_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_room_types_tenant_id ON room_types (tenant_id)`);
@@ -8088,6 +8117,15 @@ async function getTenantSubscriptionSnapshot(tenantId) {
         status: row.status || 'trialing',
         billingCycle: row.billing_cycle || 'monthly',
         periodEnd: row.current_period_end || row.trial_ends_at || null,
+        recurring: {
+            provider: row.provider || null,
+            providerSubscriptionId: row.provider_subscription_id || null,
+            providerCustomerId: row.provider_customer_id || null,
+            providerOrderNo: row.provider_order_no || null,
+            failedPaymentCount: parseInt(row.failed_payment_count || 0, 10) || 0,
+            lastPaymentFailedAt: row.last_payment_failed_at || null,
+            nextBillingAt: row.next_billing_at || null
+        },
         features: {
             reports: !!features.reports,
             api_access: !!features.api_access
@@ -8216,6 +8254,82 @@ async function updateLatestSubscriptionStatus(tenantId, status, nextPeriodEnd = 
     const params = usePostgreSQL
         ? [safeStatus, nextPeriodEnd, latest.id]
         : [safeStatus, nextPeriodEnd, safeStatus, latest.id];
+    await query(sql, params);
+    return getTenantSubscriptionSnapshot(safeTenantId);
+}
+
+async function updateTenantSubscriptionRecurringState(tenantId, data = {}) {
+    const safeTenantId = assertTenantScope(tenantId, 'updateTenantSubscriptionRecurringState');
+    const latest = await queryOne(
+        usePostgreSQL
+            ? `SELECT id, failed_payment_count
+               FROM subscriptions
+               WHERE tenant_id = $1
+               ORDER BY id DESC
+               LIMIT 1`
+            : `SELECT id, failed_payment_count
+               FROM subscriptions
+               WHERE tenant_id = ?
+               ORDER BY id DESC
+               LIMIT 1`,
+        [safeTenantId]
+    );
+    if (!latest?.id) {
+        await seedSubscriptionMvpDefaults();
+        return updateTenantSubscriptionRecurringState(safeTenantId, data);
+    }
+
+    const paymentStatus = String(data.paymentStatus || '').trim().toLowerCase();
+    const provider = String(data.provider || 'newebpay').trim().toLowerCase();
+    const currentFailedCount = parseInt(latest.failed_payment_count || 0, 10) || 0;
+    const nextFailedCount = paymentStatus === 'failed'
+        ? (currentFailedCount + 1)
+        : (paymentStatus === 'success' ? 0 : currentFailedCount);
+    const nextStatus = data.subscriptionStatus
+        || (paymentStatus === 'success'
+            ? 'active'
+            : (paymentStatus === 'failed'
+                ? (nextFailedCount >= 3 ? 'canceled' : 'past_due')
+                : null));
+    const safeSubscriptionStatus = ['trialing', 'active', 'past_due', 'canceled'].includes(String(nextStatus || '').trim())
+        ? String(nextStatus).trim()
+        : null;
+    const nextPeriodEnd = data.nextPeriodEnd || null;
+    const nextBillingAt = data.nextBillingAt || null;
+    const providerSubscriptionId = data.providerSubscriptionId ? String(data.providerSubscriptionId).trim() : null;
+    const providerCustomerId = data.providerCustomerId ? String(data.providerCustomerId).trim() : null;
+    const providerOrderNo = data.providerOrderNo ? String(data.providerOrderNo).trim() : null;
+
+    const sql = usePostgreSQL
+        ? `UPDATE subscriptions
+           SET provider = COALESCE($1::varchar, provider),
+               provider_subscription_id = COALESCE($2::varchar, provider_subscription_id),
+               provider_customer_id = COALESCE($3::varchar, provider_customer_id),
+               provider_order_no = COALESCE($4::varchar, provider_order_no),
+               failed_payment_count = $5::int,
+               last_payment_failed_at = CASE WHEN $6::varchar = 'failed' THEN CURRENT_TIMESTAMP ELSE NULL END,
+               next_billing_at = COALESCE($7::timestamp, next_billing_at),
+               current_period_end = COALESCE($8::timestamp, current_period_end),
+               status = COALESCE($9::varchar, status),
+               canceled_at = CASE WHEN COALESCE($9::varchar, status) = 'canceled' THEN COALESCE(canceled_at, CURRENT_TIMESTAMP) ELSE canceled_at END,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $10::int`
+        : `UPDATE subscriptions
+           SET provider = COALESCE(?, provider),
+               provider_subscription_id = COALESCE(?, provider_subscription_id),
+               provider_customer_id = COALESCE(?, provider_customer_id),
+               provider_order_no = COALESCE(?, provider_order_no),
+               failed_payment_count = ?,
+               last_payment_failed_at = CASE WHEN ? = 'failed' THEN CURRENT_TIMESTAMP ELSE NULL END,
+               next_billing_at = COALESCE(?, next_billing_at),
+               current_period_end = COALESCE(?, current_period_end),
+               status = COALESCE(?, status),
+               canceled_at = CASE WHEN ? = 'canceled' THEN COALESCE(canceled_at, CURRENT_TIMESTAMP) ELSE canceled_at END,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`;
+    const params = usePostgreSQL
+        ? [provider, providerSubscriptionId, providerCustomerId, providerOrderNo, nextFailedCount, paymentStatus, nextBillingAt, nextPeriodEnd, safeSubscriptionStatus, latest.id]
+        : [provider, providerSubscriptionId, providerCustomerId, providerOrderNo, nextFailedCount, paymentStatus, nextBillingAt, nextPeriodEnd, safeSubscriptionStatus, safeSubscriptionStatus, latest.id];
     await query(sql, params);
     return getTenantSubscriptionSnapshot(safeTenantId);
 }
@@ -10108,6 +10222,7 @@ module.exports = {
     runSubscriptionDailyCheck,
     setTenantSubscriptionPlan,
     updateLatestSubscriptionStatus,
+    updateTenantSubscriptionRecurringState,
     ensureTenantDefaultBuildingId,
     seedTenantDefaultRoomTypes,
     seedTenantDefaultAddons,

@@ -408,6 +408,13 @@ function createPaymentController(deps) {
                 customerEmail,
                 customerName
             });
+            await db.updateTenantSubscriptionRecurringState(tenantId, {
+                provider: 'newebpay',
+                providerCustomerId: customerEmail || null,
+                providerOrderNo: data?.merchantOrderNo || null,
+                paymentStatus: 'pending',
+                subscriptionStatus: 'trialing'
+            });
             return res.json({ success: true, data });
         } catch (error) {
             return res.status(400).json({ success: false, message: '建立藍新定期定額請求失敗: ' + error.message });

@@ -244,6 +244,27 @@ function createPaymentService(deps) {
         return 'past_due';
     }
 
+    function inferNewebpayPaymentStatus(payload = {}) {
+        const rtnCode = String(payload.RtnCode || payload.rtnCode || '');
+        if (rtnCode === '1') return 'success';
+        return 'failed';
+    }
+
+    function parseNewebpayDateValue(raw) {
+        const text = String(raw || '').trim();
+        if (!text) return null;
+        const parsed = new Date(text);
+        if (!Number.isNaN(parsed.getTime())) {
+            return parsed.toISOString();
+        }
+        const compact = text.match(/^(\d{4})(\d{2})(\d{2})$/);
+        if (compact) {
+            const dt = new Date(`${compact[1]}-${compact[2]}-${compact[3]}T00:00:00+08:00`);
+            if (!Number.isNaN(dt.getTime())) return dt.toISOString();
+        }
+        return null;
+    }
+
     function resolveTenantIdFromNewebpayPayload(payload = {}) {
         const direct = parseInt(payload.tenant_id || payload.tenantId || payload.TenantId, 10);
         if (Number.isInteger(direct) && direct > 0) return direct;
@@ -264,6 +285,12 @@ function createPaymentService(deps) {
 
     async function handleNewebpaySubscriptionWebhook(rawPayload = {}, context = {}) {
         const config = await getNewebpayConfigFromSettings(['HashKey', 'HashIV']);
+        if (rawPayload.TradeInfo && rawPayload.TradeSha) {
+            const validTradeSha = verifyNewebpayTradeSha(rawPayload, config);
+            if (!validTradeSha) {
+                throw new Error('藍新 webhook 驗簽失敗（TradeSha 不一致）');
+            }
+        }
         const encryptedPeriod = String(rawPayload.Period || rawPayload.period || '');
         const decrypted = decryptNewebpayPeriod(encryptedPeriod, config);
         const periodPayload = parseNewebpayPeriodPayload(decrypted);
@@ -308,9 +335,25 @@ function createPaymentService(deps) {
             return { duplicate: true, tenantId, eventId };
         }
 
-        const status = inferNewebpaySubscriptionStatus(periodPayload);
-        const periodEnd = rawPayload.NextPeriodAmt ? null : null;
-        const snapshot = await db.updateLatestSubscriptionStatus(tenantId, status, periodEnd);
+        const statusSource = Object.keys(resultPayload || {}).length > 0 ? resultPayload : periodPayload;
+        const status = inferNewebpaySubscriptionStatus(statusSource);
+        const paymentStatus = inferNewebpayPaymentStatus(statusSource);
+        const nextBillingAt = parseNewebpayDateValue(
+            resultPayload.NextPeriodDate || resultPayload.NextPeriod || periodPayload.NextPeriodDate || periodPayload.NextPeriod
+        );
+        const periodEnd = nextBillingAt || parseNewebpayDateValue(
+            resultPayload.PeriodEndDate || resultPayload.PeriodEnd || periodPayload.PeriodEndDate || periodPayload.PeriodEnd
+        );
+        const snapshot = await db.updateTenantSubscriptionRecurringState(tenantId, {
+            provider: 'newebpay',
+            providerSubscriptionId: resultPayload.PeriodNo || resultPayload.periodNo || null,
+            providerCustomerId: resultPayload.PayerEmail || resultPayload.Email || null,
+            providerOrderNo: resultPayload.MerchantOrderNo || resultPayload.MerOrderNo || null,
+            paymentStatus,
+            subscriptionStatus: status,
+            nextBillingAt,
+            nextPeriodEnd: periodEnd
+        });
         logPaymentEvent('info', 'payment.newebpay.subscription.synced', {
             requestId: context.requestId || null,
             tenantId,
