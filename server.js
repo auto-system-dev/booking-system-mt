@@ -3566,6 +3566,71 @@ app.post('/api/admin/subscription/switch-plan', requireAuth, requireTenantContex
     }
 });
 
+app.post('/api/admin/subscription/recurring-action', requireAuth, adminLimiter, async (req, res) => {
+    try {
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可操作定期定額' });
+        }
+        const tenantId = parseInt(req.body?.tenantId, 10);
+        const action = String(req.body?.action || '').trim().toLowerCase();
+        if (!Number.isInteger(tenantId) || tenantId <= 0) {
+            return res.status(400).json({ success: false, message: 'tenantId 格式錯誤' });
+        }
+        if (!['suspend', 'restart', 'terminate'].includes(action)) {
+            return res.status(400).json({ success: false, message: 'action 僅接受 suspend、restart、terminate' });
+        }
+
+        const snapshot = await db.getTenantSubscriptionSnapshot(tenantId);
+        const recurring = snapshot?.recurring || {};
+        const provider = String(recurring.provider || '').trim().toLowerCase();
+        if (provider !== 'newebpay') {
+            return res.status(400).json({ success: false, message: '此租戶尚未綁定藍新定期定額' });
+        }
+        const merOrderNo = String(recurring.providerOrderNo || '').trim();
+        const periodNo = String(recurring.providerSubscriptionId || '').trim();
+        if (!merOrderNo || !periodNo) {
+            return res.status(400).json({ success: false, message: '缺少藍新定期定額識別資料（MerOrderNo / PeriodNo）' });
+        }
+
+        const gatewayResult = await paymentService.alterNewebpaySubscriptionStatus({
+            merOrderNo,
+            periodNo,
+            alterType: action
+        });
+
+        let nextStatus = null;
+        let paymentStatus = 'pending';
+        if (action === 'restart') {
+            nextStatus = 'active';
+            paymentStatus = 'success';
+        } else if (action === 'suspend') {
+            nextStatus = 'past_due';
+        } else if (action === 'terminate') {
+            nextStatus = 'canceled';
+        }
+        const updatedSnapshot = await db.updateTenantSubscriptionRecurringState(tenantId, {
+            provider: 'newebpay',
+            providerSubscriptionId: periodNo,
+            providerOrderNo: merOrderNo,
+            paymentStatus,
+            subscriptionStatus: nextStatus
+        });
+
+        return res.json({
+            success: true,
+            message: `定期定額操作已送出：${action}`,
+            data: {
+                tenantId,
+                action,
+                gateway: gatewayResult,
+                snapshot: updatedSnapshot
+            }
+        });
+    } catch (error) {
+        return res.status(400).json({ success: false, message: '操作定期定額失敗: ' + error.message });
+    }
+});
+
 // API: 取得所有客戶列表（聚合訂房資料）- 需要登入
 app.get('/api/customers', requireAuth, requireTenantContext, checkPermission('customers.view'), adminLimiter, async (req, res) => {
     try {

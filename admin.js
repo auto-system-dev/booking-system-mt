@@ -7849,6 +7849,11 @@ async function loadSubscriptionOverview() {
                 subscriptionStatus: sub.subscriptionStatus || 'none',
                 systemMode: sub.systemMode || 'retail',
                 billingCycle: sub.billingCycle || '',
+                provider: sub.provider || '',
+                providerSubscriptionId: sub.providerSubscriptionId || '',
+                providerOrderNo: sub.providerOrderNo || '',
+                failedPaymentCount: sub.failedPaymentCount || 0,
+                nextBillingAt: sub.nextBillingAt || '',
                 periodEnd: sub.periodEnd || '',
                 updatedAt: sub.updatedAt || tenant.updated_at || ''
             };
@@ -7893,6 +7898,13 @@ async function loadSubscriptionOverview() {
             const canActivate = String(row.tenantStatus || '').toLowerCase() !== 'active';
             const email = String(row.adminEmail || '');
             const emailEscapedForJs = email.replace(/'/g, "\\'");
+            const recurringReady = String(row.provider || '').toLowerCase() === 'newebpay'
+                && String(row.providerSubscriptionId || '').trim()
+                && String(row.providerOrderNo || '').trim();
+            const recurringHint = recurringReady
+                ? `藍新 / 失敗 ${parseInt(row.failedPaymentCount || 0, 10) || 0} 次`
+                : '未綁定';
+            const tenantIdNum = parseInt(row.tenantId, 10) || 0;
             return `
                 <tr>
                     <td>${escapeHtml(row.tenantId)}</td>
@@ -7908,7 +7920,11 @@ async function loadSubscriptionOverview() {
                     <td>${riskBadge}</td>
                     <td>${renderDateTimeTwoLines(row.periodEnd)}</td>
                     <td>
+                        <div style="font-size:11px;color:#64748b;margin-bottom:4px;">${escapeHtml(recurringHint)}</div>
                         <button class="btn-refresh tenant-action-btn" onclick="showEditTenantModal(${escapeHtml(row.tenantId)}, '${tenantNameEscaped}', '${tenantCodeEscaped}', '${planCodeEscaped}', '${tenantStatusEscaped}', '${subStatusEscaped}', '${periodEndEscaped}', '${systemModeEscaped}', '${adminUsernameEscaped}', '${adminEmailEscaped}')">編輯</button>
+                        <button class="btn-refresh tenant-action-btn" onclick="triggerTenantRecurringAction(${tenantIdNum}, 'suspend')" ${recurringReady ? '' : 'disabled'}>暫停扣款</button>
+                        <button class="btn-refresh tenant-action-btn" onclick="triggerTenantRecurringAction(${tenantIdNum}, 'restart')" ${recurringReady ? '' : 'disabled'}>恢復扣款</button>
+                        <button class="btn-cancel tenant-action-btn" onclick="triggerTenantRecurringAction(${tenantIdNum}, 'terminate')" ${recurringReady ? '' : 'disabled'}>終止扣款</button>
                         <button class="btn-refresh tenant-action-btn" onclick="activateTenantById(${escapeHtml(row.tenantId)})" ${canActivate ? '' : 'disabled'}>啟用</button>
                         <button class="btn-refresh tenant-action-btn" onclick="resendTenantVerificationByEmail('${emailEscapedForJs}')" ${email ? '' : 'disabled'}>重寄驗證</button>
                         <button class="btn-cancel tenant-action-btn" onclick="deleteTenantById(${escapeHtml(row.tenantId)}, '${tenantNameForDelete}')">刪除</button>
@@ -7919,6 +7935,38 @@ async function loadSubscriptionOverview() {
     } catch (error) {
         console.error('載入訂閱總覽失敗:', error);
         tbody.innerHTML = `<tr><td colspan="12" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
+    }
+}
+
+async function triggerTenantRecurringAction(tenantId, action) {
+    const safeTenantId = parseInt(tenantId, 10);
+    if (!Number.isInteger(safeTenantId) || safeTenantId <= 0) return;
+    const labels = {
+        suspend: '暫停扣款',
+        restart: '恢復扣款',
+        terminate: '終止扣款'
+    };
+    const safeAction = String(action || '').trim().toLowerCase();
+    if (!labels[safeAction]) return;
+    const confirmed = await appConfirm(`確認對租戶 #${safeTenantId} 執行「${labels[safeAction]}」？`);
+    if (!confirmed) return;
+    try {
+        const response = await adminFetch('/api/admin/subscription/recurring-action', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tenantId: safeTenantId,
+                action: safeAction
+            })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+        showSuccess(`租戶 #${safeTenantId} 已執行${labels[safeAction]}`);
+        loadSubscriptionOverview();
+    } catch (error) {
+        showError('定期定額操作失敗：' + error.message);
     }
 }
 
