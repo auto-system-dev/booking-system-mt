@@ -843,7 +843,8 @@ function renderRoomCards(cfg) {
         }
         window._roomGalleryData[room.id] = { images: allImages, name: displayName };
         
-        const hasGallery = allImages.length > 1;
+        // 只要有圖片就允許點擊放大（單張也可開啟 lightbox）
+        const hasGallery = allImages.length > 0;
 
         console.log(`🏨 ${displayName} (ID:${room.id}) | 價格: ${price} | 原價: ${originalPrice} | 圖庫: ${allImages.length}張`);
 
@@ -863,7 +864,7 @@ function renderRoomCards(cfg) {
                 <div class="room-image" onclick="event.stopPropagation(); ${hasGallery ? `openRoomGallery(${room.id})` : ''};" style="${hasGallery ? 'cursor:pointer;' : ''}">
                     ${primaryRoomImage ? `<img src="${primaryRoomImage}" alt="${displayName}" loading="lazy" onerror="this.onerror=null;this.src='${DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE}'">` : '<div style="height:200px;background:#e0e0e0;display:flex;align-items:center;justify-content:center;color:#999;">尚無圖片</div>'}
                     ${badge ? `<span class="room-badge ${badgeClass}">${badge}</span>` : ''}
-                    ${hasGallery ? `<span class="room-gallery-hint"><span class="material-symbols-outlined">photo_library</span> ${allImages.length} 張照片</span>` : ''}
+                    ${hasGallery ? `<span class="room-gallery-hint"><span class="material-symbols-outlined">photo_library</span> ${allImages.length > 1 ? `${allImages.length} 張照片` : '點擊放大'}</span>` : ''}
                 </div>
                 <div class="room-info">
                     <h3>${displayName}</h3>
@@ -1528,12 +1529,22 @@ function updateGalleryDisplay() {
     const mainImg = document.getElementById('galleryMainImage');
     const counter = document.getElementById('galleryCounter');
     const thumbs = document.getElementById('galleryThumbnails');
+    const prevBtn = document.querySelector('.gallery-prev-btn');
+    const nextBtn = document.querySelector('.gallery-next-btn');
     if (!mainImg) return;
     
     mainImg.src = _galleryImages[_galleryCurrentIndex];
     if (counter) counter.textContent = `${_galleryCurrentIndex + 1} / ${_galleryImages.length}`;
+    if (prevBtn) prevBtn.style.display = _galleryImages.length > 1 ? '' : 'none';
+    if (nextBtn) nextBtn.style.display = _galleryImages.length > 1 ? '' : 'none';
     
     if (thumbs) {
+        if (_galleryImages.length <= 1) {
+            thumbs.innerHTML = '';
+            thumbs.style.display = 'none';
+            return;
+        }
+        thumbs.style.display = '';
         thumbs.innerHTML = _galleryImages.map((url, i) => 
             `<div class="gallery-thumb ${i === _galleryCurrentIndex ? 'active' : ''}" onclick="galleryGoTo(${i})">
                 <img src="${url}" alt="" loading="lazy">
