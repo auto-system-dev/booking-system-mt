@@ -1005,7 +1005,7 @@ async function handleCreateBooking(req, res) {
                     firstSelection?.id ? `wp_${String(firstSelection.id).trim()}` : ''
                 ].filter(Boolean)
             );
-            const selectedRoom = (allRoomTypes || []).find((r) => {
+            let selectedRoom = (allRoomTypes || []).find((r) => {
                 const name = String(r?.name || '').trim();
                 const displayName = String(r?.display_name || '').trim();
                 const wpCode = `wp_${String(r?.id || '').trim()}`;
@@ -1014,6 +1014,19 @@ async function handleCreateBooking(req, res) {
                     || requestedCandidates.has(wpCode)
                     || requestedCandidates.has(String(r?.id || '').trim());
             });
+            // 包棟模式容錯：若館別範圍找不到，改以全租戶包棟方案再比對一次
+            if (!selectedRoom && listScope === 'whole_property' && typeof db.getAllRoomTypesAdmin === 'function') {
+                const tenantWholePlans = await db.getAllRoomTypesAdmin(null, 'whole_property', tenantId);
+                selectedRoom = (tenantWholePlans || []).find((r) => {
+                    const name = String(r?.name || '').trim();
+                    const displayName = String(r?.display_name || '').trim();
+                    const wpCode = `wp_${String(r?.id || '').trim()}`;
+                    return requestedCandidates.has(name)
+                        || requestedCandidates.has(displayName)
+                        || requestedCandidates.has(wpCode)
+                        || requestedCandidates.has(String(r?.id || '').trim());
+                });
+            }
             if (!selectedRoom) {
                 return res.status(400).json({
                     message: listScope === 'whole_property'
