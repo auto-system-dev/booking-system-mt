@@ -6696,7 +6696,7 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
         const nights = Math.max(1, Math.round((checkOutDate - checkInDate) / (24 * 60 * 60 * 1000)));
         const paymentDeadlineDate = new Date(today.getTime() + randomInt(1, 7) * 24 * 60 * 60 * 1000);
         
-        const hotelDefaults = await getHotelSettingsWithFallback();
+        const hotelDefaults = await getHotelSettingsWithFallback(req.tenantId);
 
         // 創建測試資料來替換模板變數（使用隨機數生成缺失的參數）
         const testData = {
@@ -9659,7 +9659,7 @@ app.post('/api/email-templates/checkin_reminder/clear-blocks', requireAuth, chec
         }
         
         // 使用最新的預設內容（直接寫入，確保編輯器可以看到）
-        const hotelAddress = (await getHotelSettingsWithFallback()).hotelAddress;
+        const hotelAddress = (await getHotelSettingsWithFallback(req.tenantId)).hotelAddress;
         
         blockSettings.transport = {
             enabled: blockSettings.transport?.enabled !== false,
@@ -10022,10 +10022,11 @@ function injectSpecialRequestRowForLegacyTemplate(content, specialRequest) {
 }
 
 /** 與前台「選擇館別」一致：僅在啟用中館別數 > 1 時於郵件顯示館別 */
-async function resolveShowBuildingInEmail() {
+async function resolveShowBuildingInEmail(tenantId = defaultTenantId) {
     try {
         if (typeof db.getActiveBuildingsPublic !== 'function') return false;
-        const list = await db.getActiveBuildingsPublic(defaultTenantId);
+        const resolvedTenantId = Number.parseInt(tenantId, 10) || defaultTenantId;
+        const list = await db.getActiveBuildingsPublic(resolvedTenantId);
         return Array.isArray(list) && list.length > 1;
     } catch (_) {
         return false;
@@ -10106,11 +10107,12 @@ async function replaceTemplateVariables(template, booking, bankInfo = null, addi
     let content = template.content || template.template_content || '';
     
     const templateKey = template.key || template.template_key;
+    const emailTenantId = Number.parseInt(booking?.tenant_id ?? booking?.tenantId ?? defaultTenantId, 10) || defaultTenantId;
     
     // 確保使用資料庫中的完整 HTML 內容
     if (!content || content.trim() === '') {
         // 如果模板內容為空，嘗試從資料庫重新讀取
-        const dbTemplate = await db.getEmailTemplateByKey(templateKey, booking?.tenant_id || getRequestTenantId(req));
+        const dbTemplate = await db.getEmailTemplateByKey(templateKey, emailTenantId);
         if (dbTemplate && dbTemplate.content) {
             content = dbTemplate.content;
             console.log(`⚠️ 模板內容為空，已從資料庫重新讀取完整 HTML 模板 (${templateKey})`);
@@ -10188,7 +10190,7 @@ async function replaceTemplateVariables(template, booking, bankInfo = null, addi
         
         try {
             // 從資料庫讀取原始模板（包含完整的 HTML 結構和樣式）
-            const originalTemplate = await db.getEmailTemplateByKey(templateKey, booking?.tenant_id || getRequestTenantId(req));
+            const originalTemplate = await db.getEmailTemplateByKey(templateKey, emailTenantId);
             if (originalTemplate && originalTemplate.content && 
                 (originalTemplate.content.includes('<!DOCTYPE html>') || originalTemplate.content.includes('<html'))) {
                 // 提取原始模板的 HTML 結構和樣式
@@ -10628,8 +10630,6 @@ ${htmlEnd}`;
     // 如果有折扣，使用折後總額；如果沒有折扣，discountedTotal 等於 totalAmount
     const remainingAmount = Math.max(0, discountedTotal - finalAmount);
     
-    const emailTenantId = Number.parseInt(booking?.tenant_id ?? booking?.tenantId ?? defaultTenantId, 10) || defaultTenantId;
-
     // 處理加購商品顯示
     let addonsList = '';
     let addonsTotal = 0;
@@ -10733,7 +10733,7 @@ ${htmlEnd}`;
     const guestEmail = booking.guest_email || booking.guestEmail || '';
     const specialRequest = booking.special_request || booking.specialRequest || '';
 
-    const showBuildingInEmail = await resolveShowBuildingInEmail();
+    const showBuildingInEmail = await resolveShowBuildingInEmail(emailTenantId);
 
     // 入住提醒區塊內容與顯示開關（僅多館別時顯示館別列，與前台選館一致）
     const defaultBookingInfoContentWithBuilding = `<div class="info-row">
@@ -10840,7 +10840,7 @@ ${htmlEnd}`;
     };
     
     // 如果 additionalData 中沒有 hotelEmail、hotelPhone、hotelAddress，則從資料庫取得（未設定時使用預設值）
-    const hotelSettings = await getHotelSettingsWithFallback();
+    const hotelSettings = await getHotelSettingsWithFallback(emailTenantId);
     if (!variables['{{hotelEmail}}']) {
         variables['{{hotelEmail}}'] = hotelSettings.hotelEmail;
     }
