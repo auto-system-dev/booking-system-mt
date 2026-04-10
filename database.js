@@ -9624,7 +9624,7 @@ async function initRolesAndPermissions() {
         // 預設角色列表
         const defaultRoles = [
             { role_name: 'super_admin', display_name: '超級管理員', description: '系統擁有者，擁有所有權限', is_system_role: 1 },
-            { role_name: 'admin', display_name: '一般管理員', description: '店長/經理，日常營運管理', is_system_role: 1 },
+            { role_name: 'admin', display_name: '管理員', description: '店長/經理，日常營運管理', is_system_role: 1 },
             { role_name: 'staff', display_name: '客服人員', description: '客服/櫃台人員，客戶服務相關', is_system_role: 1 },
             { role_name: 'finance', display_name: '財務人員', description: '會計/財務，財務相關功能', is_system_role: 1 },
             { role_name: 'viewer', display_name: '只讀管理員', description: '實習生/外部顧問，僅查看權限', is_system_role: 1 }
@@ -9648,6 +9648,13 @@ async function initRolesAndPermissions() {
                 );
             }
         }
+        // 同步既有資料：將 admin 角色顯示名稱統一為「管理員」
+        await query(
+            usePostgreSQL
+                ? 'UPDATE roles SET display_name = $1 WHERE role_name = $2 AND display_name <> $1'
+                : 'UPDATE roles SET display_name = ? WHERE role_name = ? AND display_name <> ?',
+            usePostgreSQL ? ['管理員', 'admin'] : ['管理員', 'admin', '管理員']
+        );
         console.log('✅ 預設角色已初始化');
         
         // 預設權限列表
@@ -10212,7 +10219,7 @@ async function getAllAdmins(tenantScope = null) {
                         r.display_name,
                         CASE
                             WHEN a.role = 'super_admin' THEN '超級管理員'
-                            WHEN a.role = 'admin' THEN '一般管理員'
+                            WHEN a.role = 'admin' THEN '管理員'
                             WHEN a.role = 'staff' THEN '員工'
                             WHEN a.role = 'finance' THEN '財務'
                             WHEN a.role = 'viewer' THEN '檢視者'
