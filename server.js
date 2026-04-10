@@ -1055,6 +1055,8 @@ async function handleCreateBooking(req, res) {
         const bookingData = {
             checkInDate,
             checkOutDate,
+            tenantId: req.tenantId,
+            tenant_id: req.tenantId,
             roomType: roomTypeName, // 使用房型名稱（display_name）
             guestName,
             guestPhone,
