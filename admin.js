@@ -1894,9 +1894,14 @@ function switchSection(section) {
         const savedTab = localStorage.getItem('customerTab') || 'customers';
         switchCustomerTab(savedTab);
     } else if (section === 'admin-management') {
-        // 恢復上次的分頁
+        if (typeof isPlatformSuperAdmin === 'function' && !isPlatformSuperAdmin()) {
+            localStorage.setItem('adminTab', 'admins');
+        }
         const savedTab = localStorage.getItem('adminTab') || 'admins';
-        switchAdminTab(savedTab);
+        const safeTab = (typeof isPlatformSuperAdmin === 'function' && !isPlatformSuperAdmin() && savedTab === 'roles')
+            ? 'admins'
+            : savedTab;
+        switchAdminTab(safeTab);
     } else if (section === 'logs') {
         loadLogFilters();
         loadLogs(1);
@@ -12280,6 +12285,41 @@ function hasPermission(permissionCode) {
     return window.currentAdminPermissions && window.currentAdminPermissions.includes(permissionCode);
 }
 
+/** 平台超級管理員（可見「角色權限」全功能）；租戶端僅員工帳號簡化頁 */
+function isPlatformSuperAdmin() {
+    return !!(window.currentAdminInfo && window.currentAdminInfo.role === 'super_admin');
+}
+
+/** 租戶後台：側欄／標題／分頁改為「員工帳號」，並隱藏角色權限矩陣分頁 */
+function applyAdminManagementUiMode() {
+    const superAdmin = isPlatformSuperAdmin();
+    const navLbl = document.getElementById('navAdminManagementLabel');
+    const secTitle = document.getElementById('adminManagementSectionTitle');
+    const tabBar = document.getElementById('adminManagementTabBar');
+    const rolesTab = document.getElementById('rolesTab');
+    const adminsTab = document.getElementById('adminsTab');
+    const adminsTabLbl = document.getElementById('adminsTabLabel');
+    const addLbl = document.getElementById('addAdminBtnLabel');
+    const adminsContent = document.getElementById('adminsTabContent');
+    const rolesContent = document.getElementById('rolesTabContent');
+
+    if (navLbl) navLbl.textContent = superAdmin ? '權限管理' : '員工帳號';
+    if (secTitle) secTitle.textContent = superAdmin ? '權限管理' : '員工帳號';
+    if (adminsTabLbl) adminsTabLbl.textContent = superAdmin ? '管理員列表' : '員工帳號列表';
+    if (addLbl) addLbl.textContent = superAdmin ? '新增管理員' : '新增員工帳號';
+    if (tabBar) tabBar.style.display = superAdmin ? '' : 'none';
+    if (rolesTab) rolesTab.style.display = superAdmin ? '' : 'none';
+
+    if (!superAdmin) {
+        if (adminsTab) adminsTab.classList.add('active');
+        if (rolesTab) rolesTab.classList.remove('active');
+        if (adminsContent) adminsContent.style.display = 'block';
+        if (rolesContent) rolesContent.style.display = 'none';
+    }
+}
+
+window.isPlatformSuperAdmin = isPlatformSuperAdmin;
+
 // 根據權限顯示/隱藏元素
 function checkPermissionAndShow(elementId, permissionCode) {
     const element = document.getElementById(elementId);
@@ -12322,12 +12362,17 @@ function updateSidebarByPermissions() {
             }
         }
     });
+
+    applyAdminManagementUiMode();
 }
 
 // ==================== 管理員管理 ====================
 
 // 切換管理員管理分頁（管理員列表 / 角色權限）
 function switchAdminTab(tab) {
+    if (typeof isPlatformSuperAdmin === 'function' && !isPlatformSuperAdmin() && tab === 'roles') {
+        tab = 'admins';
+    }
     // 保存當前分頁
     localStorage.setItem('adminTab', tab);
     
@@ -12451,7 +12496,7 @@ function getRoleBadgeClass(roleName) {
 
 // 顯示新增管理員模態框
 async function showAddAdminModal() {
-    document.getElementById('adminModalTitle').textContent = '新增管理員';
+    document.getElementById('adminModalTitle').textContent = isPlatformSuperAdmin() ? '新增管理員' : '新增員工帳號';
     document.getElementById('editAdminId').value = '';
     document.getElementById('adminForm').reset();
     document.getElementById('adminUsername').disabled = false;
@@ -12469,7 +12514,7 @@ async function showAddAdminModal() {
 
 // 顯示編輯管理員模態框
 async function showEditAdminModal(adminId) {
-    document.getElementById('adminModalTitle').textContent = '編輯管理員';
+    document.getElementById('adminModalTitle').textContent = isPlatformSuperAdmin() ? '編輯管理員' : '編輯員工帳號';
     document.getElementById('editAdminId').value = adminId;
     document.getElementById('adminUsername').disabled = true;
     document.getElementById('adminPassword').required = false;
@@ -12510,7 +12555,7 @@ async function loadRoleOptions() {
     select.innerHTML = '<option value="">載入中...</option>';
     
     try {
-        const response = await adminFetch('/api/admin/roles');
+        const response = await adminFetch('/api/admin/roles/assignable');
         const result = await response.json();
         
         if (result.success) {
@@ -12593,7 +12638,8 @@ async function saveAdmin(event) {
         const result = await response.json();
         
         if (result.success) {
-            showSuccess(isNew ? '管理員已新增' : '管理員資料已更新');
+            const staffLabel = isPlatformSuperAdmin() ? '管理員' : '員工帳號';
+            showSuccess(isNew ? `${staffLabel}已新增` : `${staffLabel}資料已更新`);
             closeAdminModal();
             loadAdmins();
         } else {
@@ -12607,7 +12653,8 @@ async function saveAdmin(event) {
 
 // 刪除管理員
 async function deleteAdmin(adminId, username) {
-    if (!(await appConfirm(`確定要刪除管理員「${username}」嗎？此操作無法復原。`))) {
+    const staffLabel = isPlatformSuperAdmin() ? '管理員' : '員工帳號';
+    if (!(await appConfirm(`確定要刪除${staffLabel}「${username}」嗎？此操作無法復原。`))) {
         return;
     }
     
@@ -12619,7 +12666,7 @@ async function deleteAdmin(adminId, username) {
         const result = await response.json();
         
         if (result.success) {
-            showSuccess('管理員已刪除');
+            showSuccess(`${staffLabel}已刪除`);
             loadAdmins();
         } else {
             showError('刪除失敗：' + (result.message || '未知錯誤'));
@@ -12633,7 +12680,8 @@ async function deleteAdmin(adminId, username) {
 // 顯示重設密碼模態框
 function showResetPasswordModal(adminId, username) {
     document.getElementById('resetPasswordAdminId').value = adminId;
-    document.getElementById('resetPasswordInfo').textContent = `將為管理員「${username}」重設密碼`;
+    const staffLabel = isPlatformSuperAdmin() ? '管理員' : '員工帳號';
+    document.getElementById('resetPasswordInfo').textContent = `將為${staffLabel}「${username}」重設密碼`;
     document.getElementById('resetPasswordForm').reset();
     document.getElementById('resetPasswordModal').style.display = 'block';
 }
@@ -13227,9 +13275,13 @@ async function loadLogs(page = 1) {
                     if (log.details) {
                         try {
                             const details = typeof log.details === 'string' ? JSON.parse(log.details) : log.details;
-                            detailsStr = Object.entries(details)
-                                .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
-                                .join(', ');
+                            if (details && typeof details.audit_summary === 'string' && details.audit_summary.trim()) {
+                                detailsStr = details.audit_summary.trim();
+                            } else {
+                                detailsStr = Object.entries(details)
+                                    .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+                                    .join(', ');
+                            }
                             if (detailsStr.length > 80) {
                                 detailsStr = detailsStr.substring(0, 80) + '...';
                             }

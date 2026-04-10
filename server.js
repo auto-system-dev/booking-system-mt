@@ -135,6 +135,31 @@ const PORT = process.env.PORT || 3000;
 const checkPermission = createCheckPermission(db);
 const subscriptionGate = createSubscriptionGate(db);
 const defaultTenantId = parseInt(process.env.DEFAULT_TENANT_ID || '1', 10);
+
+/** 管理員帳號 API 租戶範圍：超管不過濾；其餘必須有有效 tenant_id */
+function resolveAdminMgmtTenantScope(req) {
+    const a = req.session?.admin;
+    if (!a) return { ok: false, code: 401, message: '未登入' };
+    if (a.role === 'super_admin') return { ok: true, isSuper: true, tenantId: null };
+    const tid = a.tenant_id != null ? parseInt(a.tenant_id, 10) : NaN;
+    if (!Number.isInteger(tid) || tid <= 0) {
+        return { ok: false, code: 403, message: '無法識別租戶範圍，請重新登入' };
+    }
+    return { ok: true, isSuper: false, tenantId: tid };
+}
+
+/** 管理員帳號異動寫入 admin_logs.details 的共通欄位（含操作者與租戶上下文） */
+function buildAdminAccountAuditDetails(req, extra = {}) {
+    const a = req.session?.admin;
+    return {
+        actor_id: a?.id ?? null,
+        actor_username: a?.username ?? null,
+        actor_role: a?.role ?? null,
+        actor_tenant_id: a?.tenant_id ?? null,
+        ...extra
+    };
+}
+
 function getRequestTenantId(req) {
     const resolved = resolveTenantId(req);
     if (resolved) return resolved;
@@ -2392,6 +2417,39 @@ app.get('/api/admin/roles', requireAuth, checkPermission('roles.view'), async (r
     }
 });
 
+// 可指派角色（給員工帳號表單；租戶不需 roles.view；須有 admins.create 或 admins.edit）
+app.get('/api/admin/roles/assignable', requireAuth, async (req, res) => {
+    try {
+        const admin = req.session?.admin;
+        if (!admin) {
+            return res.status(401).json({ success: false, message: '未登入' });
+        }
+        const perms = admin.permissions || [];
+        let can = admin.role === 'super_admin'
+            || perms.includes('admins.create')
+            || perms.includes('admins.edit');
+        if (!can) {
+            can = (await db.hasPermission(admin.id, 'admins.create'))
+                || (await db.hasPermission(admin.id, 'admins.edit'));
+        }
+        if (!can) {
+            return res.status(403).json({ success: false, message: '您沒有權限執行此操作' });
+        }
+        const scope = resolveAdminMgmtTenantScope(req);
+        if (!scope.ok) {
+            return res.status(scope.code).json({ success: false, message: scope.message });
+        }
+        const roles = await db.getAssignableRolesForStaffAdmin(scope.isSuper);
+        res.json({ success: true, roles });
+    } catch (error) {
+        console.error('取得可指派角色錯誤:', error);
+        res.status(500).json({
+            success: false,
+            message: '取得可指派角色失敗：' + error.message
+        });
+    }
+});
+
 // 取得角色詳情
 app.get('/api/admin/roles/:id', requireAuth, checkPermission('roles.view'), async (req, res) => {
     try {
@@ -2549,7 +2607,11 @@ app.put('/api/admin/roles/:id/permissions', requireAuth, checkPermission('roles.
 // 取得所有管理員
 app.get('/api/admin/admins', requireAuth, checkPermission('admins.view'), async (req, res) => {
     try {
-        const admins = await db.getAllAdmins();
+        const scope = resolveAdminMgmtTenantScope(req);
+        if (!scope.ok) {
+            return res.status(scope.code).json({ success: false, message: scope.message });
+        }
+        const admins = await db.getAllAdmins(scope.isSuper ? null : scope.tenantId);
         res.json({
             success: true,
             admins: admins
@@ -2566,8 +2628,12 @@ app.get('/api/admin/admins', requireAuth, checkPermission('admins.view'), async 
 // 取得管理員詳情
 app.get('/api/admin/admins/:id', requireAuth, checkPermission('admins.view'), async (req, res) => {
     try {
+        const scope = resolveAdminMgmtTenantScope(req);
+        if (!scope.ok) {
+            return res.status(scope.code).json({ success: false, message: scope.message });
+        }
         const adminId = parseInt(req.params.id);
-        const admin = await db.getAdminById(adminId);
+        const admin = await db.getAdminById(adminId, scope.isSuper ? null : scope.tenantId);
         
         if (!admin) {
             return res.status(404).json({
@@ -2592,13 +2658,39 @@ app.get('/api/admin/admins/:id', requireAuth, checkPermission('admins.view'), as
 // 新增管理員
 app.post('/api/admin/admins', requireAuth, checkPermission('admins.create'), async (req, res) => {
     try {
-        const { username, password, email, role_id, department, phone, notes } = req.body;
+        const scope = resolveAdminMgmtTenantScope(req);
+        if (!scope.ok) {
+            return res.status(scope.code).json({ success: false, message: scope.message });
+        }
+
+        const { username, password, email, role_id, department, phone, notes, tenant_id: bodyTenantId } = req.body;
         
         if (!username || !password || !role_id) {
             return res.status(400).json({
                 success: false,
                 message: '帳號、密碼和角色為必填'
             });
+        }
+
+        const roleRow = await db.getRoleById(parseInt(role_id, 10));
+        if (!roleRow) {
+            return res.status(400).json({ success: false, message: '找不到角色' });
+        }
+        if (!scope.isSuper && roleRow.role_name === 'super_admin') {
+            return res.status(403).json({ success: false, message: '不可指派超級管理員角色' });
+        }
+
+        let targetTenantId = null;
+        if (scope.isSuper) {
+            if (bodyTenantId != null && bodyTenantId !== '') {
+                const t = parseInt(bodyTenantId, 10);
+                if (!Number.isInteger(t) || t <= 0) {
+                    return res.status(400).json({ success: false, message: 'tenant_id 無效' });
+                }
+                targetTenantId = t;
+            }
+        } else {
+            targetTenantId = scope.tenantId;
         }
         
         // 檢查帳號是否已存在
@@ -2610,12 +2702,28 @@ app.post('/api/admin/admins', requireAuth, checkPermission('admins.create'), asy
             });
         }
         
-        const adminId = await db.createAdmin({ username, password, email, role_id, department, phone, notes });
-        
-        await logAction(req, 'create_admin', 'admin', adminId, {
-            username: username,
-            role_id: role_id
+        const adminId = await db.createAdmin({
+            username,
+            password,
+            email,
+            role_id,
+            department,
+            phone,
+            notes,
+            tenantId: targetTenantId
         });
+
+        const tenantLabel = targetTenantId != null ? String(targetTenantId) : '平台';
+        await logAction(req, 'create_admin', 'admin', adminId, buildAdminAccountAuditDetails(req, {
+            target_admin_id: adminId,
+            target_username: username,
+            target_email: email || null,
+            target_role_id: parseInt(role_id, 10),
+            target_role_name: roleRow.role_name,
+            target_tenant_id: targetTenantId,
+            audit_summary:
+                `操作者 ${req.session.admin.username}（actor_tenant_id=${req.session.admin.tenant_id ?? 'null'}）新增帳號 ${username}，角色 ${roleRow.display_name || roleRow.role_name}，目標租戶 ${tenantLabel}`
+        }));
         
         res.json({
             success: true,
@@ -2634,15 +2742,43 @@ app.post('/api/admin/admins', requireAuth, checkPermission('admins.create'), asy
 // 更新管理員
 app.put('/api/admin/admins/:id', requireAuth, checkPermission('admins.edit'), async (req, res) => {
     try {
+        const scope = resolveAdminMgmtTenantScope(req);
+        if (!scope.ok) {
+            return res.status(scope.code).json({ success: false, message: scope.message });
+        }
+        const tenantFilter = scope.isSuper ? null : scope.tenantId;
+
         const adminId = parseInt(req.params.id);
         const { email, role_id, department, phone, notes, is_active } = req.body;
+
+        if (role_id != null && role_id !== '') {
+            const roleRow = await db.getRoleById(parseInt(role_id, 10));
+            if (!roleRow) {
+                return res.status(400).json({ success: false, message: '找不到角色' });
+            }
+            if (!scope.isSuper && roleRow.role_name === 'super_admin') {
+                return res.status(403).json({ success: false, message: '不可指派超級管理員角色' });
+            }
+        }
+
+        const before = await db.getAdminById(adminId, tenantFilter);
+        if (!before) {
+            return res.status(404).json({
+                success: false,
+                message: '找不到該管理員'
+            });
+        }
         
-        const success = await db.updateAdmin(adminId, { email, role_id, department, phone, notes, is_active });
+        const success = await db.updateAdmin(adminId, { email, role_id, department, phone, notes, is_active }, tenantFilter);
         
         if (success) {
-            await logAction(req, 'update_admin', 'admin', adminId, {
-                role_id: role_id
-            });
+            await logAction(req, 'update_admin', 'admin', adminId, buildAdminAccountAuditDetails(req, {
+                target_username: before.username,
+                target_tenant_id: before.tenant_id ?? null,
+                payload: { email, role_id, department, phone, notes, is_active },
+                audit_summary:
+                    `操作者 ${req.session.admin.username} 更新帳號 ${before.username}（id=${adminId}，target_tenant_id=${before.tenant_id ?? 'null'}）`
+            }));
             
             res.json({
                 success: true,
@@ -2651,7 +2787,7 @@ app.put('/api/admin/admins/:id', requireAuth, checkPermission('admins.edit'), as
         } else {
             res.status(400).json({
                 success: false,
-                message: '更新失敗，管理員不存在'
+                message: '更新失敗，管理員不存在或不在您的租戶範圍內'
             });
         }
     } catch (error) {
@@ -2666,6 +2802,12 @@ app.put('/api/admin/admins/:id', requireAuth, checkPermission('admins.edit'), as
 // 刪除管理員
 app.delete('/api/admin/admins/:id', requireAuth, checkPermission('admins.delete'), async (req, res) => {
     try {
+        const scope = resolveAdminMgmtTenantScope(req);
+        if (!scope.ok) {
+            return res.status(scope.code).json({ success: false, message: scope.message });
+        }
+        const tenantFilter = scope.isSuper ? null : scope.tenantId;
+
         const adminId = parseInt(req.params.id);
         
         // 不允許刪除自己
@@ -2675,11 +2817,24 @@ app.delete('/api/admin/admins/:id', requireAuth, checkPermission('admins.delete'
                 message: '無法刪除自己的帳號'
             });
         }
+
+        const targetDel = await db.getAdminById(adminId, tenantFilter);
+        if (!targetDel) {
+            return res.status(404).json({
+                success: false,
+                message: '找不到該管理員'
+            });
+        }
         
-        const success = await db.deleteAdmin(adminId);
+        const success = await db.deleteAdmin(adminId, tenantFilter);
         
         if (success) {
-            await logAction(req, 'delete_admin', 'admin', adminId, {});
+            await logAction(req, 'delete_admin', 'admin', adminId, buildAdminAccountAuditDetails(req, {
+                target_username: targetDel?.username ?? null,
+                target_tenant_id: targetDel?.tenant_id ?? null,
+                audit_summary:
+                    `操作者 ${req.session.admin.username} 刪除帳號 ${targetDel?.username || adminId}（id=${adminId}）`
+            }));
             
             res.json({
                 success: true,
@@ -2688,7 +2843,7 @@ app.delete('/api/admin/admins/:id', requireAuth, checkPermission('admins.delete'
         } else {
             res.status(400).json({
                 success: false,
-                message: '刪除失敗，管理員不存在'
+                message: '刪除失敗，管理員不存在或不在您的租戶範圍內'
             });
         }
     } catch (error) {
@@ -2703,6 +2858,12 @@ app.delete('/api/admin/admins/:id', requireAuth, checkPermission('admins.delete'
 // 更新管理員角色
 app.put('/api/admin/admins/:id/role', requireAuth, checkPermission('admins.edit'), async (req, res) => {
     try {
+        const scope = resolveAdminMgmtTenantScope(req);
+        if (!scope.ok) {
+            return res.status(scope.code).json({ success: false, message: scope.message });
+        }
+        const tenantFilter = scope.isSuper ? null : scope.tenantId;
+
         const adminId = parseInt(req.params.id);
         const { role_id } = req.body;
         
@@ -2712,13 +2873,34 @@ app.put('/api/admin/admins/:id/role', requireAuth, checkPermission('admins.edit'
                 message: '角色 ID 為必填'
             });
         }
+
+        const roleRow = await db.getRoleById(parseInt(role_id, 10));
+        if (!roleRow) {
+            return res.status(400).json({ success: false, message: '找不到角色' });
+        }
+        if (!scope.isSuper && roleRow.role_name === 'super_admin') {
+            return res.status(403).json({ success: false, message: '不可指派超級管理員角色' });
+        }
+
+        const targetRoleUser = await db.getAdminById(adminId, tenantFilter);
+        if (!targetRoleUser) {
+            return res.status(404).json({
+                success: false,
+                message: '找不到該管理員'
+            });
+        }
         
-        const success = await db.updateAdminRole(adminId, role_id);
+        const success = await db.updateAdminRole(adminId, role_id, tenantFilter);
         
         if (success) {
-            await logAction(req, 'update_admin_role', 'admin', adminId, {
-                role_id: role_id
-            });
+            await logAction(req, 'update_admin_role', 'admin', adminId, buildAdminAccountAuditDetails(req, {
+                target_username: targetRoleUser?.username ?? null,
+                target_tenant_id: targetRoleUser?.tenant_id ?? null,
+                new_role_id: parseInt(role_id, 10),
+                new_role_name: roleRow.role_name,
+                audit_summary:
+                    `操作者 ${req.session.admin.username} 將帳號 ${targetRoleUser?.username || adminId} 角色改為 ${roleRow.display_name || roleRow.role_name}`
+            }));
             
             res.json({
                 success: true,
@@ -2727,7 +2909,7 @@ app.put('/api/admin/admins/:id/role', requireAuth, checkPermission('admins.edit'
         } else {
             res.status(400).json({
                 success: false,
-                message: '更新失敗'
+                message: '更新失敗，管理員不存在或不在您的租戶範圍內'
             });
         }
     } catch (error) {
@@ -2742,6 +2924,12 @@ app.put('/api/admin/admins/:id/role', requireAuth, checkPermission('admins.edit'
 // 重設管理員密碼（需要 admins.change_password 權限）
 app.put('/api/admin/admins/:id/reset-password', requireAuth, checkPermission('admins.change_password'), async (req, res) => {
     try {
+        const scope = resolveAdminMgmtTenantScope(req);
+        if (!scope.ok) {
+            return res.status(scope.code).json({ success: false, message: scope.message });
+        }
+        const tenantFilter = scope.isSuper ? null : scope.tenantId;
+
         const adminId = parseInt(req.params.id);
         const { newPassword } = req.body;
         
@@ -2751,11 +2939,24 @@ app.put('/api/admin/admins/:id/reset-password', requireAuth, checkPermission('ad
                 message: '新密碼至少需要 6 個字元'
             });
         }
+
+        const targetPwd = await db.getAdminById(adminId, tenantFilter);
+        if (!targetPwd) {
+            return res.status(404).json({
+                success: false,
+                message: '找不到該管理員'
+            });
+        }
         
-        const success = await db.updateAdminPassword(adminId, newPassword);
+        const success = await db.updateAdminPassword(adminId, newPassword, tenantFilter);
         
         if (success) {
-            await logAction(req, 'reset_admin_password', 'admin', adminId, {});
+            await logAction(req, 'reset_admin_password', 'admin', adminId, buildAdminAccountAuditDetails(req, {
+                target_username: targetPwd?.username ?? null,
+                target_tenant_id: targetPwd?.tenant_id ?? null,
+                audit_summary:
+                    `操作者 ${req.session.admin.username} 重設帳號 ${targetPwd?.username || adminId}（id=${adminId}）的密碼`
+            }));
             
             res.json({
                 success: true,
@@ -2764,7 +2965,7 @@ app.put('/api/admin/admins/:id/reset-password', requireAuth, checkPermission('ad
         } else {
             res.status(400).json({
                 success: false,
-                message: '重設失敗，管理員不存在'
+                message: '重設失敗，管理員不存在或不在您的租戶範圍內'
             });
         }
     } catch (error) {

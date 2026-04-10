@@ -9315,17 +9315,21 @@ async function updateAdminLastLogin(adminId) {
     }
 }
 
-// 修改管理員密碼
-async function updateAdminPassword(adminId, newPassword) {
+// 修改管理員密碼（tenantScope 為正整數時僅更新該租戶內帳號；自行改密碼可傳 null）
+async function updateAdminPassword(adminId, newPassword, tenantScope = null) {
     try {
         const bcrypt = require('bcrypt');
         const passwordHash = await bcrypt.hash(newPassword, 10);
-        
-        const sql = usePostgreSQL 
-            ? `UPDATE admins SET password_hash = $1 WHERE id = $2`
-            : `UPDATE admins SET password_hash = ? WHERE id = ?`;
-        
-        const result = await query(sql, [passwordHash, adminId]);
+
+        const tid = tenantScope != null ? parseInt(tenantScope, 10) : NaN;
+        const filterTenant = Number.isInteger(tid) && tid > 0;
+
+        const sql = usePostgreSQL
+            ? `UPDATE admins SET password_hash = $1 WHERE id = $2${filterTenant ? ' AND tenant_id = $3' : ''}`
+            : `UPDATE admins SET password_hash = ? WHERE id = ?${filterTenant ? ' AND tenant_id = ?' : ''}`;
+
+        const params = filterTenant ? [passwordHash, adminId, tid] : [passwordHash, adminId];
+        const result = await query(sql, params);
         return result.changes > 0;
     } catch (error) {
         console.error('❌ 修改管理員密碼失敗:', error.message);
@@ -10011,6 +10015,20 @@ async function getAllRoles() {
     }
 }
 
+/** 員工帳號／管理員表單可指派的角色（租戶端不包含 super_admin） */
+async function getAssignableRolesForStaffAdmin(isPlatformSuper) {
+    try {
+        const sql = isPlatformSuper
+            ? `SELECT id, role_name, display_name, description, is_system_role FROM roles ORDER BY id`
+            : `SELECT id, role_name, display_name, description, is_system_role FROM roles WHERE role_name != 'super_admin' ORDER BY id`;
+        const result = await query(sql);
+        return result.rows;
+    } catch (error) {
+        console.error('❌ 取得可指派角色失敗:', error.message);
+        throw error;
+    }
+}
+
 // 取得角色詳情（包含權限）
 async function getRoleById(roleId) {
     try {
@@ -10181,10 +10199,14 @@ async function updateRolePermissions(roleId, permissionCodes) {
     }
 }
 
-// 取得所有管理員（包含角色資訊）
-async function getAllAdmins() {
+/**
+ * @param {number|null|undefined} tenantScope 若為正整數，只回傳該租戶之管理員；null/undefined 表示不過濾（僅應由超級管理員呼叫端使用）
+ */
+async function getAllAdmins(tenantScope = null) {
     try {
-        const sql = `SELECT a.id, a.username, a.email, a.role, a.role_id, a.department, a.phone, a.notes,
+        const tid = tenantScope != null ? parseInt(tenantScope, 10) : NaN;
+        const filterTenant = Number.isInteger(tid) && tid > 0;
+        const sql = `SELECT a.id, a.username, a.email, a.role, a.role_id, a.tenant_id, a.department, a.phone, a.notes,
                      a.created_at, a.last_login, a.is_active,
                      COALESCE(
                         r.display_name,
@@ -10200,8 +10222,9 @@ async function getAllAdmins() {
                      COALESCE(r.role_name, a.role) as role_name
                      FROM admins a
                      LEFT JOIN roles r ON a.role_id = r.id
+                     ${filterTenant ? (usePostgreSQL ? 'WHERE a.tenant_id = $1' : 'WHERE a.tenant_id = ?') : ''}
                      ORDER BY a.id`;
-        const result = await query(sql);
+        const result = filterTenant ? await query(sql, [tid]) : await query(sql);
         return result.rows;
     } catch (error) {
         console.error('❌ 取得所有管理員失敗:', error.message);
@@ -10209,19 +10232,24 @@ async function getAllAdmins() {
     }
 }
 
-// 取得管理員詳情（包含權限）
-async function getAdminById(adminId) {
+/**
+ * @param {number|null|undefined} tenantScope 若為正整數，僅當該管理員屬於此租戶時回傳；null 表示不過濾
+ */
+async function getAdminById(adminId, tenantScope = null) {
     try {
+        const tid = tenantScope != null ? parseInt(tenantScope, 10) : NaN;
+        const filterTenant = Number.isInteger(tid) && tid > 0;
         const sql = usePostgreSQL
             ? `SELECT a.*, r.display_name as role_display_name, r.role_name
                FROM admins a
                LEFT JOIN roles r ON a.role_id = r.id
-               WHERE a.id = $1`
+               WHERE a.id = $1${filterTenant ? ' AND a.tenant_id = $2' : ''}`
             : `SELECT a.*, r.display_name as role_display_name, r.role_name
                FROM admins a
                LEFT JOIN roles r ON a.role_id = r.id
-               WHERE a.id = ?`;
-        const admin = await queryOne(sql, [adminId]);
+               WHERE a.id = ?${filterTenant ? ' AND a.tenant_id = ?' : ''}`;
+        const params = filterTenant ? [adminId, tid] : [adminId];
+        const admin = await queryOne(sql, params);
         
         if (admin) {
             admin.permissions = await getAdminPermissions(adminId);
@@ -10236,21 +10264,42 @@ async function getAdminById(adminId) {
     }
 }
 
-// 建立管理員
+// 建立管理員（tenantId 可為 null：平台級帳號，僅超級管理員應建立）
 async function createAdmin(adminData) {
     try {
-        const { username, password, email, role_id, department, phone, notes } = adminData;
+        await ensureAdminTenantColumn();
+
+        const { username, password, email, role_id, department, phone, notes, tenantId } = adminData;
+        
+        const roleRow = await queryOne(
+            usePostgreSQL ? 'SELECT role_name FROM roles WHERE id = $1' : 'SELECT role_name FROM roles WHERE id = ?',
+            [role_id]
+        );
+        const roleStr = roleRow?.role_name ? String(roleRow.role_name) : 'admin';
         
         const bcrypt = require('bcrypt');
         const passwordHash = await bcrypt.hash(password, 10);
         
-        const sql = usePostgreSQL
-            ? `INSERT INTO admins (username, password_hash, email, role_id, department, phone, notes) 
-               VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
-            : `INSERT INTO admins (username, password_hash, email, role_id, department, phone, notes) 
-               VALUES (?, ?, ?, ?, ?, ?, ?)`;
+        const tid = tenantId != null ? parseInt(tenantId, 10) : null;
+        const safeTenantId = Number.isInteger(tid) && tid > 0 ? tid : null;
         
-        const result = await query(sql, [username, passwordHash, email || '', role_id, department || '', phone || '', notes || '']);
+        const sql = usePostgreSQL
+            ? `INSERT INTO admins (username, password_hash, email, role, role_id, tenant_id, department, phone, notes) 
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`
+            : `INSERT INTO admins (username, password_hash, email, role, role_id, tenant_id, department, phone, notes) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        
+        const result = await query(sql, [
+            username,
+            passwordHash,
+            email || '',
+            roleStr,
+            role_id,
+            safeTenantId,
+            department || '',
+            phone || '',
+            notes || ''
+        ]);
         
         return usePostgreSQL ? result.rows[0].id : result.lastID;
     } catch (error) {
@@ -10259,18 +10308,61 @@ async function createAdmin(adminData) {
     }
 }
 
-// 更新管理員
-async function updateAdmin(adminId, adminData) {
+// 更新管理員（tenantScope 為正整數時僅更新該租戶內帳號）
+async function updateAdmin(adminId, adminData, tenantScope = null) {
     try {
         const { email, role_id, department, phone, notes, is_active } = adminData;
-        
-        const sql = usePostgreSQL
-            ? `UPDATE admins SET email = $1, role_id = $2, department = $3, phone = $4, notes = $5, is_active = $6
-               WHERE id = $7`
-            : `UPDATE admins SET email = ?, role_id = ?, department = ?, phone = ?, notes = ?, is_active = ?
-               WHERE id = ?`;
-        
-        const result = await query(sql, [email || '', role_id, department || '', phone || '', notes || '', is_active !== undefined ? is_active : 1, adminId]);
+
+        let roleStr = null;
+        if (role_id !== undefined && role_id !== null) {
+            const rr = await queryOne(
+                usePostgreSQL ? 'SELECT role_name FROM roles WHERE id = $1' : 'SELECT role_name FROM roles WHERE id = ?',
+                [role_id]
+            );
+            if (rr?.role_name) roleStr = String(rr.role_name);
+        }
+
+        const tid = tenantScope != null ? parseInt(tenantScope, 10) : NaN;
+        const filterTenant = Number.isInteger(tid) && tid > 0;
+
+        let sql;
+        let params;
+        if (usePostgreSQL) {
+            let idx = 1;
+            const sets = [`email = $${idx++}`, `role_id = $${idx++}`];
+            params = [email || '', role_id];
+            if (roleStr !== null) {
+                sets.push(`role = $${idx++}`);
+                params.push(roleStr);
+            }
+            sets.push(`department = $${idx++}`, `phone = $${idx++}`, `notes = $${idx++}`, `is_active = $${idx++}`);
+            params.push(department || '', phone || '', notes || '', is_active !== undefined ? is_active : 1);
+            params.push(adminId);
+            let where = `WHERE id = $${idx++}`;
+            if (filterTenant) {
+                params.push(tid);
+                where += ` AND tenant_id = $${idx++}`;
+            }
+            sql = `UPDATE admins SET ${sets.join(', ')} ${where}`;
+        } else {
+            let sets = 'email = ?, role_id = ?';
+            params = [email || '', role_id];
+            if (roleStr !== null) {
+                sets += ', role = ?';
+                params.push(roleStr);
+            }
+            sets += ', department = ?, phone = ?, notes = ?, is_active = ?';
+            params.push(department || '', phone || '', notes || '', is_active !== undefined ? is_active : 1);
+            params.push(adminId);
+            let where = 'WHERE id = ?';
+            if (filterTenant) {
+                params.push(tid);
+                where += ' AND tenant_id = ?';
+            }
+            sql = `UPDATE admins SET ${sets} ${where}`;
+        }
+
+        const result = await query(sql, params);
         return result.changes > 0;
     } catch (error) {
         console.error('❌ 更新管理員失敗:', error.message);
@@ -10278,13 +10370,18 @@ async function updateAdmin(adminId, adminData) {
     }
 }
 
-// 刪除管理員
-async function deleteAdmin(adminId) {
+// 刪除管理員（tenantScope 為正整數時僅刪除該租戶內帳號）
+async function deleteAdmin(adminId, tenantScope = null) {
     try {
-        // 檢查是否為最後一個超級管理員
+        const tid = tenantScope != null ? parseInt(tenantScope, 10) : NaN;
+        const filterTenant = Number.isInteger(tid) && tid > 0;
+
+        // 檢查是否為最後一個超級管理員（僅在未限制租戶時需全域檢查）
         const admin = await queryOne(
-            usePostgreSQL ? 'SELECT role_id FROM admins WHERE id = $1' : 'SELECT role_id FROM admins WHERE id = ?',
-            [adminId]
+            usePostgreSQL
+                ? `SELECT role_id FROM admins WHERE id = $1${filterTenant ? ' AND tenant_id = $2' : ''}`
+                : `SELECT role_id FROM admins WHERE id = ?${filterTenant ? ' AND tenant_id = ?' : ''}`,
+            filterTenant ? [adminId, tid] : [adminId]
         );
         
         if (admin) {
@@ -10306,10 +10403,10 @@ async function deleteAdmin(adminId) {
         }
         
         const sql = usePostgreSQL
-            ? 'DELETE FROM admins WHERE id = $1'
-            : 'DELETE FROM admins WHERE id = ?';
+            ? `DELETE FROM admins WHERE id = $1${filterTenant ? ' AND tenant_id = $2' : ''}`
+            : `DELETE FROM admins WHERE id = ?${filterTenant ? ' AND tenant_id = ?' : ''}`;
         
-        const result = await query(sql, [adminId]);
+        const result = await query(sql, filterTenant ? [adminId, tid] : [adminId]);
         return result.changes > 0;
     } catch (error) {
         console.error('❌ 刪除管理員失敗:', error.message);
@@ -10317,14 +10414,24 @@ async function deleteAdmin(adminId) {
     }
 }
 
-// 更新管理員角色
-async function updateAdminRole(adminId, roleId) {
+// 更新管理員角色（tenantScope 為正整數時僅更新該租戶內帳號）
+async function updateAdminRole(adminId, roleId, tenantScope = null) {
     try {
+        const rr = await queryOne(
+            usePostgreSQL ? 'SELECT role_name FROM roles WHERE id = $1' : 'SELECT role_name FROM roles WHERE id = ?',
+            [roleId]
+        );
+        const roleStr = rr?.role_name ? String(rr.role_name) : 'admin';
+
+        const tid = tenantScope != null ? parseInt(tenantScope, 10) : NaN;
+        const filterTenant = Number.isInteger(tid) && tid > 0;
+
         const sql = usePostgreSQL
-            ? 'UPDATE admins SET role_id = $1 WHERE id = $2'
-            : 'UPDATE admins SET role_id = ? WHERE id = ?';
-        
-        const result = await query(sql, [roleId, adminId]);
+            ? `UPDATE admins SET role_id = $1, role = $2 WHERE id = $3${filterTenant ? ' AND tenant_id = $4' : ''}`
+            : `UPDATE admins SET role_id = ?, role = ? WHERE id = ?${filterTenant ? ' AND tenant_id = ?' : ''}`;
+
+        const params = filterTenant ? [roleId, roleStr, adminId, tid] : [roleId, roleStr, adminId];
+        const result = await query(sql, params);
         return result.changes > 0;
     } catch (error) {
         console.error('❌ 更新管理員角色失敗:', error.message);
@@ -10478,6 +10585,7 @@ module.exports = {
     hasPermission,
     getRolePermissions,
     getAllRoles,
+    getAssignableRolesForStaffAdmin,
     getRoleById,
     getAllPermissions,
     getAllPermissionsGrouped,
