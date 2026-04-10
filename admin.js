@@ -2383,6 +2383,21 @@ async function loadBookings() {
         if (result.success) {
             allBookings = result.data || [];
             currentPage = 1;
+            // 若有包棟代碼（wp_xxx）但尚未載入方案清單，先補抓一次供顯示名稱映射
+            if (
+                allBookings.some((b) => /^wp_/i.test(String(b?.room_type || '').trim())) &&
+                (!Array.isArray(allRoomTypesWholeProperty) || allRoomTypesWholeProperty.length === 0)
+            ) {
+                try {
+                    const wpRes = await adminFetch('/api/admin/room-types?listScope=whole_property');
+                    const wpJson = await wpRes.json();
+                    if (wpJson.success) {
+                        allRoomTypesWholeProperty = Array.isArray(wpJson.data) ? wpJson.data : [];
+                    }
+                } catch (e) {
+                    console.warn('載入包棟方案清單失敗，房型名稱映射將使用代碼:', e.message);
+                }
+            }
             console.log('📊 載入的訂房記錄數量:', allBookings.length);
             if (allBookings.length > 0) {
                 console.log('📊 第一筆記錄的金額:', {
@@ -3403,12 +3418,16 @@ function getBookingRoomTypeLabel(booking) {
     if (!raw) return '-';
 
     // 需求：包棟模式顯示方案名稱（display_name），不要顯示代碼（如 wp_10）
-    if (String(booking?.booking_mode || '') !== 'whole_property') {
+    const isWholePropertyCode = /^wp_/i.test(raw);
+    const isWholePropertyBooking = String(booking?.booking_mode || '') === 'whole_property';
+    if (!isWholePropertyBooking && !isWholePropertyCode) {
         return raw;
     }
 
     const wholePropertyList = Array.isArray(allRoomTypesWholeProperty) ? allRoomTypesWholeProperty : [];
-    const matched = wholePropertyList.find((room) => String(room?.name || '').trim() === raw);
+    const matched =
+        wholePropertyList.find((room) => String(room?.name || '').trim() === raw) ||
+        wholePropertyList.find((room) => String(room?.id || '') === raw.replace(/^wp_/i, '').trim());
     if (matched) {
         return String(matched.display_name || matched.name || raw).trim() || raw;
     }
