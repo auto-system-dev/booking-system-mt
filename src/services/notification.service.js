@@ -10,6 +10,12 @@ function createNotificationService(deps) {
         generateCancellationEmail
     } = deps;
     const resolveTenantId = (data = {}) => data.tenant_id || data.tenantId || processEnv.DEFAULT_TENANT_ID || 1;
+    const resolveAdminNotificationEmail = async (tenantIdLike) => {
+        const tenantId = resolveTenantId({ tenantId: tenantIdLike });
+        const configured = String((await db.getSetting('admin_email', tenantId)) || '').trim();
+        const fallback = String(processEnv.ADMIN_EMAIL || 'cheng701107@gmail.com').trim();
+        return configured || fallback;
+    };
 
     async function buildMailOptionsFromTemplateWithFallback(params) {
         const {
@@ -179,7 +185,7 @@ function createNotificationService(deps) {
         }
 
         try {
-            const adminEmail = await db.getSetting('admin_email', resolveTenantId(booking)) || processEnv.ADMIN_EMAIL || 'cheng701107@gmail.com';
+            const adminEmail = await resolveAdminNotificationEmail(resolveTenantId(booking));
             let adminMailOptions = null;
             try {
                 const { subject, content } = await templateService.generateEmailFromTemplate('booking_confirmation_admin', bookingData);
@@ -244,7 +250,7 @@ function createNotificationService(deps) {
             fallbackHtmlFactory: () => templateService.generateCustomerEmail(bookingData)
         });
 
-        const adminEmail = await db.getSetting('admin_email', resolveTenantId(bookingData)) || processEnv.ADMIN_EMAIL || 'cheng701107@gmail.com';
+        const adminEmail = await resolveAdminNotificationEmail(resolveTenantId(bookingData));
         const adminRender = await buildMailOptionsFromTemplateWithFallback({
             context: '建立訂房寄信',
             to: adminEmail,
