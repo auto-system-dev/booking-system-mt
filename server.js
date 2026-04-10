@@ -9908,7 +9908,11 @@ app.post('/api/email-templates/checkin_reminder/clear-blocks', requireAuth, chec
 async function generateEmailFromTemplate(templateKey, booking, bankInfo = null, additionalData = {}) {
     try {
         // 從數據庫讀取模板
-        const template = await db.getEmailTemplateByKey(templateKey, booking?.tenant_id || getRequestTenantId(req));
+        const tenantId = parseInt(
+            booking?.tenant_id || booking?.tenantId || process.env.DEFAULT_TENANT_ID || '1',
+            10
+        ) || 1;
+        const template = await db.getEmailTemplateByKey(templateKey, tenantId);
         if (!template) {
             throw new Error(`找不到郵件模板: ${templateKey}`);
         }

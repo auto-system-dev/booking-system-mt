@@ -117,6 +117,7 @@ function createNotificationService(deps) {
 
         const bookingData = {
             bookingId: booking.booking_id,
+            tenantId: resolveTenantId(booking),
             guestName: booking.guest_name,
             guestEmail: booking.guest_email,
             guestPhone: booking.guest_phone,
