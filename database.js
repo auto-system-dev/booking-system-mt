@@ -4639,40 +4639,74 @@ async function getAllBookings(buildingId, bookingMode, tenantId) {
             ? (bookingMode || '').toString().trim()
             : '';
 
-        let sql = `SELECT * FROM bookings WHERE 1=1`;
+        let sql = usePostgreSQL
+            ? `SELECT b.*,
+                      CASE
+                          WHEN COALESCE(b.booking_mode, 'retail') = 'whole_property' OR b.room_type LIKE 'wp_%'
+                          THEN COALESCE((
+                              SELECT COALESCE(NULLIF(TRIM(rt.display_name), ''), rt.name)
+                              FROM room_types rt
+                              WHERE rt.tenant_id = b.tenant_id
+                                AND (
+                                    rt.name = b.room_type
+                                    OR (b.room_type LIKE 'wp_%' AND rt.id::text = substring(b.room_type from 4))
+                                )
+                              LIMIT 1
+                          ), b.room_type)
+                          ELSE b.room_type
+                      END AS room_type_display
+               FROM bookings b
+               WHERE 1=1`
+            : `SELECT b.*,
+                      CASE
+                          WHEN COALESCE(b.booking_mode, 'retail') = 'whole_property' OR b.room_type LIKE 'wp_%'
+                          THEN COALESCE((
+                              SELECT COALESCE(NULLIF(TRIM(rt.display_name), ''), rt.name)
+                              FROM room_types rt
+                              WHERE rt.tenant_id = b.tenant_id
+                                AND (
+                                    rt.name = b.room_type
+                                    OR (b.room_type LIKE 'wp_%' AND CAST(rt.id AS TEXT) = substr(b.room_type, 4))
+                                )
+                              LIMIT 1
+                          ), b.room_type)
+                          ELSE b.room_type
+                      END AS room_type_display
+               FROM bookings b
+               WHERE 1=1`;
         const params = [];
         let paramIndex = 1;
         if (usePostgreSQL) {
-            sql += ` AND tenant_id = $${paramIndex}`;
+            sql += ` AND b.tenant_id = $${paramIndex}`;
             params.push(safeTenantId);
             paramIndex += 1;
         } else {
-            sql += ` AND tenant_id = ?`;
+            sql += ` AND b.tenant_id = ?`;
             params.push(safeTenantId);
         }
 
         if (hasBuildingFilter) {
             if (usePostgreSQL) {
-                sql += ` AND (building_id = $${paramIndex} OR ($${paramIndex} = 1 AND (building_id IS NULL OR building_id = 0)))`;
+                sql += ` AND (b.building_id = $${paramIndex} OR ($${paramIndex} = 1 AND (b.building_id IS NULL OR b.building_id = 0)))`;
                 params.push(safeBid);
                 paramIndex += 1;
             } else {
-                sql += ` AND (building_id = ? OR (? = 1 AND (building_id IS NULL OR building_id = 0)))`;
+                sql += ` AND (b.building_id = ? OR (? = 1 AND (b.building_id IS NULL OR b.building_id = 0)))`;
                 params.push(safeBid, safeBid);
             }
         }
 
         if (mode) {
             if (usePostgreSQL) {
-                sql += ` AND COALESCE(booking_mode, 'retail') = $${paramIndex}`;
+                sql += ` AND COALESCE(b.booking_mode, 'retail') = $${paramIndex}`;
                 params.push(mode);
             } else {
-                sql += ` AND COALESCE(booking_mode, 'retail') = ?`;
+                sql += ` AND COALESCE(b.booking_mode, 'retail') = ?`;
                 params.push(mode);
             }
         }
 
-        sql += ` ORDER BY created_at DESC`;
+        sql += ` ORDER BY b.created_at DESC`;
         const result = await query(sql, params);
         return result.rows || result || [];
     } catch (error) {
@@ -4686,8 +4720,40 @@ async function getBookingById(bookingId, tenantId) {
     try {
         const safeTenantId = assertTenantScope(tenantId, 'getBookingById');
         const sql = usePostgreSQL
-            ? `SELECT * FROM bookings WHERE booking_id = $1 AND tenant_id = $2`
-            : `SELECT * FROM bookings WHERE booking_id = ? AND tenant_id = ?`;
+            ? `SELECT b.*,
+                      CASE
+                          WHEN COALESCE(b.booking_mode, 'retail') = 'whole_property' OR b.room_type LIKE 'wp_%'
+                          THEN COALESCE((
+                              SELECT COALESCE(NULLIF(TRIM(rt.display_name), ''), rt.name)
+                              FROM room_types rt
+                              WHERE rt.tenant_id = b.tenant_id
+                                AND (
+                                    rt.name = b.room_type
+                                    OR (b.room_type LIKE 'wp_%' AND rt.id::text = substring(b.room_type from 4))
+                                )
+                              LIMIT 1
+                          ), b.room_type)
+                          ELSE b.room_type
+                      END AS room_type_display
+               FROM bookings b
+               WHERE b.booking_id = $1 AND b.tenant_id = $2`
+            : `SELECT b.*,
+                      CASE
+                          WHEN COALESCE(b.booking_mode, 'retail') = 'whole_property' OR b.room_type LIKE 'wp_%'
+                          THEN COALESCE((
+                              SELECT COALESCE(NULLIF(TRIM(rt.display_name), ''), rt.name)
+                              FROM room_types rt
+                              WHERE rt.tenant_id = b.tenant_id
+                                AND (
+                                    rt.name = b.room_type
+                                    OR (b.room_type LIKE 'wp_%' AND CAST(rt.id AS TEXT) = substr(b.room_type, 4))
+                                )
+                              LIMIT 1
+                          ), b.room_type)
+                          ELSE b.room_type
+                      END AS room_type_display
+               FROM bookings b
+               WHERE b.booking_id = ? AND b.tenant_id = ?`;
         const booking = await queryOne(sql, [bookingId, safeTenantId]);
         
         if (!booking) {
