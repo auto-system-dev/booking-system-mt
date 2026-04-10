@@ -6,38 +6,51 @@ function createBookingNotificationJobs(deps) {
         calculateDynamicPaymentDeadline
     } = deps;
     const defaultTenantId = parseInt(process.env.DEFAULT_TENANT_ID || '1', 10);
+    
+    async function getActiveTenantIds() {
+        try {
+            const tenants = await db.getTenantsOverview({ status: 'active', limit: 2000, offset: 0 });
+            const ids = (tenants || [])
+                .map((t) => parseInt(t.id, 10))
+                .filter((id) => Number.isInteger(id) && id > 0);
+            return ids.length > 0 ? ids : [defaultTenantId];
+        } catch (error) {
+            console.warn('⚠️  取得租戶清單失敗，回退預設租戶執行排程:', error.message);
+            return [defaultTenantId];
+        }
+    }
 
     async function sendPaymentReminderEmails() {
         try {
             const now = new Date();
             console.log(`\n[定時任務] 開始檢查匯款期限提醒... (${now.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })})`);
 
-            const template = await db.getEmailTemplateByKey('payment_reminder');
-            if (!template) {
-                console.log('❌ 找不到匯款提醒模板');
-                return;
-            }
-            if (!template.is_enabled) {
-                console.log('⚠️ 匯款提醒模板未啟用，跳過發送');
-                return;
-            }
-
-            const daysReserved = parseInt(template.days_reserved) || 3;
-            const sendHour = parseInt(template.send_hour_payment_reminder) || 9;
-
-            console.log(`✅ 匯款提醒模板已啟用 (days_reserved: ${daysReserved}, send_hour_payment_reminder: ${sendHour})`);
-
+            const tenantIds = await getActiveTenantIds();
             const currentHour = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour: '2-digit', hour12: false });
             const currentHourNum = parseInt(currentHour);
-            if (currentHourNum !== sendHour) {
-                console.log(`⏰ 當前時間 ${currentHourNum}:00 不符合發送時間 ${sendHour}:00，跳過`);
-                return;
-            }
 
-            const allBookings = await db.getBookingsForPaymentReminder();
-            console.log(`初步查詢找到 ${allBookings.length} 筆可能的訂房`);
+            for (const tenantId of tenantIds) {
+                const template = await db.getEmailTemplateByKey('payment_reminder', tenantId);
+                if (!template) {
+                    console.log(`⚠️ 租戶 ${tenantId} 找不到匯款提醒模板，跳過`);
+                    continue;
+                }
+                if (!template.is_enabled) {
+                    console.log(`⚠️ 租戶 ${tenantId} 匯款提醒模板未啟用，跳過`);
+                    continue;
+                }
 
-            const bookings = allBookings.filter((booking) => {
+                const daysReserved = parseInt(template.days_reserved) || 3;
+                const sendHour = parseInt(template.send_hour_payment_reminder) || 9;
+                if (currentHourNum !== sendHour) {
+                    console.log(`⏰ 租戶 ${tenantId} 當前時間 ${currentHourNum}:00 不符合發送時間 ${sendHour}:00，跳過`);
+                    continue;
+                }
+
+                const allBookings = await db.getBookingsForPaymentReminder(tenantId);
+                console.log(`租戶 ${tenantId} 初步查詢找到 ${allBookings.length} 筆可能的訂房`);
+
+                const bookings = allBookings.filter((booking) => {
                 if (!booking.check_in_date) {
                     return false;
                 }
@@ -67,29 +80,30 @@ function createBookingNotificationJobs(deps) {
                 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 const deadlineDay = new Date(deadline.getFullYear(), deadline.getMonth(), deadline.getDate());
                 return deadlineDay.getTime() === today.getTime() && currentHourNum === sendHour;
-            });
+                });
 
-            console.log(`找到 ${bookings.length} 筆需要發送匯款提醒的訂房（匯款期限最後一天）`);
+                console.log(`租戶 ${tenantId} 找到 ${bookings.length} 筆需要發送匯款提醒的訂房`);
 
-            const bankInfo = {
-                bankName: await db.getSetting('bank_name', defaultTenantId) || '',
-                bankBranch: await db.getSetting('bank_branch', defaultTenantId) || '',
-                account: await db.getSetting('bank_account', defaultTenantId) || '',
-                accountName: await db.getSetting('account_name', defaultTenantId) || ''
-            };
+                const bankInfo = {
+                    bankName: await db.getSetting('bank_name', tenantId) || '',
+                    bankBranch: await db.getSetting('bank_branch', tenantId) || '',
+                    account: await db.getSetting('bank_account', tenantId) || '',
+                    accountName: await db.getSetting('account_name', tenantId) || ''
+                };
 
-            for (const booking of bookings) {
-                try {
-                    const emailSent = await notificationService.sendPaymentReminderEmail({
-                        booking,
-                        bankInfo,
-                        template
-                    });
-                    if (emailSent) {
-                        console.log(`✅ 已發送匯款提醒給 ${booking.guest_name} (${booking.booking_id})`);
+                for (const booking of bookings) {
+                    try {
+                        const emailSent = await notificationService.sendPaymentReminderEmail({
+                            booking,
+                            bankInfo,
+                            template
+                        });
+                        if (emailSent) {
+                            console.log(`✅ 已發送匯款提醒給 ${booking.guest_name} (${booking.booking_id})`);
+                        }
+                    } catch (error) {
+                        console.error(`❌ 發送匯款提醒失敗 (${booking.booking_id}):`, error.message);
                     }
-                } catch (error) {
-                    console.error(`❌ 發送匯款提醒失敗 (${booking.booking_id}):`, error.message);
                 }
             }
         } catch (error) {
@@ -103,15 +117,21 @@ function createBookingNotificationJobs(deps) {
             const bookings = await db.getBookingsExpiredReservation();
             console.log(`找到 ${bookings.length} 筆保留狀態的訂房`);
 
-            let daysReserved = 3;
-            try {
-                const paymentTemplate = await db.getEmailTemplateByKey('payment_reminder');
-                if (paymentTemplate && paymentTemplate.days_reserved) {
-                    daysReserved = parseInt(paymentTemplate.days_reserved) || 3;
+            const daysReservedByTenant = new Map();
+            const getDaysReservedForTenant = async (tenantId) => {
+                if (daysReservedByTenant.has(tenantId)) return daysReservedByTenant.get(tenantId);
+                let value = 3;
+                try {
+                    const paymentTemplate = await db.getEmailTemplateByKey('payment_reminder', tenantId);
+                    if (paymentTemplate && paymentTemplate.days_reserved) {
+                        value = parseInt(paymentTemplate.days_reserved) || 3;
+                    }
+                } catch (err) {
+                    console.warn(`取得租戶 ${tenantId} 匯款提醒模板失敗，使用預設 days_reserved=3:`, err.message);
                 }
-            } catch (err) {
-                console.warn('取得匯款提醒模板失敗，使用預設值:', err.message);
-            }
+                daysReservedByTenant.set(tenantId, value);
+                return value;
+            };
 
             const now = new Date();
             let cancelledCount = 0;
@@ -124,6 +144,8 @@ function createBookingNotificationJobs(deps) {
                         continue;
                     }
 
+                    const tenantId = parseInt(booking.tenant_id, 10) || defaultTenantId;
+                    const daysReserved = await getDaysReservedForTenant(tenantId);
                     const { deadline } = calculateDynamicPaymentDeadline(booking.created_at, booking.check_in_date, daysReserved);
 
                     if (now > deadline) {
@@ -164,35 +186,34 @@ function createBookingNotificationJobs(deps) {
             const now = new Date();
             console.log(`\n[定時任務] 開始檢查入住提醒... (${now.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })})`);
 
-            const template = await db.getEmailTemplateByKey('checkin_reminder');
-            if (!template) {
-                console.log('❌ 找不到入住提醒模板');
-                return;
-            }
-            if (!template.is_enabled) {
-                console.log('⚠️ 入住提醒模板未啟用，跳過發送');
-                return;
-            }
-
-            const daysBeforeCheckin = parseInt(template.days_before_checkin) || 1;
-            const sendHour = parseInt(template.send_hour_checkin) || 9;
-
-            console.log(`✅ 入住提醒模板已啟用 (days_before_checkin: ${daysBeforeCheckin}, send_hour_checkin: ${sendHour})`);
-
             const currentHour = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour: '2-digit', hour12: false });
             const currentHourNum = parseInt(currentHour);
-            if (currentHourNum !== sendHour) {
-                console.log(`⏰ 當前時間 ${currentHourNum}:00 不符合發送時間 ${sendHour}:00，跳過`);
-                return;
-            }
+            const tenantIds = await getActiveTenantIds();
 
-            const bookings = await db.getBookingsForCheckinReminder(daysBeforeCheckin);
-            console.log(`找到 ${bookings.length} 筆需要發送入住提醒的訂房`);
+            for (const tenantId of tenantIds) {
+                const template = await db.getEmailTemplateByKey('checkin_reminder', tenantId);
+                if (!template) {
+                    console.log(`⚠️ 租戶 ${tenantId} 找不到入住提醒模板，跳過`);
+                    continue;
+                }
+                if (!template.is_enabled) {
+                    console.log(`⚠️ 租戶 ${tenantId} 入住提醒模板未啟用，跳過`);
+                    continue;
+                }
 
-            const hotelSettings = await getHotelSettingsWithFallback();
+                const daysBeforeCheckin = parseInt(template.days_before_checkin) || 1;
+                const sendHour = parseInt(template.send_hour_checkin) || 9;
+                if (currentHourNum !== sendHour) {
+                    console.log(`⏰ 租戶 ${tenantId} 當前時間 ${currentHourNum}:00 不符合發送時間 ${sendHour}:00，跳過`);
+                    continue;
+                }
 
-            for (const booking of bookings) {
-                try {
+                const bookings = await db.getBookingsForCheckinReminder(daysBeforeCheckin, tenantId);
+                console.log(`租戶 ${tenantId} 找到 ${bookings.length} 筆需要發送入住提醒的訂房`);
+                const hotelSettings = await getHotelSettingsWithFallback(tenantId);
+
+                for (const booking of bookings) {
+                    try {
                     const templateContent = template.content || '';
                     const templateSubject = template.subject || '';
 
@@ -213,16 +234,17 @@ function createBookingNotificationJobs(deps) {
                         '{{hotelPhone}}': hotelSettings.hotelPhone
                     };
 
-                    const emailSent = await notificationService.sendCheckinReminderEmail({
-                        booking,
-                        template,
-                        additionalData
-                    });
-                    if (emailSent) {
-                        console.log(`✅ 已發送入住提醒給 ${booking.guest_name} (${booking.booking_id})`);
+                        const emailSent = await notificationService.sendCheckinReminderEmail({
+                            booking,
+                            template,
+                            additionalData
+                        });
+                        if (emailSent) {
+                            console.log(`✅ 已發送入住提醒給 ${booking.guest_name} (${booking.booking_id})`);
+                        }
+                    } catch (error) {
+                        console.error(`❌ 發送入住提醒失敗 (${booking.booking_id}):`, error.message);
                     }
-                } catch (error) {
-                    console.error(`❌ 發送入住提醒失敗 (${booking.booking_id}):`, error.message);
                 }
             }
         } catch (error) {
@@ -235,50 +257,51 @@ function createBookingNotificationJobs(deps) {
             const now = new Date();
             console.log(`\n[定時任務] 開始檢查回訪信... (${now.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })})`);
 
-            const template = await db.getEmailTemplateByKey('feedback_request');
-            if (!template) {
-                console.log('❌ 找不到回訪信模板');
-                return;
-            }
-            if (!template.is_enabled) {
-                console.log('⚠️ 回訪信模板未啟用，跳過發送');
-                return;
-            }
-
-            const daysAfterCheckout = parseInt(template.days_after_checkout) || 1;
-            const sendHour = parseInt(template.send_hour_feedback) || 10;
-
-            console.log(`✅ 回訪信模板已啟用 (days_after_checkout: ${daysAfterCheckout}, send_hour_feedback: ${sendHour})`);
-
             const currentHour = new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour: '2-digit', hour12: false });
             const currentHourNum = parseInt(currentHour);
-            if (currentHourNum !== sendHour) {
-                console.log(`⏰ 當前時間 ${currentHourNum}:00 不符合發送時間 ${sendHour}:00，跳過`);
-                return;
-            }
+            const tenantIds = await getActiveTenantIds();
 
-            const bookings = await db.getBookingsForFeedbackRequest(daysAfterCheckout);
-            console.log(`找到 ${bookings.length} 筆需要發送回訪信的訂房`);
+            for (const tenantId of tenantIds) {
+                const template = await db.getEmailTemplateByKey('feedback_request', tenantId);
+                if (!template) {
+                    console.log(`⚠️ 租戶 ${tenantId} 找不到回訪信模板，跳過`);
+                    continue;
+                }
+                if (!template.is_enabled) {
+                    console.log(`⚠️ 租戶 ${tenantId} 回訪信模板未啟用，跳過`);
+                    continue;
+                }
 
-            const hotelSettings = await getHotelSettingsWithFallback();
+                const daysAfterCheckout = parseInt(template.days_after_checkout) || 1;
+                const sendHour = parseInt(template.send_hour_feedback) || 10;
+                if (currentHourNum !== sendHour) {
+                    console.log(`⏰ 租戶 ${tenantId} 當前時間 ${currentHourNum}:00 不符合發送時間 ${sendHour}:00，跳過`);
+                    continue;
+                }
 
-            for (const booking of bookings) {
-                try {
+                const bookings = await db.getBookingsForFeedbackRequest(daysAfterCheckout, tenantId);
+                console.log(`租戶 ${tenantId} 找到 ${bookings.length} 筆需要發送回訪信的訂房`);
+
+                const hotelSettings = await getHotelSettingsWithFallback(tenantId);
+
+                for (const booking of bookings) {
+                    try {
                     const additionalData = {
                         '{{hotelEmail}}': hotelSettings.hotelEmail,
                         '{{hotelPhone}}': hotelSettings.hotelPhone
                     };
 
-                    const emailSent = await notificationService.sendFeedbackRequestEmail({
-                        booking,
-                        template,
-                        additionalData
-                    });
-                    if (emailSent) {
-                        console.log(`✅ 已發送回訪信給 ${booking.guest_name} (${booking.booking_id})`);
+                        const emailSent = await notificationService.sendFeedbackRequestEmail({
+                            booking,
+                            template,
+                            additionalData
+                        });
+                        if (emailSent) {
+                            console.log(`✅ 已發送回訪信給 ${booking.guest_name} (${booking.booking_id})`);
+                        }
+                    } catch (error) {
+                        console.error(`❌ 發送回訪信失敗 (${booking.booking_id}):`, error.message);
                     }
-                } catch (error) {
-                    console.error(`❌ 發送回訪信失敗 (${booking.booking_id}):`, error.message);
                 }
             }
         } catch (error) {

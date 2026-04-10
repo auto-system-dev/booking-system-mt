@@ -8779,8 +8779,9 @@ async function updateEmailTemplate(templateKey, data, tenantId) {
 }
 
 // 取得需要發送匯款提醒的訂房（匯款期限最後一天）
-async function getBookingsForPaymentReminder() {
+async function getBookingsForPaymentReminder(tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getBookingsForPaymentReminder');
         // 使用本地時區計算今天的日期
         const now = new Date();
         const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -8804,16 +8805,20 @@ async function getBookingsForPaymentReminder() {
             WHERE payment_method LIKE '%匯款%' 
             AND payment_status = 'pending' 
             AND status = 'reserved'
+            AND tenant_id = $2
             AND DATE(created_at) <= DATE($1)
         ` : `
             SELECT * FROM bookings 
             WHERE payment_method LIKE '%匯款%' 
             AND payment_status = 'pending' 
             AND status = 'reserved'
+            AND tenant_id = ?
             AND DATE(created_at) <= DATE(?)
         `;
         
-        const result = await query(sql, [todayStr]);
+        const result = usePostgreSQL
+            ? await query(sql, [todayStr, safeTenantId])
+            : await query(sql, [safeTenantId, todayStr]);
         console.log(`   找到 ${result.rows ? result.rows.length : 0} 筆符合條件的訂房`);
         if (result.rows && result.rows.length > 0) {
             result.rows.forEach(booking => {
@@ -8830,8 +8835,9 @@ async function getBookingsForPaymentReminder() {
 }
 
 // 取得需要發送入住提醒的訂房（入住前一天）
-async function getBookingsForCheckinReminder(daysBeforeCheckin = 1) {
+async function getBookingsForCheckinReminder(daysBeforeCheckin = 1, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getBookingsForCheckinReminder');
         // 使用本地時區計算目標日期（入住日期前 N 天）
         const now = new Date();
         const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysBeforeCheckin);
@@ -8846,10 +8852,10 @@ async function getBookingsForCheckinReminder(daysBeforeCheckin = 1) {
         console.log(`   當前時間: ${now.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`);
         
         const sql = usePostgreSQL
-            ? `SELECT * FROM bookings WHERE check_in_date = $1 AND status = 'active' AND payment_status = 'paid'`
-            : `SELECT * FROM bookings WHERE check_in_date = ? AND status = 'active' AND payment_status = 'paid'`;
+            ? `SELECT * FROM bookings WHERE check_in_date = $1 AND status = 'active' AND payment_status = 'paid' AND tenant_id = $2`
+            : `SELECT * FROM bookings WHERE check_in_date = ? AND status = 'active' AND payment_status = 'paid' AND tenant_id = ?`;
         
-        const result = await query(sql, [targetDateStr]);
+        const result = await query(sql, [targetDateStr, safeTenantId]);
         console.log(`   找到 ${result.rows ? result.rows.length : 0} 筆符合條件的訂房`);
         if (result.rows && result.rows.length > 0) {
             result.rows.forEach(booking => {
@@ -8865,8 +8871,9 @@ async function getBookingsForCheckinReminder(daysBeforeCheckin = 1) {
 }
 
 // 取得需要發送回訪信的訂房（退房後隔天）
-async function getBookingsForFeedbackRequest(daysAfterCheckout = 1) {
+async function getBookingsForFeedbackRequest(daysAfterCheckout = 1, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getBookingsForFeedbackRequest');
         // 使用本地時區計算目標日期（退房日期 + days_after_checkout 天前）
         const now = new Date();
         const targetDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - daysAfterCheckout);
@@ -8881,10 +8888,10 @@ async function getBookingsForFeedbackRequest(daysAfterCheckout = 1) {
         console.log(`   當前時間: ${now.toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}`);
         
         const sql = usePostgreSQL
-            ? `SELECT * FROM bookings WHERE check_out_date = $1 AND status = 'active'`
-            : `SELECT * FROM bookings WHERE check_out_date = ? AND status = 'active'`;
+            ? `SELECT * FROM bookings WHERE check_out_date = $1 AND status = 'active' AND tenant_id = $2`
+            : `SELECT * FROM bookings WHERE check_out_date = ? AND status = 'active' AND tenant_id = ?`;
         
-        const result = await query(sql, [targetDateStr]);
+        const result = await query(sql, [targetDateStr, safeTenantId]);
         console.log(`   找到 ${result.rows ? result.rows.length : 0} 筆符合條件的訂房`);
         if (result.rows && result.rows.length > 0) {
             result.rows.forEach(booking => {
