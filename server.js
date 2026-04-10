@@ -993,11 +993,26 @@ async function handleCreateBooking(req, res) {
                 ? await db.getRoomTypesByBuilding(safeBuildingId, { activeOnly: false, listScope, tenantId })
                 : await db.getAllRoomTypesAdmin(safeBuildingId, listScope, tenantId);
             const requestedRoomType = String(roomType || '').trim();
+            const requestSelectionsRaw = Array.isArray(req.body?.roomSelections) ? req.body.roomSelections : [];
+            const firstSelection = requestSelectionsRaw.find((s) => Number(s?.quantity || 0) > 0) || requestSelectionsRaw[0] || null;
+            const requestedCandidates = new Set(
+                [
+                    requestedRoomType,
+                    String(firstSelection?.name || '').trim(),
+                    String(firstSelection?.displayName || '').trim(),
+                    String(firstSelection?.display_name || '').trim(),
+                    String(firstSelection?.id || '').trim(),
+                    firstSelection?.id ? `wp_${String(firstSelection.id).trim()}` : ''
+                ].filter(Boolean)
+            );
             const selectedRoom = (allRoomTypes || []).find((r) => {
                 const name = String(r?.name || '').trim();
                 const displayName = String(r?.display_name || '').trim();
                 const wpCode = `wp_${String(r?.id || '').trim()}`;
-                return requestedRoomType === name || requestedRoomType === displayName || requestedRoomType === wpCode;
+                return requestedCandidates.has(name)
+                    || requestedCandidates.has(displayName)
+                    || requestedCandidates.has(wpCode)
+                    || requestedCandidates.has(String(r?.id || '').trim());
             });
             if (!selectedRoom) {
                 return res.status(400).json({
