@@ -983,13 +983,29 @@ async function handleCreateBooking(req, res) {
             console.warn('取得系統設定失敗，使用預設值:', err.message);
         }
         
-        // 從資料庫取得房型資訊（使用 display_name 作為房型名稱）
+        // 依系統模式限制可選房型，避免包棟模式混入零售房型
         let roomTypeName = roomType; // 預設值
         try {
+            const tenantId = getRequestTenantId(req);
+            const systemModeNow = String((await db.getSetting('system_mode', tenantId)) || 'retail').trim() || 'retail';
+            const listScope = systemModeNow === 'whole_property' ? 'whole_property' : 'retail';
             const allRoomTypes = db.getRoomTypesByBuilding
-                ? await db.getRoomTypesByBuilding(safeBuildingId, { activeOnly: false, tenantId: getRequestTenantId(req) })
-                : await db.getAllRoomTypes(getRequestTenantId(req));
-            const selectedRoom = allRoomTypes.find(r => r.name === roomType);
+                ? await db.getRoomTypesByBuilding(safeBuildingId, { activeOnly: false, listScope, tenantId })
+                : await db.getAllRoomTypesAdmin(safeBuildingId, listScope, tenantId);
+            const requestedRoomType = String(roomType || '').trim();
+            const selectedRoom = (allRoomTypes || []).find((r) => {
+                const name = String(r?.name || '').trim();
+                const displayName = String(r?.display_name || '').trim();
+                const wpCode = `wp_${String(r?.id || '').trim()}`;
+                return requestedRoomType === name || requestedRoomType === displayName || requestedRoomType === wpCode;
+            });
+            if (!selectedRoom) {
+                return res.status(400).json({
+                    message: listScope === 'whole_property'
+                        ? '目前為包棟模式，請選擇包棟方案'
+                        : '請選擇有效房型'
+                });
+            }
             if (selectedRoom) {
                 roomTypeName = selectedRoom.display_name; // 使用顯示名稱
             }
@@ -1543,6 +1559,24 @@ app.post('/api/admin/bookings/quick', requireAuth, requireTenantContext, checkPe
         const msPerDay = 1000 * 60 * 60 * 24;
         const nights = Math.max(1, Math.round((checkOut - checkIn) / msPerDay));
 
+        const systemModeNow = String((await db.getSetting('system_mode', req.tenantId)) || 'retail').trim() || 'retail';
+        const listScope = systemModeNow === 'whole_property' ? 'whole_property' : 'retail';
+        const scopedRoomTypes = await db.getAllRoomTypesAdmin(null, listScope, req.tenantId);
+        const requestedRoomType = String(roomType || '').trim();
+        const selectedRoom = (scopedRoomTypes || []).find((r) => {
+            const name = String(r?.name || '').trim();
+            const displayName = String(r?.display_name || '').trim();
+            const wpCode = `wp_${String(r?.id || '').trim()}`;
+            return requestedRoomType === name || requestedRoomType === displayName || requestedRoomType === wpCode;
+        });
+        if (!selectedRoom) {
+            return res.status(400).json({
+                success: false,
+                message: listScope === 'whole_property' ? '目前為包棟模式，請選擇包棟方案' : '請選擇有效房型'
+            });
+        }
+        const normalizedRoomType = String(selectedRoom.display_name || selectedRoom.name || requestedRoomType).trim();
+
         // 後端強制防呆：同房型在「有效/保留」重疊期間不可重複新增
         const bookingsInRange = await db.getBookingsInRange(checkInDate, checkOutDate, null, null, req.tenantId);
         const hasRoomTypeConflict = bookingsInRange.some((booking) => {
@@ -1551,7 +1585,7 @@ app.post('/api/admin/bookings/quick', requireAuth, requireTenantContext, checkPe
             if (status !== 'active' && status !== 'reserved') return false;
 
             const existingRoomType = (booking.room_type || '').trim();
-            if (!existingRoomType || existingRoomType !== (roomType || '').trim()) return false;
+            if (!existingRoomType || existingRoomType !== normalizedRoomType) return false;
 
             const existingCheckIn = new Date(`${String(booking.check_in_date).slice(0, 10)}T00:00:00`);
             const existingCheckOut = new Date(`${String(booking.check_out_date).slice(0, 10)}T00:00:00`);
@@ -1574,14 +1608,14 @@ app.post('/api/admin/bookings/quick', requireAuth, requireTenantContext, checkPe
             guestName: guestName,
             checkInDate: checkInDate,
             checkOutDate: checkOutDate,
-            roomType: roomType
+            roomType: normalizedRoomType
         });
         
         const bookingData = {
             bookingId,
             checkInDate,
             checkOutDate,
-            roomType,
+            roomType: normalizedRoomType,
             guestName,
             guestPhone: guestPhone || '',
             guestEmail: guestEmail || '',
@@ -1610,7 +1644,7 @@ app.post('/api/admin/bookings/quick', requireAuth, requireTenantContext, checkPe
             guestName: guestName,
             checkInDate: checkInDate,
             checkOutDate: checkOutDate,
-            roomType: roomType
+            roomType: normalizedRoomType
         });
         
         console.log('✅ 後台快速建立訂房成功:', bookingId, 'DB ID:', savedId);
