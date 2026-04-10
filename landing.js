@@ -864,7 +864,7 @@ function renderRoomCards(cfg) {
                 <div class="room-image" onclick="event.stopPropagation(); ${hasGallery ? `openRoomGallery(${room.id})` : ''};" style="${hasGallery ? 'cursor:pointer;' : ''}">
                     ${primaryRoomImage ? `<img src="${primaryRoomImage}" alt="${displayName}" loading="lazy" onerror="this.onerror=null;this.src='${DEFAULT_WHOLE_PROPERTY_PLAN_IMAGE}'">` : '<div style="height:200px;background:#e0e0e0;display:flex;align-items:center;justify-content:center;color:#999;">尚無圖片</div>'}
                     ${badge ? `<span class="room-badge ${badgeClass}">${badge}</span>` : ''}
-                    ${hasGallery ? `<span class="room-gallery-hint"><span class="material-symbols-outlined">photo_library</span> ${allImages.length > 1 ? `${allImages.length} 張照片` : '點擊放大'}</span>` : ''}
+                    ${allImages.length > 1 ? `<span class="room-gallery-hint"><span class="material-symbols-outlined">photo_library</span> ${allImages.length} 張照片</span>` : ''}
                 </div>
                 <div class="room-info">
                     <h3>${displayName}</h3>
