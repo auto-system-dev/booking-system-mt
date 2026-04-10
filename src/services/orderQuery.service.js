@@ -32,13 +32,13 @@ function createOrderQueryService(deps) {
         });
     }
 
-    async function queryByLineUserId(lineUserId) {
-        const bookings = await db.getBookingsByLineUserId(lineUserId);
+    async function queryByLineUserId(lineUserId, tenantId) {
+        const bookings = await db.getBookingsByLineUserId(lineUserId, tenantId);
         return sanitizeOrderQueryBookings(bookings);
     }
 
-    async function sendOtpByEmail(email) {
-        const bookings = await db.getBookingsByEmail(email);
+    async function sendOtpByEmail(email, tenantId) {
+        const bookings = await db.getBookingsByEmail(email, undefined, tenantId);
         if (!bookings || bookings.length === 0) {
             return { found: false };
         }
@@ -49,7 +49,7 @@ function createOrderQueryService(deps) {
         return { found: true };
     }
 
-    async function verifyOtpAndQuery(email, otp) {
+    async function verifyOtpAndQuery(email, otp, tenantId) {
         const verification = dataProtection.verifyCode(email, otp, 'order_query');
         if (!verification.valid) {
             return {
@@ -58,7 +58,7 @@ function createOrderQueryService(deps) {
             };
         }
 
-        const bookings = await db.getBookingsByEmail(email);
+        const bookings = await db.getBookingsByEmail(email, undefined, tenantId);
         return {
             valid: true,
             bookings: sanitizeOrderQueryBookings(bookings)

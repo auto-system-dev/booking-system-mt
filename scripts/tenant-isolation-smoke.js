@@ -112,8 +112,8 @@ async function main() {
         console.log(`   tenantA=${tenantA}, tenantB=${tenantB}, runTag=${runTag}`);
     } finally {
         // 清理測試資料（不影響其他資料）
-        try { await db.deleteBooking(bookingAId); } catch (_) {}
-        try { await db.deleteBooking(bookingBId); } catch (_) {}
+        try { await db.deleteBooking(bookingAId, tenantA); } catch (_) {}
+        try { await db.deleteBooking(bookingBId, tenantB); } catch (_) {}
         try { if (roomTypeAId) await db.deleteRoomType(roomTypeAId, tenantA); } catch (_) {}
         try { if (roomTypeBId) await db.deleteRoomType(roomTypeBId, tenantB); } catch (_) {}
     }

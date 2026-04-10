@@ -127,7 +127,7 @@ function createBookingNotificationJobs(deps) {
                     const { deadline } = calculateDynamicPaymentDeadline(booking.created_at, booking.check_in_date, daysReserved);
 
                     if (now > deadline) {
-                        await db.cancelBooking(booking.booking_id);
+                        await db.cancelBooking(booking.booking_id, booking.tenant_id);
                         console.log(`✅ 已自動取消過期保留訂房: ${booking.booking_id} (${booking.guest_name})`);
                         cancelledCount++;
 

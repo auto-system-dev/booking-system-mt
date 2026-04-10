@@ -17,7 +17,7 @@ function createPaymentController(deps) {
                 });
             }
 
-            const booking = await db.getBookingById(bookingId);
+            const booking = await db.getBookingById(bookingId, req.tenantId);
 
             if (!booking) {
                 return res.status(404).json({
@@ -98,7 +98,8 @@ function createPaymentController(deps) {
             if (paymentResult.rtnCode === '1') {
                 await paymentService.handleCardPaymentSuccessByCallback(paymentResult.merchantTradeNo, {
                     requestId,
-                    tradeNo: paymentResult.tradeNo
+                    tradeNo: paymentResult.tradeNo,
+                    tenantId: req.tenantId
                 });
             }
 

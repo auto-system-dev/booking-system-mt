@@ -1344,7 +1344,7 @@ async function handleCreateBooking(req, res) {
             
             // 如果郵件發送狀態改變，更新資料庫（匯款轉帳發送確認信）
             if (emailSent && paymentMethod === 'transfer') {
-                await db.updateEmailStatus(bookingData.bookingId, 'booking_confirmation');
+                await db.updateEmailStatus(bookingData.bookingId, 'booking_confirmation', false, req.tenantId);
             }
             
             // 記錄優惠代碼使用（如果有使用）
@@ -5158,7 +5158,7 @@ async function handleUpdateBooking(req, res) {
         const updateData = { ...req.body };
         
         // 先取得原始訂房資料（用於狀態判斷與寄信）
-        const originalBooking = await db.getBookingById(bookingId);
+        const originalBooking = await db.getBookingById(bookingId, req.tenantId);
         
         // 如果付款狀態更新為已付款，且訂房狀態為保留，自動改為有效
         if (updateData.payment_status === 'paid' && originalBooking && originalBooking.status === 'reserved') {
@@ -5166,7 +5166,7 @@ async function handleUpdateBooking(req, res) {
             console.log(`✅ 付款狀態更新為已付款，自動將訂房狀態從「保留」改為「有效」`);
         }
         
-        const result = await db.updateBooking(bookingId, updateData);
+        const result = await db.updateBooking(bookingId, updateData, req.tenantId);
         
         if (result > 0) {
             // 自動寄送收款信：當付款狀態從非「已付款」改為「已付款」，且付款方式為「匯款轉帳」時
@@ -5175,7 +5175,7 @@ async function handleUpdateBooking(req, res) {
                 originalBooking.payment_method === '匯款轉帳' &&
                 originalBooking.payment_status !== 'paid') {
                 try {
-                    const updatedBooking = await db.getBookingById(bookingId);
+                    const updatedBooking = await db.getBookingById(bookingId, req.tenantId);
                     if (updatedBooking && updatedBooking.payment_method === '匯款轉帳') {
                         console.log(`📧 準備寄送收款信給 ${updatedBooking.guest_email} (${updatedBooking.booking_id})`);
                         const emailSent = await notificationService.sendPaymentCompletedEmail(updatedBooking);
@@ -5215,7 +5215,7 @@ async function handleCancelBooking(req, res) {
         const { bookingId } = req.params;
         
         // 取得訂房資料
-        const booking = await db.getBookingById(bookingId);
+        const booking = await db.getBookingById(bookingId, req.tenantId);
         if (!booking) {
             return res.status(404).json({
                 success: false,
@@ -5242,7 +5242,7 @@ async function handleCancelBooking(req, res) {
             }
         }
         
-        const result = await db.cancelBooking(bookingId);
+        const result = await db.cancelBooking(bookingId, req.tenantId);
         
         if (result > 0) {
             res.json({
@@ -5270,7 +5270,7 @@ async function handleDeleteBooking(req, res) {
         const { bookingId } = req.params;
         
         // 先檢查訂房狀態，只允許刪除已取消的訂房
-        const booking = await db.getBookingById(bookingId);
+        const booking = await db.getBookingById(bookingId, req.tenantId);
         if (!booking) {
             return res.status(404).json({
                 success: false,
@@ -5285,7 +5285,7 @@ async function handleDeleteBooking(req, res) {
             });
         }
         
-        const result = await db.deleteBooking(bookingId);
+        const result = await db.deleteBooking(bookingId, req.tenantId);
         
         if (result > 0) {
             res.json({

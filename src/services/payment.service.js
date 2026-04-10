@@ -480,7 +480,8 @@ function createPaymentService(deps) {
             result: 'processing'
         });
 
-        const booking = await db.getBookingById(bookingId);
+        const tenantId = context.tenantId || context.subdomainTenantId;
+        const booking = await db.getBookingById(bookingId, tenantId);
         if (!booking) {
             logPaymentEvent('error', 'ALERT_PAYMENT_CALLBACK_BOOKING_NOT_FOUND', {
                 requestId: context.requestId || null,
@@ -506,7 +507,7 @@ function createPaymentService(deps) {
         await db.updateBooking(bookingId, {
             payment_status: 'paid',
             status: 'active'
-        });
+        }, tenantId);
         console.log('✅ 付款狀態已更新為「已付款」，訂房狀態已更新為「有效」');
 
         if (!(booking.payment_method && booking.payment_method.includes('刷卡'))) {

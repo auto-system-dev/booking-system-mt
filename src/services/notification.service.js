@@ -173,7 +173,7 @@ function createNotificationService(deps) {
         }
 
         if (emailSent) {
-            await db.updateEmailStatus(booking.booking_id, 'booking_confirmation');
+            await db.updateEmailStatus(booking.booking_id, 'booking_confirmation', false, resolveTenantId(booking));
             console.log('✅ 郵件狀態已更新');
         }
 
@@ -292,7 +292,7 @@ function createNotificationService(deps) {
 
         try {
             await emailService.sendEmail(renderResult.mailOptions);
-            await db.updateEmailStatus(booking.booking_id, 'payment_received', true);
+            await db.updateEmailStatus(booking.booking_id, 'payment_received', true, resolveTenantId(booking));
             return true;
         } catch (emailError) {
             console.error(`❌ 收款信發送失敗 (${booking.booking_id}):`, emailError.message);
@@ -317,7 +317,7 @@ function createNotificationService(deps) {
 
         try {
             await emailService.sendEmail(renderResult.mailOptions);
-            await db.updateEmailStatus(booking.booking_id, 'payment_reminder', true);
+            await db.updateEmailStatus(booking.booking_id, 'payment_reminder', true, resolveTenantId(booking));
             return true;
         } catch (emailError) {
             console.error(`❌ 發送匯款提醒失敗 (${booking.booking_id}):`, emailError.message);
@@ -337,7 +337,7 @@ function createNotificationService(deps) {
 
         try {
             await emailService.sendEmail(renderResult.mailOptions);
-            await db.updateEmailStatus(booking.booking_id, 'cancel_notification', true);
+            await db.updateEmailStatus(booking.booking_id, 'cancel_notification', true, resolveTenantId(booking));
             return true;
         } catch (emailError) {
             console.error(`❌ 發送取消通知失敗 (${booking.booking_id}):`, emailError.message);
@@ -367,7 +367,7 @@ function createNotificationService(deps) {
 
         try {
             await emailService.sendEmail(renderResult.mailOptions);
-            await db.updateEmailStatus(booking.booking_id, 'checkin_reminder', true);
+            await db.updateEmailStatus(booking.booking_id, 'checkin_reminder', true, resolveTenantId(booking));
             return true;
         } catch (emailError) {
             console.error(`❌ 發送入住提醒失敗 (${booking.booking_id}):`, emailError.message);
@@ -392,7 +392,7 @@ function createNotificationService(deps) {
 
         try {
             await emailService.sendEmail(renderResult.mailOptions);
-            await db.updateEmailStatus(booking.booking_id, 'feedback_request', true);
+            await db.updateEmailStatus(booking.booking_id, 'feedback_request', true, resolveTenantId(booking));
             return true;
         } catch (emailError) {
             console.error(`❌ 發送回訪信失敗 (${booking.booking_id}):`, emailError.message);

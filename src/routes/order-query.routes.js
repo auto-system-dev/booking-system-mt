@@ -18,7 +18,7 @@ function createOrderQueryRoutes(deps) {
                 });
             }
 
-            const bookings = await orderQueryService.queryByLineUserId(lineUserId);
+            const bookings = await orderQueryService.queryByLineUserId(lineUserId, req.tenantId);
             return res.json({
                 success: true,
                 count: bookings.length,
@@ -44,7 +44,7 @@ function createOrderQueryRoutes(deps) {
                 });
             }
 
-            const result = await orderQueryService.sendOtpByEmail(email);
+            const result = await orderQueryService.sendOtpByEmail(email, req.tenantId);
             if (!result.found) {
                 return res.status(404).json({
                     success: false,
@@ -76,7 +76,7 @@ function createOrderQueryRoutes(deps) {
                 });
             }
 
-            const result = await orderQueryService.verifyOtpAndQuery(email, otp);
+            const result = await orderQueryService.verifyOtpAndQuery(email, otp, req.tenantId);
             if (!result.valid) {
                 return res.status(400).json({
                     success: false,

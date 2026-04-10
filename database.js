@@ -4570,8 +4570,9 @@ async function saveBooking(bookingData) {
 // - 布林值：true/false（轉換為 1/0，向後兼容）
 // - 字串：郵件類型，例如 'booking_confirmation' 或 'booking_confirmation,checkin_reminder'
 // - 如果 append 為 true，則追加郵件類型而不是覆蓋
-async function updateEmailStatus(bookingId, emailSent, append = false) {
+async function updateEmailStatus(bookingId, emailSent, append = false, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'updateEmailStatus');
         let value;
         
         // 如果需要追加郵件類型
@@ -4579,9 +4580,9 @@ async function updateEmailStatus(bookingId, emailSent, append = false) {
             // 先取得現有的郵件狀態
             const booking = await queryOne(
                 usePostgreSQL 
-                    ? `SELECT email_sent FROM bookings WHERE booking_id = $1`
-                    : `SELECT email_sent FROM bookings WHERE booking_id = ?`,
-                [bookingId]
+                    ? `SELECT email_sent FROM bookings WHERE booking_id = $1 AND tenant_id = $2`
+                    : `SELECT email_sent FROM bookings WHERE booking_id = ? AND tenant_id = ?`,
+                [bookingId, safeTenantId]
             );
             if (booking && booking.email_sent) {
                 const existingTypes = typeof booking.email_sent === 'string' 
@@ -4615,10 +4616,10 @@ async function updateEmailStatus(bookingId, emailSent, append = false) {
         }
         
         const sql = usePostgreSQL 
-            ? `UPDATE bookings SET email_sent = $1 WHERE booking_id = $2`
-            : `UPDATE bookings SET email_sent = ? WHERE booking_id = ?`;
+            ? `UPDATE bookings SET email_sent = $1 WHERE booking_id = $2 AND tenant_id = $3`
+            : `UPDATE bookings SET email_sent = ? WHERE booking_id = ? AND tenant_id = ?`;
         
-        const result = await query(sql, [value, bookingId]);
+        const result = await query(sql, [value, bookingId, safeTenantId]);
         console.log(`✅ 郵件狀態已更新 (影響行數: ${result.changes}, 值: ${value})`);
         return result.changes;
     } catch (error) {
@@ -4630,6 +4631,7 @@ async function updateEmailStatus(bookingId, emailSent, append = false) {
 // 查詢所有訂房記錄（可選館別）
 async function getAllBookings(buildingId, bookingMode, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getAllBookings');
         const bid = parseInt(buildingId, 10);
         const hasBuildingFilter = Number.isFinite(bid) && bid > 0;
         const safeBid = hasBuildingFilter ? bid : 1;
@@ -4640,15 +4642,13 @@ async function getAllBookings(buildingId, bookingMode, tenantId) {
         let sql = `SELECT * FROM bookings WHERE 1=1`;
         const params = [];
         let paramIndex = 1;
-        if (tenantId) {
-            if (usePostgreSQL) {
-                sql += ` AND tenant_id = $${paramIndex}`;
-                params.push(tenantId);
-                paramIndex += 1;
-            } else {
-                sql += ` AND tenant_id = ?`;
-                params.push(tenantId);
-            }
+        if (usePostgreSQL) {
+            sql += ` AND tenant_id = $${paramIndex}`;
+            params.push(safeTenantId);
+            paramIndex += 1;
+        } else {
+            sql += ` AND tenant_id = ?`;
+            params.push(safeTenantId);
         }
 
         if (hasBuildingFilter) {
@@ -4684,10 +4684,11 @@ async function getAllBookings(buildingId, bookingMode, tenantId) {
 // 根據訂房編號查詢
 async function getBookingById(bookingId, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getBookingById');
         const sql = usePostgreSQL
-            ? `SELECT * FROM bookings WHERE booking_id = $1 ${tenantId ? 'AND tenant_id = $2' : ''}`
-            : `SELECT * FROM bookings WHERE booking_id = ? ${tenantId ? 'AND tenant_id = ?' : ''}`;
-        const booking = await queryOne(sql, tenantId ? [bookingId, tenantId] : [bookingId]);
+            ? `SELECT * FROM bookings WHERE booking_id = $1 AND tenant_id = $2`
+            : `SELECT * FROM bookings WHERE booking_id = ? AND tenant_id = ?`;
+        const booking = await queryOne(sql, [bookingId, safeTenantId]);
         
         if (!booking) {
             return null;
@@ -4779,15 +4780,14 @@ async function getBookingById(bookingId, tenantId) {
 // 根據 Email 查詢訂房記錄
 async function getBookingsByEmail(email, bookingMode, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getBookingsByEmail');
         const mode = ['retail', 'whole_property'].includes((bookingMode || '').toString().trim())
             ? (bookingMode || '').toString().trim()
             : '';
         const sql = usePostgreSQL
-            ? `SELECT * FROM bookings WHERE guest_email = $1 ${tenantId ? 'AND tenant_id = $2' : ''} ${mode ? `AND COALESCE(booking_mode, 'retail') = ${tenantId ? '$3' : '$2'}` : ''} ORDER BY created_at DESC`
-            : `SELECT * FROM bookings WHERE guest_email = ? ${tenantId ? 'AND tenant_id = ?' : ''} ${mode ? `AND COALESCE(booking_mode, 'retail') = ?` : ''} ORDER BY created_at DESC`;
-        const params = tenantId
-            ? (mode ? [email, tenantId, mode] : [email, tenantId])
-            : (mode ? [email, mode] : [email]);
+            ? `SELECT * FROM bookings WHERE guest_email = $1 AND tenant_id = $2 ${mode ? 'AND COALESCE(booking_mode, \'retail\') = $3' : ''} ORDER BY created_at DESC`
+            : `SELECT * FROM bookings WHERE guest_email = ? AND tenant_id = ? ${mode ? `AND COALESCE(booking_mode, 'retail') = ?` : ''} ORDER BY created_at DESC`;
+        const params = mode ? [email, safeTenantId, mode] : [email, safeTenantId];
         const result = await query(sql, params);
         return result.rows;
     } catch (error) {
@@ -4797,12 +4797,13 @@ async function getBookingsByEmail(email, bookingMode, tenantId) {
 }
 
 // 根據 LINE User ID 查詢訂房記錄
-async function getBookingsByLineUserId(lineUserId) {
+async function getBookingsByLineUserId(lineUserId, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'getBookingsByLineUserId');
         const sql = usePostgreSQL
-            ? `SELECT * FROM bookings WHERE line_user_id = $1 ORDER BY created_at DESC`
-            : `SELECT * FROM bookings WHERE line_user_id = ? ORDER BY created_at DESC`;
-        const result = await query(sql, [lineUserId]);
+            ? `SELECT * FROM bookings WHERE line_user_id = $1 AND tenant_id = $2 ORDER BY created_at DESC`
+            : `SELECT * FROM bookings WHERE line_user_id = ? AND tenant_id = ? ORDER BY created_at DESC`;
+        const result = await query(sql, [lineUserId, safeTenantId]);
         return result.rows;
     } catch (error) {
         console.error('❌ 查詢 LINE 訂房記錄失敗:', error.message);
@@ -4811,8 +4812,9 @@ async function getBookingsByLineUserId(lineUserId) {
 }
 
 // 更新訂房資料
-async function updateBooking(bookingId, updateData) {
+async function updateBooking(bookingId, updateData, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'updateBooking');
         const allowedFields = [
             'guest_name', 'guest_phone', 'guest_email', 'special_request', 'room_type',
             'check_in_date', 'check_out_date', 'payment_status',
@@ -4847,10 +4849,10 @@ async function updateBooking(bookingId, updateData) {
             throw new Error('沒有要更新的欄位');
         }
         
-        values.push(bookingId);
+        values.push(bookingId, safeTenantId);
         const sql = usePostgreSQL
-            ? `UPDATE bookings SET ${updates.join(', ')} WHERE booking_id = $${paramIndex}`
-            : `UPDATE bookings SET ${updates.join(', ')} WHERE booking_id = ?`;
+            ? `UPDATE bookings SET ${updates.join(', ')} WHERE booking_id = $${paramIndex} AND tenant_id = $${paramIndex + 1}`
+            : `UPDATE bookings SET ${updates.join(', ')} WHERE booking_id = ? AND tenant_id = ?`;
         
         console.log('執行 SQL:', sql);
         console.log('參數值:', values);
@@ -4870,16 +4872,17 @@ async function updateBooking(bookingId, updateData) {
 }
 
 // 取消訂房
-async function cancelBooking(bookingId) {
+async function cancelBooking(bookingId, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'cancelBooking');
         // PostgreSQL 不需要檢查欄位，因為在 initDatabase 中已經建立
         // SQLite 需要檢查，但我們在 initDatabase 中也已經處理了
         
         const sql = usePostgreSQL
-            ? `UPDATE bookings SET status = 'cancelled' WHERE booking_id = $1`
-            : `UPDATE bookings SET status = 'cancelled' WHERE booking_id = ?`;
+            ? `UPDATE bookings SET status = 'cancelled' WHERE booking_id = $1 AND tenant_id = $2`
+            : `UPDATE bookings SET status = 'cancelled' WHERE booking_id = ? AND tenant_id = ?`;
         
-        const result = await query(sql, [bookingId]);
+        const result = await query(sql, [bookingId, safeTenantId]);
         console.log(`✅ 訂房已取消 (影響行數: ${result.changes})`);
         return result.changes;
     } catch (error) {
@@ -4889,13 +4892,14 @@ async function cancelBooking(bookingId) {
 }
 
 // 刪除訂房記錄（可選功能）
-async function deleteBooking(bookingId) {
+async function deleteBooking(bookingId, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'deleteBooking');
         const sql = usePostgreSQL
-            ? `DELETE FROM bookings WHERE booking_id = $1`
-            : `DELETE FROM bookings WHERE booking_id = ?`;
+            ? `DELETE FROM bookings WHERE booking_id = $1 AND tenant_id = $2`
+            : `DELETE FROM bookings WHERE booking_id = ? AND tenant_id = ?`;
         
-        const result = await query(sql, [bookingId]);
+        const result = await query(sql, [bookingId, safeTenantId]);
         console.log(`✅ 訂房記錄已刪除 (影響行數: ${result.changes})`);
         return result.changes;
     } catch (error) {
