@@ -522,10 +522,11 @@ function autoSelectRoomTypeIfRequested() {
 async function loadRoomTypesAndSettings() {
     try {
         applyRoomCountSettings(null);
+        const scope = normalizeSystemMode(currentSystemMode);
         // 同時載入房型、加購商品和設定
         const [buildingsResponse, roomTypesResponse, addonsResponse, settingsResponse, landingSettingsResponse] = await Promise.all([
             fetch('/api/buildings'),
-            fetch(`/api/room-types?buildingId=${encodeURIComponent(getSelectedBuildingId())}`),
+            fetch(`/api/room-types?buildingId=${encodeURIComponent(getSelectedBuildingId())}&listScope=${encodeURIComponent(scope)}`),
             fetch('/api/addons'),
             fetch('/api/settings'),
             fetch('/api/landing-settings')
@@ -542,6 +543,13 @@ async function loadRoomTypesAndSettings() {
         applyRoomCountSettings(settingsResult.success ? settingsResult.data : null);
         
         roomTypes = roomTypesResult.success ? (roomTypesResult.data || []) : [];
+        const availableRoomNames = new Set((roomTypes || []).map((r) => String(r?.name || '').trim()).filter(Boolean));
+        Object.keys(selectedRoomQuantities).forEach((name) => {
+            if (!availableRoomNames.has(String(name || '').trim())) {
+                delete selectedRoomQuantities[name];
+                delete selectedRoomExtraBeds[name];
+            }
+        });
         const landingFacilitiesRawFromSettings = settingsResult.success && settingsResult.data
             ? settingsResult.data.landing_facilities
             : '';
@@ -1626,11 +1634,11 @@ function changeRoomCount(delta) {
 // 頁面載入時執行
 applyBuildingIdFromUrl();
 applyRoomTypeIdFromUrl();
-loadRoomTypesAndSettings();
 
 // 頁面載入後，如果有日期，檢查房間可用性
 document.addEventListener('DOMContentLoaded', async function() {
     await initSystemMode();
+    await loadRoomTypesAndSettings();
     forceRoomCounterButtonsVisibility(true);
     // 初始化時檢查入住日期，如果為今天則禁用匯款選項
     setTimeout(() => {

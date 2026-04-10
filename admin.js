@@ -3420,6 +3420,30 @@ function getBookingRoomTypeLabel(booking) {
         return String(matched.display_name || matched.name || raw).trim() || raw;
     }
 
+    // 舊資料補救：若 room_type 寫錯，嘗試從 room_selections 解析包棟方案
+    if (isWholePropertyBooking) {
+        try {
+            const selectionsRaw = booking?.room_selections;
+            const selections = typeof selectionsRaw === 'string' ? JSON.parse(selectionsRaw) : selectionsRaw;
+            if (Array.isArray(selections) && selections.length > 0) {
+                const candidate = selections.find((s) => Number(s?.quantity || 0) > 0) || selections[0];
+                const candidateName = String(candidate?.name || '').trim();
+                const candidateDisplay = String(candidate?.displayName || candidate?.display_name || '').trim();
+                const candidateId = String(candidate?.id || '').trim();
+                const matchedFromSelection =
+                    wholePropertyList.find((room) => String(room?.name || '').trim() === candidateName) ||
+                    wholePropertyList.find((room) => String(room?.display_name || '').trim() === candidateDisplay) ||
+                    wholePropertyList.find((room) => String(room?.id || '').trim() === candidateId) ||
+                    wholePropertyList.find((room) => String(room?.id || '').trim() === candidateName.replace(/^wp_/i, '').trim());
+                if (matchedFromSelection) {
+                    return String(matchedFromSelection.display_name || matchedFromSelection.name || raw).trim() || raw;
+                }
+            }
+        } catch (_) {
+            // ignore parse error and fallback to raw
+        }
+    }
+
     return raw;
 }
 
