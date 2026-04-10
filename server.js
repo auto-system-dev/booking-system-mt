@@ -5924,7 +5924,31 @@ app.get('/api/calculate-price', publicLimiter, async (req, res) => {
         const allRoomTypes = db.getRoomTypesByBuilding
             ? await db.getRoomTypesByBuilding(buildingId, { activeOnly: true, listScope, tenantId: getRequestTenantId(req) })
             : await db.getAllRoomTypes(getRequestTenantId(req));
-        const roomType = (allRoomTypes || []).find((r) => r.display_name === roomTypeName || r.name === roomTypeName);
+        const requestedRoomTypeName = String(roomTypeName || '').trim();
+        let roomType = (allRoomTypes || []).find((r) => {
+            const name = String(r?.name || '').trim();
+            const displayName = String(r?.display_name || '').trim();
+            const idText = String(r?.id || '').trim();
+            const wpCode = `wp_${idText}`;
+            return requestedRoomTypeName === name
+                || requestedRoomTypeName === displayName
+                || requestedRoomTypeName === idText
+                || requestedRoomTypeName === wpCode;
+        });
+        // 包棟模式容錯：館別範圍找不到時，改用租戶層級包棟方案再比對
+        if (!roomType && listScope === 'whole_property' && typeof db.getAllRoomTypesAdmin === 'function') {
+            const tenantWholePlans = await db.getAllRoomTypesAdmin(null, 'whole_property', getRequestTenantId(req));
+            roomType = (tenantWholePlans || []).find((r) => {
+                const name = String(r?.name || '').trim();
+                const displayName = String(r?.display_name || '').trim();
+                const idText = String(r?.id || '').trim();
+                const wpCode = `wp_${idText}`;
+                return requestedRoomTypeName === name
+                    || requestedRoomTypeName === displayName
+                    || requestedRoomTypeName === idText
+                    || requestedRoomTypeName === wpCode;
+            });
+        }
         
         if (!roomType) {
             return res.status(404).json({
