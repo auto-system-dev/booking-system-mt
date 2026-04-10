@@ -2848,8 +2848,9 @@ function renderMonthlyCalendar(bookings, startDate, endDate, currentMonth) {
                               'status-cancelled';
             
             // 在卡片中顯示房型 + 客戶名
-            html += `<div class="calendar-booking-item ${statusClass}" onclick="event.stopPropagation(); viewBookingDetail('${escapeHtml(booking.booking_id)}')" title="${escapeHtml(booking.room_type)}: ${escapeHtml(booking.guest_name)}" style="padding: 2px 4px; font-size: 11px; margin-bottom: 1px;">
-                <div class="calendar-booking-room" style="font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(booking.room_type)}</div>
+            const roomTypeLabel = getBookingRoomTypeLabel(booking);
+            html += `<div class="calendar-booking-item ${statusClass}" onclick="event.stopPropagation(); viewBookingDetail('${escapeHtml(booking.booking_id)}')" title="${escapeHtml(roomTypeLabel)}: ${escapeHtml(booking.guest_name)}" style="padding: 2px 4px; font-size: 11px; margin-bottom: 1px;">
+                <div class="calendar-booking-room" style="font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(roomTypeLabel)}</div>
                 <div class="calendar-booking-name" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(booking.guest_name || '未知')}</div>
             </div>`;
         });
@@ -3369,7 +3370,7 @@ async function viewCustomerDetails(email) {
                                             <td style="padding: 10px 6px;">${escapeHtml(booking.booking_id)}</td>
                                             <td style="padding: 10px 6px;">${escapeHtml(booking.check_in_date)}</td>
                                             <td style="padding: 10px 6px;">${escapeHtml(booking.check_out_date)}</td>
-                                            <td style="padding: 10px 6px;">${escapeHtml(booking.room_type)}</td>
+                                            <td style="padding: 10px 6px;">${escapeHtml(getBookingRoomTypeLabel(booking))}</td>
                                             <td style="padding: 10px 6px; text-align: right;">NT$ ${(parseInt(booking.total_amount) || 0).toLocaleString()}</td>
                                             <td style="padding: 10px 6px; text-align: center;">
                                                 <span class="status-badge status-${booking.status === 'active' ? 'sent' : booking.status === 'cancelled' ? 'unsent' : 'pending'}">
@@ -3397,6 +3398,24 @@ async function viewCustomerDetails(email) {
 }
 
 // 渲染訂房記錄
+function getBookingRoomTypeLabel(booking) {
+    const raw = String(booking?.room_type || '').trim();
+    if (!raw) return '-';
+
+    // 需求：包棟模式顯示方案名稱（display_name），不要顯示代碼（如 wp_10）
+    if (String(booking?.booking_mode || '') !== 'whole_property') {
+        return raw;
+    }
+
+    const wholePropertyList = Array.isArray(allRoomTypesWholeProperty) ? allRoomTypesWholeProperty : [];
+    const matched = wholePropertyList.find((room) => String(room?.name || '').trim() === raw);
+    if (matched) {
+        return String(matched.display_name || matched.name || raw).trim() || raw;
+    }
+
+    return raw;
+}
+
 function renderBookings() {
     const tbody = document.getElementById('bookingsTableBody');
     const buildingHead = document.getElementById('bookingBuildingColHead');
@@ -3451,7 +3470,7 @@ function renderBookings() {
             <td>${booking.booking_id}</td>
             <td>${booking.guest_name}</td>
             ${hasMultipleBuildings ? `<td class="booking-building-col">${escapeHtml(buildingName)}</td>` : ''}
-            <td>${booking.room_type}</td>
+            <td>${escapeHtml(getBookingRoomTypeLabel(booking))}</td>
             <td>${(booking.adults || 0)}大${(booking.children || 0)}小</td>
             <td>${formatDate(booking.check_in_date)}</td>
             <td>${booking.nights} 晚</td>
@@ -3849,7 +3868,7 @@ function showBookingModal(booking) {
         </div>
         <div class="detail-row">
             <span class="detail-label">房型</span>
-            <span class="detail-value">${booking.room_type}</span>
+            <span class="detail-value">${escapeHtml(getBookingRoomTypeLabel(booking))}</span>
         </div>
         <div class="detail-row">
             <span class="detail-label">人數</span>
