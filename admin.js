@@ -4278,6 +4278,7 @@ async function loadStatistics() {
 
         const bid = getSelectedBuildingIdForStats();
         statsWpPlanLabelCache = [];
+        statsRetailRoomLabelCache = [];
         if (isWholePropertySystemMode()) {
             try {
                 const rtRes = await adminFetch(
@@ -4292,6 +4293,21 @@ async function loadStatistics() {
                 }
             } catch (e) {
                 console.warn('預載包棟方案（報表顯示名稱）失敗:', e.message || e);
+            }
+        } else {
+            try {
+                const rtRes = await adminFetch(
+                    `/api/admin/room-types?buildingId=${encodeURIComponent(String(bid))}&listScope=retail`
+                );
+                const rtJson = await rtRes.json();
+                if (rtJson.success) {
+                    const raw = rtJson.data;
+                    statsRetailRoomLabelCache = Array.isArray(raw)
+                        ? raw
+                        : (Array.isArray(raw?.rows) ? raw.rows : []);
+                }
+            } catch (e) {
+                console.warn('預載零售房型（報表顯示名稱）失敗:', e.message || e);
             }
         }
 
@@ -4466,6 +4482,30 @@ function resolveStatsWpPlanDisplayLabel(raw) {
     return s;
 }
 
+/** 一般訂房：統計列上的 room_type（內部代碼）→ 房型顯示名稱 */
+function resolveStatsRetailRoomDisplayLabel(raw) {
+    const s = String(raw || '').trim();
+    if (!s || s === '(未指定)') return s;
+    if (isWholePropertySystemMode()) return s;
+    const lists = [statsRetailRoomLabelCache, allRoomTypesRetail].filter((a) => Array.isArray(a) && a.length);
+    for (const list of lists) {
+        const matched =
+            list.find((room) => String(room?.name || '').trim() === s) ||
+            list.find((room) => String(room?.id || '') === s);
+        if (matched) {
+            const out = String(matched.display_name || matched.name || s).trim();
+            if (out) return out;
+        }
+    }
+    return s;
+}
+
+function resolveStatsRoomAnalysisRowLabel(raw) {
+    return isWholePropertySystemMode()
+        ? resolveStatsWpPlanDisplayLabel(raw)
+        : resolveStatsRetailRoomDisplayLabel(raw);
+}
+
 // 渲染房型統計（營運報表版面）
 function renderRoomStats(roomStats) {
     const container = document.getElementById('roomStatsList');
@@ -4480,7 +4520,7 @@ function renderRoomStats(roomStats) {
     const rows = roomStats.map((stat) => {
         const revenue = Number(stat.revenue) || 0;
         const avgPrice = Number(stat.avg_price) || 0;
-        const rowLabel = resolveStatsWpPlanDisplayLabel(stat.room_type || '');
+        const rowLabel = resolveStatsRoomAnalysisRowLabel(stat.room_type || '');
         return `
         <div class="report-room-row">
             <span class="report-room-name">${escapeHtml(rowLabel)}</span>
@@ -5245,6 +5285,8 @@ let allRoomTypesRetail = [];
 let allRoomTypesWholeProperty = [];
 /** 營運報表「包棟分析」列名：預載方案列表，避免未開過房型分頁時無法對應 wp_* */
 let statsWpPlanLabelCache = [];
+/** 營運報表「房型分析」：預載零售房型，將 room_type 代碼（如 standard）轉為 display_name */
+let statsRetailRoomLabelCache = [];
 let allBuildings = [];
 let selectedBuildingIdForRoomTypes = null;
 
