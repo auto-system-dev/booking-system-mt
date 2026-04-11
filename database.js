@@ -5466,34 +5466,39 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
             console.warn('⚠️  以 room_selections 拆分房型分析失敗，改用原本 SQL 統計:', roomSplitErr.message || roomSplitErr);
         }
 
-        // 包棟分析：將 room_type 內部代碼（wp_*）轉成方案顯示名稱（與訂房列表一致）
-        // 不依賴 list_scope=whole_property：舊資料可能誤標為 retail，仍以 name 的 wp_ 慣例辨識
+        // 房型分析：將 room_type 內部代碼（standard、wp_* 等）轉成顯示名稱（後台／CSV 與 API 同一資料來源）
         try {
-            const allRtForBuilding = await getRoomTypesByBuilding(safeBid, {
-                activeOnly: false,
-                tenantId: safeTenantId
-            });
-            const wpDisplayByKey = new Map();
-            (allRtForBuilding || []).forEach((rt) => {
-                const nm = String(rt?.name || '').trim();
-                const ls = String(rt?.list_scope || '').trim();
-                if (ls !== 'whole_property' && !/^wp_/i.test(nm)) return;
+            const allTypesForLabels = await getAllRoomTypesAdmin(null, undefined, safeTenantId);
+            const roomTypeDisplayByKey = new Map();
+            (allTypesForLabels || []).forEach((rt) => {
                 const dk = String(rt?.display_name || rt?.name || '').trim();
-                if (!dk) return;
-                if (nm) wpDisplayByKey.set(nm, dk);
-                const idStr = String(rt?.id ?? '').trim();
-                if (idStr) wpDisplayByKey.set(`wp_${idStr}`, dk);
+                const nm = String(rt?.name || '').trim();
+                if (nm && dk) {
+                    roomTypeDisplayByKey.set(nm, dk);
+                    const idStr = String(rt?.id ?? '').trim();
+                    if (idStr) {
+                        roomTypeDisplayByKey.set(idStr, dk);
+                        roomTypeDisplayByKey.set(`wp_${idStr}`, dk);
+                    }
+                }
             });
-            if (wpDisplayByKey.size > 0) {
-                effectiveRoomRows = effectiveRoomRows.map((row) => {
-                    const key = String(row?.room_type || '').trim();
-                    if (!key || key === '(未指定)') return row;
-                    const pretty = wpDisplayByKey.get(key);
-                    return pretty ? { ...row, room_type: pretty } : row;
-                });
-            }
-        } catch (wpLabelErr) {
-            console.warn('⚠️  包棟方案顯示名稱轉換失敗:', wpLabelErr.message || wpLabelErr);
+            const legacyRoomTypeLabels = {
+                standard: '標準雙人房',
+                deluxe: '豪華雙人房',
+                suite: '尊爵套房',
+                family: '家庭四人房'
+            };
+            effectiveRoomRows = effectiveRoomRows.map((row) => {
+                const key = String(row?.room_type || '').trim();
+                if (!key || key === '(未指定)') return row;
+                const pretty =
+                    roomTypeDisplayByKey.get(key) ||
+                    legacyRoomTypeLabels[key] ||
+                    null;
+                return pretty ? { ...row, room_type: pretty } : row;
+            });
+        } catch (roomLabelErr) {
+            console.warn('⚠️  房型統計顯示名稱轉換失敗:', roomLabelErr.message || roomLabelErr);
         }
 
         const byRoomType = effectiveRoomRows.map((r) => {
