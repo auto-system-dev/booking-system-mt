@@ -1503,7 +1503,9 @@ async function computeRoomPricing(checkInDate, checkOutDate, roomSelections) {
 
     const perRoomResults = await Promise.all(selections.map(async (room) => {
         const bid = getSelectedBuildingId();
-        const response = await fetch(`/api/calculate-price?checkInDate=${checkInDate}&checkOutDate=${checkOutDate}&buildingId=${encodeURIComponent(bid)}&roomTypeName=${encodeURIComponent(room.displayName)}`);
+        // 以內部 name 查價（與後端、訂單 room_type 一致）；display_name 可能與 DB 空白／全形字元微差導致 404
+        const roomTypeKey = String(room.name || room.displayName || '').trim();
+        const response = await fetch(`/api/calculate-price?checkInDate=${checkInDate}&checkOutDate=${checkOutDate}&buildingId=${encodeURIComponent(bid)}&roomTypeName=${encodeURIComponent(roomTypeKey)}`);
         const result = await response.json();
         if (!result.success || !result.data) {
             throw new Error(result.message || `計算 ${room.displayName} 價格失敗`);

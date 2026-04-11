@@ -5925,7 +5925,7 @@ app.get('/api/calculate-price', publicLimiter, async (req, res) => {
             ? await db.getRoomTypesByBuilding(buildingId, { activeOnly: true, listScope, tenantId: getRequestTenantId(req) })
             : await db.getAllRoomTypes(getRequestTenantId(req));
         const requestedRoomTypeName = String(roomTypeName || '').trim();
-        let roomType = (allRoomTypes || []).find((r) => {
+        const matchRoomTypeRow = (r) => {
             const name = String(r?.name || '').trim();
             const displayName = String(r?.display_name || '').trim();
             const idText = String(r?.id || '').trim();
@@ -5934,20 +5934,12 @@ app.get('/api/calculate-price', publicLimiter, async (req, res) => {
                 || requestedRoomTypeName === displayName
                 || requestedRoomTypeName === idText
                 || requestedRoomTypeName === wpCode;
-        });
-        // 包棟模式容錯：館別範圍找不到時，改用租戶層級包棟方案再比對
-        if (!roomType && listScope === 'whole_property' && typeof db.getAllRoomTypesAdmin === 'function') {
-            const tenantWholePlans = await db.getAllRoomTypesAdmin(null, 'whole_property', getRequestTenantId(req));
-            roomType = (tenantWholePlans || []).find((r) => {
-                const name = String(r?.name || '').trim();
-                const displayName = String(r?.display_name || '').trim();
-                const idText = String(r?.id || '').trim();
-                const wpCode = `wp_${idText}`;
-                return requestedRoomTypeName === name
-                    || requestedRoomTypeName === displayName
-                    || requestedRoomTypeName === idText
-                    || requestedRoomTypeName === wpCode;
-            });
+        };
+        let roomType = (allRoomTypes || []).find(matchRoomTypeRow);
+        // 與 handleCreateBooking 一致：館別範圍找不到時，改以租戶層級房型再比對（多館／building_id 與前台選館不一致時避免 404）
+        if (!roomType && typeof db.getAllRoomTypesAdmin === 'function') {
+            const tenantWide = await db.getAllRoomTypesAdmin(null, listScope, getRequestTenantId(req));
+            roomType = (tenantWide || []).find(matchRoomTypeRow);
         }
         
         if (!roomType) {
