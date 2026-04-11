@@ -4277,6 +4277,24 @@ async function loadStatistics() {
         }
 
         const bid = getSelectedBuildingIdForStats();
+        statsWpPlanLabelCache = [];
+        if (isWholePropertySystemMode()) {
+            try {
+                const rtRes = await adminFetch(
+                    `/api/admin/room-types?buildingId=${encodeURIComponent(String(bid))}&listScope=whole_property`
+                );
+                const rtJson = await rtRes.json();
+                if (rtJson.success) {
+                    const raw = rtJson.data;
+                    statsWpPlanLabelCache = Array.isArray(raw)
+                        ? raw
+                        : (Array.isArray(raw?.rows) ? raw.rows : []);
+                }
+            } catch (e) {
+                console.warn('預載包棟方案（報表顯示名稱）失敗:', e.message || e);
+            }
+        }
+
         const params = new URLSearchParams();
         params.set('buildingId', String(bid));
         if (startDate && endDate) {
@@ -4430,6 +4448,24 @@ function renderSourceAnalysis(sourceStats) {
     `;
 }
 
+/** 營運報表「包棟分析」第一欄：wp_* 代碼 → 方案顯示名稱（與訂房列表一致） */
+function resolveStatsWpPlanDisplayLabel(raw) {
+    const s = String(raw || '').trim();
+    if (!s || s === '(未指定)') return s;
+    if (!isWholePropertySystemMode()) return s;
+    const lists = [statsWpPlanLabelCache, allRoomTypesWholeProperty].filter((a) => Array.isArray(a) && a.length);
+    for (const list of lists) {
+        const matched =
+            list.find((room) => String(room?.name || '').trim() === s) ||
+            list.find((room) => String(room?.id || '') === s.replace(/^wp_/i, '').trim());
+        if (matched) {
+            const out = String(matched.display_name || matched.name || s).trim();
+            if (out) return out;
+        }
+    }
+    return s;
+}
+
 // 渲染房型統計（營運報表版面）
 function renderRoomStats(roomStats) {
     const container = document.getElementById('roomStatsList');
@@ -4444,9 +4480,10 @@ function renderRoomStats(roomStats) {
     const rows = roomStats.map((stat) => {
         const revenue = Number(stat.revenue) || 0;
         const avgPrice = Number(stat.avg_price) || 0;
+        const rowLabel = resolveStatsWpPlanDisplayLabel(stat.room_type || '');
         return `
         <div class="report-room-row">
-            <span class="report-room-name">${escapeHtml(stat.room_type || '')}</span>
+            <span class="report-room-name">${escapeHtml(rowLabel)}</span>
             <span class="report-room-num report-room-count">${Number(stat.count) || 0} 筆</span>
             <span class="report-room-num report-room-revenue">NT$ ${revenue.toLocaleString()}</span>
             <span class="report-room-num report-room-avg">NT$ ${avgPrice.toLocaleString()}</span>
@@ -5206,6 +5243,8 @@ function escapeHtml(text) {
 
 let allRoomTypesRetail = [];
 let allRoomTypesWholeProperty = [];
+/** 營運報表「包棟分析」列名：預載方案列表，避免未開過房型分頁時無法對應 wp_* */
+let statsWpPlanLabelCache = [];
 let allBuildings = [];
 let selectedBuildingIdForRoomTypes = null;
 

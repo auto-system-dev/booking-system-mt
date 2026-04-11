@@ -5467,18 +5467,20 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
         }
 
         // 包棟分析：將 room_type 內部代碼（wp_*）轉成方案顯示名稱（與訂房列表一致）
+        // 不依賴 list_scope=whole_property：舊資料可能誤標為 retail，仍以 name 的 wp_ 慣例辨識
         try {
-            const wpRoomTypes = await getRoomTypesByBuilding(safeBid, {
+            const allRtForBuilding = await getRoomTypesByBuilding(safeBid, {
                 activeOnly: false,
-                listScope: 'whole_property',
                 tenantId: safeTenantId
             });
             const wpDisplayByKey = new Map();
-            (wpRoomTypes || []).forEach((rt) => {
+            (allRtForBuilding || []).forEach((rt) => {
+                const nm = String(rt?.name || '').trim();
+                const ls = String(rt?.list_scope || '').trim();
+                if (ls !== 'whole_property' && !/^wp_/i.test(nm)) return;
                 const dk = String(rt?.display_name || rt?.name || '').trim();
                 if (!dk) return;
-                const nk = String(rt?.name || '').trim();
-                if (nk) wpDisplayByKey.set(nk, dk);
+                if (nm) wpDisplayByKey.set(nm, dk);
                 const idStr = String(rt?.id ?? '').trim();
                 if (idStr) wpDisplayByKey.set(`wp_${idStr}`, dk);
             });
