@@ -1776,10 +1776,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     exposeFunctionsToWindow();
     initOpsKpiHelp();
 
-    // 預先載入館別（不影響前台訂房；供後台館別管理與房型篩選使用）
-    try {
-        await loadBuildings({ silent: true });
-    } catch (_) { /* ignore */ }
+    // 預先載入館別（僅已登入時；未登入若打 API 會 401，徒增錯誤訊息與 console 噪音）
+    if (typeof isAdminPageVisible === 'function' && isAdminPageVisible()) {
+        try {
+            await loadBuildings({ silent: true });
+        } catch (_) { /* ignore */ }
+    }
 });
 
 // 切換區塊
@@ -5392,6 +5394,10 @@ async function loadBuildings(options = {}) {
     const { silent = false } = options;
     try {
         const res = await adminFetch('/api/admin/buildings');
+        // 未登入／過期：adminFetch 已切登入頁，勿再跳「載入館別失敗」打擾使用者
+        if (res.status === 401 || res.status === 403) {
+            return;
+        }
         const j = await res.json();
         if (!j.success) {
             if (!silent) showError('載入館別失敗：' + (j.message || '未知錯誤'));
