@@ -5091,29 +5091,29 @@ app.get('/api/dashboard', requireTenantContext, subscriptionGate.requireFeature(
     }
 });
 
-/** 營運 KPI／bundle：訂單與房型依系統模式（或 query bookingMode）篩選，避免一般訂房與包棟混算 */
+/**
+ * 營運 KPI／bundle：房型仍依系統模式（listScope）載入供 occupancy 等指標；
+ * 訂單列表不篩選 booking_mode，與 /api/dashboard/interval-summary（getStatistics）口徑一致，
+ * 避免「頂部區間摘要有數字、近30天趨勢／來源 Top5 卻全空」（舊資料或混用模式時常發生）。
+ */
 async function loadBookingsAndRoomTypesForOpsDashboard(req) {
     const buildingId = req.query.buildingId;
     const tenantId = getRequestTenantId(req);
     const qMode = String(req.query.bookingMode || '').trim().toLowerCase();
     const systemMode = String((await db.getSetting('system_mode', tenantId)) || 'retail').trim() || 'retail';
-    let bookingModeFilter;
     let listScope;
     if (qMode === 'all') {
-        bookingModeFilter = undefined;
         listScope = undefined;
     } else if (qMode === 'retail' || qMode === 'whole_property') {
-        bookingModeFilter = qMode;
         listScope = qMode;
     } else {
-        bookingModeFilter = systemMode === 'whole_property' ? 'whole_property' : 'retail';
-        listScope = bookingModeFilter;
+        listScope = systemMode === 'whole_property' ? 'whole_property' : 'retail';
     }
     const roomTypesPromise = db.getAllRoomTypesAdmin
         ? db.getAllRoomTypesAdmin(buildingId, listScope, tenantId)
         : db.getAllRoomTypes(tenantId);
     const [allBookings, roomTypes] = await Promise.all([
-        db.getAllBookings(buildingId, bookingModeFilter, tenantId),
+        db.getAllBookings(buildingId, undefined, tenantId),
         roomTypesPromise
     ]);
     return { allBookings, roomTypes };

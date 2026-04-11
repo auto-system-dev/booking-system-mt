@@ -1347,7 +1347,6 @@ async function seedSubscriptionMvpDefaults() {
                    name = EXCLUDED.name,
                    billing_cycle = EXCLUDED.billing_cycle,
                    price_amount = EXCLUDED.price_amount,
-                   feature_flags = EXCLUDED.feature_flags,
                    is_active = 1,
                    updated_at = CURRENT_TIMESTAMP`,
                 [plan.code, plan.name, plan.cycle, plan.price, JSON.stringify(plan.features)]
@@ -1356,8 +1355,8 @@ async function seedSubscriptionMvpDefaults() {
             const existing = await queryOne(`SELECT id FROM plans WHERE code = ?`, [plan.code]);
             if (existing) {
                 await query(
-                    `UPDATE plans SET name = ?, billing_cycle = ?, price_amount = ?, feature_flags = ?, is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE code = ?`,
-                    [plan.name, plan.cycle, plan.price, JSON.stringify(plan.features), plan.code]
+                    `UPDATE plans SET name = ?, billing_cycle = ?, price_amount = ?, is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE code = ?`,
+                    [plan.name, plan.cycle, plan.price, plan.code]
                 );
             } else {
                 await query(
@@ -5444,8 +5443,12 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
                         }
                     }
 
-                    // fallback：舊資料可能只存 display_name 在 room_type
-                    const label = String(b?.room_type || '').trim() || '(未指定)';
+                    // fallback：舊資料可能只存 room_type 代碼（如 wp_10）；對齊房型 display_name
+                    const rawRt = String(b?.room_type || '').trim() || '(未指定)';
+                    const label =
+                        rawRt === '(未指定)'
+                            ? rawRt
+                            : (displayNameByRoomName.get(rawRt) || rawRt);
                     const row = touch(label);
                     row.total_in_range += 1;
                     if (cancelled) {
@@ -5461,6 +5464,34 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
             }
         } catch (roomSplitErr) {
             console.warn('⚠️  以 room_selections 拆分房型分析失敗，改用原本 SQL 統計:', roomSplitErr.message || roomSplitErr);
+        }
+
+        // 包棟分析：將 room_type 內部代碼（wp_*）轉成方案顯示名稱（與訂房列表一致）
+        try {
+            const wpRoomTypes = await getRoomTypesByBuilding(safeBid, {
+                activeOnly: false,
+                listScope: 'whole_property',
+                tenantId: safeTenantId
+            });
+            const wpDisplayByKey = new Map();
+            (wpRoomTypes || []).forEach((rt) => {
+                const dk = String(rt?.display_name || rt?.name || '').trim();
+                if (!dk) return;
+                const nk = String(rt?.name || '').trim();
+                if (nk) wpDisplayByKey.set(nk, dk);
+                const idStr = String(rt?.id ?? '').trim();
+                if (idStr) wpDisplayByKey.set(`wp_${idStr}`, dk);
+            });
+            if (wpDisplayByKey.size > 0) {
+                effectiveRoomRows = effectiveRoomRows.map((row) => {
+                    const key = String(row?.room_type || '').trim();
+                    if (!key || key === '(未指定)') return row;
+                    const pretty = wpDisplayByKey.get(key);
+                    return pretty ? { ...row, room_type: pretty } : row;
+                });
+            }
+        } catch (wpLabelErr) {
+            console.warn('⚠️  包棟方案顯示名稱轉換失敗:', wpLabelErr.message || wpLabelErr);
         }
 
         const byRoomType = effectiveRoomRows.map((r) => {
