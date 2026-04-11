@@ -9,8 +9,12 @@ function createBookingNotificationJobs(deps) {
     
     async function getActiveTenantIds() {
         try {
-            const tenants = await db.getTenantsOverview({ status: 'active', limit: 2000, offset: 0 });
-            const ids = (tenants || [])
+            const overview = await db.getTenantsOverview({ status: 'active', limit: 2000, offset: 0 });
+            // getTenantsOverview 回傳 { items, total, ... }，不是陣列
+            const list = Array.isArray(overview)
+                ? overview
+                : (Array.isArray(overview?.items) ? overview.items : []);
+            const ids = list
                 .map((t) => parseInt(t.id, 10))
                 .filter((id) => Number.isInteger(id) && id > 0);
             return ids.length > 0 ? ids : [defaultTenantId];
