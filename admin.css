@@ -396,6 +396,60 @@ body.login-page-active {
     box-shadow: none;
 }
 
+/* 後台表格「操作」列：語意色（與 .btn-refresh 區隔） */
+.tenant-action-btn.btn-action-edit {
+    background: #16a34a !important;
+    color: #fff !important;
+}
+
+.tenant-action-btn.btn-action-edit:hover:not(:disabled) {
+    background: #15803d !important;
+    color: #fff !important;
+    transform: none;
+    box-shadow: none;
+}
+
+.tenant-action-btn.btn-action-danger {
+    background: #dc2626 !important;
+    color: #fff !important;
+}
+
+.tenant-action-btn.btn-action-danger:hover:not(:disabled) {
+    background: #b91c1c !important;
+    color: #fff !important;
+    transform: none;
+    box-shadow: none;
+}
+
+.tenant-action-btn.btn-action-success {
+    background: #059669 !important;
+    color: #fff !important;
+}
+
+.tenant-action-btn.btn-action-success:hover:not(:disabled) {
+    background: #047857 !important;
+    color: #fff !important;
+    transform: none;
+    box-shadow: none;
+}
+
+.tenant-action-btn.btn-action-muted {
+    background: #64748b !important;
+    color: #fff !important;
+}
+
+.tenant-action-btn.btn-action-muted:hover:not(:disabled) {
+    background: #475569 !important;
+    color: #fff !important;
+    transform: none;
+    box-shadow: none;
+}
+
+.tenant-action-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
 .tenant-detail-drawer-backdrop {
     position: fixed;
     inset: 0;

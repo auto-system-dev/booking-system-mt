@@ -8068,9 +8068,9 @@ async function loadSubscriptionOverview() {
                     <td>${riskBadge}</td>
                     <td>${renderDateTimeTwoLines(row.periodEnd)}</td>
                     <td>
-                        <button class="btn-refresh tenant-action-btn" onclick="event.stopPropagation(); showEditTenantModal(${escapeHtml(row.tenantId)}, '${tenantNameEscaped}', '${tenantCodeEscaped}', '${planCodeEscaped}', '${tenantStatusEscaped}', '${subStatusEscaped}', '${periodEndEscaped}', '${systemModeEscaped}', '${adminUsernameEscaped}', '${adminEmailEscaped}')">編輯</button>
-                        <button class="btn-refresh tenant-action-btn" onclick="event.stopPropagation(); openTenantDetailDrawer(${tenantIdNum})">更多</button>
-                        <button class="btn-refresh tenant-action-btn" onclick="event.stopPropagation(); activateTenantById(${escapeHtml(row.tenantId)})" ${canActivate ? '' : 'disabled'}>啟用</button>
+                        <button class="btn-refresh tenant-action-btn btn-action-edit" onclick="event.stopPropagation(); showEditTenantModal(${escapeHtml(row.tenantId)}, '${tenantNameEscaped}', '${tenantCodeEscaped}', '${planCodeEscaped}', '${tenantStatusEscaped}', '${subStatusEscaped}', '${periodEndEscaped}', '${systemModeEscaped}', '${adminUsernameEscaped}', '${adminEmailEscaped}')">編輯</button>
+                        <button class="btn-refresh tenant-action-btn btn-action-muted" onclick="event.stopPropagation(); openTenantDetailDrawer(${tenantIdNum})">更多</button>
+                        <button class="btn-refresh tenant-action-btn btn-action-success" onclick="event.stopPropagation(); activateTenantById(${escapeHtml(row.tenantId)})" ${canActivate ? '' : 'disabled'}>啟用</button>
                         <button class="btn-cancel tenant-action-btn" onclick="event.stopPropagation(); deleteTenantById(${escapeHtml(row.tenantId)}, '${tenantNameForDelete}')">刪除</button>
                     </td>
                 </tr>
@@ -8118,8 +8118,8 @@ async function loadPlanManagementList() {
                     <td>${isActive ? '<span class="badge badge-success">啟用</span>' : '<span class="badge badge-secondary">停用</span>'}</td>
                     <td>${escapeHtml(String(parseInt(plan.tenant_count || 0, 10) || 0))}</td>
                     <td>
-                        <button class="btn-refresh tenant-action-btn" onclick="openPlanManagementModal('edit', '${code}')">編輯</button>
-                        <button class="btn-refresh tenant-action-btn" onclick="togglePlanActive('${code}', ${isActive ? 0 : 1})">${isActive ? '停用' : '啟用'}</button>
+                        <button class="btn-refresh tenant-action-btn btn-action-edit" onclick="openPlanManagementModal('edit', '${code}')">編輯</button>
+                        <button class="btn-refresh tenant-action-btn ${isActive ? 'btn-action-danger' : 'btn-action-success'}" onclick="togglePlanActive('${code}', ${isActive ? 0 : 1})">${isActive ? '停用' : '啟用'}</button>
                     </td>
                 </tr>
             `;
@@ -8311,8 +8311,8 @@ function openTenantDetailDrawer(tenantId) {
         </div>
         <div class="tenant-detail-section-title">操作</div>
         <div class="tenant-detail-action-row">
-            <button class="btn-refresh tenant-action-btn" onclick="triggerTenantRecurringAction(${safeTenantId}, 'suspend')" ${recurringReady ? '' : 'disabled'}>暫停扣款</button>
-            <button class="btn-refresh tenant-action-btn" onclick="triggerTenantRecurringAction(${safeTenantId}, 'restart')" ${recurringReady ? '' : 'disabled'}>恢復扣款</button>
+            <button class="btn-refresh tenant-action-btn btn-action-danger" onclick="triggerTenantRecurringAction(${safeTenantId}, 'suspend')" ${recurringReady ? '' : 'disabled'}>暫停扣款</button>
+            <button class="btn-refresh tenant-action-btn btn-action-success" onclick="triggerTenantRecurringAction(${safeTenantId}, 'restart')" ${recurringReady ? '' : 'disabled'}>恢復扣款</button>
             <button class="btn-cancel tenant-action-btn" onclick="triggerTenantRecurringAction(${safeTenantId}, 'terminate')" ${recurringReady ? '' : 'disabled'}>終止扣款</button>
         </div>
     `;
@@ -8403,9 +8403,9 @@ async function loadTenantManagementList() {
                     <td>${email || '-'}</td>
                     <td>${String(row.admin_is_active) === '1' || row.admin_is_active === true ? '是' : '否'}</td>
                     <td style="white-space:nowrap;">
-                        <button class="btn-refresh tenant-action-btn" onclick="showEditTenantModal(${tenantId}, '${escapeHtml(row.name || '').replace(/'/g, "\\'")}', '${escapeHtml(row.code || '').replace(/'/g, "\\'")}', '${escapeHtml(row.plan_code || 'basic_monthly').replace(/'/g, "\\'")}', '${escapeHtml(row.status || 'active').replace(/'/g, "\\'")}', 'active', '', 'retail', '${escapeHtml(row.admin_username || '').replace(/'/g, "\\'")}', '${escapeHtml(row.admin_email || '').replace(/'/g, "\\'")}')">編輯</button>
-                        <button class="btn-refresh tenant-action-btn" onclick="activateTenantById(${tenantId})" ${canActivate ? '' : 'disabled'}>啟用</button>
-                        <button class="btn-refresh tenant-action-btn" onclick="resendTenantVerificationByEmail('${email.replace(/'/g, "\\'")}')" ${email ? '' : 'disabled'}>重寄驗證</button>
+                        <button class="btn-refresh tenant-action-btn btn-action-edit" onclick="showEditTenantModal(${tenantId}, '${escapeHtml(row.name || '').replace(/'/g, "\\'")}', '${escapeHtml(row.code || '').replace(/'/g, "\\'")}', '${escapeHtml(row.plan_code || 'basic_monthly').replace(/'/g, "\\'")}', '${escapeHtml(row.status || 'active').replace(/'/g, "\\'")}', 'active', '', 'retail', '${escapeHtml(row.admin_username || '').replace(/'/g, "\\'")}', '${escapeHtml(row.admin_email || '').replace(/'/g, "\\'")}')">編輯</button>
+                        <button class="btn-refresh tenant-action-btn btn-action-success" onclick="activateTenantById(${tenantId})" ${canActivate ? '' : 'disabled'}>啟用</button>
+                        <button class="btn-refresh tenant-action-btn btn-action-muted" onclick="resendTenantVerificationByEmail('${email.replace(/'/g, "\\'")}')" ${email ? '' : 'disabled'}>重寄驗證</button>
                         <button class="btn-cancel tenant-action-btn" onclick="deleteTenantById(${tenantId}, '${tenantNameForDelete}')">刪除</button>
                     </td>
                 </tr>
