@@ -1750,6 +1750,9 @@ app.get('/order-query', (req, res) => {
 app.get('/platform', publicLimiter, (req, res) => {
     res.sendFile(path.join(__dirname, 'platform-sales.html'));
 });
+app.get('/platform/thanks', publicLimiter, (req, res) => {
+    res.sendFile(path.join(__dirname, 'platform-thanks.html'));
+});
 
 async function getLandingPagePayload(tenantId = defaultTenantId) {
     const allSettings = await db.getAllSettings(tenantId);

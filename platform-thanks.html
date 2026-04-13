@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>申請已送出 | Booking System MT</title>
+    <meta name="robots" content="noindex,nofollow">
+    <meta name="ga4-measurement-id" content="">
+    <link rel="stylesheet" href="/platform-sales.css">
+</head>
+<body>
+    <main class="section">
+        <div class="container">
+            <div class="card" style="max-width:720px;margin:40px auto;">
+                <p class="eyebrow">申請完成</p>
+                <h1 style="font-size:36px;">我們已收到你的試用申請</h1>
+                <p class="lead">驗證信已寄出，請到信箱完成啟用。完成後即可登入後台開始設定。</p>
+                <p id="thanksMeta" style="color:#475569;"></p>
+                <div class="hero-cta">
+                    <a class="btn btn-primary" href="/admin">前往管理後台</a>
+                    <a class="btn btn-outline" href="/platform">回到銷售頁</a>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script>
+    (function () {
+        function getGa4Id() {
+            const meta = document.querySelector('meta[name="ga4-measurement-id"]');
+            return String(meta?.content || '').trim();
+        }
+        function initGa4() {
+            const id = getGa4Id();
+            if (!id || !/^G-[A-Z0-9]+$/i.test(id)) return '';
+            window.dataLayer = window.dataLayer || [];
+            window.gtag = window.gtag || function () { window.dataLayer.push(arguments); };
+            const script = document.createElement('script');
+            script.async = true;
+            script.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(id);
+            document.head.appendChild(script);
+            window.gtag('js', new Date());
+            window.gtag('config', id, { anonymize_ip: true });
+            return id;
+        }
+        function track(eventName, params) {
+            const payload = params || {};
+            if (typeof window.gtag === 'function') window.gtag('event', eventName, payload);
+            window.dataLayer = window.dataLayer || [];
+            window.dataLayer.push({ event: eventName, ...payload });
+        }
+        const ga4Id = initGa4();
+        const qs = new URLSearchParams(window.location.search);
+        const plan = String(qs.get('plan') || 'basic_monthly').trim();
+        const variant = String(qs.get('variant') || '').trim().toUpperCase();
+        const meta = document.getElementById('thanksMeta');
+        if (meta) meta.textContent = '已送出方案：' + plan + (variant ? ('（文案版本 ' + variant + '）') : '');
+        track('conversion', {
+            page_type: 'platform_thanks',
+            source: 'platform_cta_form',
+            plan_code: plan,
+            hero_variant: variant || 'unknown',
+            ga4_id_configured: ga4Id ? 'yes' : 'no'
+        });
+    })();
+    </script>
+</body>
+</html>
