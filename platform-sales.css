@@ -34,6 +34,8 @@ h3 { margin: 0 0 8px; }
 .hero-card-note { margin-top: 10px; color: #475569; font-size: 14px; }
 .section { padding: 56px 0; }
 .section.alt { background: #eff6ff; }
+.section-head-center { text-align: center; margin-bottom: 18px; }
+.lead-center { color: #475569; line-height: 1.8; max-width: 760px; margin: 0 auto; }
 .grid-2, .grid-3 { display: grid; gap: 16px; }
 .grid-2 { grid-template-columns: repeat(2, 1fr); }
 .grid-3 { grid-template-columns: repeat(3, 1fr); }
@@ -82,6 +84,65 @@ h3 { margin: 0 0 8px; }
     font-size: 12px;
     font-weight: 700;
     margin-bottom: 8px !important;
+}
+.showcase-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 18px;
+    align-items: end;
+    margin-top: 18px;
+}
+.showcase-card {
+    margin: 0;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 10px;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+.showcase-card-mobile { max-width: 320px; justify-self: end; }
+.showcase-image {
+    width: 100%;
+    display: block;
+    border-radius: 10px;
+    cursor: zoom-in;
+}
+.showcase-card figcaption {
+    margin-top: 8px;
+    font-size: 13px;
+    color: #64748b;
+    text-align: center;
+}
+.platform-lightbox {
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 23, 0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 24px;
+}
+.platform-lightbox.is-open { display: flex; }
+.platform-lightbox-img {
+    max-width: min(1200px, 96vw);
+    max-height: 90vh;
+    border-radius: 12px;
+    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+}
+.platform-lightbox-close {
+    position: absolute;
+    top: 14px;
+    right: 16px;
+    border: none;
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
 }
 .faq-list { display: grid; gap: 12px; }
 .faq-item {
@@ -133,4 +194,6 @@ input, select {
 @media (max-width: 900px) {
     .hero-grid, .cta-grid, .grid-2, .grid-3 { grid-template-columns: 1fr; }
     .hero { padding-top: 44px; }
+    .showcase-grid { grid-template-columns: 1fr; }
+    .showcase-card-mobile { max-width: 100%; justify-self: stretch; }
 }

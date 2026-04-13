@@ -103,6 +103,39 @@
             </div>
         </section>
 
+        <section class="section" id="landing-showcase">
+            <div class="container">
+                <div class="section-head-center">
+                    <p class="eyebrow">Landing 介紹</p>
+                    <h2>一頁式旅宿銷售頁，直接把流量變訂單</h2>
+                    <p class="lead-center">
+                        你不只需要「能訂房」，更需要「看起來專業、資訊完整、轉換率高」的前台展示。
+                        我們提供可快速上線、可調整文案與圖片的 Landing，讓你少走彎路。
+                    </p>
+                </div>
+                <div class="showcase-grid">
+                    <figure class="showcase-card">
+                        <img
+                            class="showcase-image js-zoomable"
+                            src="/assets/platform/landing-intro-desktop.png"
+                            alt="Landing 桌機版示意圖"
+                            data-full-src="/assets/platform/landing-intro-desktop.png"
+                        >
+                        <figcaption>桌機版示意（點擊可放大）</figcaption>
+                    </figure>
+                    <figure class="showcase-card showcase-card-mobile">
+                        <img
+                            class="showcase-image js-zoomable"
+                            src="/assets/platform/landing-intro-mobile.jpg"
+                            alt="Landing 手機版示意圖"
+                            data-full-src="/assets/platform/landing-intro-mobile.jpg"
+                        >
+                        <figcaption>手機版示意（點擊可放大）</figcaption>
+                    </figure>
+                </div>
+            </div>
+        </section>
+
         <section class="section" id="plans">
             <div class="container">
                 <h2>方案建議</h2>
@@ -311,6 +344,10 @@
       ]
     }
     </script>
+    <div id="platformImageLightbox" class="platform-lightbox" aria-hidden="true">
+        <button type="button" class="platform-lightbox-close" id="platformImageLightboxClose" aria-label="關閉">×</button>
+        <img id="platformImageLightboxImg" class="platform-lightbox-img" src="" alt="放大圖片">
+    </div>
     <script src="/platform-sales.js"></script>
 </body>
 </html>

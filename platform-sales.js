@@ -101,6 +101,43 @@
         });
     });
 
+    function initShowcaseLightbox() {
+        const lightbox = document.getElementById('platformImageLightbox');
+        const lightboxImg = document.getElementById('platformImageLightboxImg');
+        const closeBtn = document.getElementById('platformImageLightboxClose');
+        if (!lightbox || !lightboxImg) return;
+
+        const close = () => {
+            lightbox.classList.remove('is-open');
+            lightbox.setAttribute('aria-hidden', 'true');
+            lightboxImg.src = '';
+        };
+        const open = (src, alt) => {
+            if (!src) return;
+            lightboxImg.src = src;
+            lightboxImg.alt = alt || '放大圖片';
+            lightbox.classList.add('is-open');
+            lightbox.setAttribute('aria-hidden', 'false');
+        };
+
+        document.querySelectorAll('.js-zoomable').forEach((img) => {
+            img.addEventListener('click', () => {
+                const src = String(img.getAttribute('data-full-src') || img.getAttribute('src') || '').trim();
+                const alt = String(img.getAttribute('alt') || '').trim();
+                open(src, alt);
+            });
+        });
+
+        lightbox.addEventListener('click', (e) => {
+            if (e.target === lightbox) close();
+        });
+        if (closeBtn) closeBtn.addEventListener('click', close);
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') close();
+        });
+    }
+    initShowcaseLightbox();
+
     function formatPlanOptionLabel(plan) {
         const name = String(plan?.name || '').trim();
         const cycle = String(plan?.billing_cycle || '').trim().toLowerCase();
