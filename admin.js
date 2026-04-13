@@ -2375,6 +2375,18 @@ async function loadBookings() {
         }
         
         if (!response.ok) {
+            let apiMessage = '';
+            try {
+                const errBody = await response.clone().json();
+                apiMessage = String(errBody?.message || '').trim();
+            } catch (_) {
+                apiMessage = '';
+            }
+            const authLikeStatus = response.status === 400 || response.status === 401 || response.status === 403;
+            const authLikeMessage = /登入|session|auth|tenant|租戶|重新登入|未授權|expired|過期/i.test(apiMessage);
+            if (authLikeStatus && authLikeMessage) {
+                throw new Error('登入狀態已逾時，請重新登入後再試');
+            }
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         
@@ -2400,6 +2412,11 @@ async function loadBookings() {
         }
     } catch (error) {
         console.error('載入訂房記錄錯誤:', error);
+        const msg = String(error?.message || '');
+        if (/登入狀態已逾時|重新登入|session|expired/i.test(msg)) {
+            showError('登入狀態已逾時，請重新登入後再試');
+            return;
+        }
         showError('載入訂房記錄時發生錯誤：' + error.message);
     }
 }
