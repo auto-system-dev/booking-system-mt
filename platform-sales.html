@@ -223,7 +223,7 @@
                 <div>
                     <h2>立即申請試用</h2>
                     <p>填寫表單後，我們會寄出驗證信啟用你的租戶帳號。</p>
-                    <p class="muted">* 你可先用試用環境建立房型與測試接單流程。</p>
+                    <p class="muted">* 試用期限為 14 天，可先建立房型與測試接單流程。</p>
                 </div>
                 <form id="tenantSignupForm" class="lead-form">
                     <label>品牌/租戶名稱
@@ -242,7 +242,7 @@
                         <input type="password" name="adminPassword" required minlength="8" placeholder="至少 8 碼">
                     </label>
                     <label>偏好方案
-                        <select name="planCode">
+                        <select name="planCode" id="planCodeSelect">
                             <option value="basic_monthly">Basic（月付）</option>
                             <option value="pro_monthly">Growth（月付）</option>
                             <option value="enterprise_monthly">Scale（月付）</option>

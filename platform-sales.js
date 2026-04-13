@@ -2,6 +2,7 @@
     const HERO_VARIANT_KEY = 'platform_hero_variant_v1';
     const form = document.getElementById('tenantSignupForm');
     const formMessage = document.getElementById('formMessage');
+    const planCodeSelect = document.getElementById('planCodeSelect');
     if (!form || !formMessage) return;
 
     function resolveMeasurementId() {
@@ -99,6 +100,32 @@
             });
         });
     });
+
+    function formatPlanOptionLabel(plan) {
+        const name = String(plan?.name || '').trim();
+        const cycle = String(plan?.billing_cycle || '').trim().toLowerCase();
+        const cycleLabel = cycle === 'yearly' ? '年付' : '月付';
+        return name ? `${name}（${cycleLabel}）` : `${String(plan?.code || '').trim()}（${cycleLabel}）`;
+    }
+
+    async function loadPlanOptions() {
+        if (!planCodeSelect) return;
+        try {
+            const response = await fetch('/api/public/subscription-plans', { credentials: 'include' });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || !result?.success || !Array.isArray(result?.data)) return;
+            const plans = result.data
+                .filter((p) => String(p?.code || '').trim())
+                .sort((a, b) => String(a?.code || '').localeCompare(String(b?.code || '')));
+            if (!plans.length) return;
+            planCodeSelect.innerHTML = plans.map((p) =>
+                `<option value="${String(p.code)}">${formatPlanOptionLabel(p)}</option>`
+            ).join('');
+        } catch (_) {
+            // keep default options when API fails
+        }
+    }
+    void loadPlanOptions();
 
     function setMessage(text, type) {
         formMessage.className = 'form-message';

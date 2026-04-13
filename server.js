@@ -3868,6 +3868,16 @@ app.get('/api/admin/subscription/plans', requireAuth, requireTenantContext, chec
     }
 });
 
+// 銷售頁公開方案清單（僅回傳啟用中的方案）
+app.get('/api/public/subscription-plans', publicLimiter, async (_req, res) => {
+    try {
+        const plans = await db.getSubscriptionPlans();
+        return res.json({ success: true, data: plans || [] });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: '取得公開方案清單失敗: ' + error.message });
+    }
+});
+
 app.get('/api/admin/subscription/plans/manage', requireAuth, adminLimiter, async (req, res) => {
     try {
         if (!req.session?.admin || req.session.admin.role !== 'super_admin') {

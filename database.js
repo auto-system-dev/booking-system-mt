@@ -8409,8 +8409,13 @@ async function setTenantSubscriptionPlan(tenantId, planCode, status = 'active') 
 
     const start = new Date();
     const end = new Date(start);
-    if (plan.billing_cycle === 'yearly') end.setFullYear(end.getFullYear() + 1);
-    else end.setMonth(end.getMonth() + 1);
+    if (safeStatus === 'trialing') {
+        end.setDate(end.getDate() + 14);
+    } else if (plan.billing_cycle === 'yearly') {
+        end.setFullYear(end.getFullYear() + 1);
+    } else {
+        end.setMonth(end.getMonth() + 1);
+    }
 
     await query(
         usePostgreSQL
