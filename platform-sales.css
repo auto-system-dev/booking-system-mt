@@ -86,11 +86,10 @@ h3 { margin: 0 0 8px; }
     margin-bottom: 8px !important;
 }
 .showcase-grid {
-    display: grid;
-    grid-template-columns: 1fr 320px;
-    gap: 18px;
-    align-items: end;
-    margin-top: 18px;
+    position: relative;
+    max-width: 980px;
+    margin: 18px auto 0;
+    padding-bottom: 44px;
 }
 .showcase-card {
     margin: 0;
@@ -99,8 +98,17 @@ h3 { margin: 0 0 8px; }
     border-radius: 14px;
     padding: 10px;
     box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    position: relative;
+    z-index: 1;
 }
-.showcase-card-mobile { max-width: 320px; justify-self: end; }
+.showcase-card-mobile {
+    position: absolute;
+    right: -18px;
+    bottom: -28px;
+    width: min(34%, 320px);
+    z-index: 3;
+    box-shadow: 0 16px 34px rgba(15, 23, 42, 0.2);
+}
 .showcase-image {
     width: 100%;
     display: block;
@@ -194,6 +202,19 @@ input, select {
 @media (max-width: 900px) {
     .hero-grid, .cta-grid, .grid-2, .grid-3 { grid-template-columns: 1fr; }
     .hero { padding-top: 44px; }
-    .showcase-grid { grid-template-columns: 1fr; }
-    .showcase-card-mobile { max-width: 100%; justify-self: stretch; }
+    .showcase-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+        padding-bottom: 0;
+        max-width: 100%;
+    }
+    .showcase-card-mobile {
+        position: relative;
+        right: auto;
+        bottom: auto;
+        width: 100%;
+        z-index: 1;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    }
 }
