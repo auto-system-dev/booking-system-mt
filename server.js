@@ -3420,19 +3420,70 @@ app.post('/api/public/register-tenant', publicLimiter, async (req, res) => {
 });
 
 app.get('/api/public/verify-tenant-email', publicLimiter, async (req, res) => {
+    const prefersHtml = (() => {
+        if (String(req.query?.format || '').trim().toLowerCase() === 'json') return false;
+        const accept = String(req.get('accept') || '').toLowerCase();
+        return accept.includes('text/html');
+    })();
+    const respondVerifyResult = (statusCode, payload) => {
+        const safeStatus = Number.isInteger(statusCode) ? statusCode : 200;
+        if (!prefersHtml) {
+            return res.status(safeStatus).json(payload);
+        }
+        const ok = !!payload?.success;
+        const title = ok ? '驗證成功' : '驗證失敗';
+        const message = String(payload?.message || (ok ? 'Email 驗證成功，租戶已啟用' : 'Email 驗證失敗')).trim();
+        const escapedTitle = escapeHtmlText(title);
+        const escapedMessage = escapeHtmlText(message);
+        const homeHref = '/platform';
+        const adminHref = '/admin';
+        const html = `<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapedTitle}</title>
+  <style>
+    body{margin:0;font-family:"Noto Sans TC","PingFang TC",sans-serif;background:#f4f7fb;color:#0f172a;display:flex;align-items:center;justify-content:center;min-height:100vh}
+    .card{width:min(92vw,520px);background:#fff;border:1px solid #dbe3ef;border-radius:14px;padding:24px;box-shadow:0 16px 40px rgba(15,23,42,.12)}
+    h1{margin:0 0 10px;font-size:26px}
+    p{margin:0 0 18px;line-height:1.7;color:#334155}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}
+    .btn{padding:10px 14px;border-radius:10px;text-decoration:none;font-weight:700;font-size:14px}
+    .btn-primary{background:#2563eb;color:#fff}
+    .btn-outline{border:1px solid #cbd5e1;color:#1e3a8a;background:#fff}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>${escapedTitle}</h1>
+    <p>${escapedMessage}</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="${adminHref}">前往管理後台</a>
+      <a class="btn btn-outline" href="${homeHref}">返回銷售頁</a>
+    </div>
+  </div>
+  <script>
+    (function(){ try { alert(${JSON.stringify(message)}); } catch(_) {} })();
+  </script>
+</body>
+</html>`;
+        return res.status(safeStatus).setHeader('Content-Type', 'text/html; charset=utf-8').send(html);
+    };
+
     try {
         const token = String(req.query?.token || '').trim();
         if (!token) {
-            return res.status(400).json({ success: false, message: '缺少 token' });
+            return respondVerifyResult(400, { success: false, message: '缺少 token' });
         }
         const result = await db.verifyTenantEmailToken(token);
-        return res.json({
+        return respondVerifyResult(200, {
             success: true,
             message: 'Email 驗證成功，租戶已啟用',
             data: result
         });
     } catch (error) {
-        return res.status(400).json({
+        return respondVerifyResult(400, {
             success: false,
             message: 'Email 驗證失敗：' + error.message
         });
