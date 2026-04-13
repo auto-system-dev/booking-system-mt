@@ -87,7 +87,7 @@ h3 { margin: 0 0 8px; }
 }
 .showcase-grid {
     position: relative;
-    max-width: 980px;
+    max-width: 1120px;
     margin: 18px auto 0;
     padding-bottom: 44px;
 }
@@ -103,9 +103,9 @@ h3 { margin: 0 0 8px; }
 }
 .showcase-card-mobile {
     position: absolute;
-    right: -18px;
-    bottom: -28px;
-    width: min(34%, 320px);
+    right: -22px;
+    bottom: -24px;
+    width: min(28%, 260px);
     z-index: 3;
     box-shadow: 0 16px 34px rgba(15, 23, 42, 0.2);
 }
