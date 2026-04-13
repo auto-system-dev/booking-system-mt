@@ -5353,13 +5353,78 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
         // 目的：避免多房型訂單全部堆在 bookings.room_type 字串，導致房型排行與營收分攤失真
         try {
             if (hasRange) {
-                const roomTypesForMap = await getRoomTypesByBuilding(safeBid, { activeOnly: false, tenantId: safeTenantId });
+                const [roomTypesForMap, wpRoomTypes] = await Promise.all([
+                    getRoomTypesByBuilding(safeBid, { activeOnly: false, tenantId: safeTenantId }),
+                    getRoomTypesByBuilding(safeBid, { activeOnly: false, listScope: 'whole_property', tenantId: safeTenantId })
+                ]);
                 const displayNameByRoomName = new Map();
                 (roomTypesForMap || []).forEach((rt) => {
                     const nameKey = String(rt?.name || '').trim();
                     const displayKey = String(rt?.display_name || rt?.name || '').trim();
                     if (nameKey && displayKey) displayNameByRoomName.set(nameKey, displayKey);
                 });
+
+                const wpList = Array.isArray(wpRoomTypes) ? wpRoomTypes : [];
+                const wpDisplayLabel = (raw) => {
+                    const s = String(raw || '').trim();
+                    if (!s) return null;
+                    const m =
+                        wpList.find((r) => String(r?.name || '').trim() === s) ||
+                        wpList.find((r) => String(r?.id || '') === s.replace(/^wp_/i, '').trim()) ||
+                        wpList.find((r) => String(r?.display_name || '').trim() === s);
+                    return m ? String(m.display_name || m.name || s).trim() : null;
+                };
+
+                /** 與後台 getBookingRoomTypeLabel／包棟方案對齊：優先 room_selections 補救誤存的 room_type */
+                const resolveStatsBookingRoomLabel = (b) => {
+                    const rawRt = String(b?.room_type || '').trim() || '(未指定)';
+                    const mode = String(b?.booking_mode || 'retail').trim();
+                    const isWholePropertyCode = /^wp_/i.test(rawRt);
+                    const isWholePropertyBooking = mode === 'whole_property';
+
+                    if (!isWholePropertyBooking && !isWholePropertyCode) {
+                        return rawRt === '(未指定)' ? rawRt : (displayNameByRoomName.get(rawRt) || rawRt);
+                    }
+
+                    const matchedDirect =
+                        wpList.find((room) => String(room?.name || '').trim() === rawRt) ||
+                        wpList.find((room) => String(room?.id || '') === rawRt.replace(/^wp_/i, '').trim());
+                    if (matchedDirect) {
+                        return String(matchedDirect.display_name || matchedDirect.name || rawRt).trim() || rawRt;
+                    }
+
+                    if (isWholePropertyBooking) {
+                        try {
+                            let selections = b?.room_selections;
+                            if (selections) {
+                                selections = typeof selections === 'string' ? JSON.parse(selections) : selections;
+                            }
+                            if (Array.isArray(selections) && selections.length > 0) {
+                                const candidate = selections.find((s) => Number(s?.quantity || 0) > 0) || selections[0];
+                                const candidateName = String(candidate?.name || '').trim();
+                                const candidateDisplay = String(candidate?.displayName || candidate?.display_name || '').trim();
+                                const candidateId = String(candidate?.id || '').trim();
+                                const matchedFromSelection =
+                                    wpList.find((room) => String(room?.name || '').trim() === candidateName) ||
+                                    wpList.find((room) => String(room?.display_name || '').trim() === candidateDisplay) ||
+                                    wpList.find((room) => String(room?.id || '').trim() === candidateId) ||
+                                    wpList.find((room) => String(room?.id || '').trim() === candidateName.replace(/^wp_/i, '').trim());
+                                if (matchedFromSelection) {
+                                    return String(matchedFromSelection.display_name || matchedFromSelection.name || rawRt).trim() || rawRt;
+                                }
+                            }
+                        } catch (_) {
+                            /* ignore */
+                        }
+                    }
+
+                    const byDisp = wpList.find((room) => String(room?.display_name || '').trim() === rawRt);
+                    if (byDisp) {
+                        return String(byDisp.display_name || byDisp.name || rawRt).trim() || rawRt;
+                    }
+
+                    return rawRt === '(未指定)' ? rawRt : (displayNameByRoomName.get(rawRt) || rawRt);
+                };
 
                 const bookingWherePg = hasBuildingFilter
                     ? ` AND (building_id = $4 OR ($4 = 1 AND (building_id IS NULL OR building_id = 0)))`
@@ -5369,14 +5434,14 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
                     : '';
                 const bookingsForRoomTypeSql = usePostgreSQL
                     ? `
-                        SELECT status, total_amount, room_type, room_selections
+                        SELECT status, total_amount, room_type, room_selections, booking_mode
                         FROM bookings
                         WHERE check_in_date::date BETWEEN $1::date AND $2::date
                           AND tenant_id = $3
                         ${bookingWherePg}
                       `
                     : `
-                        SELECT status, total_amount, room_type, room_selections
+                        SELECT status, total_amount, room_type, room_selections, booking_mode
                         FROM bookings
                         WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?)
                           AND tenant_id = ?
@@ -5407,6 +5472,9 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
                 for (const b of bookingRows) {
                     const cancelled = isCancelled(b?.status);
                     const totalAmount = Math.max(0, parseInt(b?.total_amount, 10) || 0);
+                    const isWpBooking =
+                        String(b?.booking_mode || 'retail').trim() === 'whole_property' ||
+                        /^wp_/i.test(String(b?.room_type || '').trim());
 
                     let selections = null;
                     if (b && b.room_selections) {
@@ -5428,7 +5496,9 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
                         if (items.length > 0) {
                             const qtySum = items.reduce((sum, it) => sum + it.quantity, 0);
                             for (const it of items) {
-                                const label = displayNameByRoomName.get(it.name) || it.name;
+                                const label = isWpBooking
+                                    ? (wpDisplayLabel(it.name) || displayNameByRoomName.get(it.name) || it.name)
+                                    : (displayNameByRoomName.get(it.name) || it.name);
                                 const row = touch(label);
                                 row.total_in_range += 1;
                                 if (cancelled) {
@@ -5443,12 +5513,8 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
                         }
                     }
 
-                    // fallback：舊資料可能只存 room_type 代碼（如 wp_10）；對齊房型 display_name
-                    const rawRt = String(b?.room_type || '').trim() || '(未指定)';
-                    const label =
-                        rawRt === '(未指定)'
-                            ? rawRt
-                            : (displayNameByRoomName.get(rawRt) || rawRt);
+                    // fallback：舊資料可能只存 room_type 代碼；包棟需與訂房列表相同（含 room_selections 補救）
+                    const label = resolveStatsBookingRoomLabel(b);
                     const row = touch(label);
                     row.total_in_range += 1;
                     if (cancelled) {

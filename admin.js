@@ -4475,7 +4475,8 @@ function resolveStatsWpPlanDisplayLabel(raw) {
     for (const list of lists) {
         const matched =
             list.find((room) => String(room?.name || '').trim() === s) ||
-            list.find((room) => String(room?.id || '') === s.replace(/^wp_/i, '').trim());
+            list.find((room) => String(room?.id || '') === s.replace(/^wp_/i, '').trim()) ||
+            list.find((room) => String(room?.display_name || '').trim() === s);
         if (matched) {
             const out = String(matched.display_name || matched.name || s).trim();
             if (out) return out;
