@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>旅宿多租戶訂房系統 | 3 分鐘啟用官網接單</title>
+    <meta name="description" content="一站式多租戶旅宿訂房 SaaS，支援包棟/一般訂房、多館別、多管理員、報表與權限管理。立即申請試用。">
+    <link rel="stylesheet" href="/platform-sales.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="container topbar-inner">
+            <div class="brand">Booking System MT</div>
+            <a class="btn btn-outline" href="#cta-form">立即試用</a>
+        </div>
+    </header>
+
+    <main>
+        <section class="hero">
+            <div class="container hero-grid">
+                <div>
+                    <p class="eyebrow">旅宿業專用 SaaS</p>
+                    <h1>3 分鐘啟用自己的訂房官網，<br>多租戶後台一站管理</h1>
+                    <p class="lead">
+                        從官網接單、付款通知、房型/包棟管理到營運報表，全部整合在同一套系統。
+                    </p>
+                    <div class="hero-cta">
+                        <a class="btn btn-primary" href="#cta-form">開始免費試用</a>
+                        <a class="btn btn-outline" href="#plans">查看方案</a>
+                    </div>
+                    <div class="hero-points">
+                        <span>✓ 支援包棟模式</span>
+                        <span>✓ 多館別管理</span>
+                        <span>✓ 角色權限控管</span>
+                    </div>
+                </div>
+                <div class="hero-card">
+                    <h3>適合對象</h3>
+                    <ul>
+                        <li>民宿／旅館品牌經營者</li>
+                        <li>多據點旅宿集團</li>
+                        <li>代營運與顧問團隊</li>
+                    </ul>
+                    <p class="hero-card-note">已支援多租戶資料隔離與租戶級設定。</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="section">
+            <div class="container">
+                <h2>常見痛點，我們一次解決</h2>
+                <div class="grid-3">
+                    <article class="card">
+                        <h3>訂單分散</h3>
+                        <p>LINE、電話、表單資訊分散，人工對單容易漏接。</p>
+                    </article>
+                    <article class="card">
+                        <h3>報表不一致</h3>
+                        <p>營收、取消率、付款成功率難以統一口徑追蹤。</p>
+                    </article>
+                    <article class="card">
+                        <h3>無法規模化</h3>
+                        <p>多館多品牌共用流程困難，權限與資料控管成本高。</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="section alt">
+            <div class="container">
+                <h2>核心能力</h2>
+                <div class="grid-2">
+                    <article class="card">
+                        <h3>訂房管理</h3>
+                        <p>一般房型與包棟模式並存，支援加購、付款狀態、取消流程。</p>
+                    </article>
+                    <article class="card">
+                        <h3>多租戶架構</h3>
+                        <p>租戶資料隔離、角色權限、租戶訂閱方案與功能控管。</p>
+                    </article>
+                    <article class="card">
+                        <h3>營運報表</h3>
+                        <p>來源分析、房型分析、付款成功率與取消率一鍵查看。</p>
+                    </article>
+                    <article class="card">
+                        <h3>可快速上線</h3>
+                        <p>免自建基礎設施，提供可擴充 API 與客製化彈性。</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="section" id="plans">
+            <div class="container">
+                <h2>方案建議</h2>
+                <div class="grid-3">
+                    <article class="card plan">
+                        <p class="plan-name">入門版</p>
+                        <h3>Basic</h3>
+                        <p>單一品牌起步與驗證市場</p>
+                    </article>
+                    <article class="card plan featured">
+                        <p class="plan-name">成長版</p>
+                        <h3>Growth</h3>
+                        <p>多館別經營與完整營運報表需求</p>
+                    </article>
+                    <article class="card plan">
+                        <p class="plan-name">旗艦版</p>
+                        <h3>Scale</h3>
+                        <p>集團化管理、進階整合與客製流程</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="section cta" id="cta-form">
+            <div class="container cta-grid">
+                <div>
+                    <h2>立即申請試用</h2>
+                    <p>填寫表單後，我們會寄出驗證信啟用你的租戶帳號。</p>
+                    <p class="muted">* 你可先用試用環境建立房型與測試接單流程。</p>
+                </div>
+                <form id="tenantSignupForm" class="lead-form">
+                    <label>品牌/租戶名稱
+                        <input name="tenantName" required placeholder="例如：山嶼旅宿集團">
+                    </label>
+                    <label>租戶代碼（英文/數字/底線）
+                        <input name="tenantCode" placeholder="例如：shan_yu_group">
+                    </label>
+                    <label>管理員帳號
+                        <input name="adminUsername" required placeholder="例如：owner01">
+                    </label>
+                    <label>管理員 Email
+                        <input type="email" name="adminEmail" required placeholder="you@company.com">
+                    </label>
+                    <label>管理員密碼
+                        <input type="password" name="adminPassword" required minlength="8" placeholder="至少 8 碼">
+                    </label>
+                    <label>偏好方案
+                        <select name="planCode">
+                            <option value="basic_monthly">Basic（月付）</option>
+                            <option value="pro_monthly">Growth（月付）</option>
+                            <option value="enterprise_monthly">Scale（月付）</option>
+                        </select>
+                    </label>
+                    <button type="submit" class="btn btn-primary full">送出申請</button>
+                    <p id="formMessage" class="form-message" role="status"></p>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <script src="/platform-sales.js"></script>
+</body>
+</html>

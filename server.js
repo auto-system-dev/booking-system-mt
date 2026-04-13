@@ -1746,6 +1746,11 @@ app.get('/order-query', (req, res) => {
     res.sendFile(path.join(__dirname, 'order-query.html'));
 });
 
+// 平台銷售頁（推廣多租戶系統）
+app.get('/platform', publicLimiter, (req, res) => {
+    res.sendFile(path.join(__dirname, 'platform-sales.html'));
+});
+
 async function getLandingPagePayload(tenantId = defaultTenantId) {
     const allSettings = await db.getAllSettings(tenantId);
     const landingSettings = {};
