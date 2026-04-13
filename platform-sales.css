@@ -129,10 +129,10 @@ h3 { margin: 0 0 8px; }
     cursor: zoom-in;
     border: none;
     object-fit: cover;
-    min-height: 200px;
+    height: 190px;
 }
 .landing-feature-media-compact {
-    min-height: 150px;
+    height: 190px;
 }
 .landing-feature-cards .card {
     padding: 0;
