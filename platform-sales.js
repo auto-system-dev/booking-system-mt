@@ -105,7 +105,13 @@
         const name = String(plan?.name || '').trim();
         const cycle = String(plan?.billing_cycle || '').trim().toLowerCase();
         const cycleLabel = cycle === 'yearly' ? '年付' : '月付';
-        return name ? `${name}（${cycleLabel}）` : `${String(plan?.code || '').trim()}（${cycleLabel}）`;
+        const hasCycleInName = cycle === 'yearly'
+            ? /(年繳|年付|year)/i.test(name)
+            : /(月繳|月付|monthly|month)/i.test(name);
+        if (name) {
+            return hasCycleInName ? name : `${name}（${cycleLabel}）`;
+        }
+        return `${String(plan?.code || '').trim()}（${cycleLabel}）`;
     }
 
     async function loadPlanOptions() {
