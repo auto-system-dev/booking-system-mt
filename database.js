@@ -4981,6 +4981,8 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
         const bid = parseInt(buildingId, 10);
         const hasBuildingFilter = Number.isFinite(bid) && bid > 0;
         const safeBid = hasBuildingFilter ? bid : 1;
+        const systemModeRaw = String((await getSetting('system_mode', safeTenantId)) || 'retail').trim();
+        const isWholePropertySystemMode = systemModeRaw === 'whole_property';
 
         let totalSql, totalCheckedInSql, totalNotCheckedInSql;
         let revenueSql, revenuePaidSql, revenueUnpaidSql;
@@ -5358,7 +5360,8 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
                     getRoomTypesByBuilding(safeBid, { activeOnly: false, listScope: 'whole_property', tenantId: safeTenantId })
                 ]);
                 const displayNameByRoomName = new Map();
-                (roomTypesForMap || []).forEach((rt) => {
+                const nameMapSource = isWholePropertySystemMode ? wpRoomTypes : roomTypesForMap;
+                (nameMapSource || []).forEach((rt) => {
                     const nameKey = String(rt?.name || '').trim();
                     const displayKey = String(rt?.display_name || rt?.name || '').trim();
                     if (nameKey && displayKey) displayNameByRoomName.set(nameKey, displayKey);
@@ -5383,6 +5386,10 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
                     const isWholePropertyBooking = mode === 'whole_property';
 
                     if (!isWholePropertyBooking && !isWholePropertyCode) {
+                        if (isWholePropertySystemMode) {
+                            const earlyWp = wpDisplayLabel(rawRt);
+                            if (earlyWp) return earlyWp;
+                        }
                         return rawRt === '(未指定)' ? rawRt : (displayNameByRoomName.get(rawRt) || rawRt);
                     }
 
@@ -5423,6 +5430,10 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
                         return String(byDisp.display_name || byDisp.name || rawRt).trim() || rawRt;
                     }
 
+                    if (isWholePropertySystemMode) {
+                        const lateWp = wpDisplayLabel(rawRt);
+                        if (lateWp) return lateWp;
+                    }
                     return rawRt === '(未指定)' ? rawRt : (displayNameByRoomName.get(rawRt) || rawRt);
                 };
 
@@ -5473,6 +5484,7 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
                     const cancelled = isCancelled(b?.status);
                     const totalAmount = Math.max(0, parseInt(b?.total_amount, 10) || 0);
                     const isWpBooking =
+                        isWholePropertySystemMode ||
                         String(b?.booking_mode || 'retail').trim() === 'whole_property' ||
                         /^wp_/i.test(String(b?.room_type || '').trim());
 
@@ -5554,9 +5566,32 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
                 suite: '尊爵套房',
                 family: '家庭四人房'
             };
+            const wpRoomTypeDisplayByKey = new Map();
+            (allTypesForLabels || []).forEach((rt) => {
+                const ls = String(rt?.list_scope || '').trim();
+                if (ls !== 'whole_property') return;
+                const dk = String(rt?.display_name || rt?.name || '').trim();
+                const nm = String(rt?.name || '').trim();
+                if (nm && dk) {
+                    wpRoomTypeDisplayByKey.set(nm, dk);
+                    const idStr = String(rt?.id ?? '').trim();
+                    if (idStr) {
+                        wpRoomTypeDisplayByKey.set(idStr, dk);
+                        wpRoomTypeDisplayByKey.set(`wp_${idStr}`, dk);
+                    }
+                    const dispOnly = String(rt?.display_name || '').trim();
+                    if (dispOnly) wpRoomTypeDisplayByKey.set(dispOnly, dk);
+                }
+            });
             effectiveRoomRows = effectiveRoomRows.map((row) => {
                 const key = String(row?.room_type || '').trim();
                 if (!key || key === '(未指定)') return row;
+                if (isWholePropertySystemMode) {
+                    const pretty =
+                        wpRoomTypeDisplayByKey.get(key) ||
+                        null;
+                    return pretty ? { ...row, room_type: pretty } : row;
+                }
                 const pretty =
                     roomTypeDisplayByKey.get(key) ||
                     legacyRoomTypeLabels[key] ||
