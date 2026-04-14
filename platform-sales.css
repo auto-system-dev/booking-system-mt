@@ -21,7 +21,12 @@ body {
 }
 .container { width: min(1120px, 92%); margin: 0 auto; }
 .topbar {
-    position: sticky; top: 0; z-index: 10;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    z-index: 30;
     background: transparent;
     border-bottom: 1px solid transparent;
     backdrop-filter: none;
