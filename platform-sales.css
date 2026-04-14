@@ -234,6 +234,53 @@ h3 { margin: 0 0 8px; }
     font-size: 14px;
     line-height: 1.65;
 }
+.feature-highlights-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: 8px;
+}
+.feature-highlight-card {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 22px 16px 20px;
+    transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+.feature-highlight-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 16px 34px rgba(15, 23, 42, 0.18);
+    border-color: #cbd5e1;
+}
+.feature-highlight-icon {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(145deg, #1e293b, #0f172a);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.2);
+}
+.feature-highlight-icon svg {
+    display: block;
+}
+.feature-highlight-card h3 {
+    font-size: 16px;
+    margin: 0 0 10px;
+    color: #14213d;
+    line-height: 1.35;
+}
+.feature-highlight-card p {
+    font-size: 14px;
+    line-height: 1.65;
+    margin: 0;
+    color: #475569;
+}
 .platform-lightbox {
     position: fixed;
     inset: 0;
@@ -312,6 +359,12 @@ input, select {
 .form-message { min-height: 22px; margin: 10px 0 0; font-size: 14px; }
 .form-message.success { color: #166534; }
 .form-message.error { color: #b91c1c; }
+@media (max-width: 1100px) {
+    .feature-highlights-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+    .feature-highlights-grid { grid-template-columns: 1fr; }
+}
 @media (max-width: 900px) {
     .hero-grid, .cta-grid, .grid-2, .grid-3 { grid-template-columns: 1fr; }
     .hero { padding-top: 44px; }
