@@ -19,6 +19,27 @@
     }
     initTopbarScrollState();
 
+    function reorderSalesSections() {
+        const main = document.querySelector('main');
+        if (!main) return;
+        const orderedIds = [
+            'feature-highlights',
+            'booking-modes',
+            'admin-preview-blocks',
+            'landing-showcase',
+            'landing-feature-blocks',
+            'plans',
+            'cases',
+            'faq',
+            'cta-form'
+        ];
+        orderedIds.forEach((id) => {
+            const section = document.getElementById(id);
+            if (section) main.appendChild(section);
+        });
+    }
+    reorderSalesSections();
+
     if (!form || !formMessage) return;
 
     function resolveMeasurementId() {
