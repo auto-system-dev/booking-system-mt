@@ -309,21 +309,17 @@
         <section class="section" id="plans">
             <div class="container">
                 <h2>方案建議</h2>
-                <div class="grid-3">
+                <p class="lead-center" style="margin-bottom:16px;">採 2 方案設計：基礎可快速上線，專業支援成長；提供月繳與年繳（年繳約省 2 個月）。</p>
+                <div class="grid-2">
                     <article class="card plan">
-                        <p class="plan-name">入門版</p>
+                        <p class="plan-name">基礎方案</p>
                         <h3>Basic</h3>
-                        <p>單一品牌、快速上線與驗證市場</p>
+                        <p>適合單一旅宿快速上線官網接單與日常管理。</p>
                     </article>
                     <article class="card plan featured">
-                        <p class="plan-name">成長版</p>
-                        <h3>Growth</h3>
-                        <p>多館別或成長期營運與進階報表</p>
-                    </article>
-                    <article class="card plan">
-                        <p class="plan-name">旗艦版</p>
-                        <h3>Scale</h3>
-                        <p>連鎖／集團、進階整合與客製流程</p>
+                        <p class="plan-name">專業方案</p>
+                        <h3>Pro</h3>
+                        <p>適合成長期或多館別營運，強化效率、分析與協作。</p>
                     </article>
                 </div>
                 <div class="plan-table-wrap">
@@ -332,45 +328,49 @@
                             <tr>
                                 <th>項目</th>
                                 <th>Basic</th>
-                                <th>Growth</th>
-                                <th>Scale</th>
+                                <th>Pro</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
+                                <td>計費週期</td>
+                                <td>月繳／年繳</td>
+                                <td>月繳／年繳</td>
+                            </tr>
+                            <tr>
                                 <td>適合對象</td>
-                                <td>單一品牌起步</td>
-                                <td>多館別成長期</td>
-                                <td>集團化營運</td>
+                                <td>單一旅宿起步</td>
+                                <td>成長期或多館別經營</td>
                             </tr>
                             <tr>
                                 <td>館別管理</td>
                                 <td>1 館</td>
                                 <td>最多 5 館</td>
-                                <td>不限館數</td>
                             </tr>
                             <tr>
                                 <td>管理員帳號</td>
                                 <td>2 席</td>
                                 <td>10 席</td>
-                                <td>彈性擴充</td>
                             </tr>
                             <tr>
                                 <td>報表分析</td>
                                 <td>基礎</td>
-                                <td>進階（來源/方案）</td>
-                                <td>完整 + 客製欄位</td>
+                                <td>進階（來源／付款／取消）</td>
                             </tr>
                             <tr>
                                 <td>整合能力</td>
                                 <td>標準</td>
-                                <td>Webhook</td>
-                                <td>API + 顧問支援</td>
+                                <td>Webhook / API（依方案）</td>
+                            </tr>
+                            <tr>
+                                <td>建議價格</td>
+                                <td>月繳 NT$1,680 起<br>年繳 NT$16,800 起</td>
+                                <td>月繳 NT$4,280 起<br>年繳 NT$42,800 起</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
-                <p class="plan-note">* 實際價格與功能以正式報價與合約內容為準。</p>
+                <p class="plan-note">* 年繳示意為月費約省 2 個月；實際價格與功能以正式報價與合約內容為準。</p>
             </div>
         </section>
 
@@ -459,9 +459,10 @@
                     </div>
                     <label>偏好方案
                         <select name="planCode" id="planCodeSelect">
-                            <option value="basic_monthly">Basic（月付）</option>
-                            <option value="pro_monthly">Growth（月付）</option>
-                            <option value="enterprise_monthly">Scale（月付）</option>
+                            <option value="basic_monthly">Basic（月繳）</option>
+                            <option value="basic_yearly">Basic（年繳）</option>
+                            <option value="pro_monthly">Pro（月繳）</option>
+                            <option value="pro_yearly">Pro（年繳）</option>
                         </select>
                     </label>
                     <button type="submit" class="btn btn-primary full js-track-cta" data-cta="form_submit">送出申請</button>

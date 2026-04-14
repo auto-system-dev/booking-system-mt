@@ -151,18 +151,60 @@
         return `${String(plan?.code || '').trim()}（${cycleLabel}）`;
     }
 
+    const PLAN_OPTION_FALLBACK = [
+        { code: 'basic_monthly', label: 'Basic（月繳）' },
+        { code: 'basic_yearly', label: 'Basic（年繳）' },
+        { code: 'pro_monthly', label: 'Pro（月繳）' },
+        { code: 'pro_yearly', label: 'Pro（年繳）' }
+    ];
+
+    function normalizePlanGroup(plan = {}) {
+        const rawName = String(plan?.name || '').toLowerCase();
+        const rawCode = String(plan?.code || '').toLowerCase();
+        if (rawName.includes('pro') || rawCode.includes('pro') || rawName.includes('專業')) return 'pro';
+        if (rawName.includes('basic') || rawCode.includes('basic') || rawName.includes('基礎')) return 'basic';
+        return '';
+    }
+
+    function normalizePlanCycle(plan = {}) {
+        const cycle = String(plan?.billing_cycle || '').toLowerCase();
+        const rawName = String(plan?.name || '').toLowerCase();
+        const rawCode = String(plan?.code || '').toLowerCase();
+        if (cycle === 'yearly' || rawName.includes('年') || rawCode.includes('year')) return 'yearly';
+        return 'monthly';
+    }
+
+    function normalizePlanCode(plan = {}) {
+        const group = normalizePlanGroup(plan);
+        if (!group) return '';
+        const cycle = normalizePlanCycle(plan);
+        return `${group}_${cycle}`;
+    }
+
     async function loadPlanOptions() {
         if (!planCodeSelect) return;
         try {
             const response = await fetch('/api/public/subscription-plans', { credentials: 'include' });
             const result = await response.json().catch(() => ({}));
             if (!response.ok || !result?.success || !Array.isArray(result?.data)) return;
-            const plans = result.data
-                .filter((p) => String(p?.code || '').trim())
-                .sort((a, b) => String(a?.code || '').localeCompare(String(b?.code || '')));
-            if (!plans.length) return;
-            planCodeSelect.innerHTML = plans.map((p) =>
-                `<option value="${String(p.code)}">${formatPlanOptionLabel(p)}</option>`
+            const preferredPlanMap = new Map();
+            result.data.forEach((plan) => {
+                const normalizedCode = normalizePlanCode(plan);
+                if (!normalizedCode || preferredPlanMap.has(normalizedCode)) return;
+                const cycleLabel = normalizedCode.endsWith('yearly') ? '年繳' : '月繳';
+                const groupLabel = normalizedCode.startsWith('pro_') ? 'Pro' : 'Basic';
+                preferredPlanMap.set(normalizedCode, `${groupLabel}（${cycleLabel}）`);
+            });
+            if (!preferredPlanMap.size) return;
+            const ordered = PLAN_OPTION_FALLBACK
+                .filter((item) => preferredPlanMap.has(item.code))
+                .map((item) => ({
+                    code: item.code,
+                    label: preferredPlanMap.get(item.code) || item.label
+                }));
+            if (!ordered.length) return;
+            planCodeSelect.innerHTML = ordered.map((p) =>
+                `<option value="${p.code}">${p.label}</option>`
             ).join('');
         } catch (_) {
             // keep default options when API fails
