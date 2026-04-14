@@ -5143,7 +5143,7 @@ app.get('/api/statistics/period-comparison', requireAuth, requireTenantContext, 
 });
 
 // API: 儀表板數據（僅摘要；與 ops 同頁載入請優先使用 /api/dashboard/bundle）
-app.get('/api/dashboard', requireTenantContext, subscriptionGate.requireFeature('reports'), adminLimiter, async (req, res) => {
+app.get('/api/dashboard', requireTenantContext, adminLimiter, async (req, res) => {
     try {
         const buildingId = req.query.buildingId;
         const allBookings = await db.getAllBookings(buildingId, undefined, getRequestTenantId(req));
@@ -5189,7 +5189,7 @@ async function loadBookingsAndRoomTypesForOpsDashboard(req) {
 }
 
 // API: 儀表板摘要 + 營運 KPI 單次查詢（重新整理時避免重複 getAllBookings）
-app.get('/api/dashboard/bundle', requireTenantContext, subscriptionGate.requireFeature('reports'), adminLimiter, async (req, res) => {
+app.get('/api/dashboard/bundle', requireTenantContext, adminLimiter, async (req, res) => {
     try {
         const parsed = parseOpsDashboardQuery(req.query);
         if (!parsed.ok) {
@@ -5216,7 +5216,7 @@ app.get('/api/dashboard/bundle', requireTenantContext, subscriptionGate.requireF
 });
 
 // API: 營運儀表板 Phase 1 指標（同頁整合）
-app.get('/api/dashboard/ops', requireTenantContext, subscriptionGate.requireFeature('reports'), adminLimiter, async (req, res) => {
+app.get('/api/dashboard/ops', requireTenantContext, adminLimiter, async (req, res) => {
     try {
         const parsed = parseOpsDashboardQuery(req.query);
         if (!parsed.ok) {
