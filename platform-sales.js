@@ -30,6 +30,21 @@
 
     const ga4Id = loadGa4IfNeeded();
 
+    function initTopbarScrollState() {
+        const topbar = document.querySelector('.topbar');
+        if (!topbar) return;
+        const update = () => {
+            if (window.scrollY > 12) {
+                topbar.classList.add('is-scrolled');
+            } else {
+                topbar.classList.remove('is-scrolled');
+            }
+        };
+        update();
+        window.addEventListener('scroll', update, { passive: true });
+    }
+    initTopbarScrollState();
+
     function trackEvent(eventName, params) {
         const payload = params || {};
         if (typeof window.gtag === 'function') {

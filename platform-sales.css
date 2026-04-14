@@ -22,9 +22,15 @@ body {
 .container { width: min(1120px, 92%); margin: 0 auto; }
 .topbar {
     position: sticky; top: 0; z-index: 10;
-    background: linear-gradient(135deg, #0f172a 0%, #0b2048 100%);
-    border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+    background: transparent;
+    border-bottom: 1px solid transparent;
     backdrop-filter: blur(10px);
+    transition: background 0.24s ease, border-color 0.24s ease, box-shadow 0.24s ease;
+}
+.topbar.is-scrolled {
+    background: linear-gradient(135deg, #0f172a 0%, #0b2048 100%);
+    border-bottom-color: rgba(148, 163, 184, 0.28);
+    box-shadow: 0 8px 20px rgba(2, 6, 23, 0.2);
 }
 .topbar-inner { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; }
 .brand { font-weight: 800; letter-spacing: 0.02em; font-size: 15px; color: #f8fafc; }
@@ -356,13 +362,6 @@ h3 { margin: 0 0 8px; }
 #booking-modes .eyebrow,
 #admin-preview-blocks .eyebrow {
     color: #2563eb;
-}
-#feature-highlights h2,
-#landing-showcase h2,
-#landing-feature-blocks h2,
-#booking-modes h2,
-#admin-preview-blocks h2 {
-    color: #1d4ed8;
 }
 .platform-lightbox {
     position: fixed;
