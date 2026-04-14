@@ -41,7 +41,8 @@ body {
 .topbar-inner { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; }
 .brand { font-weight: 800; letter-spacing: 0.02em; font-size: 15px; color: #f8fafc; }
 .hero {
-    padding: 96px 0 82px;
+    position: relative;
+    padding: 130px 0 110px;
     min-height: 100vh;
     background:
         linear-gradient(118deg, rgba(15, 23, 42, 0.66) 0%, rgba(30, 41, 59, 0.5) 46%, rgba(37, 99, 235, 0.34) 100%),
@@ -55,6 +56,7 @@ body {
     grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.9fr);
     gap: 54px;
     align-items: center;
+    min-height: calc(100vh - 240px);
     max-width: 1120px;
     margin: 0 auto;
 }
@@ -97,6 +99,31 @@ h3 { margin: 0 0 8px; }
 }
 .hero-card ul { margin: 8px 0 0; padding-left: 20px; color: #334155; line-height: 1.8; }
 .hero-card-note { margin-top: 10px; color: #475569; font-size: 14px; }
+.hero-scroll-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    color: rgba(248, 250, 252, 0.95);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-shadow: 0 1px 8px rgba(2, 6, 23, 0.35);
+}
+.hero-scroll-arrow {
+    font-size: 20px;
+    line-height: 1;
+    animation: heroArrowBounce 1.5s ease-in-out infinite;
+}
+@keyframes heroArrowBounce {
+    0%, 100% { transform: translateY(0); opacity: 0.9; }
+    50% { transform: translateY(7px); opacity: 1; }
+}
 .section { padding: 70px 0; }
 .section.alt {
     background: linear-gradient(180deg, rgba(239, 246, 255, 0.72) 0%, rgba(236, 244, 255, 0.5) 100%);
@@ -519,8 +546,9 @@ input:focus, select:focus {
 }
 @media (max-width: 900px) {
     .hero-grid, .cta-grid, .grid-2, .grid-3 { grid-template-columns: 1fr; }
-    .hero { padding-top: 64px; min-height: auto; }
-    .hero-grid { gap: 18px; max-width: 100%; }
+    .hero { padding: 92px 0 72px; min-height: auto; }
+    .hero-grid { gap: 18px; max-width: 100%; min-height: auto; }
+    .hero-scroll-hint { bottom: 12px; }
     .section { padding: 56px 0; }
     .showcase-grid {
         display: grid;
