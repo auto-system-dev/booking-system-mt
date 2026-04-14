@@ -145,6 +145,24 @@ h3 { margin: 0 0 8px; }
 .landing-feature-cards .card p {
     margin: 0 14px 14px;
 }
+.admin-preview-cards .card {
+    padding: 0;
+    overflow: hidden;
+}
+.admin-preview-media {
+    width: 100%;
+    display: block;
+    cursor: zoom-in;
+    border: none;
+    object-fit: cover;
+    height: 270px;
+}
+.admin-preview-cards .card h3 {
+    margin: 12px 14px 8px;
+}
+.admin-preview-cards .card p {
+    margin: 0 14px 14px;
+}
 .landing-feature-cards .card:hover {
     transform: translateY(-6px);
     box-shadow: 0 16px 34px rgba(15, 23, 42, 0.18);
@@ -246,4 +264,5 @@ input, select {
         z-index: 1;
         box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
     }
+    .admin-preview-media { height: 210px; }
 }
