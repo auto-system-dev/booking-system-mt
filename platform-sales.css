@@ -29,12 +29,22 @@ body {
 .topbar-inner { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; }
 .brand { font-weight: 800; letter-spacing: 0.02em; font-size: 15px; color: #0b1f45; }
 .hero {
-    padding: 86px 0 58px;
+    padding: 94px 0 74px;
     background:
-        radial-gradient(circle at 15% -5%, rgba(96, 165, 250, 0.18), transparent 40%),
-        linear-gradient(140deg, #f8fbff 0%, #eef4ff 65%, #edf3ff 100%);
+        linear-gradient(110deg, rgba(248, 251, 255, 0.92) 0%, rgba(238, 244, 255, 0.9) 42%, rgba(228, 236, 248, 0.88) 100%),
+        url('/assets/platform/Background-image.jfif');
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-position: center;
 }
-.hero-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 28px; align-items: start; }
+.hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.88fr);
+    gap: 42px;
+    align-items: center;
+    max-width: 980px;
+    margin: 0 auto;
+}
 .eyebrow {
     color: #2563eb;
     font-weight: 700;
@@ -51,8 +61,8 @@ h3 { margin: 0 0 8px; }
     background: #fff;
     border: 1px solid #dbeafe;
     border-radius: var(--radius-lg);
-    padding: 22px;
-    box-shadow: 0 16px 36px rgba(37, 99, 235, 0.1);
+    padding: 24px;
+    box-shadow: 0 16px 36px rgba(37, 99, 235, 0.14);
 }
 .hero-card ul { margin: 8px 0 0; padding-left: 20px; color: #334155; line-height: 1.8; }
 .hero-card-note { margin-top: 10px; color: #475569; font-size: 14px; }
@@ -472,6 +482,7 @@ input:focus, select:focus {
 @media (max-width: 900px) {
     .hero-grid, .cta-grid, .grid-2, .grid-3 { grid-template-columns: 1fr; }
     .hero { padding-top: 54px; }
+    .hero-grid { gap: 18px; max-width: 100%; }
     .section { padding: 56px 0; }
     .showcase-grid {
         display: grid;
