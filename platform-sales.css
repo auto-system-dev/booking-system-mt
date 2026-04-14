@@ -22,15 +22,15 @@ body {
 .container { width: min(1120px, 92%); margin: 0 auto; }
 .topbar {
     position: sticky; top: 0; z-index: 10;
-    background: linear-gradient(180deg, rgba(15, 23, 42, 0.58) 0%, rgba(15, 23, 42, 0.42) 100%);
-    border-bottom: 1px solid rgba(226, 232, 240, 0.24);
+    background: linear-gradient(135deg, #0f172a 0%, #0b2048 100%);
+    border-bottom: 1px solid rgba(148, 163, 184, 0.28);
     backdrop-filter: blur(10px);
 }
 .topbar-inner { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; }
 .brand { font-weight: 800; letter-spacing: 0.02em; font-size: 15px; color: #f8fafc; }
 .hero {
-    padding: 94px 0 74px;
-    min-height: calc(100vh - 56px);
+    padding: 96px 0 82px;
+    min-height: 100vh;
     background:
         linear-gradient(118deg, rgba(15, 23, 42, 0.66) 0%, rgba(30, 41, 59, 0.5) 46%, rgba(37, 99, 235, 0.34) 100%),
         url('/assets/platform/Background-image.jfif');
@@ -40,14 +40,14 @@ body {
 }
 .hero-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.88fr);
-    gap: 42px;
+    grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.9fr);
+    gap: 54px;
     align-items: center;
-    max-width: 980px;
+    max-width: 1120px;
     margin: 0 auto;
 }
 .eyebrow {
-    color: #dbeafe;
+    color: #60a5fa;
     font-weight: 700;
     margin-bottom: 10px;
     letter-spacing: 0.02em;
@@ -350,6 +350,20 @@ h3 { margin: 0 0 8px; }
     margin: 0;
     color: #475569;
 }
+#feature-highlights .eyebrow,
+#landing-showcase .eyebrow,
+#landing-feature-blocks .eyebrow,
+#booking-modes .eyebrow,
+#admin-preview-blocks .eyebrow {
+    color: #2563eb;
+}
+#feature-highlights h2,
+#landing-showcase h2,
+#landing-feature-blocks h2,
+#booking-modes h2,
+#admin-preview-blocks h2 {
+    color: #1d4ed8;
+}
 .platform-lightbox {
     position: fixed;
     inset: 0;
@@ -499,7 +513,7 @@ input:focus, select:focus {
 }
 @media (max-width: 900px) {
     .hero-grid, .cta-grid, .grid-2, .grid-3 { grid-template-columns: 1fr; }
-    .hero { padding-top: 54px; min-height: auto; }
+    .hero { padding-top: 64px; min-height: auto; }
     .hero-grid { gap: 18px; max-width: 100%; }
     .section { padding: 56px 0; }
     .showcase-grid {
