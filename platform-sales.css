@@ -174,39 +174,10 @@ h3 { margin: 0 0 8px; }
     box-shadow: 0 16px 34px rgba(15, 23, 42, 0.18);
     border-color: #cbd5e1;
 }
-.booking-modes-section {
-    background: #f5f2ea;
-}
-.booking-modes-head {
-    margin-bottom: 28px;
-}
-.booking-mode-tag {
-    display: inline-block;
-    margin: 0 0 12px;
-    padding: 6px 14px;
-    border-radius: 999px;
-    font-size: 13px;
-    font-weight: 700;
-    color: #334155;
-    background: #e8e0d4;
-    letter-spacing: 0.02em;
-}
-.booking-mode-title {
-    font-family: ui-serif, "Noto Serif TC", "Source Han Serif TC", "Songti TC", "Times New Roman", serif;
-    font-weight: 700;
-    color: #0f172a;
-    line-height: 1.35;
-}
-.booking-modes-lead {
-    margin-top: 10px;
-}
 .booking-mode-cards .card {
     display: flex;
     flex-direction: column;
     height: 100%;
-    background: #fff;
-    border-radius: 14px;
-    padding: 22px 20px 20px;
     transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
 }
 .booking-mode-cards .card:hover {
@@ -218,23 +189,23 @@ h3 { margin: 0 0 8px; }
     display: flex;
     gap: 14px;
     align-items: flex-start;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
 }
 .booking-mode-icon {
     flex-shrink: 0;
     width: 48px;
     height: 48px;
     border-radius: 12px;
-    background: #3d4f6b;
+    background: linear-gradient(145deg, #2563eb, #1d4ed8);
     color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
+    box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
 }
 .booking-mode-card-intro h3 {
-    font-size: 1.25rem;
     margin: 0 0 6px;
-    color: #0f172a;
+    color: #14213d;
 }
 .booking-mode-sub {
     margin: 0;
@@ -243,11 +214,11 @@ h3 { margin: 0 0 8px; }
     line-height: 1.55;
 }
 .booking-mode-list {
-    margin: 0 0 16px;
+    margin: 0 0 14px;
     padding-left: 20px;
-    color: #334155;
+    color: #475569;
     font-size: 15px;
-    line-height: 1.75;
+    line-height: 1.7;
     flex: 1;
 }
 .booking-mode-list li {
@@ -255,10 +226,11 @@ h3 { margin: 0 0 8px; }
 }
 .booking-mode-callout {
     margin: 0;
-    padding: 14px 16px;
-    border-radius: 12px;
-    background: #efe9dd;
-    color: #334155;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: #f8fbff;
+    border: 1px solid #dbeafe;
+    color: #475569;
     font-size: 14px;
     line-height: 1.65;
 }
