@@ -1313,28 +1313,28 @@ async function seedSubscriptionMvpDefaults() {
             name: '基礎方案（月繳）',
             cycle: 'monthly',
             price: 999,
-            features: { reports: false, api_access: false, max_buildings: 1 }
+            features: { reports: false, api_access: false, max_buildings: 1, max_admins: 2 }
         },
         {
             code: 'basic_yearly',
             name: '基礎方案（年繳）',
             cycle: 'yearly',
             price: 9990,
-            features: { reports: false, api_access: false, max_buildings: 1 }
+            features: { reports: false, api_access: false, max_buildings: 1, max_admins: 2 }
         },
         {
             code: 'pro_monthly',
             name: '專業方案（月繳）',
             cycle: 'monthly',
             price: 2999,
-            features: { reports: true, api_access: true, max_buildings: 5 }
+            features: { reports: true, api_access: true, max_buildings: 5, max_admins: 5 }
         },
         {
             code: 'pro_yearly',
             name: '專業方案（年繳）',
             cycle: 'yearly',
             price: 29990,
-            features: { reports: true, api_access: true, max_buildings: 20 }
+            features: { reports: true, api_access: true, max_buildings: 5, max_admins: 5 }
         }
     ];
 
@@ -1347,6 +1347,7 @@ async function seedSubscriptionMvpDefaults() {
                    name = EXCLUDED.name,
                    billing_cycle = EXCLUDED.billing_cycle,
                    price_amount = EXCLUDED.price_amount,
+                   feature_flags = EXCLUDED.feature_flags,
                    is_active = 1,
                    updated_at = CURRENT_TIMESTAMP`,
                 [plan.code, plan.name, plan.cycle, plan.price, JSON.stringify(plan.features)]
@@ -1355,8 +1356,8 @@ async function seedSubscriptionMvpDefaults() {
             const existing = await queryOne(`SELECT id FROM plans WHERE code = ?`, [plan.code]);
             if (existing) {
                 await query(
-                    `UPDATE plans SET name = ?, billing_cycle = ?, price_amount = ?, is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE code = ?`,
-                    [plan.name, plan.cycle, plan.price, plan.code]
+                    `UPDATE plans SET name = ?, billing_cycle = ?, price_amount = ?, feature_flags = ?, is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE code = ?`,
+                    [plan.name, plan.cycle, plan.price, JSON.stringify(plan.features), plan.code]
                 );
             } else {
                 await query(
@@ -7262,6 +7263,17 @@ async function getBuildingCountByTenant(tenantId) {
     return parseInt(row?.cnt || 0, 10);
 }
 
+async function getAdminCountByTenant(tenantId) {
+    const safeTenantId = assertTenantScope(tenantId, 'getAdminCountByTenant');
+    const row = await queryOne(
+        usePostgreSQL
+            ? `SELECT COUNT(*)::int as cnt FROM admins WHERE tenant_id = $1`
+            : `SELECT COUNT(*) as cnt FROM admins WHERE tenant_id = ?`,
+        [safeTenantId]
+    );
+    return parseInt(row?.cnt || 0, 10);
+}
+
 async function createBuilding(building, tenantId) {
     try {
         const safeTenantId = assertTenantScope(tenantId, 'createBuilding');
@@ -8315,7 +8327,8 @@ async function getTenantSubscriptionSnapshot(tenantId) {
 
     const features = parseFeatureFlags(row.feature_flags);
     const limits = {
-        max_buildings: parseInt(features.max_buildings || 1, 10)
+        max_buildings: parseInt(features.max_buildings || 1, 10),
+        max_admins: parseInt(features.max_admins || 0, 10)
     };
 
     return {
@@ -8676,7 +8689,8 @@ async function createSubscriptionPlanByAdmin(data = {}) {
     const features = {
         reports: !!data?.feature_flags?.reports,
         api_access: !!data?.feature_flags?.api_access,
-        max_buildings: Math.max(1, parseInt(data?.feature_flags?.max_buildings || 1, 10) || 1)
+        max_buildings: Math.max(1, parseInt(data?.feature_flags?.max_buildings || 1, 10) || 1),
+        max_admins: Math.max(0, parseInt(data?.feature_flags?.max_admins || 0, 10) || 0)
     };
     if (!/^[a-z0-9_]{3,40}$/.test(code)) {
         throw new Error('方案代碼格式錯誤（僅限小寫英文、數字、底線，3-40字元）');
@@ -8717,7 +8731,8 @@ async function updateSubscriptionPlanByAdmin(planCode, data = {}) {
     const features = {
         reports: !!data?.feature_flags?.reports,
         api_access: !!data?.feature_flags?.api_access,
-        max_buildings: Math.max(1, parseInt(data?.feature_flags?.max_buildings || 1, 10) || 1)
+        max_buildings: Math.max(1, parseInt(data?.feature_flags?.max_buildings || 1, 10) || 1),
+        max_admins: Math.max(0, parseInt(data?.feature_flags?.max_admins || 0, 10) || 0)
     };
     if (!name) throw new Error('方案名稱為必填');
     if (!['monthly', 'yearly'].includes(billingCycle)) throw new Error('billing_cycle 僅接受 monthly 或 yearly');
@@ -10687,6 +10702,7 @@ module.exports = {
     getActiveBuildingsPublic,
     getBuildingById,
     getBuildingCountByTenant,
+    getAdminCountByTenant,
     createBuilding,
     updateBuilding,
     deleteBuilding,

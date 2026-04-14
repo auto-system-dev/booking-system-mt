@@ -2726,7 +2726,7 @@ app.get('/api/admin/admins/:id', requireAuth, checkPermission('admins.view'), as
 });
 
 // 新增管理員
-app.post('/api/admin/admins', requireAuth, checkPermission('admins.create'), async (req, res) => {
+app.post('/api/admin/admins', requireAuth, checkPermission('admins.create'), subscriptionGate.enforceAdminLimit, async (req, res) => {
     try {
         const scope = resolveAdminMgmtTenantScope(req);
         if (!scope.ok) {
