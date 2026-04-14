@@ -69,13 +69,8 @@
         const titleEl = document.querySelector('.hero h1');
         const leadEl = document.querySelector('.hero .lead');
         if (!titleEl || !leadEl) return;
-        if (variant === 'B') {
-            titleEl.innerHTML = '包棟與房型都能接，<br>訂單與房態集中管理';
-            leadEl.textContent = '從官網下單、金流回傳到 Email 提醒，流程標準化；櫃台與後台資訊一致，旺季更好調度人力。';
-        } else {
-            titleEl.innerHTML = '讓旅客在官網直接訂房，<br>後台一頁看懂訂單';
-            leadEl.textContent = '接單、付款、房型與包棟、報表與通知集中管理；少漏單、少對錯帳，把時間留給接待與服務。';
-        }
+        titleEl.innerHTML = '把訂房流程做簡單，<br>把管理做自動';
+        leadEl.innerHTML = '一套系統搞定：房型/價格管理、線上訂房、付款、訂房確認與通知郵件。<br>讓民宿/旅館把時間留給服務與營運。';
     }
 
     const heroVariant = resolveHeroVariant();
