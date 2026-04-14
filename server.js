@@ -3363,7 +3363,8 @@ app.post('/api/public/register-tenant', publicLimiter, async (req, res) => {
             adminUsername,
             adminEmail,
             adminPassword,
-            planCode
+            planCode,
+            systemMode
         } = req.body || {};
 
         if (!tenantName || !adminUsername || !adminPassword) {
@@ -3381,6 +3382,7 @@ app.post('/api/public/register-tenant', publicLimiter, async (req, res) => {
             adminPassword,
             planCode: String(planCode || 'basic_monthly').trim(),
             subscriptionStatus: 'trialing',
+            systemMode: String(systemMode || 'retail').trim(),
             requireEmailVerification: true
         });
 

@@ -468,6 +468,19 @@
                     <label>管理員密碼
                         <input type="password" name="adminPassword" required minlength="8" placeholder="至少 8 碼">
                     </label>
+                    <div class="lead-form-field lead-form-field-radios">
+                        <span class="lead-form-field-label">訂房模式</span>
+                        <div class="lead-form-radios" role="radiogroup" aria-label="訂房模式">
+                            <label class="lead-form-radio">
+                                <input type="radio" name="systemMode" value="retail" checked>
+                                <span>一般訂房</span>
+                            </label>
+                            <label class="lead-form-radio">
+                                <input type="radio" name="systemMode" value="whole_property">
+                                <span>包棟訂房</span>
+                            </label>
+                        </div>
+                    </div>
                     <label>偏好方案
                         <select name="planCode" id="planCodeSelect">
                             <option value="basic_monthly">Basic（月付）</option>

@@ -185,13 +185,16 @@
         });
 
         const fd = new FormData(form);
+        const rawMode = String(fd.get('systemMode') || 'retail').trim();
+        const systemMode = rawMode === 'whole_property' ? 'whole_property' : 'retail';
         const payload = {
             tenantName: String(fd.get('tenantName') || '').trim(),
             tenantCode: String(fd.get('tenantCode') || '').trim(),
             adminUsername: String(fd.get('adminUsername') || '').trim(),
             adminEmail: String(fd.get('adminEmail') || '').trim(),
             adminPassword: String(fd.get('adminPassword') || ''),
-            planCode: String(fd.get('planCode') || 'basic_monthly').trim()
+            planCode: String(fd.get('planCode') || 'basic_monthly').trim(),
+            systemMode
         };
 
         try {
@@ -217,6 +220,7 @@
                 page_type: 'platform_sales',
                 source: 'platform_cta_form',
                 plan_code: payload.planCode || 'basic_monthly',
+                system_mode: payload.systemMode,
                 hero_variant: heroVariant
             });
             form.reset();

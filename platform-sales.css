@@ -339,6 +339,28 @@ h3 { margin: 0 0 8px; }
     color: #0f172a;
 }
 .lead-form label { display: block; margin-bottom: 12px; font-weight: 600; font-size: 14px; }
+.lead-form-field-radios { margin-bottom: 12px; }
+.lead-form-field-label {
+    display: block;
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: #0f172a;
+}
+.lead-form-radios {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 22px;
+}
+.lead-form .lead-form-radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0;
+    font-weight: 500;
+    cursor: pointer;
+}
+.lead-form .lead-form-radio span { color: #334155; font-weight: 500; }
 input, select {
     width: 100%;
     margin-top: 6px;
@@ -346,6 +368,12 @@ input, select {
     border: 1px solid #cbd5e1;
     border-radius: 9px;
     font-size: 15px;
+}
+.lead-form input[type="radio"],
+.lead-form input[type="checkbox"] {
+    width: auto;
+    margin-top: 0;
+    accent-color: #2563eb;
 }
 .btn {
     display: inline-flex; align-items: center; justify-content: center;
