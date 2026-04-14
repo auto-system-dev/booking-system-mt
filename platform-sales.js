@@ -70,11 +70,11 @@
         const leadEl = document.querySelector('.hero .lead');
         if (!titleEl || !leadEl) return;
         if (variant === 'B') {
-            titleEl.innerHTML = '多租戶旅宿系統快速上線，<br>從接單到報表一次完成';
-            leadEl.textContent = '免自建平台、免分散工具，讓你用同一套系統管理多品牌與多館別營運。';
+            titleEl.innerHTML = '包棟與房型都能接，<br>訂單與房態集中管理';
+            leadEl.textContent = '從官網下單、金流回傳到 Email 提醒，流程標準化；櫃台與後台資訊一致，旺季更好調度人力。';
         } else {
-            titleEl.innerHTML = '3 分鐘啟用自己的訂房官網，<br>多租戶後台一站管理';
-            leadEl.textContent = '從官網接單、付款通知、房型/包棟管理到營運報表，全部整合在同一套系統。';
+            titleEl.innerHTML = '讓旅客在官網直接訂房，<br>後台一頁看懂訂單';
+            leadEl.textContent = '接單、付款、房型與包棟、報表與通知集中管理；少漏單、少對錯帳，把時間留給接待與服務。';
         }
     }
 
