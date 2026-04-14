@@ -409,6 +409,11 @@ h3 { margin: 0 0 8px; }
 #admin-preview-blocks .eyebrow {
     color: #2563eb;
 }
+#feature-highlights .eyebrow,
+#feature-highlights h2,
+#feature-highlights .lead-center {
+    color: #ffffff;
+}
 .platform-lightbox {
     position: fixed;
     inset: 0;
