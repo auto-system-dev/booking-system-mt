@@ -148,6 +148,7 @@ h3 { margin: 0 0 8px; }
 .admin-preview-cards .card {
     padding: 0;
     overflow: hidden;
+    transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
 }
 .admin-preview-media {
     width: 100%;
@@ -162,6 +163,11 @@ h3 { margin: 0 0 8px; }
 }
 .admin-preview-cards .card p {
     margin: 0 14px 14px;
+}
+.admin-preview-cards .card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 16px 34px rgba(15, 23, 42, 0.18);
+    border-color: #cbd5e1;
 }
 .landing-feature-cards .card:hover {
     transform: translateY(-6px);
