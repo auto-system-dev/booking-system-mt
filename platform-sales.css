@@ -407,12 +407,11 @@ h3 { margin: 0 0 8px; }
 #landing-feature-blocks .eyebrow,
 #booking-modes .eyebrow,
 #admin-preview-blocks .eyebrow {
-    color: #2563eb;
+    color: #ffffff;
 }
-#feature-highlights .eyebrow,
 #feature-highlights h2,
 #feature-highlights .lead-center {
-    color: #ffffff;
+    color: #0f172a;
 }
 .platform-lightbox {
     position: fixed;
