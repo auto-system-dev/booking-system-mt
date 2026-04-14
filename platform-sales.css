@@ -42,7 +42,7 @@ body {
     letter-spacing: 0.02em;
 }
 h1 { font-size: clamp(32px, 4vw, 50px); margin: 0 0 16px; line-height: 1.18; letter-spacing: -0.01em; }
-h2 { font-size: clamp(26px, 3vw, 36px); margin: 0 0 18px; line-height: 1.25; letter-spacing: -0.01em; color: #0b2048; }
+h2 { font-size: clamp(26px, 3vw, 36px); margin: 0 0 18px; line-height: 1.25; letter-spacing: -0.01em; color: #0b2048; text-align: center; }
 h3 { margin: 0 0 8px; }
 .lead { color: var(--text-muted); font-size: 18px; line-height: 1.78; max-width: 62ch; }
 .hero-cta { display: flex; gap: 12px; margin: 24px 0 16px; }
