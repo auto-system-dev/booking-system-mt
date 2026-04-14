@@ -536,6 +536,7 @@ function showAdminPage(admin) {
             
             // 根據權限更新側邊欄顯示
             updateSidebarByPermissions();
+            syncSubscriptionFeatureVisibility().catch(() => {});
 
             updateSystemModeSwitchSectionVisibility();
 
@@ -675,6 +676,7 @@ function exposeFunctionsToWindow() {
 let lastUnauthorizedHandledAt = 0;
 let subscriptionPlansCache = [];
 let lastSubscriptionGateAlertAt = 0;
+let subscriptionFeatureSnapshot = null;
 
 function handleUnauthorizedSession() {
     const now = Date.now();
@@ -1819,6 +1821,13 @@ function switchSection(section) {
         console.warn(`⚠️ 沒有權限訪問 ${section}，需要 ${requiredPermission}`);
         showError(`您沒有權限訪問此功能`);
         // 跳轉到儀表板
+        if (section !== 'dashboard') {
+            switchSection('dashboard');
+        }
+        return;
+    }
+    if (section === 'statistics' && subscriptionFeatureSnapshot && !subscriptionFeatureSnapshot?.features?.reports) {
+        showError('目前方案不支援營運報表，請升級方案後使用。');
         if (section !== 'dashboard') {
             switchSection('dashboard');
         }
@@ -7907,6 +7916,8 @@ async function loadSubscriptionSettings() {
         const snapshot = statusResult.data || {};
         const plans = Array.isArray(plansResult.data) ? plansResult.data : [];
         subscriptionPlansCache = plans;
+        subscriptionFeatureSnapshot = snapshot;
+        applyFeatureVisibilityBySubscriptionSnapshot(snapshot);
         renderSubscriptionSnapshot(snapshot);
         if (isSuperAdmin) {
             renderSubscriptionPlans(plans, snapshot.planCode);
@@ -7960,6 +7971,8 @@ async function saveSubscriptionSettingsAsSuperAdmin() {
 
         showSuccess('訂閱設定已更新，功能權限已同步。');
         const snapshot = result.data || {};
+        subscriptionFeatureSnapshot = snapshot;
+        applyFeatureVisibilityBySubscriptionSnapshot(snapshot);
         renderSubscriptionSnapshot(snapshot);
         if (subscriptionPlansCache.length > 0) {
             renderSubscriptionPlans(subscriptionPlansCache, snapshot.planCode);
@@ -12519,6 +12532,34 @@ function updateSidebarByPermissions() {
     });
 
     applyAdminManagementUiMode();
+    if (subscriptionFeatureSnapshot) {
+        applyFeatureVisibilityBySubscriptionSnapshot(subscriptionFeatureSnapshot);
+    }
+}
+
+function applyFeatureVisibilityBySubscriptionSnapshot(snapshot) {
+    const reportsEnabled = !!(snapshot?.features?.reports);
+    const statisticsNav = document.querySelector('.nav-item[data-section="statistics"]');
+    if (statisticsNav) {
+        statisticsNav.style.display = reportsEnabled ? '' : 'none';
+    }
+    if (!reportsEnabled && window.location.hash === '#statistics') {
+        window.location.hash = '#dashboard';
+    }
+}
+
+async function syncSubscriptionFeatureVisibility() {
+    if (typeof isAdminPageVisible === 'function' && !isAdminPageVisible()) return;
+    if (!window.currentAdminInfo) return;
+    try {
+        const response = await adminFetch('/api/subscription/status');
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result?.success) return;
+        subscriptionFeatureSnapshot = result.data || null;
+        applyFeatureVisibilityBySubscriptionSnapshot(subscriptionFeatureSnapshot);
+    } catch (_) {
+        // 訂閱快照讀取失敗時，維持原本權限顯示邏輯
+    }
 }
 
 // ==================== 管理員管理 ====================
