@@ -22,8 +22,13 @@ function generateVerificationCode() {
 /**
  * 儲存驗證碼
  */
-function saveVerificationCode(email, code, purpose) {
-    const key = `${email}:${purpose}`;
+function buildVerificationKey(email, purpose, tenantId) {
+    const tenantPart = Number.isInteger(Number(tenantId)) && Number(tenantId) > 0 ? String(tenantId) : 'global';
+    return `${tenantPart}:${email}:${purpose}`;
+}
+
+function saveVerificationCode(email, code, purpose, tenantId) {
+    const key = buildVerificationKey(email, purpose, tenantId);
     verificationCodes.set(key, {
         code: code,
         expiresAt: Date.now() + VERIFICATION_CODE_EXPIRY,
@@ -39,8 +44,8 @@ function saveVerificationCode(email, code, purpose) {
 /**
  * 驗證驗證碼
  */
-function verifyCode(email, code, purpose) {
-    const key = `${email}:${purpose}`;
+function verifyCode(email, code, purpose, tenantId) {
+    const key = buildVerificationKey(email, purpose, tenantId);
     const stored = verificationCodes.get(key);
     
     if (!stored) {

@@ -6898,9 +6898,11 @@ async function getCustomerByEmail(email, tenantId) {
                 guest_email,
                 (SELECT guest_name FROM bookings 
                  WHERE guest_email = ? 
+                   AND tenant_id = ?
                  ORDER BY created_at DESC LIMIT 1) as guest_name,
                 (SELECT guest_phone FROM bookings 
                  WHERE guest_email = ? 
+                   AND tenant_id = ?
                  ORDER BY created_at DESC LIMIT 1) as guest_phone,
                 COUNT(*) as booking_count,
                 SUM(final_amount) as total_spent,
@@ -6913,7 +6915,7 @@ async function getCustomerByEmail(email, tenantId) {
         
         const customerResult = usePostgreSQL 
             ? await queryOne(customerSQL, [email, safeTenantId])
-            : await queryOne(customerSQL, [email, email, email, safeTenantId]);
+            : await queryOne(customerSQL, [email, safeTenantId, email, safeTenantId, email, safeTenantId]);
         
         if (!customerResult) {
             return null;
@@ -10851,8 +10853,9 @@ module.exports = {
 // ==================== 個資保護功能 ====================
 
 // 匿名化客戶資料（符合法規要求，保留部分資料用於會計）
-async function anonymizeCustomerData(email) {
+async function anonymizeCustomerData(email, tenantId) {
     try {
+        const safeTenantId = assertTenantScope(tenantId, 'anonymizeCustomerData');
         // 匿名化姓名、電話、Email
         const anonymizedName = email[0] + '*'.repeat(Math.max(1, email.length - 1));
         const anonymizedPhone = '09********';
@@ -10864,15 +10867,17 @@ async function anonymizeCustomerData(email) {
                    guest_phone = $2, 
                    guest_email = $3,
                    status = 'deleted'
-               WHERE guest_email = $4`
+               WHERE guest_email = $4
+                 AND tenant_id = $5`
             : `UPDATE bookings 
                SET guest_name = ?, 
                    guest_phone = ?, 
                    guest_email = ?,
                    status = 'deleted'
-               WHERE guest_email = ?`;
+               WHERE guest_email = ?
+                 AND tenant_id = ?`;
         
-        await query(sql, [anonymizedName, anonymizedPhone, anonymizedEmail, email]);
+        await query(sql, [anonymizedName, anonymizedPhone, anonymizedEmail, email, safeTenantId]);
         
         console.log(`✅ 已匿名化客戶資料: ${email}`);
         return true;

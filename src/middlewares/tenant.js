@@ -7,24 +7,27 @@ function resolveTenantId(req) {
     const fromSession = parseTenantId(req?.session?.admin?.tenant_id);
     if (fromSession) return fromSession;
 
-    // 已登入的一般管理員：若 session 未綁定有效租戶，不可再套用 header／環境預設租戶，
-    // 否則儀表板等 API 會誤讀 DEFAULT_TENANT_ID（常為 1）的訂房資料。
     const admin = req?.session?.admin;
+    // 已登入的一般管理員：若 session 未綁定有效租戶，不可再套用 header／query／body／預設租戶
     if (admin && admin.role !== 'super_admin') {
         return null;
     }
 
-    const fromHeader = parseTenantId(req?.headers?.['x-tenant-id']);
-    if (fromHeader) return fromHeader;
-
+    // 匿名請求僅允許子網域或預設租戶，不信任客戶端自行帶入 tenant_id。
     const fromSubdomain = parseTenantId(req?.subdomainTenantId);
     if (fromSubdomain) return fromSubdomain;
 
-    const fromQuery = parseTenantId(req?.query?.tenant_id);
-    if (fromQuery) return fromQuery;
+    // 只有 super admin 允許透過 header/query/body 明確指定目標租戶。
+    if (admin?.role === 'super_admin') {
+        const fromHeader = parseTenantId(req?.headers?.['x-tenant-id']);
+        if (fromHeader) return fromHeader;
 
-    const fromBody = parseTenantId(req?.body?.tenant_id);
-    if (fromBody) return fromBody;
+        const fromQuery = parseTenantId(req?.query?.tenant_id);
+        if (fromQuery) return fromQuery;
+
+        const fromBody = parseTenantId(req?.body?.tenant_id);
+        if (fromBody) return fromBody;
+    }
 
     const fromEnv = parseTenantId(process.env.DEFAULT_TENANT_ID);
     if (fromEnv) return fromEnv;

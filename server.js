@@ -4666,7 +4666,7 @@ app.delete('/api/admin/early-bird-settings/:id', requireAuth, checkPermission('p
 });
 
 // API: 取得單一客戶詳情（包含所有訂房記錄）
-app.get('/api/customers/:email', requireTenantContext, publicLimiter, async (req, res) => {
+app.get('/api/customers/:email', requireAuth, requireTenantContext, checkPermission('customers.view'), adminLimiter, async (req, res) => {
     try {
         const { email } = req.params;
         const customer = await db.getCustomerByEmail(email, req.tenantId);
@@ -4694,7 +4694,7 @@ app.get('/api/customers/:email', requireTenantContext, publicLimiter, async (req
 // ==================== 個資保護 API ====================
 
 // 發送個資查詢驗證碼
-app.post('/api/data-protection/send-verification-code', publicLimiter, async (req, res, next) => {
+app.post('/api/data-protection/send-verification-code', requireTenantContext, publicLimiter, async (req, res, next) => {
     try {
         const { email, purpose } = req.body;
         
@@ -4717,7 +4717,7 @@ app.post('/api/data-protection/send-verification-code', publicLimiter, async (re
         // 檢查是否有該 Email 的資料
         let customer;
         try {
-            customer = await db.getCustomerByEmail(email, getRequestTenantId(req));
+            customer = await db.getCustomerByEmail(email, req.tenantId);
         } catch (dbError) {
             console.error('查詢客戶資料錯誤:', dbError);
             return res.status(500).json({
@@ -4735,7 +4735,7 @@ app.post('/api/data-protection/send-verification-code', publicLimiter, async (re
         
         // 生成並發送驗證碼
         const code = dataProtection.generateVerificationCode();
-        dataProtection.saveVerificationCode(email, code, purpose);
+        dataProtection.saveVerificationCode(email, code, purpose, req.tenantId);
         
         try {
             await dataProtection.sendVerificationEmail(email, code, purpose);
@@ -4762,7 +4762,7 @@ app.post('/api/data-protection/send-verification-code', publicLimiter, async (re
 });
 
 // 查詢個人資料（需要驗證碼）
-app.post('/api/data-protection/query', publicLimiter, async (req, res, next) => {
+app.post('/api/data-protection/query', requireTenantContext, publicLimiter, async (req, res, next) => {
     try {
         const { email, verificationCode } = req.body;
         
@@ -4774,7 +4774,7 @@ app.post('/api/data-protection/query', publicLimiter, async (req, res, next) => 
         }
         
         // 驗證驗證碼
-        const verification = dataProtection.verifyCode(email, verificationCode, 'query');
+        const verification = dataProtection.verifyCode(email, verificationCode, 'query', req.tenantId);
         if (!verification.valid) {
             return res.status(400).json({
                 success: false,
@@ -4783,7 +4783,7 @@ app.post('/api/data-protection/query', publicLimiter, async (req, res, next) => 
         }
         
         // 取得客戶資料
-        const customer = await db.getCustomerByEmail(email, getRequestTenantId(req));
+        const customer = await db.getCustomerByEmail(email, req.tenantId);
         if (!customer) {
             return res.status(404).json({
                 success: false,
@@ -4802,7 +4802,7 @@ app.post('/api/data-protection/query', publicLimiter, async (req, res, next) => 
 });
 
 // 刪除個人資料（需要驗證碼）
-app.post('/api/data-protection/delete', publicLimiter, async (req, res, next) => {
+app.post('/api/data-protection/delete', requireTenantContext, publicLimiter, async (req, res, next) => {
     try {
         const { email, verificationCode } = req.body;
         
@@ -4814,7 +4814,7 @@ app.post('/api/data-protection/delete', publicLimiter, async (req, res, next) =>
         }
         
         // 驗證驗證碼
-        const verification = dataProtection.verifyCode(email, verificationCode, 'delete');
+        const verification = dataProtection.verifyCode(email, verificationCode, 'delete', req.tenantId);
         if (!verification.valid) {
             return res.status(400).json({
                 success: false,
@@ -4823,7 +4823,7 @@ app.post('/api/data-protection/delete', publicLimiter, async (req, res, next) =>
         }
         
         // 檢查是否有該 Email 的資料
-        const customer = await db.getCustomerByEmail(email, getRequestTenantId(req));
+        const customer = await db.getCustomerByEmail(email, req.tenantId);
         if (!customer) {
             return res.status(404).json({
                 success: false,
@@ -4832,7 +4832,7 @@ app.post('/api/data-protection/delete', publicLimiter, async (req, res, next) =>
         }
         
         // 匿名化資料（而非完全刪除，以符合會計法規）
-        await db.anonymizeCustomerData(email);
+        await db.anonymizeCustomerData(email, req.tenantId);
         
         // 記錄操作日誌
         try {
@@ -5143,7 +5143,7 @@ app.get('/api/statistics/period-comparison', requireAuth, requireTenantContext, 
 });
 
 // API: 儀表板數據（僅摘要；與 ops 同頁載入請優先使用 /api/dashboard/bundle）
-app.get('/api/dashboard', requireTenantContext, adminLimiter, async (req, res) => {
+app.get('/api/dashboard', requireAuth, requireTenantContext, checkPermission('dashboard.view'), adminLimiter, async (req, res) => {
     try {
         const buildingId = req.query.buildingId;
         const allBookings = await db.getAllBookings(buildingId, undefined, getRequestTenantId(req));
@@ -5189,7 +5189,7 @@ async function loadBookingsAndRoomTypesForOpsDashboard(req) {
 }
 
 // API: 儀表板摘要 + 營運 KPI 單次查詢（重新整理時避免重複 getAllBookings）
-app.get('/api/dashboard/bundle', requireTenantContext, adminLimiter, async (req, res) => {
+app.get('/api/dashboard/bundle', requireAuth, requireTenantContext, checkPermission('dashboard.view'), adminLimiter, async (req, res) => {
     try {
         const parsed = parseOpsDashboardQuery(req.query);
         if (!parsed.ok) {
@@ -5216,7 +5216,7 @@ app.get('/api/dashboard/bundle', requireTenantContext, adminLimiter, async (req,
 });
 
 // API: 營運儀表板 Phase 1 指標（同頁整合）
-app.get('/api/dashboard/ops', requireTenantContext, adminLimiter, async (req, res) => {
+app.get('/api/dashboard/ops', requireAuth, requireTenantContext, checkPermission('dashboard.view'), adminLimiter, async (req, res) => {
     try {
         const parsed = parseOpsDashboardQuery(req.query);
         if (!parsed.ok) {
@@ -6380,6 +6380,23 @@ app.get('/api/settings', requireTenantContext, publicLimiter, async (req, res) =
         settingsObj.line_channel_secret = settingsObj.line_channel_secret || '';
         settingsObj.line_liff_id = settingsObj.line_liff_id || '';
         settingsObj.line_liff_url = settingsObj.line_liff_url || '';
+
+        // 未登入請求不回傳敏感憑證欄位，避免公開端點外洩。
+        if (!req?.session?.admin?.id) {
+            const publicMaskedKeys = [
+                'line_channel_access_token',
+                'line_channel_secret',
+                'resend_api_key',
+                'email_pass',
+                'gmail_client_secret',
+                'gmail_refresh_token'
+            ];
+            publicMaskedKeys.forEach((key) => {
+                if (Object.prototype.hasOwnProperty.call(settingsObj, key)) {
+                    settingsObj[key] = '';
+                }
+            });
+        }
         
         res.json({
             success: true,
