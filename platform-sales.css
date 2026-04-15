@@ -40,7 +40,14 @@ html { scroll-behavior: smooth; }
     backdrop-filter: blur(10px);
 }
 .topbar-inner { display: flex; align-items: center; gap: 20px; padding: 12px 0; }
-.brand { font-weight: 800; letter-spacing: 0.02em; font-size: 15px; color: #f8fafc; }
+.brand {
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    font-size: 15px;
+    color: #f8fafc;
+    text-decoration: none;
+}
+.brand:hover { color: #ffffff; }
 .topbar-nav {
     display: flex;
     align-items: center;
