@@ -871,24 +871,24 @@ async function createTenantOnboarding(input = {}) {
     const safeSystemMode = ['retail', 'whole_property'].includes(String(systemMode || '').trim())
         ? String(systemMode).trim()
         : 'retail';
-    const safeTenantCodeBase = normalizeTenantCode(tenantCode || slugifyTenantCode(safeTenantName || safeAdminUsername));
+    const safeTenantCodeBase = normalizeTenantCode(tenantCode);
     if (!safeTenantName) throw new Error('tenantName 為必填');
+    if (!safeTenantCodeBase) throw new Error('tenantCode 為必填');
     if (!safeAdminUsername) throw new Error('adminUsername 為必填');
     if (!safeAdminPassword || safeAdminPassword.length < 8) throw new Error('adminPassword 至少 8 碼');
     if (requireEmailVerification && !safeAdminEmail) throw new Error('啟用 Email 驗證時，adminEmail 為必填');
 
     await ensureAdminTenantColumn();
 
-    let resolvedTenantCode = safeTenantCodeBase || `tenant_${Date.now()}`;
-    for (let i = 0; i < 5; i += 1) {
-        const existing = await queryOne(
-            usePostgreSQL
-                ? `SELECT id FROM tenants WHERE code = $1`
-                : `SELECT id FROM tenants WHERE code = ?`,
-            [resolvedTenantCode]
-        );
-        if (!existing) break;
-        resolvedTenantCode = `${safeTenantCodeBase}_${Math.floor(Math.random() * 10000)}`;
+    const resolvedTenantCode = safeTenantCodeBase || `tenant_${Date.now()}`;
+    const existingTenant = await queryOne(
+        usePostgreSQL
+            ? `SELECT id FROM tenants WHERE code = $1`
+            : `SELECT id FROM tenants WHERE code = ?`,
+        [resolvedTenantCode]
+    );
+    if (existingTenant) {
+        throw new Error('系統代碼已存在，請更換 tenantCode');
     }
 
     const existingAdmin = await queryOne(

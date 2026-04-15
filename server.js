@@ -3367,10 +3367,10 @@ app.post('/api/public/register-tenant', publicLimiter, async (req, res) => {
             systemMode
         } = req.body || {};
 
-        if (!tenantName || !adminUsername || !adminPassword) {
+        if (!tenantName || !tenantCode || !adminUsername || !adminPassword) {
             return res.status(400).json({
                 success: false,
-                message: '缺少必要欄位：tenantName、adminUsername、adminPassword'
+                message: '缺少必要欄位：tenantName、tenantCode、adminUsername、adminPassword'
             });
         }
 
