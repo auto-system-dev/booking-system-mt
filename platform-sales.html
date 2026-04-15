@@ -437,20 +437,20 @@
                     <p class="muted">* 試用期限為 14 天，可先建立房型或包棟方案，並測試一筆接單流程。</p>
                 </div>
                 <form id="tenantSignupForm" class="lead-form">
-                    <label>旅宿／品牌名稱
-                        <input name="tenantName" required placeholder="例如：山嶼民宿">
+                    <label>旅宿／品牌名稱<span class="req-star" aria-hidden="true">*</span>
+                        <input name="tenantName" required autocomplete="organization">
                     </label>
-                    <label>系統代碼（英文／數字／底線）
-                        <input name="tenantCode" placeholder="例如：shan_yu_stay">
+                    <label>系統代碼（英文／數字／底線）<span class="req-note">（子網域：代碼.haoding.tw）</span>
+                        <input name="tenantCode" autocomplete="off">
                     </label>
-                    <label>管理員帳號
-                        <input name="adminUsername" required placeholder="例如：owner01">
+                    <label>管理員帳號<span class="req-star" aria-hidden="true">*</span>
+                        <input name="adminUsername" required autocomplete="username">
                     </label>
-                    <label>管理員 Email
-                        <input type="email" name="adminEmail" required placeholder="you@company.com">
+                    <label>管理員 Email<span class="req-star" aria-hidden="true">*</span>
+                        <input type="email" name="adminEmail" required autocomplete="email">
                     </label>
-                    <label>管理員密碼
-                        <input type="password" name="adminPassword" required minlength="8" placeholder="至少 8 碼">
+                    <label>管理員密碼<span class="req-note">（至少8碼）</span><span class="req-star" aria-hidden="true">*</span>
+                        <input type="password" name="adminPassword" required minlength="8" autocomplete="new-password">
                     </label>
                     <div class="lead-form-field lead-form-field-radios">
                         <span class="lead-form-field-label">訂房模式</span>

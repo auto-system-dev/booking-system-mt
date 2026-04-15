@@ -504,6 +504,17 @@ h3 { margin: 0 0 8px; }
     box-shadow: 0 18px 42px rgba(2, 6, 23, 0.24);
 }
 .lead-form label { display: block; margin-bottom: 12px; font-weight: 600; font-size: 14px; }
+.lead-form .req-star {
+    color: #dc2626;
+    font-weight: 700;
+    margin-left: 2px;
+}
+.lead-form .req-note {
+    font-weight: 600;
+    color: #64748b;
+    font-size: 13px;
+    margin-left: 2px;
+}
 .lead-form-field-radios { margin-bottom: 12px; }
 .lead-form-field-label {
     display: block;
