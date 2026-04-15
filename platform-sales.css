@@ -41,11 +41,21 @@ html { scroll-behavior: smooth; }
 }
 .topbar-inner { display: flex; align-items: center; gap: 20px; padding: 12px 0; }
 .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     font-weight: 800;
     letter-spacing: 0.02em;
     font-size: 15px;
     color: #f8fafc;
     text-decoration: none;
+}
+.brand-logo {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: block;
 }
 .brand:hover { color: #ffffff; }
 .topbar-nav {
