@@ -1746,9 +1746,17 @@ app.get('/order-query', (req, res) => {
     res.sendFile(path.join(__dirname, 'order-query.html'));
 });
 
-// 平台銷售頁（推廣多租戶系統）
-app.get('/platform', publicLimiter, (req, res) => {
+// 官網首頁（產品銷售頁）
+app.get('/', publicLimiter, (req, res) => {
     res.sendFile(path.join(__dirname, 'platform-sales.html'));
+});
+
+// 舊路徑統一 301 到首頁（避免重複內容）
+app.get('/platform', publicLimiter, (req, res) => {
+    return res.redirect(301, '/');
+});
+app.get('/platform-sales.html', publicLimiter, (req, res) => {
+    return res.redirect(301, '/');
 });
 app.get('/platform/thanks', publicLimiter, (req, res) => {
     res.sendFile(path.join(__dirname, 'platform-thanks.html'));
