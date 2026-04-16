@@ -1201,6 +1201,16 @@
                                         <small>留空時維持既有到期時間。</small>
                                     </div>
                                 </div>
+                                <div style="margin-top: 10px;">
+                                    <div style="font-weight: 600; color: #2c3e50; margin-bottom: 8px;">立即啟用／升級（信用卡定期定額）</div>
+                                    <div id="subscriptionBillingActions" style="display:flex; gap:10px; flex-wrap:wrap;">
+                                        <button type="button" class="btn-save" data-plan-code="basic_monthly" onclick="startNewebpaySubscription('basic_monthly')">Basic（月繳）</button>
+                                        <button type="button" class="btn-save" data-plan-code="basic_yearly" onclick="startNewebpaySubscription('basic_yearly')">Basic（年繳）</button>
+                                        <button type="button" class="btn-save" data-plan-code="pro_monthly" onclick="startNewebpaySubscription('pro_monthly')">Pro（月繳）</button>
+                                        <button type="button" class="btn-save" data-plan-code="pro_yearly" onclick="startNewebpaySubscription('pro_yearly')">Pro（年繳）</button>
+                                    </div>
+                                    <small id="subscriptionBillingMessage" style="display:block; margin-top:8px; color:#475569;">點擊後將前往藍新授權頁完成自動扣款設定；完成後會回到後台並由系統自動更新狀態。</small>
+                                </div>
                                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                                     <button type="button" class="btn-save" id="subscriptionUpdateBtn" style="display:none;" onclick="saveSubscriptionSettingsAsSuperAdmin()">儲存訂閱設定</button>
                                     <button type="button" class="btn-refresh" onclick="loadSubscriptionSettings()">重新整理狀態</button>

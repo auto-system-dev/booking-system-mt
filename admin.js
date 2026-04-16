@@ -7878,6 +7878,95 @@ function renderSubscriptionPlans(plans, currentPlanCode) {
     });
 }
 
+async function startNewebpaySubscription(planCode) {
+    const safePlanCode = String(planCode || '').trim();
+    if (!safePlanCode) {
+        showError('缺少 planCode');
+        return;
+    }
+    const msgEl = document.getElementById('subscriptionBillingMessage');
+    const actionsEl = document.getElementById('subscriptionBillingActions');
+    const buttons = actionsEl ? Array.from(actionsEl.querySelectorAll('button')) : [];
+
+    const setBusy = (busy) => {
+        buttons.forEach((btn) => {
+            btn.disabled = !!busy;
+            btn.style.opacity = busy ? '0.72' : '';
+            btn.style.cursor = busy ? 'not-allowed' : '';
+        });
+    };
+
+    try {
+        if (!window.currentAdminInfo) {
+            showError('尚未取得登入資訊，請稍後再試');
+            return;
+        }
+
+        // 回到後台時直接開啟「系統設定」並停留在「訂閱狀態」分頁
+        try {
+            localStorage.setItem('settingsTab', 'subscription');
+        } catch (_) {
+            // ignore
+        }
+
+        setBusy(true);
+        if (msgEl) {
+            msgEl.style.color = '#1e3a8a';
+            msgEl.textContent = '正在建立藍新定期定額授權請求，請稍候...';
+        }
+
+        const returnUrl = `${window.location.origin}/admin#settings`;
+        const response = await adminFetch('/api/payment/newebpay/subscription/create', {
+            method: 'POST',
+            body: JSON.stringify({
+                planCode: safePlanCode,
+                returnUrl
+            })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status} 建立授權請求失敗`);
+        }
+
+        const data = result.data || {};
+        const actionUrl = String(data.actionUrl || '').trim();
+        const payload = data.payload || {};
+        if (!actionUrl || !payload || typeof payload !== 'object') {
+            throw new Error('藍新授權參數不足（缺少 actionUrl/payload）');
+        }
+
+        if (msgEl) {
+            msgEl.style.color = '#166534';
+            msgEl.textContent = '已建立授權請求，正在前往藍新頁面...';
+        }
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = actionUrl;
+        form.style.display = 'none';
+
+        Object.entries(payload).forEach(([key, value]) => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = String(key);
+            input.value = value == null ? '' : String(value);
+            form.appendChild(input);
+        });
+
+        document.body.appendChild(form);
+        form.submit();
+    } catch (error) {
+        const message = String(error?.message || '建立授權請求失敗');
+        if (msgEl) {
+            msgEl.style.color = '#991b1b';
+            msgEl.textContent = '建立授權請求失敗：' + message;
+        }
+        showError('建立藍新定期定額授權請求失敗：' + message);
+    } finally {
+        setBusy(false);
+    }
+}
+
 async function loadSubscriptionSettings() {
     const planInput = document.getElementById('subscriptionCurrentPlan');
     if (!planInput) {
