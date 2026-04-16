@@ -3788,25 +3788,6 @@ const wholePropertyModeGuard = createModeGuard({
     allowedModes: ['whole_property'],
     getMessage: () => '目前為一般模式，包棟訂房功能未啟用'
 });
-app.use('/api', createBookingRoutes({
-    bookingService,
-    handlers: {
-        createBooking: handleCreateBooking,
-        updateBooking: handleUpdateBooking,
-        cancelBooking: handleCancelBooking,
-        deleteBooking: handleDeleteBooking
-    },
-    publicLimiter,
-    retailModeGuard,
-    wholePropertyModeGuard,
-    verifyCsrfToken,
-    validateBooking,
-    validateWholePropertyBooking,
-    requireAuth,
-    requireTenantContext,
-    checkPermission,
-    adminLimiter
-}));
 
 const emailService = createEmailService({
     getRequiredEmailUser,
@@ -6517,6 +6498,27 @@ const paymentController = createPaymentController({
 app.use('/api/payment', createPaymentRoutes({
     controller: paymentController,
     paymentLimiter
+}));
+
+// 訂房 API：必須註冊在 /api/payment 等子路由之後，避免 webhook 等路徑被 requireTenantContext 提前攔截
+app.use('/api', createBookingRoutes({
+    bookingService,
+    handlers: {
+        createBooking: handleCreateBooking,
+        updateBooking: handleUpdateBooking,
+        cancelBooking: handleCancelBooking,
+        deleteBooking: handleDeleteBooking
+    },
+    publicLimiter,
+    retailModeGuard,
+    wholePropertyModeGuard,
+    verifyCsrfToken,
+    validateBooking,
+    validateWholePropertyBooking,
+    requireAuth,
+    requireTenantContext,
+    checkPermission,
+    adminLimiter
 }));
 
 // API: 檢查郵件服務狀態（Resend/Gmail）
