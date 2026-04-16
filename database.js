@@ -339,12 +339,18 @@ async function initMultiTenantCoreTablesPostgreSQL() {
             event_id VARCHAR(180) NOT NULL,
             event_type VARCHAR(120) NOT NULL,
             payload JSONB NOT NULL DEFAULT '{}'::jsonb,
-            signature VARCHAR(255),
+            signature TEXT,
             processed_at TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE (provider, event_id)
         )
     `);
+    // 既有資料庫相容：早期版本 signature 為 VARCHAR(255)，會導致 Period 加密字串寫入失敗
+    try {
+        await query(`ALTER TABLE payment_events ALTER COLUMN signature TYPE TEXT`);
+    } catch (_e) {
+        // ignore: column already correct or insufficient privileges
+    }
 
     await query(`
         CREATE TABLE IF NOT EXISTS tenant_verifications (
