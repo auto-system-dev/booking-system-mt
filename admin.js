@@ -14892,8 +14892,10 @@ async function loadLandingRoomTypes(landingData) {
             bid = Number(activeBuildings[0]?.id || allBuildings?.[0]?.id || 1);
             setSelectedBuildingIdForLandingRooms(bid);
         }
-        // 銷售頁房型展示與後台「房型管理」同一資料（retail）；包棟模式下亦不取「包棟方案」
-        const rtScope = 'retail';
+        // 銷售頁房型展示依系統模式切換資料來源：
+        // 一般訂房 -> retail、包棟訂房 -> whole_property
+        const rtScope = isWholePropertySystemMode() ? 'whole_property' : 'retail';
+        const itemLabel = rtScope === 'whole_property' ? '包棟方案' : '房型';
         const response = await adminFetch(
             `/api/admin/room-types?buildingId=${encodeURIComponent(String(bid))}&listScope=${encodeURIComponent(rtScope)}`
         );
@@ -14903,7 +14905,7 @@ async function loadLandingRoomTypes(landingData) {
             container.innerHTML = `
                 <div style="text-align: center; padding: 40px; color: #888;">
                     <span class="material-symbols-outlined" style="font-size: 48px; display: block; margin-bottom: 10px;">info</span>
-                    <p>尚未建立任何房型，請先到「房型管理」新增房型。</p>
+                    <p>尚未建立任何${itemLabel}，請先到「房型管理」新增${itemLabel}。</p>
                 </div>`;
             return;
         }
@@ -14927,7 +14929,7 @@ async function loadLandingRoomTypes(landingData) {
             container.innerHTML = `
                 <div style="text-align: center; padding: 40px; color: #888;">
                     <span class="material-symbols-outlined" style="font-size: 48px; display: block; margin-bottom: 10px;">info</span>
-                    <p>目前沒有啟用中的房型，請到「房型管理」啟用房型。</p>
+                    <p>目前沒有啟用中的${itemLabel}，請到「房型管理」啟用${itemLabel}。</p>
                 </div>`;
             return;
         }
