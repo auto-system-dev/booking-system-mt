@@ -7777,6 +7777,29 @@ async function updateRoomType(id, roomData, tenantId) {
     }
 }
 
+async function updateRoomTypeLandingVisibility(id, showOnLanding, tenantId) {
+    try {
+        const safeTenantId = assertTenantScope(tenantId, 'updateRoomTypeLandingVisibility');
+        const roomTypeId = parseInt(id, 10);
+        if (!Number.isFinite(roomTypeId) || roomTypeId <= 0) {
+            throw new Error('無效的房型 ID');
+        }
+        const normalized = Number(showOnLanding) === 1 ? 1 : 0;
+        const sql = usePostgreSQL
+            ? `UPDATE room_types
+               SET show_on_landing = $1, updated_at = CURRENT_TIMESTAMP
+               WHERE id = $2 AND tenant_id = $3`
+            : `UPDATE room_types
+               SET show_on_landing = ?, updated_at = CURRENT_TIMESTAMP
+               WHERE id = ? AND tenant_id = ?`;
+        const result = await query(sql, [normalized, roomTypeId, safeTenantId]);
+        return result.changes || 0;
+    } catch (error) {
+        console.error('❌ 更新房型銷售頁顯示狀態失敗:', error.message);
+        throw error;
+    }
+}
+
 async function upsertRoomTypeInventory(buildingId, roomTypeId, qtyTotal) {
     const bid = parseInt(buildingId, 10);
     const rid = parseInt(roomTypeId, 10);
@@ -10016,6 +10039,11 @@ async function initRolesAndPermissions() {
             { code: 'settings.edit', name: '編輯系統設定', module: 'settings', description: '修改系統設定' },
             { code: 'settings.payment', name: '支付設定', module: 'settings', description: '管理支付設定' },
             { code: 'settings.email', name: '郵件設定', module: 'settings', description: '管理郵件設定' },
+
+            // 銷售頁管理
+            { code: 'landing.view', name: '查看銷售頁管理', module: 'landing', description: '查看銷售頁管理頁面' },
+            { code: 'landing.edit', name: '編輯銷售頁設定', module: 'landing', description: '修改銷售頁文案與設定' },
+            { code: 'landing.rooms.edit', name: '編輯銷售頁房型展示', module: 'landing', description: '修改銷售頁房型顯示開關' },
             
             // 郵件模板
             { code: 'email_templates.view', name: '查看郵件模板', module: 'email_templates', description: '查看郵件模板' },
@@ -10094,6 +10122,7 @@ async function assignDefaultPermissions() {
                 'promo_codes.view', 'promo_codes.create', 'promo_codes.edit',
                 'statistics.view', 'statistics.export',
                 'settings.view',
+                'landing.view', 'landing.edit', 'landing.rooms.edit',
                 'email_templates.view', 'email_templates.edit',
                 'logs.view'
             ],
@@ -10120,6 +10149,7 @@ async function assignDefaultPermissions() {
                 'promo_codes.view',
                 'statistics.view',
                 'settings.view',
+                'landing.view',
                 'email_templates.view',
                 'logs.view'
             ]
@@ -10790,6 +10820,7 @@ module.exports = {
     resolveRoomTypeDisplayNameForEmail,
     createRoomType,
     updateRoomType,
+    updateRoomTypeLandingVisibility,
     deleteRoomType,
     // 房型圖庫
     getRoomTypeGalleryImages,

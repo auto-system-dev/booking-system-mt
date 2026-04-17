@@ -1,4 +1,10 @@
 function createCheckPermission(db) {
+    const permissionAliases = {
+        'landing.view': ['settings.view'],
+        'landing.edit': ['settings.edit'],
+        'landing.rooms.edit': ['room_types.edit']
+    };
+
     return function checkPermission(permissionCode) {
         return async (req, res, next) => {
             try {
@@ -8,18 +14,33 @@ function createCheckPermission(db) {
 
                 const adminId = req.session.admin.id;
                 const permissions = req.session.admin.permissions || [];
+                const requestedCodes = Array.isArray(permissionCode)
+                    ? permissionCode.filter(Boolean).map((code) => String(code).trim())
+                    : [String(permissionCode || '').trim()].filter(Boolean);
+                const expandedCodes = new Set();
+                requestedCodes.forEach((code) => {
+                    expandedCodes.add(code);
+                    const aliases = permissionAliases[code] || [];
+                    aliases.forEach((alias) => expandedCodes.add(alias));
+                });
+                const checkCodes = Array.from(expandedCodes).filter(Boolean);
 
-                if (permissions.includes(permissionCode)) {
+                if (checkCodes.length === 0) {
+                    return res.status(400).json({ success: false, message: '權限代碼未設定' });
+                }
+
+                if (checkCodes.some((code) => permissions.includes(code))) {
                     return next();
                 }
 
-                const hasPermission = await db.hasPermission(adminId, permissionCode);
-
-                if (hasPermission) {
-                    if (!req.session.admin.permissions) {
-                        req.session.admin.permissions = await db.getAdminPermissions(adminId);
+                for (const code of checkCodes) {
+                    const granted = await db.hasPermission(adminId, code);
+                    if (granted) {
+                        if (!req.session.admin.permissions) {
+                            req.session.admin.permissions = await db.getAdminPermissions(adminId);
+                        }
+                        return next();
                     }
-                    return next();
                 }
 
                 await db.logAdminAction({
@@ -27,8 +48,8 @@ function createCheckPermission(db) {
                     adminUsername: req.session.admin.username,
                     action: 'permission_denied',
                     resourceType: 'permission',
-                    resourceId: permissionCode,
-                    details: JSON.stringify({ requestedPermission: permissionCode }),
+                    resourceId: requestedCodes.join(','),
+                    details: JSON.stringify({ requestedPermission: requestedCodes, checkedPermissionCodes: checkCodes }),
                     ipAddress: req.ip || req.connection?.remoteAddress || 'unknown',
                     userAgent: req.get('user-agent') || 'unknown'
                 }).catch(err => console.error('記錄權限檢查失敗日誌錯誤:', err));

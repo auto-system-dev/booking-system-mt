@@ -170,6 +170,21 @@ function getRequestTenantId(req) {
     return defaultTenantId;
 }
 
+async function hasAdminPermission(req, permissionCode) {
+    const code = String(permissionCode || '').trim();
+    if (!code) return false;
+    const admin = req?.session?.admin;
+    if (!admin?.id) return false;
+    if (admin.role === 'super_admin') return true;
+    const cached = Array.isArray(admin.permissions) ? admin.permissions : [];
+    if (cached.includes(code)) return true;
+    const granted = await db.hasPermission(admin.id, code);
+    if (granted && !cached.includes(code)) {
+        admin.permissions = [...cached, code];
+    }
+    return granted;
+}
+
 // Railway 使用代理，需要信任代理以正確處理 HTTPS 和 Cookie
 app.set('trust proxy', 1);
 
@@ -5728,6 +5743,21 @@ app.put('/api/admin/room-types/:id', requireAuth, requireTenantContext, checkPer
     }
 });
 
+app.put('/api/admin/landing/room-types/:id/visibility', requireAuth, requireTenantContext, checkPermission('landing.rooms.edit'), adminLimiter, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const showOnLanding = Number(req.body?.show_on_landing) === 1 ? 1 : 0;
+        const result = await db.updateRoomTypeLandingVisibility(id, showOnLanding, req.tenantId);
+        if (result > 0) {
+            return res.json({ success: true, message: '房型銷售頁顯示狀態已更新' });
+        }
+        return res.status(404).json({ success: false, message: '找不到該房型' });
+    } catch (error) {
+        console.error('更新房型銷售頁顯示狀態錯誤:', error);
+        return res.status(500).json({ success: false, message: '更新房型銷售頁顯示狀態失敗: ' + error.message });
+    }
+});
+
 // API: 上傳房型圖片
 app.post('/api/admin/room-types/upload-image', requireAuth, checkPermission('room_types.edit'), (req, res) => {
     uploadImage.single('image')(req, res, async function (err) {
@@ -6401,10 +6431,21 @@ app.get('/api/settings', requireTenantContext, publicLimiter, async (req, res) =
 });
 
 // API: 更新系統設定
-app.put('/api/admin/settings/:key', requireAuth, requireTenantContext, checkPermission('settings.edit'), adminLimiter, async (req, res) => {
+app.put('/api/admin/settings/:key', requireAuth, requireTenantContext, adminLimiter, async (req, res) => {
     try {
         const { key } = req.params;
         const { value, description } = req.body;
+        const isLandingKey = String(key || '').startsWith('landing_');
+        const canSettingsEdit = await hasAdminPermission(req, 'settings.edit');
+        const canLandingEdit = await hasAdminPermission(req, 'landing.edit');
+        const allowed = isLandingKey ? (canSettingsEdit || canLandingEdit) : canSettingsEdit;
+
+        if (!allowed) {
+            return res.status(403).json({
+                success: false,
+                message: '您沒有權限執行此操作'
+            });
+        }
         
         if (value === undefined) {
             return res.status(400).json({
@@ -6428,7 +6469,7 @@ app.put('/api/admin/settings/:key', requireAuth, requireTenantContext, checkPerm
 });
 
 // API: 上傳銷售頁圖片（共用房型上傳的 multer 設定）
-app.post('/api/admin/landing/upload-image', requireAuth, (req, res) => {
+app.post('/api/admin/landing/upload-image', requireAuth, checkPermission('landing.edit'), (req, res) => {
     uploadImage.single('image')(req, res, async function (err) {
         if (err instanceof multer.MulterError) {
             if (err.code === 'LIMIT_FILE_SIZE') {

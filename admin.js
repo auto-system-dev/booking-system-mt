@@ -1806,7 +1806,7 @@ function switchSection(section) {
         'admin-management': 'admins.view',
         'logs': 'logs.view',
         'backups': 'backup.view',
-        'landing-page': 'settings.view'
+        'landing-page': 'landing.view'
     };
     
     // 檢查權限（僅在已登入後才檢查）
@@ -12539,7 +12539,16 @@ function hasPermission(permissionCode) {
     if (window.currentAdminInfo && window.currentAdminInfo.role === 'super_admin') {
         return true;
     }
-    return window.currentAdminPermissions && window.currentAdminPermissions.includes(permissionCode);
+    const perms = window.currentAdminPermissions || [];
+    if (perms.includes(permissionCode)) return true;
+    // 向後相容：舊角色僅配置 settings/room_types 權限時，仍可操作銷售頁模組
+    const aliases = {
+        'landing.view': ['settings.view'],
+        'landing.edit': ['settings.edit'],
+        'landing.rooms.edit': ['room_types.edit']
+    };
+    const fallbackCodes = aliases[String(permissionCode || '').trim()] || [];
+    return fallbackCodes.some((code) => perms.includes(code));
 }
 
 /** 平台超級管理員（可見「角色權限」全功能）；租戶端僅員工帳號簡化頁 */
@@ -15125,12 +15134,11 @@ async function saveLandingRoomFeatures(silent = false) {
             if (roomSource) {
                 const enabledCheckbox = document.getElementById(`landingRoomEnabled_${roomId}`);
                 const showOnLanding = enabledCheckbox ? enabledCheckbox.checked : (Number(roomSource.show_on_landing) === 1);
-                const roomPayload = buildLandingRoomTypeUpdatePayload(roomSource, showOnLanding);
                 requests.push(
-                    adminFetch(`/api/admin/room-types/${roomId}`, {
+                    adminFetch(`/api/admin/landing/room-types/${roomId}/visibility`, {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(roomPayload)
+                        body: JSON.stringify({ show_on_landing: showOnLanding ? 1 : 0 })
                     })
                 );
             }
