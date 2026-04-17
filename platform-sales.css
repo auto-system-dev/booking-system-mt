@@ -635,11 +635,19 @@ input:focus, select:focus {
     border-top: 1px solid rgba(148, 163, 184, 0.22);
 }
 .site-footer-inner {
+    padding: 12px 0 16px;
+}
+.site-footer-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 14px;
-    padding: 16px 0 18px;
+}
+.site-footer-row-top {
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+.site-footer-row-bottom {
+    padding-top: 10px;
 }
 .site-footer-copy {
     color: rgba(248, 250, 252, 0.88);
@@ -647,37 +655,41 @@ input:focus, select:focus {
 }
 .site-footer-contact {
     display: inline-flex;
+    flex-direction: column;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 10px 14px;
-    color: rgba(248, 250, 252, 0.9);
-    font-size: 13px;
-}
-.site-footer-contact a {
-    color: #ffffff;
-    text-decoration: none;
-    font-weight: 600;
-}
-.site-footer-contact a:hover {
-    text-decoration: underline;
+    gap: 8px;
 }
 .site-footer-line {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
 }
 .line-icon {
-    width: 16px;
-    height: 16px;
+    width: 38px;
+    height: 38px;
     border-radius: 999px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-size: 10px;
     font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #0f172a;
+    background: #f8fafc;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    box-shadow: 0 6px 14px rgba(2, 6, 23, 0.22);
+}
+.site-footer-line:hover .line-icon {
+    transform: translateY(-1px);
+}
+.site-footer-email {
+    color: rgba(248, 250, 252, 0.9);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 600;
+}
+.site-footer-email:hover {
     color: #ffffff;
-    background: #06c755;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+    text-decoration: underline;
 }
 .site-footer-links {
     display: inline-flex;
@@ -718,13 +730,13 @@ input:focus, select:focus {
     .section { padding: 56px 0; }
     .topbar-nav { display: none; }
     .topbar-inner { justify-content: space-between; }
-    .site-footer-inner {
+    .site-footer-row {
         flex-direction: column;
         align-items: flex-start;
-        gap: 8px;
+        gap: 10px;
     }
     .site-footer-contact {
-        width: 100%;
+        align-items: flex-start;
     }
     .showcase-grid {
         display: grid;
