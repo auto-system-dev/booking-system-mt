@@ -645,6 +645,40 @@ input:focus, select:focus {
     color: rgba(248, 250, 252, 0.88);
     font-size: 13px;
 }
+.site-footer-contact {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    color: rgba(248, 250, 252, 0.9);
+    font-size: 13px;
+}
+.site-footer-contact a {
+    color: #ffffff;
+    text-decoration: none;
+    font-weight: 600;
+}
+.site-footer-contact a:hover {
+    text-decoration: underline;
+}
+.site-footer-line {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.line-icon {
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #ffffff;
+    background: #06c755;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
 .site-footer-links {
     display: inline-flex;
     align-items: center;
@@ -688,6 +722,9 @@ input:focus, select:focus {
         flex-direction: column;
         align-items: flex-start;
         gap: 8px;
+    }
+    .site-footer-contact {
+        width: 100%;
     }
     .showcase-grid {
         display: grid;
