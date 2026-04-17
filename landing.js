@@ -798,9 +798,21 @@ function renderRoomCards(cfg) {
 
     const roomsSection = document.getElementById('rooms');
     if (roomTypes.length === 0) {
-        console.log('ℹ️ 無可顯示的房型（含已全部關閉銷售頁顯示），隱藏房型區塊');
-        grid.innerHTML = '';
-        if (roomsSection) roomsSection.style.display = 'none';
+        const selectedBuilding = Array.isArray(landingAllBuildings)
+            ? landingAllBuildings.find((b) => Number(b?.id) === Number(bid))
+            : null;
+        const selectedBuildingName = String(selectedBuilding?.name || '').trim();
+        const emptyMessage = selectedBuildingName
+            ? `「${selectedBuildingName}」目前沒有可預訂房型`
+            : '此館別目前沒有可預訂房型';
+        console.log('ℹ️ 目前館別無可顯示房型，顯示空狀態提示');
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px; padding: 24px; text-align: center; color: #475569;">
+                <span class="material-symbols-outlined" style="font-size: 36px; display: block; margin-bottom: 6px; color: #64748b;">info</span>
+                <p style="margin: 0; font-size: 15px;">${escapeHtml(emptyMessage)}</p>
+            </div>
+        `;
+        if (roomsSection) roomsSection.style.display = '';
         return;
     }
     if (roomsSection) roomsSection.style.display = '';
