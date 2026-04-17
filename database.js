@@ -1349,28 +1349,15 @@ async function seedSubscriptionMvpDefaults() {
             await query(
                 `INSERT INTO plans (code, name, billing_cycle, price_amount, currency, feature_flags, is_active)
                  VALUES ($1, $2, $3, $4, 'TWD', $5::jsonb, 1)
-                 ON CONFLICT (code) DO UPDATE SET
-                   name = EXCLUDED.name,
-                   billing_cycle = EXCLUDED.billing_cycle,
-                   price_amount = EXCLUDED.price_amount,
-                   feature_flags = EXCLUDED.feature_flags,
-                   is_active = 1,
-                   updated_at = CURRENT_TIMESTAMP`,
+                 ON CONFLICT (code) DO NOTHING`,
                 [plan.code, plan.name, plan.cycle, plan.price, JSON.stringify(plan.features)]
             );
         } else {
-            const existing = await queryOne(`SELECT id FROM plans WHERE code = ?`, [plan.code]);
-            if (existing) {
-                await query(
-                    `UPDATE plans SET name = ?, billing_cycle = ?, price_amount = ?, feature_flags = ?, is_active = 1, updated_at = CURRENT_TIMESTAMP WHERE code = ?`,
-                    [plan.name, plan.cycle, plan.price, JSON.stringify(plan.features), plan.code]
-                );
-            } else {
-                await query(
-                    `INSERT INTO plans (code, name, billing_cycle, price_amount, currency, feature_flags, is_active) VALUES (?, ?, ?, ?, 'TWD', ?, 1)`,
-                    [plan.code, plan.name, plan.cycle, plan.price, JSON.stringify(plan.features)]
-                );
-            }
+            await query(
+                `INSERT OR IGNORE INTO plans (code, name, billing_cycle, price_amount, currency, feature_flags, is_active)
+                 VALUES (?, ?, ?, ?, 'TWD', ?, 1)`,
+                [plan.code, plan.name, plan.cycle, plan.price, JSON.stringify(plan.features)]
+            );
         }
     }
 
