@@ -635,25 +635,20 @@ input:focus, select:focus {
     border-top: 1px solid rgba(148, 163, 184, 0.22);
 }
 .site-footer-inner {
-    padding: 12px 0 16px;
+    padding: 12px 0;
 }
 .site-footer-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-}
-.site-footer-row-top {
-    padding-bottom: 10px;
-    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-}
-.site-footer-row-bottom {
-    padding-top: 10px;
-    justify-content: center;
+    gap: 14px;
+    min-height: 52px;
 }
 .site-footer-copy {
     color: rgba(248, 250, 252, 0.88);
     font-size: 13px;
     text-align: center;
+    white-space: nowrap;
 }
 /* 與 landing.css .footer-social .social-link 同款圓形圖示按鈕 */
 .site-footer-contact {
@@ -721,15 +716,11 @@ input:focus, select:focus {
     .topbar-inner { justify-content: space-between; }
     .site-footer-row {
         flex-direction: column;
-        align-items: flex-start;
+        align-items: center;
         gap: 10px;
     }
-    .site-footer-row-bottom {
-        align-items: center;
-        justify-content: center;
-    }
     .site-footer-contact {
-        justify-content: flex-start;
+        justify-content: center;
     }
     .showcase-grid {
         display: grid;
