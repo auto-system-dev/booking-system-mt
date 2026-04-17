@@ -231,6 +231,65 @@ async function ensureSqliteAddonsTenantNameUnique() {
     }
 }
 
+/** SQLite：將 buildings 從 code 全域 UNIQUE 改為 (tenant_id, code)，以支援多租戶 */
+async function ensureSqliteBuildingsTenantCodeUnique() {
+    if (usePostgreSQL) return;
+    try {
+        const idx = await queryOne(
+            `SELECT 1 AS ok FROM sqlite_master WHERE type='index' AND tbl_name='buildings' AND name='idx_buildings_tenant_code_unique'`
+        );
+        if (idx?.ok) return;
+
+        const tbl = await queryOne(`SELECT sql FROM sqlite_master WHERE type='table' AND name='buildings'`);
+        const ddl = String(tbl?.sql || '');
+        if (!ddl || !ddl.includes('code')) return;
+        if (ddl.includes('UNIQUE (tenant_id, code)') || ddl.includes('UNIQUE(tenant_id, code)')) return;
+        if (!ddl.includes('UNIQUE')) return;
+
+        await query(`PRAGMA foreign_keys = OFF`);
+        await query(`BEGIN IMMEDIATE`);
+        try {
+            await query(`
+                CREATE TABLE buildings__mt (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tenant_id INTEGER NOT NULL DEFAULT 1,
+                    code TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    display_order INTEGER DEFAULT 0,
+                    is_active INTEGER DEFAULT 1,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (tenant_id, code)
+                )
+            `);
+            await query(`
+                INSERT INTO buildings__mt (id, tenant_id, code, name, display_order, is_active, created_at, updated_at)
+                SELECT id,
+                       COALESCE(tenant_id, 1),
+                       code,
+                       name,
+                       COALESCE(display_order, 0),
+                       COALESCE(is_active, 1),
+                       created_at,
+                       updated_at
+                FROM buildings
+            `);
+            await query(`DROP TABLE buildings`);
+            await query(`ALTER TABLE buildings__mt RENAME TO buildings`);
+            await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_buildings_tenant_code_unique ON buildings (tenant_id, code)`);
+            await query(`COMMIT`);
+            console.log('✅ SQLite buildings 已改為 (tenant_id, code) 唯一約束');
+        } catch (inner) {
+            await query(`ROLLBACK`).catch(() => {});
+            throw inner;
+        } finally {
+            await query(`PRAGMA foreign_keys = ON`);
+        }
+    } catch (error) {
+        console.warn('⚠️ SQLite buildings 多租戶唯一約束調整失敗:', error.message);
+    }
+}
+
 async function initMultiTenantCoreTables() {
     if (usePostgreSQL) {
         await initMultiTenantCoreTablesPostgreSQL();
@@ -414,6 +473,7 @@ async function initMultiTenantCoreTablesPostgreSQL() {
     await query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS last_payment_failed_at TIMESTAMP`);
     await query(`ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS next_billing_at TIMESTAMP`);
     await query(`UPDATE settings SET tenant_id = COALESCE(tenant_id, 1)`);
+    await query(`UPDATE buildings SET tenant_id = COALESCE(tenant_id, 1)`);
     await query(`
         DO $$
         BEGIN
@@ -448,6 +508,27 @@ async function initMultiTenantCoreTablesPostgreSQL() {
         await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_addons_tenant_name_unique ON addons (tenant_id, name)`);
     } catch (error) {
         console.warn('⚠️ addons 多租戶唯一索引調整失敗（請檢查是否已有重複的 tenant_id+name）:', error.message);
+    }
+
+    // buildings：解除舊版 code 全域 UNIQUE，改為 (tenant_id, code) 以支援多租戶
+    try {
+        await query(`
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1
+                    FROM information_schema.table_constraints
+                    WHERE table_schema = 'public'
+                      AND table_name = 'buildings'
+                      AND constraint_name = 'buildings_code_key'
+                ) THEN
+                    ALTER TABLE buildings DROP CONSTRAINT buildings_code_key;
+                END IF;
+            END $$;
+        `);
+        await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_buildings_tenant_code_unique ON buildings (tenant_id, code)`);
+    } catch (error) {
+        console.warn('⚠️ buildings 多租戶唯一索引調整失敗（請檢查是否已有重複的 tenant_id+code）:', error.message);
     }
 
     await query(`CREATE INDEX IF NOT EXISTS idx_bookings_tenant_id ON bookings (tenant_id)`);
@@ -627,6 +708,7 @@ async function initMultiTenantCoreTablesSQLite() {
     try { await query(`ALTER TABLE subscriptions ADD COLUMN failed_payment_count INTEGER NOT NULL DEFAULT 0`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
     try { await query(`ALTER TABLE subscriptions ADD COLUMN last_payment_failed_at DATETIME`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
     try { await query(`ALTER TABLE subscriptions ADD COLUMN next_billing_at DATETIME`); } catch (e) { if (!String(e.message || '').includes('duplicate column')) throw e; }
+    await query(`UPDATE buildings SET tenant_id = COALESCE(tenant_id, 1)`);
 
     await query(`CREATE INDEX IF NOT EXISTS idx_bookings_tenant_id ON bookings (tenant_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_room_types_tenant_id ON room_types (tenant_id)`);
@@ -634,6 +716,7 @@ async function initMultiTenantCoreTablesSQLite() {
     await query(`CREATE INDEX IF NOT EXISTS idx_prices_tenant_room_type ON prices (tenant_id, room_type_id)`);
 
     await ensureSqliteAddonsTenantNameUnique();
+    await ensureSqliteBuildingsTenantCodeUnique();
 }
 
 function parseFeatureFlags(raw) {
@@ -1616,25 +1699,27 @@ async function initPostgreSQL() {
             await query(`
                 CREATE TABLE IF NOT EXISTS buildings (
                     id SERIAL PRIMARY KEY,
-                    code VARCHAR(80) UNIQUE NOT NULL,
+                    tenant_id INTEGER NOT NULL DEFAULT 1,
+                    code VARCHAR(80) NOT NULL,
                     name VARCHAR(255) NOT NULL,
                     display_order INTEGER DEFAULT 0,
                     is_active INTEGER DEFAULT 1,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (tenant_id, code)
                 )
             `);
             // 預設館（保底，讓舊系統在只有 1 館時不需改前台流程）
             try {
                 await query(
-                    `INSERT INTO buildings (id, code, name, display_order, is_active)
-                     VALUES (1, 'default', '預設館', 0, 1)
+                    `INSERT INTO buildings (id, tenant_id, code, name, display_order, is_active)
+                     VALUES (1, 1, 'default', '預設館', 0, 1)
                      ON CONFLICT (id) DO NOTHING`
                 );
                 await query(
-                    `INSERT INTO buildings (code, name, display_order, is_active)
-                     VALUES ('default', '預設館', 0, 1)
-                     ON CONFLICT (code) DO NOTHING`
+                    `INSERT INTO buildings (tenant_id, code, name, display_order, is_active)
+                     VALUES (1, 'default', '預設館', 0, 1)
+                     ON CONFLICT DO NOTHING`
                 );
             } catch (err) {
                 // 相容舊版 Postgres / 欄位已存在狀況
@@ -3768,12 +3853,14 @@ function initSQLite() {
                                 db.run(`
                                     CREATE TABLE IF NOT EXISTS buildings (
                                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                        code TEXT UNIQUE NOT NULL,
+                                        tenant_id INTEGER NOT NULL DEFAULT 1,
+                                        code TEXT NOT NULL,
                                         name TEXT NOT NULL,
                                         display_order INTEGER DEFAULT 0,
                                         is_active INTEGER DEFAULT 1,
                                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                        UNIQUE (tenant_id, code)
                                     )
                                 `, (err) => {
                                     if (err) {
@@ -3783,7 +3870,7 @@ function initSQLite() {
                                         db.get('SELECT id FROM buildings WHERE id = 1 OR code = ?', ['default'], (err, row) => {
                                             if (!err && !row) {
                                                 db.run(
-                                                    'INSERT INTO buildings (id, code, name, display_order, is_active) VALUES (1, ?, ?, 0, 1)',
+                                                    'INSERT INTO buildings (id, tenant_id, code, name, display_order, is_active) VALUES (1, 1, ?, ?, 0, 1)',
                                                     ['default', '預設館']
                                                 );
                                             }
@@ -7274,6 +7361,8 @@ function isDuplicateBuildingCodeError(error) {
     const message = String(error?.message || '').toLowerCase();
     if (code === '23505' || code === 'SQLITE_CONSTRAINT') return true;
     if (message.includes('buildings_code_key')) return true;
+    if (message.includes('idx_buildings_tenant_code_unique')) return true;
+    if (message.includes('buildings_tenant_id_code')) return true;
     if (message.includes('unique') && message.includes('buildings') && message.includes('code')) return true;
     if (message.includes('unique constraint failed') && message.includes('buildings.code')) return true;
     return false;
