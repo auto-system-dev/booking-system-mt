@@ -7600,31 +7600,7 @@ async function getAllRoomTypesAdmin(buildingId, listScope, tenantId) {
             : [safeTenantId];
 
         const result = params.length ? await query(sql, params) : await query(sql);
-        const rows = result.rows || [];
-        if (!hasBuildingFilter || rows.length > 0) {
-            return rows;
-        }
-
-        // 相容舊快取館別：若指定館別查無資料，回退到該租戶全部館別，避免新租戶首次進入看到空白
-        const fallbackSql = usePostgreSQL
-            ? `
-                SELECT rt.*, COALESCE(inv.qty_total, 1) AS qty_total
-                FROM room_types rt
-                LEFT JOIN room_type_inventory inv
-                  ON inv.building_id = rt.building_id AND inv.room_type_id = rt.id
-                WHERE rt.tenant_id = $1${scopeClause}
-                ORDER BY rt.display_order ASC, rt.id ASC
-              `
-            : `
-                SELECT rt.*, COALESCE(inv.qty_total, 1) AS qty_total
-                FROM room_types rt
-                LEFT JOIN room_type_inventory inv
-                  ON inv.building_id = rt.building_id AND inv.room_type_id = rt.id
-                WHERE rt.tenant_id = ?${scopeClause}
-                ORDER BY rt.display_order ASC, rt.id ASC
-              `;
-        const fallback = await query(fallbackSql, [safeTenantId]);
-        return fallback.rows || [];
+        return result.rows || [];
     } catch (error) {
         console.error('❌ 查詢房型失敗:', error.message);
         throw error;
