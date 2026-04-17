@@ -7269,6 +7269,16 @@ async function getAdminCountByTenant(tenantId) {
     return parseInt(row?.cnt || 0, 10);
 }
 
+function isDuplicateBuildingCodeError(error) {
+    const code = String(error?.code || '').trim();
+    const message = String(error?.message || '').toLowerCase();
+    if (code === '23505' || code === 'SQLITE_CONSTRAINT') return true;
+    if (message.includes('buildings_code_key')) return true;
+    if (message.includes('unique') && message.includes('buildings') && message.includes('code')) return true;
+    if (message.includes('unique constraint failed') && message.includes('buildings.code')) return true;
+    return false;
+}
+
 async function createBuilding(building, tenantId) {
     try {
         const safeTenantId = assertTenantScope(tenantId, 'createBuilding');
@@ -7287,6 +7297,9 @@ async function createBuilding(building, tenantId) {
         return usePostgreSQL ? (result.rows?.[0]?.id) : result.lastID;
     } catch (error) {
         console.error('❌ 新增館別失敗:', error.message);
+        if (isDuplicateBuildingCodeError(error)) {
+            throw new Error('館別代碼已存在，請更換');
+        }
         throw error;
     }
 }
@@ -7319,6 +7332,9 @@ async function updateBuilding(id, building, tenantId) {
         return result.changes || 0;
     } catch (error) {
         console.error('❌ 更新館別失敗:', error.message);
+        if (isDuplicateBuildingCodeError(error)) {
+            throw new Error('館別代碼已存在，請更換');
+        }
         throw error;
     }
 }
