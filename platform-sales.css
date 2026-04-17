@@ -648,10 +648,12 @@ input:focus, select:focus {
 }
 .site-footer-row-bottom {
     padding-top: 10px;
+    justify-content: center;
 }
 .site-footer-copy {
     color: rgba(248, 250, 252, 0.88);
     font-size: 13px;
+    text-align: center;
 }
 .site-footer-contact {
     display: inline-flex;
@@ -673,13 +675,15 @@ input:focus, select:focus {
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.02em;
-    color: #0f172a;
-    background: #f8fafc;
-    border: 1px solid rgba(148, 163, 184, 0.35);
-    box-shadow: 0 6px 14px rgba(2, 6, 23, 0.22);
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.12);
+    border: none;
+    box-shadow: none;
 }
 .site-footer-line:hover .line-icon {
     transform: translateY(-1px);
+    background: #56ccf2;
+    color: #0b2048;
 }
 .site-footer-email {
     color: rgba(248, 250, 252, 0.9);
@@ -734,6 +738,10 @@ input:focus, select:focus {
         flex-direction: column;
         align-items: flex-start;
         gap: 10px;
+    }
+    .site-footer-row-bottom {
+        align-items: center;
+        justify-content: center;
     }
     .site-footer-contact {
         align-items: flex-start;
