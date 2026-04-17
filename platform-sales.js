@@ -40,6 +40,13 @@
     }
     reorderSalesSections();
 
+    function initFooterYear() {
+        const yearEl = document.getElementById('siteFooterYear');
+        if (!yearEl) return;
+        yearEl.textContent = String(new Date().getFullYear());
+    }
+    initFooterYear();
+
     if (!form || !formMessage) return;
 
     function resolveMeasurementId() {
@@ -80,7 +87,7 @@
     }
 
     function patchMetaForSeo() {
-        const absoluteUrl = `${window.location.origin}/platform`;
+        const absoluteUrl = `${window.location.origin}/`;
         const canonical = document.querySelector('link[rel="canonical"]');
         if (canonical) canonical.setAttribute('href', absoluteUrl);
         const ogUrl = document.querySelector('meta[property="og:url"]');
