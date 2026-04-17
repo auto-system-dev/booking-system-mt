@@ -1774,8 +1774,8 @@ async function getLandingPagePayload(tenantId = defaultTenantId) {
     });
 
     const systemModeEarly = String(settingsMap.system_mode || 'retail').trim() || 'retail';
-    // 銷售頁房型展示資料來源與後台「房型展示」一致：固定使用 retail 房型管理資料
-    const landingListScope = 'retail';
+    // 銷售頁房型展示資料來源需與系統模式一致
+    const landingListScope = systemModeEarly === 'whole_property' ? 'whole_property' : 'retail';
     const allRoomTypes = await db.getAllRoomTypes(tenantId, landingListScope);
     const landingRoomTypes = (allRoomTypes || []).filter((r) => Number(r.show_on_landing ?? 1) === 1);
     const bedTypeKeywords = new Set(['單人床', '雙人床', '加大雙人床', '特大雙人床', '上下鋪', '和式床墊', '沙發床']);
