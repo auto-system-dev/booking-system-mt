@@ -2837,9 +2837,11 @@ app.post('/api/admin/admins', requireAuth, checkPermission('admins.create'), sub
         });
     } catch (error) {
         console.error('新增管理員錯誤:', error);
-        res.status(500).json({
+        const msg = String(error?.message || '');
+        const clientErr = msg.includes('信箱已綁定');
+        res.status(clientErr ? 400 : 500).json({
             success: false,
-            message: '新增管理員失敗：' + error.message
+            message: (clientErr ? '' : '新增管理員失敗：') + msg
         });
     }
 });
@@ -2897,9 +2899,11 @@ app.put('/api/admin/admins/:id', requireAuth, checkPermission('admins.edit'), as
         }
     } catch (error) {
         console.error('更新管理員錯誤:', error);
-        res.status(500).json({
+        const msg = String(error?.message || '');
+        const clientErr = msg.includes('信箱已綁定');
+        res.status(clientErr ? 400 : 500).json({
             success: false,
-            message: '更新管理員失敗：' + error.message
+            message: (clientErr ? '' : '更新管理員失敗：') + msg
         });
     }
 });

@@ -744,6 +744,66 @@ async function ensureAdminTenantColumn() {
     }
 }
 
+/** _nonempty 信箱做不分大小寫／去頭尾空白後的比對 */
+function normalizeAdminEmailForUniqueCheck(email) {
+    return String(email || '').trim().toLowerCase();
+}
+
+async function getAdminByNormalizedEmail(normalizedEmail) {
+    const norm = normalizeAdminEmailForUniqueCheck(normalizedEmail);
+    if (!norm) return null;
+    return queryOne(
+        usePostgreSQL
+            ? `SELECT id, tenant_id, username FROM admins WHERE LOWER(TRIM(email)) = $1 LIMIT 1`
+            : `SELECT id, tenant_id, username FROM admins WHERE LOWER(TRIM(email)) = ? LIMIT 1`,
+        [norm]
+    );
+}
+
+async function assertAdminEmailUnique(email, excludeAdminId) {
+    const norm = normalizeAdminEmailForUniqueCheck(email);
+    if (!norm) return;
+    const existing = await getAdminByNormalizedEmail(norm);
+    if (!existing) return;
+    const exId = excludeAdminId != null ? parseInt(excludeAdminId, 10) : NaN;
+    if (Number.isInteger(exId) && exId > 0 && parseInt(existing.id, 10) === exId) return;
+    throw new Error('此信箱已綁定其他管理員帳號，請更換 Email');
+}
+
+function isDuplicateAdminEmailDbError(error) {
+    const msg = String(error?.message || '').toLowerCase();
+    const code = String(error?.code || '');
+    if (msg.includes('idx_admins_email_normalized_unique')) return true;
+    if (code === '23505' && msg.includes('admins') && (msg.includes('email') || msg.includes('idx_admins_email'))) {
+        return true;
+    }
+    if (msg.includes('unique constraint failed') && msg.includes('admin')) return true;
+    return false;
+}
+
+/** 非空白信箱全系統唯一（不分大小寫）；空白／未填允許多位管理員共用 */
+async function ensureAdminsEmailUniqueIndex() {
+    try {
+        await ensureAdminTenantColumn();
+        if (usePostgreSQL) {
+            await query(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_admins_email_normalized_unique
+                ON admins (LOWER(TRIM(email::text)))
+                WHERE email IS NOT NULL AND LENGTH(TRIM(email::text)) > 0
+            `);
+        } else {
+            await query(`
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_admins_email_normalized_unique
+                ON admins (LOWER(TRIM(email)))
+                WHERE email IS NOT NULL AND LENGTH(TRIM(email)) > 0
+            `);
+        }
+        console.log('✅ 管理員信箱唯一索引已準備就緒');
+    } catch (error) {
+        console.warn('⚠️ 管理員信箱唯一索引建立失敗（若資料庫已有重複信箱需先處理）:', error.message);
+    }
+}
+
 function slugifyTenantCode(input) {
     const base = String(input || '')
         .trim()
@@ -988,6 +1048,10 @@ async function createTenantOnboarding(input = {}) {
     );
     if (existingAdmin) {
         throw new Error('管理員帳號已存在，請更換 adminUsername');
+    }
+
+    if (safeAdminEmail) {
+        await assertAdminEmailUnique(safeAdminEmail, null);
     }
 
     const tenantInsert = await query(
@@ -1516,6 +1580,7 @@ async function initDatabase() {
             await initSQLite();
         }
         await initMultiTenantCoreTables();
+        await ensureAdminsEmailUniqueIndex();
         await backfillLegacyTenantIds();
         await seedSubscriptionMvpDefaults();
         await backfillTenantsDefaultAddons();
@@ -10619,6 +10684,8 @@ async function createAdmin(adminData) {
         await ensureAdminTenantColumn();
 
         const { username, password, email, role_id, department, phone, notes, tenantId } = adminData;
+
+        await assertAdminEmailUnique(email, null);
         
         const roleRow = await queryOne(
             usePostgreSQL ? 'SELECT role_name FROM roles WHERE id = $1' : 'SELECT role_name FROM roles WHERE id = ?',
@@ -10652,6 +10719,9 @@ async function createAdmin(adminData) {
         
         return usePostgreSQL ? result.rows[0].id : result.lastID;
     } catch (error) {
+        if (isDuplicateAdminEmailDbError(error)) {
+            throw new Error('此信箱已綁定其他管理員帳號，請更換 Email');
+        }
         console.error('❌ 建立管理員失敗:', error.message);
         throw error;
     }
@@ -10661,6 +10731,11 @@ async function createAdmin(adminData) {
 async function updateAdmin(adminId, adminData, tenantScope = null) {
     try {
         const { email, role_id, department, phone, notes, is_active } = adminData;
+
+        const aid = parseInt(adminId, 10);
+        if (Number.isInteger(aid) && aid > 0) {
+            await assertAdminEmailUnique(email, aid);
+        }
 
         let roleStr = null;
         if (role_id !== undefined && role_id !== null) {
@@ -10714,6 +10789,9 @@ async function updateAdmin(adminId, adminData, tenantScope = null) {
         const result = await query(sql, params);
         return result.changes > 0;
     } catch (error) {
+        if (isDuplicateAdminEmailDbError(error)) {
+            throw new Error('此信箱已綁定其他管理員帳號，請更換 Email');
+        }
         console.error('❌ 更新管理員失敗:', error.message);
         throw error;
     }
