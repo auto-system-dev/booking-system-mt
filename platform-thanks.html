@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>申請已送出 | Booking System MT</title>
+    <title>申請已送出 | Haoding Booking System</title>
     <meta name="robots" content="noindex,nofollow">
     <meta name="ga4-measurement-id" content="">
     <link rel="icon" href="/assets/platform/Copilot_20260416_164536.png" type="image/png">
@@ -26,7 +26,7 @@
         </div>
     </main>
     <script>
-    (function () {
+    (async function () {
         function getGa4Id() {
             const meta = document.querySelector('meta[name="ga4-measurement-id"]');
             return String(meta?.content || '').trim();
@@ -50,12 +50,44 @@
             window.dataLayer = window.dataLayer || [];
             window.dataLayer.push({ event: eventName, ...payload });
         }
+        function setMetaText(planName, variant) {
+            const meta = document.getElementById('thanksMeta');
+            if (!meta) return;
+            meta.textContent = '已送出方案：' + planName + (variant ? ('（文案版本 ' + variant + '）') : '');
+        }
+        async function resolvePlanNameFromManagedPlans(planCode) {
+            const normalizedCode = String(planCode || '').trim().toLowerCase();
+            if (!normalizedCode) return '';
+            try {
+                const response = await fetch('/api/public/subscription-plans', {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' },
+                    cache: 'no-store'
+                });
+                if (!response.ok) return '';
+                const payload = await response.json();
+                const plans = Array.isArray(payload?.plans) ? payload.plans : [];
+                const matched = plans.find((item) => String(item?.code || '').trim().toLowerCase() === normalizedCode);
+                return String(matched?.name || '').trim();
+            } catch (_err) {
+                return '';
+            }
+        }
+
         const ga4Id = initGa4();
         const qs = new URLSearchParams(window.location.search);
         const plan = String(qs.get('plan') || 'basic_monthly').trim();
         const variant = String(qs.get('variant') || '').trim().toUpperCase();
-        const meta = document.getElementById('thanksMeta');
-        if (meta) meta.textContent = '已送出方案：' + plan + (variant ? ('（文案版本 ' + variant + '）') : '');
+        const planLabelMap = {
+            basic_monthly: 'Basic 月付方案',
+            basic_yearly: 'Basic 年付方案',
+            pro_monthly: 'Pro 月付方案',
+            pro_yearly: 'Pro 年付方案'
+        };
+        const normalizedPlan = String(plan || '').trim().toLowerCase();
+        const managedPlanName = await resolvePlanNameFromManagedPlans(normalizedPlan);
+        const localizedPlanName = managedPlanName || planLabelMap[normalizedPlan] || '基本方案（請以後台顯示為準）';
+        setMetaText(localizedPlanName, variant);
         track('conversion', {
             page_type: 'platform_thanks',
             source: 'platform_cta_form',
