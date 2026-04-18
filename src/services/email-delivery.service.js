@@ -33,7 +33,7 @@ function createEmailDeliveryService(deps) {
                     const senderEmail = (emailRuntime.configuredSenderEmail || 'resend@resend.dev').trim();
                     let fromEmail = senderEmail;
                     const hotelSettings = await getHotelSettingsWithFallback();
-                    const senderName = String(hotelSettings?.hotelName || '').trim();
+                    const senderName = String(mailOptions?.fromName || hotelSettings?.hotelName || '').trim();
                     if (senderName) {
                         fromEmail = `"${senderName}" <${senderEmail}>`;
                         console.log('   使用寄件人名稱:', senderName);

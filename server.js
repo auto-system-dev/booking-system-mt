@@ -3432,6 +3432,7 @@ app.post('/api/public/register-tenant', publicLimiter, async (req, res) => {
             const verifyUrl = `${baseUrl}/api/public/verify-tenant-email?token=${verification.token}`;
             await sendEmail({
                 to: adminEmail,
+                fromName: 'Haoding.tw',
                 subject: '請完成帳號驗證啟用',
                 html: `
                     <div style="font-family:Arial,sans-serif;line-height:1.6;">
@@ -3552,6 +3553,7 @@ app.post('/api/public/resend-tenant-verification', publicLimiter, async (req, re
         const verifyUrl = `${baseUrl}/api/public/verify-tenant-email?token=${verification.token}`;
         await sendEmail({
             to: email,
+            fromName: 'Haoding.tw',
             subject: '重寄：請完成帳號驗證啟用',
             html: `
                 <div style="font-family:Arial,sans-serif;line-height:1.6;">
