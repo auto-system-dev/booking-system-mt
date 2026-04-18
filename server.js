@@ -1761,10 +1761,7 @@ app.get('/order-query', (req, res) => {
     res.sendFile(path.join(__dirname, 'order-query.html'));
 });
 
-// 官網首頁（產品銷售頁）
-app.get('/', publicLimiter, (req, res) => {
-    res.sendFile(path.join(__dirname, 'platform-sales.html'));
-});
+// 根路徑 "/" 見下方 handleRootPageRequest：apex 網域為產品行銷頁；{tenant}.網域為該租戶銷售頁
 
 // 舊路徑統一 301 到首頁（避免重複內容）
 app.get('/platform', publicLimiter, (req, res) => {
@@ -2144,8 +2141,22 @@ async function handleLandingPageRequest(req, res) {
     }
 }
 
-// 首頁改為銷售頁
-app.get('/', publicLimiter, handleLandingPageRequest);
+/** apex（無子網域租戶標籤）顯示全系統介紹頁；子網域租戶顯示該旅宿銷售頁 */
+async function handleRootPageRequest(req, res, next) {
+    try {
+        const parsed = req.subdomainTenantId != null ? parseInt(req.subdomainTenantId, 10) : NaN;
+        if (Number.isInteger(parsed) && parsed > 0) {
+            await handleLandingPageRequest(req, res);
+            return;
+        }
+        res.sendFile(path.join(__dirname, 'platform-sales.html'));
+    } catch (err) {
+        next(err);
+    }
+}
+
+// 首頁：依網址為產品行銷頁或租戶銷售頁
+app.get('/', publicLimiter, handleRootPageRequest);
 
 // 銷售頁相容路徑
 app.get(['/landing', '/landing.html'], publicLimiter, handleLandingPageRequest);
