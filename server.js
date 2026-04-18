@@ -3473,7 +3473,7 @@ app.get('/api/public/verify-tenant-email', publicLimiter, async (req, res) => {
         const message = String(payload?.message || (ok ? 'Email 驗證成功，租戶已啟用' : 'Email 驗證失敗')).trim();
         const escapedTitle = escapeHtmlText(title);
         const escapedMessage = escapeHtmlText(message);
-        const homeHref = '/platform';
+        const homeHref = '/';
         const adminHref = '/admin';
         const html = `<!DOCTYPE html>
 <html lang="zh-TW">
@@ -3481,6 +3481,8 @@ app.get('/api/public/verify-tenant-email', publicLimiter, async (req, res) => {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${escapedTitle}</title>
+  <link rel="icon" href="/assets/platform/Copilot_20260416_164536.png" type="image/png">
+  <link rel="apple-touch-icon" href="/assets/platform/Copilot_20260416_164536.png">
   <style>
     body{margin:0;font-family:"Noto Sans TC","PingFang TC",sans-serif;background:#f4f7fb;color:#0f172a;display:flex;align-items:center;justify-content:center;min-height:100vh}
     .card{width:min(92vw,520px);background:#fff;border:1px solid #dbe3ef;border-radius:14px;padding:24px;box-shadow:0 16px 40px rgba(15,23,42,.12)}
@@ -3498,7 +3500,7 @@ app.get('/api/public/verify-tenant-email', publicLimiter, async (req, res) => {
     <p>${escapedMessage}</p>
     <div class="actions">
       <a class="btn btn-primary" href="${adminHref}">前往管理後台</a>
-      <a class="btn btn-outline" href="${homeHref}">返回銷售頁</a>
+      <a class="btn btn-outline" href="${homeHref}">返回首頁</a>
     </div>
   </div>
   <script>
