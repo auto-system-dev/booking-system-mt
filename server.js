@@ -2415,7 +2415,8 @@ app.get('/api/admin/landing-url', requireAuth, adminLimiter, async (req, res) =>
 
         if (baseDomain && tenantCode) {
             const label = tenantCode.replace(/_/g, '-');
-            url = `${protocol}://${label}.${baseDomain}/landing`;
+            // 與前台路由一致：子網域根路徑即租戶銷售頁
+            url = `${protocol}://${label}.${baseDomain}/`;
         }
 
         return res.json({

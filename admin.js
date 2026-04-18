@@ -330,13 +330,14 @@ async function updateLandingPreviewLink() {
         const data = await response.json();
         if (response.ok && data?.success && data?.url) {
             linkEl.href = data.url;
-            linkEl.title = `租戶 ${data.tenant_code || ''} 銷售頁`;
+            linkEl.removeAttribute('title');
             return;
         }
     } catch (error) {
         console.warn('更新銷售頁預覽網址失敗，改用預設相對路徑:', error?.message || error);
     }
     linkEl.href = 'landing.html';
+    linkEl.removeAttribute('title');
 }
 
 // 顯示登入頁面
