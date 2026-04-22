@@ -9301,7 +9301,8 @@ function collectMvpEditorFields() {
         contactInfo: document.getElementById('mvpFieldContactInfo')?.value || '',
         closingMessage: document.getElementById('mvpFieldClosingMessage')?.value || '',
         footer: document.getElementById('mvpFieldFooter')?.value || '',
-        systemFooter: document.getElementById('mvpFieldSystemFooter')?.value || ''
+        // 系統註腳固定顯示，不提供欄位編輯
+        systemFooter: '此為系統自動發送郵件，請勿直接回覆'
     };
 }
 
@@ -9361,7 +9362,7 @@ function initMvpEditorBindings() {
         'mvpFieldNotice', 'mvpFieldBankTitle', 'mvpFieldBankIntro', 'mvpFieldBankInfo',
         'mvpFieldReminderTitle', 'mvpFieldReminderList',
         'mvpFieldContactTitle', 'mvpFieldContactInfo',
-        'mvpFieldClosingMessage', 'mvpFieldFooter', 'mvpFieldSystemFooter'
+        'mvpFieldClosingMessage', 'mvpFieldFooter'
     ];
     ids.forEach((id) => {
         const el = document.getElementById(id);
@@ -9440,7 +9441,6 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     setVal('mvpFieldContactInfo', pick(parsed.contactInfo, defaults.contactInfo, '電話：{{hotelPhone}}\nEmail：{{hotelEmail}}\n官方 LINE：{{officialLineUrl}}'));
     setVal('mvpFieldClosingMessage', pick(parsed.closingMessage, defaults.closingMessage, '感謝您的預訂，期待為您服務！'));
     setVal('mvpFieldFooter', pick(parsed.footer, defaults.footer, '{{hotelName}} 團隊 敬上'));
-    setVal('mvpFieldSystemFooter', pick(parsed.systemFooter, defaults.systemFooter, '此為 MVP 測試模板，不影響正式模板。'));
     renderMvpTemplatePreview();
 }
 
