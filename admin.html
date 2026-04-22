@@ -2969,7 +2969,7 @@
                                 <button type="button" class="btn-secondary" id="mvpPreviewMobileBtn">手機預覽</button>
                             </div>
                         </div>
-                        <p style="margin:8px 0 12px;color:#64748b;font-size:13px;">可用變數：{{guestName}}、{{bookingId}}、{{checkInDate}}、{{checkOutDate}}、{{roomType}}、{{totalAmount}}、{{finalAmount}}、{{paymentDeadline}}、{{hotelName}}</p>
+                        <p style="margin:8px 0 12px;color:#64748b;font-size:13px;">可用變數：{{guestName}}、{{bookingId}}、{{checkInDate}}、{{checkOutDate}}、{{roomType}}、{{totalAmount}}、{{discountAmount}}、{{discountedTotal}}、{{finalAmount}}、{{remainingAmount}}、{{paymentDeadline}}、{{daysReserved}}、{{bankName}}、{{bankBranchDisplay}}、{{bankAccount}}、{{accountName}}、{{bookingIdLast5}}、{{hotelPhone}}、{{hotelEmail}}、{{officialLineUrl}}、{{hotelName}}</p>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                             <div class="form-group" style="margin:0;">
                                 <label>標題</label>
@@ -2984,8 +2984,32 @@
                                 <textarea id="mvpFieldMainContent" rows="4" placeholder="可換行，支援變數"></textarea>
                             </div>
                             <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                <label>訂房資訊區塊</label>
+                                <textarea id="mvpFieldBookingInfo" rows="4" placeholder="例如：訂單編號：{{bookingId}}"></textarea>
+                            </div>
+                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                <label>費用摘要區塊</label>
+                                <textarea id="mvpFieldAmountSummary" rows="4" placeholder="例如：訂房金額：NT$ {{totalAmount}}"></textarea>
+                            </div>
+                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                <label>待付尾款區塊</label>
+                                <textarea id="mvpFieldRemainingAmount" rows="3" placeholder="例如：剩餘尾款：NT$ {{remainingAmount}}"></textarea>
+                            </div>
+                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
                                 <label>注意事項</label>
                                 <textarea id="mvpFieldNotice" rows="3" placeholder="可選填，支援變數"></textarea>
+                            </div>
+                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                <label>匯款資訊區塊</label>
+                                <textarea id="mvpFieldBankInfo" rows="4" placeholder="例如：銀行：{{bankName}}{{bankBranchDisplay}}"></textarea>
+                            </div>
+                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                <label>重要提醒區塊</label>
+                                <textarea id="mvpFieldReminderList" rows="4" placeholder="每行一點提醒內容"></textarea>
+                            </div>
+                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                <label>聯絡資訊區塊</label>
+                                <textarea id="mvpFieldContactInfo" rows="4" placeholder="例如：電話：{{hotelPhone}}"></textarea>
                             </div>
                             <div class="form-group" style="margin:0; grid-column: 1 / -1;">
                                 <label>頁尾簽名</label>
@@ -2998,7 +3022,17 @@
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{checkInDate}}')">入住日</button>
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{checkOutDate}}')">退房日</button>
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{roomType}}')">房型</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{totalAmount}}')">訂房金額</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{discountAmount}}')">折扣</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{discountedTotal}}')">折後金額</button>
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{finalAmount}}')">應付金額</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{remainingAmount}}')">尾款</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{paymentDeadline}}')">付款期限</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{daysReserved}}')">保留天數</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{bankName}}')">銀行</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{bankAccount}}')">帳號</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{hotelPhone}}')">電話</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{hotelEmail}}')">Email</button>
                         </div>
                         <div id="mvpUnknownVariableHint" style="display:none; margin: 6px 0; color:#b91c1c; font-size:13px;"></div>
                         <iframe id="mvpTemplatePreviewFrame" style="width:100%;min-height:340px;border:1px solid #dbeafe;border-radius:10px;background:#fff;"></iframe>
