@@ -9132,7 +9132,8 @@ const MVP_ALLOWED_VARIABLES = new Set([
     'guestName', 'bookingId', 'checkInDate', 'checkOutDate', 'roomType',
     'totalAmount', 'discountAmount', 'discountedTotal', 'finalAmount', 'remainingAmount',
     'paymentDeadline', 'daysReserved', 'bankName', 'bankBranchDisplay', 'bankAccount',
-    'accountName', 'bookingIdLast5', 'hotelPhone', 'hotelEmail', 'officialLineUrl', 'hotelName'
+    'accountName', 'bookingIdLast5', 'hotelPhone', 'hotelEmail', 'officialLineUrl', 'hotelName',
+    'bookingDate', 'nights'
 ]);
 let mvpPreviewMode = 'desktop';
 let mvpLastFocusedFieldId = '';

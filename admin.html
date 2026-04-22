@@ -2964,12 +2964,8 @@
                     <div id="mvpTemplateEditorGroup" class="form-group" style="display:none; border:1px solid #dbeafe; border-radius:10px; padding:14px; background:#f8fbff;">
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
                             <h3 style="margin:0;font-size:16px;color:#1e3a8a;">MVP 欄位式編輯（僅測試模板）</h3>
-                            <div style="display:flex; gap:8px;">
-                                <button type="button" class="btn-secondary" id="mvpPreviewDesktopBtn">桌機預覽</button>
-                                <button type="button" class="btn-secondary" id="mvpPreviewMobileBtn">手機預覽</button>
-                            </div>
                         </div>
-                        <p style="margin:8px 0 12px;color:#64748b;font-size:13px;">可用變數：{{guestName}}、{{bookingId}}、{{checkInDate}}、{{checkOutDate}}、{{roomType}}、{{totalAmount}}、{{discountAmount}}、{{discountedTotal}}、{{finalAmount}}、{{remainingAmount}}、{{paymentDeadline}}、{{daysReserved}}、{{bankName}}、{{bankBranchDisplay}}、{{bankAccount}}、{{accountName}}、{{bookingIdLast5}}、{{hotelPhone}}、{{hotelEmail}}、{{officialLineUrl}}、{{hotelName}}</p>
+                        <p style="margin:8px 0 12px;color:#64748b;font-size:13px;">可用變數：{{guestName}}、{{bookingId}}、{{bookingDate}}、{{nights}}、{{checkInDate}}、{{checkOutDate}}、{{roomType}}、{{totalAmount}}、{{discountAmount}}、{{discountedTotal}}、{{finalAmount}}、{{remainingAmount}}、{{paymentDeadline}}、{{daysReserved}}、{{bankName}}、{{bankBranchDisplay}}、{{bankAccount}}、{{accountName}}、{{bookingIdLast5}}、{{hotelPhone}}、{{hotelEmail}}、{{officialLineUrl}}、{{hotelName}}</p>
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                             <div class="form-group" style="margin:0; grid-column: 1 / -1;">
                                 <label>標題</label>
@@ -3047,6 +3043,8 @@
                         <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 8px;">
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{guestName}}')">姓名</button>
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{bookingId}}')">訂單編號</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{bookingDate}}')">訂房日期</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{nights}}')">住宿天數</button>
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{checkInDate}}')">入住日</button>
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{checkOutDate}}')">退房日</button>
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{roomType}}')">房型</button>
@@ -3063,6 +3061,10 @@
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{hotelEmail}}')">Email</button>
                         </div>
                         <div id="mvpUnknownVariableHint" style="display:none; margin: 6px 0; color:#b91c1c; font-size:13px;"></div>
+                        <div style="display:flex; gap:8px; margin:10px 0 8px;">
+                            <button type="button" class="btn-secondary" id="mvpPreviewDesktopBtn">桌機預覽</button>
+                            <button type="button" class="btn-secondary" id="mvpPreviewMobileBtn">手機預覽</button>
+                        </div>
                         <iframe id="mvpTemplatePreviewFrame" style="width:100%;min-height:340px;border:1px solid #dbeafe;border-radius:10px;background:#fff;"></iframe>
                     </div>
                     <div id="emailTemplateAdvancedEditorGroup">
