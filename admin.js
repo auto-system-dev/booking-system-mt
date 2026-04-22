@@ -9174,7 +9174,7 @@ function composeMvpTemplateHtml(fields = {}) {
 <body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
   <div style="max-width:640px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;padding:18px;background:#fff;">
     <!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->
-    ${greeting ? `<!--MVP:greeting:start--><p style="margin:0 0 10px;">${escapeHtml(greeting)}</p><!--MVP:greeting:end-->` : ''}
+    ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
     ${mainContent ? `<!--MVP:mainContent:start-->${toParagraphs(mainContent)}<!--MVP:mainContent:end-->` : ''}
     ${wrapSection('bookingInfo', '訂房資訊', toParagraphs(bookingInfo))}
     ${wrapSection('amountSummary', '費用摘要', toParagraphs(amountSummary), 'background:#eff6ff;border-color:#bfdbfe;')}
@@ -9388,8 +9388,8 @@ function initMvpEditorBindings() {
 function getMvpBookingConfirmationDefaultFields() {
     return {
         title: '訂房確認成功',
-        greeting: '親愛的 {{guestName}}，',
-        mainContent: '您的訂房已成功確認，以下是您的訂房資訊：',
+        greeting: '親愛的 {{guestName}}，\n您的訂房已成功確認，以下是您的訂房資訊：',
+        mainContent: '',
         bookingInfo: '訂房時間：{{bookingDate}}\n訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n住宿天數：{{nights}} 晚\n房型：{{roomType}}',
         amountSummary: '總金額：NT$ {{totalAmount}}\n優惠折扣：-NT$ {{discountAmount}}\n折後總額：NT$ {{discountedTotal}}',
         payNowTitle: '應付金額',
@@ -9424,7 +9424,7 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     };
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
     setVal('mvpFieldTitle', pick(parsed.title, defaults.title, 'MVP 測試通知'));
-    setVal('mvpFieldGreeting', pick(parsed.greeting, defaults.greeting, '您好 {{guestName}}，'));
+    setVal('mvpFieldGreeting', pick(parsed.greeting, defaults.greeting, '親愛的 {{guestName}}，'));
     setVal('mvpFieldMainContent', pick(parsed.mainContent, defaults.mainContent, ''));
     setVal('mvpFieldBookingInfo', pick(parsed.bookingInfo, defaults.bookingInfo, '訂單編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}'));
     setVal('mvpFieldAmountSummary', pick(parsed.amountSummary, defaults.amountSummary, '訂房金額：NT$ {{totalAmount}}\n折扣：-NT$ {{discountAmount}}\n折後金額：NT$ {{discountedTotal}}\n本次應付：NT$ {{finalAmount}}'));
