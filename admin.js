@@ -9385,30 +9385,61 @@ function initMvpEditorBindings() {
     }
 }
 
-function loadMvpFieldsFromTemplateContent(content) {
+function getMvpBookingConfirmationDefaultFields() {
+    return {
+        title: '訂房確認成功',
+        greeting: '親愛的 {{guestName}}，',
+        mainContent: '您的訂房已成功確認，以下是您的訂房資訊：',
+        bookingInfo: '訂房時間：{{bookingDate}}\n訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n住宿天數：{{nights}} 晚\n房型：{{roomType}}',
+        amountSummary: '總金額：NT$ {{totalAmount}}\n優惠折扣：-NT$ {{discountAmount}}\n折後總額：NT$ {{discountedTotal}}',
+        payNowTitle: '應付金額',
+        payNowContent: 'NT$ {{finalAmount}}',
+        remainingAmount: '剩餘尾款提醒可顯示時間與條件',
+        remainingTitle: '💡 剩餘尾款',
+        remainingContent: '剩餘尾款：NT$ {{remainingAmount}}',
+        notice: '',
+        bankTitle: '💰 匯款提醒',
+        bankIntro: '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款。\n* 逾期將自動取消訂房。',
+        bankInfo: '匯款資訊：\n銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n請在匯款時備註訂單後五碼：{{bookingIdLast5}}',
+        reminderTitle: '重要提醒',
+        reminderList: '請於入住當天攜帶身分證件辦理入住手續\n如需取消或變更訂房，請提前 3 天通知\n如有任何問題，請隨時與我們聯繫',
+        contactTitle: '聯絡資訊',
+        contactInfo: '電話：{{hotelPhone}}\nEmail：{{hotelEmail}}\n官方 LINE：{{officialLineUrl}}',
+        closingMessage: '感謝您的預訂，期待為您服務！',
+        footer: '{{hotelName}} 團隊 敬上',
+        systemFooter: '此為系統自動發送郵件，請勿直接回覆'
+    };
+}
+
+function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     const parsed = parseMvpTemplateFieldsFromHtml(content);
+    const source = String(content || '');
+    const key = String(templateKey || '').trim();
+    const hasMvpMarkers = source.includes('<!--MVP:title:start-->');
+    const useBookingDefaults = key === 'mvp_booking_confirmation' && !hasMvpMarkers;
+    const defaults = useBookingDefaults ? getMvpBookingConfirmationDefaultFields() : {};
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-    setVal('mvpFieldTitle', parsed.title || 'MVP 測試通知');
-    setVal('mvpFieldGreeting', parsed.greeting || '您好 {{guestName}}，');
-    setVal('mvpFieldMainContent', parsed.mainContent || '');
-    setVal('mvpFieldBookingInfo', parsed.bookingInfo || '訂單編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}');
-    setVal('mvpFieldAmountSummary', parsed.amountSummary || '訂房金額：NT$ {{totalAmount}}\n折扣：-NT$ {{discountAmount}}\n折後金額：NT$ {{discountedTotal}}\n本次應付：NT$ {{finalAmount}}');
-    setVal('mvpFieldPayNowTitle', parsed.payNowTitle || '應付金額');
-    setVal('mvpFieldPayNowContent', parsed.payNowContent || 'NT$ {{finalAmount}}');
-    setVal('mvpFieldRemainingAmount', parsed.remainingAmount || '剩餘尾款：NT$ {{remainingAmount}}');
-    setVal('mvpFieldRemainingTitle', parsed.remainingTitle || '💡 剩餘尾款');
-    setVal('mvpFieldRemainingContent', parsed.remainingContent || '剩餘尾款：NT$ {{remainingAmount}}');
-    setVal('mvpFieldNotice', parsed.notice || '');
-    setVal('mvpFieldBankTitle', parsed.bankTitle || '💰 匯款提醒');
-    setVal('mvpFieldBankIntro', parsed.bankIntro || '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款');
-    setVal('mvpFieldBankInfo', parsed.bankInfo || '銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n匯款請備註訂單後五碼：{{bookingIdLast5}}');
-    setVal('mvpFieldReminderTitle', parsed.reminderTitle || '重要提醒');
-    setVal('mvpFieldReminderList', parsed.reminderList || '此訂房將保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款\n逾期未付款，系統將自動取消訂單');
-    setVal('mvpFieldContactTitle', parsed.contactTitle || '聯絡資訊');
-    setVal('mvpFieldContactInfo', parsed.contactInfo || '電話：{{hotelPhone}}\nEmail：{{hotelEmail}}\n官方 LINE：{{officialLineUrl}}');
-    setVal('mvpFieldClosingMessage', parsed.closingMessage || '感謝您的預訂，期待為您服務！');
-    setVal('mvpFieldFooter', parsed.footer || '{{hotelName}} 團隊 敬上');
-    setVal('mvpFieldSystemFooter', parsed.systemFooter || '此為 MVP 測試模板，不影響正式模板。');
+    setVal('mvpFieldTitle', parsed.title || defaults.title || 'MVP 測試通知');
+    setVal('mvpFieldGreeting', parsed.greeting || defaults.greeting || '您好 {{guestName}}，');
+    setVal('mvpFieldMainContent', parsed.mainContent || defaults.mainContent || '');
+    setVal('mvpFieldBookingInfo', parsed.bookingInfo || defaults.bookingInfo || '訂單編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}');
+    setVal('mvpFieldAmountSummary', parsed.amountSummary || defaults.amountSummary || '訂房金額：NT$ {{totalAmount}}\n折扣：-NT$ {{discountAmount}}\n折後金額：NT$ {{discountedTotal}}\n本次應付：NT$ {{finalAmount}}');
+    setVal('mvpFieldPayNowTitle', parsed.payNowTitle || defaults.payNowTitle || '應付金額');
+    setVal('mvpFieldPayNowContent', parsed.payNowContent || defaults.payNowContent || 'NT$ {{finalAmount}}');
+    setVal('mvpFieldRemainingAmount', parsed.remainingAmount || defaults.remainingAmount || '剩餘尾款：NT$ {{remainingAmount}}');
+    setVal('mvpFieldRemainingTitle', parsed.remainingTitle || defaults.remainingTitle || '💡 剩餘尾款');
+    setVal('mvpFieldRemainingContent', parsed.remainingContent || defaults.remainingContent || '剩餘尾款：NT$ {{remainingAmount}}');
+    setVal('mvpFieldNotice', parsed.notice || defaults.notice || '');
+    setVal('mvpFieldBankTitle', parsed.bankTitle || defaults.bankTitle || '💰 匯款提醒');
+    setVal('mvpFieldBankIntro', parsed.bankIntro || defaults.bankIntro || '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款');
+    setVal('mvpFieldBankInfo', parsed.bankInfo || defaults.bankInfo || '銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n匯款請備註訂單後五碼：{{bookingIdLast5}}');
+    setVal('mvpFieldReminderTitle', parsed.reminderTitle || defaults.reminderTitle || '重要提醒');
+    setVal('mvpFieldReminderList', parsed.reminderList || defaults.reminderList || '此訂房將保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款\n逾期未付款，系統將自動取消訂單');
+    setVal('mvpFieldContactTitle', parsed.contactTitle || defaults.contactTitle || '聯絡資訊');
+    setVal('mvpFieldContactInfo', parsed.contactInfo || defaults.contactInfo || '電話：{{hotelPhone}}\nEmail：{{hotelEmail}}\n官方 LINE：{{officialLineUrl}}');
+    setVal('mvpFieldClosingMessage', parsed.closingMessage || defaults.closingMessage || '感謝您的預訂，期待為您服務！');
+    setVal('mvpFieldFooter', parsed.footer || defaults.footer || '{{hotelName}} 團隊 敬上');
+    setVal('mvpFieldSystemFooter', parsed.systemFooter || defaults.systemFooter || '此為 MVP 測試模板，不影響正式模板。');
     renderMvpTemplatePreview();
 }
 
@@ -10033,7 +10064,7 @@ async function showEmailTemplateModal(templateKey) {
             setMvpEditorVisible(isMvpTemplate);
             if (isMvpTemplate) {
                 initMvpEditorBindings();
-                loadMvpFieldsFromTemplateContent(template.content || '');
+                loadMvpFieldsFromTemplateContent(template.content || '', templateKey);
             }
             
             // 根據模板類型顯示/隱藏設定欄位（MVP 模板不使用下列舊設定區）
