@@ -9127,6 +9127,151 @@ async function saveWeekdaySettings() {
 }
 
 let currentEmailTemplateScope = 'standard';
+const MVP_TEMPLATE_KEY_PREFIX = 'mvp_';
+const MVP_ALLOWED_VARIABLES = new Set([
+    'guestName', 'bookingId', 'checkInDate', 'checkOutDate', 'roomType',
+    'totalAmount', 'finalAmount', 'paymentDeadline', 'hotelName'
+]);
+let mvpPreviewMode = 'desktop';
+let mvpLastFocusedFieldId = '';
+
+function isMvpTemplateKey(templateKey) {
+    return String(templateKey || '').trim().startsWith(MVP_TEMPLATE_KEY_PREFIX);
+}
+
+function composeMvpTemplateHtml(fields = {}) {
+    const title = String(fields.title || '通知').trim() || '通知';
+    const greeting = String(fields.greeting || '').trim();
+    const mainContent = String(fields.mainContent || '').trim();
+    const notice = String(fields.notice || '').trim();
+    const footer = String(fields.footer || '').trim();
+    const toParagraphs = (text) => String(text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => `<p style="margin: 0 0 10px;">${escapeHtml(line)}</p>`).join('');
+    return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
+  <div style="max-width:640px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;padding:18px;background:#fff;">
+    <h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2>
+    ${greeting ? `<p style="margin:0 0 10px;">${escapeHtml(greeting)}</p>` : ''}
+    ${toParagraphs(mainContent)}
+    ${notice ? `<div style="margin:14px 0;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;">${toParagraphs(notice)}</div>` : ''}
+    ${footer ? `<hr style="margin:16px 0;border:none;border-top:1px solid #e5e7eb;"><div style="color:#475569;">${toParagraphs(footer)}</div>` : ''}
+    <p style="margin:10px 0 0;color:#64748b;font-size:12px;">此為 MVP 測試模板，不影響正式模板。</p>
+  </div>
+</body></html>`;
+}
+
+function parseMvpTemplateFieldsFromHtml(html) {
+    const source = String(html || '');
+    const title = (source.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)?.[1] || '').replace(/<[^>]+>/g, '').trim();
+    const allParagraphs = Array.from(source.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)).map((m) => String(m[1] || '').replace(/<[^>]+>/g, '').trim()).filter(Boolean);
+    const greeting = allParagraphs[0] || '';
+    const footer = allParagraphs[allParagraphs.length - 2] || '';
+    const mainContent = allParagraphs.slice(1, Math.max(1, allParagraphs.length - 2)).join('\n');
+    return { title, greeting, mainContent, notice: '', footer };
+}
+
+function collectMvpEditorFields() {
+    return {
+        title: document.getElementById('mvpFieldTitle')?.value || '',
+        greeting: document.getElementById('mvpFieldGreeting')?.value || '',
+        mainContent: document.getElementById('mvpFieldMainContent')?.value || '',
+        notice: document.getElementById('mvpFieldNotice')?.value || '',
+        footer: document.getElementById('mvpFieldFooter')?.value || ''
+    };
+}
+
+function findUnknownMvpVariables(text) {
+    const unknown = new Set();
+    const source = String(text || '');
+    const regex = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
+    let m;
+    while ((m = regex.exec(source)) !== null) {
+        const token = String(m[1] || '').trim();
+        if (token && !MVP_ALLOWED_VARIABLES.has(token)) unknown.add(token);
+    }
+    return Array.from(unknown);
+}
+
+function validateMvpEditorVariables() {
+    const allText = Object.values(collectMvpEditorFields()).join('\n');
+    const unknown = findUnknownMvpVariables(allText);
+    const hintEl = document.getElementById('mvpUnknownVariableHint');
+    if (hintEl) {
+        if (unknown.length) {
+            hintEl.style.display = '';
+            hintEl.textContent = `偵測到未知變數：${unknown.map((v) => `{{${v}}}`).join('、')}`;
+        } else {
+            hintEl.style.display = 'none';
+            hintEl.textContent = '';
+        }
+    }
+    return unknown;
+}
+
+function renderMvpTemplatePreview() {
+    const frame = document.getElementById('mvpTemplatePreviewFrame');
+    if (!frame) return;
+    const html = composeMvpTemplateHtml(collectMvpEditorFields());
+    frame.style.maxWidth = mvpPreviewMode === 'mobile' ? '390px' : '100%';
+    frame.style.margin = mvpPreviewMode === 'mobile' ? '0 auto' : '0';
+    frame.srcdoc = html;
+    const contentEl = document.getElementById('emailTemplateContent');
+    if (contentEl) contentEl.value = html;
+    validateMvpEditorVariables();
+}
+
+function setMvpEditorVisible(visible) {
+    const mvpEl = document.getElementById('mvpTemplateEditorGroup');
+    const advEl = document.getElementById('emailTemplateAdvancedEditorGroup');
+    if (mvpEl) mvpEl.style.display = visible ? '' : 'none';
+    if (advEl) advEl.style.display = visible ? 'none' : '';
+}
+
+function initMvpEditorBindings() {
+    const ids = ['mvpFieldTitle', 'mvpFieldGreeting', 'mvpFieldMainContent', 'mvpFieldNotice', 'mvpFieldFooter'];
+    ids.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el || el.dataset.mvpBound === '1') return;
+        el.dataset.mvpBound = '1';
+        el.addEventListener('focus', () => { mvpLastFocusedFieldId = id; });
+        el.addEventListener('input', () => renderMvpTemplatePreview());
+    });
+    const desktopBtn = document.getElementById('mvpPreviewDesktopBtn');
+    const mobileBtn = document.getElementById('mvpPreviewMobileBtn');
+    if (desktopBtn && desktopBtn.dataset.mvpBound !== '1') {
+        desktopBtn.dataset.mvpBound = '1';
+        desktopBtn.addEventListener('click', () => { mvpPreviewMode = 'desktop'; renderMvpTemplatePreview(); });
+    }
+    if (mobileBtn && mobileBtn.dataset.mvpBound !== '1') {
+        mobileBtn.dataset.mvpBound = '1';
+        mobileBtn.addEventListener('click', () => { mvpPreviewMode = 'mobile'; renderMvpTemplatePreview(); });
+    }
+}
+
+function loadMvpFieldsFromTemplateContent(content) {
+    const parsed = parseMvpTemplateFieldsFromHtml(content);
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    setVal('mvpFieldTitle', parsed.title || 'MVP 測試通知');
+    setVal('mvpFieldGreeting', parsed.greeting || '您好 {{guestName}}，');
+    setVal('mvpFieldMainContent', parsed.mainContent || '');
+    setVal('mvpFieldNotice', parsed.notice || '');
+    setVal('mvpFieldFooter', parsed.footer || '{{hotelName}} 團隊 敬上');
+    renderMvpTemplatePreview();
+}
+
+window.insertMvpVariable = function insertMvpVariable(token) {
+    const safeToken = String(token || '').trim();
+    if (!safeToken) return;
+    const target = document.getElementById(mvpLastFocusedFieldId) || document.getElementById('mvpFieldMainContent');
+    if (!target) return;
+    const start = Number.isInteger(target.selectionStart) ? target.selectionStart : target.value.length;
+    const end = Number.isInteger(target.selectionEnd) ? target.selectionEnd : start;
+    target.value = `${target.value.slice(0, start)}${safeToken}${target.value.slice(end)}`;
+    target.focus();
+    const nextPos = start + safeToken.length;
+    target.setSelectionRange(nextPos, nextPos);
+    renderMvpTemplatePreview();
+};
 
 function getCurrentEmailTemplateScope() {
     const safe = String(currentEmailTemplateScope || 'standard').trim().toLowerCase();
@@ -9241,6 +9386,17 @@ function renderEmailTemplates(templates) {
         'mvp_booking_confirmation': 'MVP 測試：訂房確認',
         'mvp_payment_reminder': 'MVP 測試：付款提醒'
     };
+    const templatePurpose = {
+        payment_reminder: '提醒未付款訂單完成匯款',
+        checkin_reminder: '入住前提醒交通與注意事項',
+        feedback_request: '退房後邀請填寫回饋',
+        booking_confirmation: '寄送客戶訂房確認內容',
+        booking_confirmation_admin: '通知管理員有新訂單',
+        payment_completed: '付款完成後通知客戶',
+        cancel_notification: '通知客戶訂房已取消',
+        mvp_booking_confirmation: 'MVP 測試版：訂房確認流程',
+        mvp_payment_reminder: 'MVP 測試版：付款提醒流程'
+    };
     
     container.innerHTML = templates.map(template => `
         <div class="template-card" style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onclick="showEmailTemplateModal('${template.template_key}')">
@@ -9248,6 +9404,7 @@ function renderEmailTemplates(templates) {
                 <div>
                     <h3 style="margin: 0 0 5px 0; color: #333;">${template.template_name || templateNames[template.template_key] || template.template_key}</h3>
                     <p style="margin: 0; color: #666; font-size: 14px;">模板代碼：${template.template_key}　・　更新：${template.updated_at ? formatDateTime(template.updated_at) : '-'}</p>
+                    <p style="margin: 4px 0 0; color: #64748b; font-size: 13px;">用途：${templatePurpose[template.template_key] || '自訂用途'}</p>
                 </div>
                 <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
                     <span class="status-badge ${template.is_enabled === 1 ? 'status-sent' : 'status-unsent'}">
@@ -9689,7 +9846,9 @@ async function showEmailTemplateModal(templateKey) {
                     'booking_confirmation': '訂房確認（客戶）',
                     'booking_confirmation_admin': '訂房確認（管理員）',
                     'payment_completed': '付款完成確認',
-                    'cancel_notification': '取消通知'
+                    'cancel_notification': '取消通知',
+                    'mvp_booking_confirmation': 'MVP 測試：訂房確認',
+                    'mvp_payment_reminder': 'MVP 測試：付款提醒'
                 };
                 templateName = templateNames[templateKey] || templateKey;
             }
@@ -9704,7 +9863,9 @@ async function showEmailTemplateModal(templateKey) {
                     'booking_confirmation': '【訂房確認】您的訂房已成功',
                     'booking_confirmation_admin': '【新訂房通知】{{guestName}} - {{bookingId}}',
                     'payment_completed': '【訂房確認】您的訂房已成功',
-                    'cancel_notification': '【訂房取消通知】您的訂房已自動取消'
+                    'cancel_notification': '【訂房取消通知】您的訂房已自動取消',
+                    'mvp_booking_confirmation': '【MVP測試】您的訂房已確認｜{{bookingId}}',
+                    'mvp_payment_reminder': '【MVP測試】請於 {{paymentDeadline}} 前完成付款'
                 };
                 templateSubject = defaultSubjects[templateKey] || '郵件主旨';
             }
@@ -9714,8 +9875,15 @@ async function showEmailTemplateModal(templateKey) {
             document.getElementById('emailTemplateSubject').value = templateSubject;
             document.getElementById('emailTemplateEnabled').checked = template.is_enabled === 1;
             updateEmailTemplateEnabledToggleUI(template.is_enabled === 1);
+
+            const isMvpTemplate = isMvpTemplateKey(templateKey);
+            setMvpEditorVisible(isMvpTemplate);
+            if (isMvpTemplate) {
+                initMvpEditorBindings();
+                loadMvpFieldsFromTemplateContent(template.content || '');
+            }
             
-            // 根據模板類型顯示/隱藏設定欄位
+            // 根據模板類型顯示/隱藏設定欄位（MVP 模板不使用下列舊設定區）
             const checkinSettings = document.getElementById('checkinReminderSettings');
             const feedbackSettings = document.getElementById('feedbackRequestSettings');
             const paymentSettings = document.getElementById('paymentReminderSettings');
@@ -9726,7 +9894,7 @@ async function showEmailTemplateModal(templateKey) {
             if (paymentSettings) paymentSettings.style.display = 'none';
             
             // 根據模板類型顯示對應的設定欄位
-            if (templateKey === 'checkin_reminder') {
+            if (!isMvpTemplate && templateKey === 'checkin_reminder') {
                 if (checkinSettings) {
                     checkinSettings.style.display = 'block';
                     document.getElementById('daysBeforeCheckin').value = template.days_before_checkin || 1;
@@ -9750,13 +9918,13 @@ async function showEmailTemplateModal(templateKey) {
             // 儲存當前模板 key 到全域變數，供還原功能使用
             window.currentTemplateKey = templateKey;
             
-            if (templateKey === 'feedback_request') {
+            if (!isMvpTemplate && templateKey === 'feedback_request') {
                 if (feedbackSettings) {
                     feedbackSettings.style.display = 'block';
                     document.getElementById('daysAfterCheckout').value = template.days_after_checkout || 1;
                     document.getElementById('sendHourFeedback').value = template.send_hour_feedback || 10;
                 }
-            } else if (templateKey === 'payment_reminder') {
+            } else if (!isMvpTemplate && templateKey === 'payment_reminder') {
                 if (paymentSettings) {
                     paymentSettings.style.display = 'block';
                     const daysReservedValue = template.days_reserved !== null && template.days_reserved !== undefined ? template.days_reserved : 3;
@@ -10372,6 +10540,7 @@ async function saveEmailTemplate(event) {
     
     const form = event.target;
     const templateKey = form.dataset.templateKey;
+    const isMvpTemplate = isMvpTemplateKey(templateKey);
     
     if (!templateKey) {
         showError('找不到模板代碼');
@@ -10395,7 +10564,9 @@ async function saveEmailTemplate(event) {
             'booking_confirmation': '訂房確認（客戶）',
             'booking_confirmation_admin': '訂房確認（管理員）',
             'payment_completed': '付款完成確認',
-            'cancel_notification': '取消通知'
+            'cancel_notification': '取消通知',
+            'mvp_booking_confirmation': 'MVP 測試：訂房確認',
+            'mvp_payment_reminder': 'MVP 測試：付款提醒'
         };
         templateName = templateNames[templateKey] || templateKey;
         // 更新表單欄位
@@ -10412,7 +10583,9 @@ async function saveEmailTemplate(event) {
             'booking_confirmation': '【訂房確認】您的訂房已成功',
             'booking_confirmation_admin': '【新訂房通知】{{guestName}} - {{bookingId}}',
             'payment_completed': '【訂房確認】您的訂房已成功',
-            'cancel_notification': '【訂房取消通知】您的訂房已自動取消'
+            'cancel_notification': '【訂房取消通知】您的訂房已自動取消',
+            'mvp_booking_confirmation': '【MVP測試】您的訂房已確認｜{{bookingId}}',
+            'mvp_payment_reminder': '【MVP測試】請於 {{paymentDeadline}} 前完成付款'
         };
         templateSubject = defaultSubjects[templateKey] || '郵件主旨';
         // 更新表單欄位
@@ -10422,8 +10595,18 @@ async function saveEmailTemplate(event) {
     // 根據當前模式獲取內容
     let content = '';
     const textarea = document.getElementById('emailTemplateContent');
+
+    if (isMvpTemplate) {
+        const unknown = validateMvpEditorVariables();
+        if (unknown.length) {
+            showError(`有未知變數，請修正後再儲存：${unknown.map((v) => `{{${v}}}`).join('、')}`);
+            return;
+        }
+        content = composeMvpTemplateHtml(collectMvpEditorFields());
+        if (textarea) textarea.value = content;
+    }
     
-    if (isHtmlMode) {
+    if (!isMvpTemplate && isHtmlMode) {
         // HTML 模式：直接從 textarea 獲取
         content = textarea ? textarea.value : '';
         console.log('📝 HTML 模式：從 textarea 獲取內容，長度:', content.length);
@@ -10453,7 +10636,7 @@ async function saveEmailTemplate(event) {
                 // 如果失敗，直接使用 textarea 的內容（不完整，但至少保存了用戶的修改）
             }
         }
-    } else {
+    } else if (!isMvpTemplate) {
         // 可視化模式：從 Quill 獲取 HTML
         // 由於 text-change 事件已經同步更新了 textarea，直接使用 textarea 的值
         // 這樣可以確保使用最新的內容，並且保留完整的 HTML 結構
@@ -10576,7 +10759,7 @@ async function saveEmailTemplate(event) {
     console.log('🔍 檢查模板類型:', templateKey);
     console.log('🔍 當前 data 物件:', data);
     
-    if (templateKey === 'checkin_reminder') {
+    if (!isMvpTemplate && templateKey === 'checkin_reminder') {
         const daysBeforeCheckinEl = document.getElementById('daysBeforeCheckin');
         const sendHourCheckinEl = document.getElementById('sendHourCheckin');
         console.log('🔍 入住提醒元素:', { 
@@ -10590,7 +10773,7 @@ async function saveEmailTemplate(event) {
             data.send_hour_checkin = parseInt(sendHourCheckinEl.value) || 9;
             console.log('✅ 已添加入住提醒設定:', { days_before_checkin: data.days_before_checkin, send_hour_checkin: data.send_hour_checkin });
         }
-    } else if (templateKey === 'feedback_request') {
+    } else if (!isMvpTemplate && templateKey === 'feedback_request') {
         const daysAfterCheckoutEl = document.getElementById('daysAfterCheckout');
         const sendHourFeedbackEl = document.getElementById('sendHourFeedback');
         console.log('🔍 感謝入住元素:', { 
@@ -10604,7 +10787,7 @@ async function saveEmailTemplate(event) {
             data.send_hour_feedback = parseInt(sendHourFeedbackEl.value) || 10;
             console.log('✅ 已添加感謝入住設定:', { days_after_checkout: data.days_after_checkout, send_hour_feedback: data.send_hour_feedback });
         }
-    } else if (templateKey === 'payment_reminder') {
+    } else if (!isMvpTemplate && templateKey === 'payment_reminder') {
         const daysReservedEl = document.getElementById('daysReserved');
         const sendHourPaymentReminderEl = document.getElementById('sendHourPaymentReminder');
         console.log('🔍 匯款提醒元素檢查:', { 

@@ -2961,6 +2961,49 @@
                         <label>郵件主旨</label>
                         <input type="text" id="emailTemplateSubject" required>
                     </div>
+                    <div id="mvpTemplateEditorGroup" class="form-group" style="display:none; border:1px solid #dbeafe; border-radius:10px; padding:14px; background:#f8fbff;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                            <h3 style="margin:0;font-size:16px;color:#1e3a8a;">MVP 欄位式編輯（僅測試模板）</h3>
+                            <div style="display:flex; gap:8px;">
+                                <button type="button" class="btn-secondary" id="mvpPreviewDesktopBtn">桌機預覽</button>
+                                <button type="button" class="btn-secondary" id="mvpPreviewMobileBtn">手機預覽</button>
+                            </div>
+                        </div>
+                        <p style="margin:8px 0 12px;color:#64748b;font-size:13px;">可用變數：{{guestName}}、{{bookingId}}、{{checkInDate}}、{{checkOutDate}}、{{roomType}}、{{totalAmount}}、{{finalAmount}}、{{paymentDeadline}}、{{hotelName}}</p>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                            <div class="form-group" style="margin:0;">
+                                <label>標題</label>
+                                <input type="text" id="mvpFieldTitle" placeholder="例如：訂房確認通知">
+                            </div>
+                            <div class="form-group" style="margin:0;">
+                                <label>開頭問候</label>
+                                <input type="text" id="mvpFieldGreeting" placeholder="例如：您好 {{guestName}}，">
+                            </div>
+                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                <label>主內容</label>
+                                <textarea id="mvpFieldMainContent" rows="4" placeholder="可換行，支援變數"></textarea>
+                            </div>
+                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                <label>注意事項</label>
+                                <textarea id="mvpFieldNotice" rows="3" placeholder="可選填，支援變數"></textarea>
+                            </div>
+                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                <label>頁尾簽名</label>
+                                <textarea id="mvpFieldFooter" rows="2" placeholder="例如：{{hotelName}} 團隊 敬上"></textarea>
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 8px;">
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{guestName}}')">姓名</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{bookingId}}')">訂單編號</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{checkInDate}}')">入住日</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{checkOutDate}}')">退房日</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{roomType}}')">房型</button>
+                            <button type="button" class="btn-var" onclick="insertMvpVariable('{{finalAmount}}')">應付金額</button>
+                        </div>
+                        <div id="mvpUnknownVariableHint" style="display:none; margin: 6px 0; color:#b91c1c; font-size:13px;"></div>
+                        <iframe id="mvpTemplatePreviewFrame" style="width:100%;min-height:340px;border:1px solid #dbeafe;border-radius:10px;background:#fff;"></iframe>
+                    </div>
+                    <div id="emailTemplateAdvancedEditorGroup">
                     <div class="form-group">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
                             <div style="display: flex; align-items: center; gap: 10px;">
@@ -2984,6 +3027,7 @@
                         <small style="margin-top: 10px; display: block; color: #666;">
                             💡 提示：使用上方按鈕插入變數，或直接點擊「姓名」、「訂房編號」等按鈕快速插入。
                         </small>
+                    </div>
                     </div>
                     <div class="form-group">
                         <div style="display: flex; align-items: center; gap: 12px;">
