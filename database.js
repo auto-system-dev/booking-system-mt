@@ -9142,14 +9142,23 @@ async function ensureMvpEmailTemplatesForTenant(tenantId) {
         }
     }
 
-    // 直接用正式模板內容覆蓋 mvp 訂房確認模板，方便做同版測試
+    // 一次性強制匯入：將正式模板內容覆蓋到 mvp 訂房確認模板（每租戶僅執行一次）
+    const syncFlagKey = 'mvp_booking_confirmation_sync_once_v1';
+    const syncFlagRow = await queryOne(
+        usePostgreSQL
+            ? `SELECT value FROM settings WHERE tenant_id = $1 AND key = $2 LIMIT 1`
+            : `SELECT value FROM settings WHERE tenant_id = ? AND key = ? LIMIT 1`,
+        [safeTenantId, syncFlagKey]
+    );
+    const shouldForceSyncOnce = String(syncFlagRow?.value || '').trim() !== '1';
+
     const source = await queryOne(
         usePostgreSQL
             ? `SELECT subject, content FROM email_templates WHERE tenant_id = $1 AND template_key = $2 LIMIT 1`
             : `SELECT subject, content FROM email_templates WHERE tenant_id = ? AND template_key = ? LIMIT 1`,
         [safeTenantId, 'booking_confirmation']
     );
-    if (source && String(source.content || '').trim()) {
+    if (shouldForceSyncOnce && source && String(source.content || '').trim()) {
         await query(
             usePostgreSQL
                 ? `UPDATE email_templates
@@ -9160,6 +9169,21 @@ async function ensureMvpEmailTemplatesForTenant(tenantId) {
                    WHERE tenant_id = ? AND template_key = ?`,
             [String(source.subject || '').trim(), source.content, safeTenantId, 'mvp_booking_confirmation']
         );
+        if (usePostgreSQL) {
+            await query(
+                `INSERT INTO settings (tenant_id, key, value, description, updated_at)
+                 VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+                 ON CONFLICT (tenant_id, key) DO UPDATE
+                 SET value = EXCLUDED.value, description = EXCLUDED.description, updated_at = CURRENT_TIMESTAMP`,
+                [safeTenantId, syncFlagKey, '1', 'MVP 訂房確認模板已同步正式模板（一次性）']
+            );
+        } else {
+            await query(
+                `INSERT OR REPLACE INTO settings (tenant_id, key, value, description, updated_at)
+                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+                [safeTenantId, syncFlagKey, '1', 'MVP 訂房確認模板已同步正式模板（一次性）']
+            );
+        }
     }
 }
 
