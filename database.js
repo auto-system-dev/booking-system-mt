@@ -9077,14 +9077,103 @@ async function updateSetting(key, value, description = null, tenantId) {
 
 // ==================== 郵件模板相關函數 ====================
 
-async function getAllEmailTemplates(tenantId) {
+function getDefaultMvpEmailTemplates() {
+    return [
+        {
+            key: 'mvp_booking_confirmation',
+            name: 'MVP 測試：訂房確認',
+            subject: '【MVP測試】您的訂房已確認｜{{bookingId}}',
+            content: `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;">
+  <h2 style="margin:0 0 12px;">{{hotelName}} 訂房確認</h2>
+  <p>您好 {{guestName}}，感謝您的預訂。</p>
+  <p>訂單編號：<strong>{{bookingId}}</strong></p>
+  <p>入住：{{checkInDate}}　退房：{{checkOutDate}}</p>
+  <p>房型：{{roomType}}　金額：NT$ {{totalAmount}}</p>
+  <hr style="margin:18px 0;border:none;border-top:1px solid #e5e7eb;">
+  <p style="color:#6b7280;">此為 MVP 測試模板，不會影響正式寄送模板。</p>
+</body></html>`,
+            enabled: 1
+        },
+        {
+            key: 'mvp_payment_reminder',
+            name: 'MVP 測試：付款提醒',
+            subject: '【MVP測試】請於 {{paymentDeadline}} 前完成付款',
+            content: `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;">
+  <h2 style="margin:0 0 12px;">付款提醒</h2>
+  <p>您好 {{guestName}}，您的訂單 <strong>{{bookingId}}</strong> 尚待付款。</p>
+  <p>應付金額：NT$ {{finalAmount}}</p>
+  <p>付款期限：{{paymentDeadline}}</p>
+  <p>如已完成付款，請忽略此信。</p>
+  <hr style="margin:18px 0;border:none;border-top:1px solid #e5e7eb;">
+  <p style="color:#6b7280;">此為 MVP 測試模板，不會影響正式寄送模板。</p>
+</body></html>`,
+            enabled: 1
+        }
+    ];
+}
+
+function getDefaultMvpEmailTemplateByKey(templateKey) {
+    const key = String(templateKey || '').trim();
+    return getDefaultMvpEmailTemplates().find((t) => t.key === key) || null;
+}
+
+async function ensureMvpEmailTemplatesForTenant(tenantId) {
+    const safeTenantId = assertTenantScope(tenantId, 'ensureMvpEmailTemplatesForTenant');
+    const templates = getDefaultMvpEmailTemplates();
+    for (const tpl of templates) {
+        if (usePostgreSQL) {
+            await query(
+                `INSERT INTO email_templates (tenant_id, template_key, template_name, subject, content, is_enabled, created_at, updated_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                 ON CONFLICT (tenant_id, template_key) DO NOTHING`,
+                [safeTenantId, tpl.key, tpl.name, tpl.subject, tpl.content, tpl.enabled ? 1 : 0]
+            );
+        } else {
+            await query(
+                `INSERT OR IGNORE INTO email_templates
+                 (tenant_id, template_key, template_name, subject, content, is_enabled, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+                [safeTenantId, tpl.key, tpl.name, tpl.subject, tpl.content, tpl.enabled ? 1 : 0]
+            );
+        }
+    }
+}
+
+async function resetMvpEmailTemplateToDefault(templateKey, tenantId) {
+    const safeTenantId = assertTenantScope(tenantId, 'resetMvpEmailTemplateToDefault');
+    const tpl = getDefaultMvpEmailTemplateByKey(templateKey);
+    if (!tpl) {
+        throw new Error('找不到指定的 MVP 測試模板');
+    }
+    await ensureMvpEmailTemplatesForTenant(safeTenantId);
+    const sql = usePostgreSQL
+        ? `UPDATE email_templates
+           SET template_name = $1, subject = $2, content = $3, is_enabled = $4, updated_at = CURRENT_TIMESTAMP
+           WHERE tenant_id = $5 AND template_key = $6`
+        : `UPDATE email_templates
+           SET template_name = ?, subject = ?, content = ?, is_enabled = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE tenant_id = ? AND template_key = ?`;
+    const result = await query(sql, [tpl.name, tpl.subject, tpl.content, tpl.enabled ? 1 : 0, safeTenantId, tpl.key]);
+    return { changes: result.changes || result.rowCount || 0, template: tpl };
+}
+
+async function getAllEmailTemplates(tenantId, options = {}) {
     try {
         const safeTenantId = assertTenantScope(tenantId, 'getAllEmailTemplates');
+        const scope = String(options?.scope || 'standard').trim().toLowerCase();
         await ensureEmailTemplatesForTenant(safeTenantId);
+        if (scope === 'mvp') {
+            await ensureMvpEmailTemplatesForTenant(safeTenantId);
+        }
+        const keyFilter = scope === 'mvp' ? 'mvp_%' : 'mvp_%';
         const sql = usePostgreSQL
-            ? `SELECT * FROM email_templates WHERE tenant_id = $1 ORDER BY template_key`
-            : `SELECT * FROM email_templates WHERE tenant_id = ? ORDER BY template_key`;
-        const result = await query(sql, [safeTenantId]);
+            ? `SELECT * FROM email_templates WHERE tenant_id = $1 AND template_key ${scope === 'mvp' ? 'LIKE' : 'NOT LIKE'} $2 ORDER BY template_key`
+            : `SELECT * FROM email_templates WHERE tenant_id = ? AND template_key ${scope === 'mvp' ? 'LIKE' : 'NOT LIKE'} ? ORDER BY template_key`;
+        const result = await query(sql, [safeTenantId, keyFilter]);
         return result.rows || [];
     } catch (error) {
         console.error('❌ 查詢郵件模板失敗:', error.message);
@@ -9096,6 +9185,9 @@ async function getEmailTemplateByKey(templateKey, tenantId) {
     try {
         const safeTenantId = assertTenantScope(tenantId, 'getEmailTemplateByKey');
         await ensureEmailTemplatesForTenant(safeTenantId);
+        if (String(templateKey || '').startsWith('mvp_')) {
+            await ensureMvpEmailTemplatesForTenant(safeTenantId);
+        }
         const sql = usePostgreSQL
             ? `SELECT * FROM email_templates WHERE template_key = $1 AND tenant_id = $2`
             : `SELECT * FROM email_templates WHERE template_key = ? AND tenant_id = ?`;
@@ -10948,6 +11040,8 @@ module.exports = {
     getEmailTemplateByKey,
     updateEmailTemplate,
     initEmailTemplates,
+    ensureMvpEmailTemplatesForTenant,
+    resetMvpEmailTemplateToDefault,
     // 自動郵件查詢
     getBookingsForPaymentReminder,
     getBookingsForCheckinReminder,

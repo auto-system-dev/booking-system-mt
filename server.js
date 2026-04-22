@@ -6664,19 +6664,37 @@ app.get('/api/admin/email-service-status', requireAuth, checkPermission('email_t
 
 // ==================== 郵件模板 API ====================
 
+function resolveEmailTemplateScope(req) {
+    const raw = String(req.query?.scope || '').trim().toLowerCase();
+    if (raw === 'mvp') return 'mvp';
+    return 'standard';
+}
+
+function assertMvpEmailTemplateScopeAccess(req, scope) {
+    if (scope !== 'mvp') return;
+    if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+        const err = new Error('僅超級管理員可使用 MVP 測試模板');
+        err.statusCode = 403;
+        throw err;
+    }
+}
+
 // API: 取得所有郵件模板
 app.get('/api/email-templates', requireAuth, requireTenantContext, checkPermission('email_templates.view'), adminLimiter, async (req, res) => {
     try {
-        const templates = await db.getAllEmailTemplates(req.tenantId);
+        const scope = resolveEmailTemplateScope(req);
+        assertMvpEmailTemplateScopeAccess(req, scope);
+        const templates = await db.getAllEmailTemplates(req.tenantId, { scope });
         res.json({
             success: true,
+            scope,
             data: templates
         });
     } catch (error) {
         console.error('取得郵件模板錯誤:', error);
-        res.status(500).json({
+        res.status(error.statusCode || 500).json({
             success: false,
-            message: '取得郵件模板失敗'
+            message: error.statusCode ? error.message : '取得郵件模板失敗'
         });
     }
 });
@@ -6685,6 +6703,11 @@ app.get('/api/email-templates', requireAuth, requireTenantContext, checkPermissi
 app.get('/api/email-templates/:key', requireAuth, requireTenantContext, checkPermission('email_templates.view'), adminLimiter, async (req, res) => {
     try {
         const { key } = req.params;
+        const scope = resolveEmailTemplateScope(req);
+        assertMvpEmailTemplateScopeAccess(req, scope);
+        if (scope === 'mvp' && !String(key || '').startsWith('mvp_')) {
+            return res.status(400).json({ success: false, message: 'MVP scope 僅允許 mvp_ 開頭模板' });
+        }
         console.log(`📧 取得郵件模板: ${key}`);
         const template = await db.getEmailTemplateByKey(key, req.tenantId);
         if (template) {
@@ -6721,6 +6744,11 @@ app.get('/api/email-templates/:key', requireAuth, requireTenantContext, checkPer
 app.put('/api/email-templates/:key', requireAuth, requireTenantContext, checkPermission('email_templates.edit'), adminLimiter, async (req, res) => {
     try {
         const { key } = req.params;
+        const scope = resolveEmailTemplateScope(req);
+        assertMvpEmailTemplateScopeAccess(req, scope);
+        if (scope === 'mvp' && !String(key || '').startsWith('mvp_')) {
+            return res.status(400).json({ success: false, message: 'MVP scope 僅允許 mvp_ 開頭模板' });
+        }
         const { 
             template_name, 
             subject, 
@@ -6844,6 +6872,11 @@ app.put('/api/email-templates/:key', requireAuth, requireTenantContext, checkPer
 app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, checkPermission('email_templates.send_test'), adminLimiter, async (req, res) => {
     try {
         const { key } = req.params;
+        const scope = resolveEmailTemplateScope(req);
+        assertMvpEmailTemplateScopeAccess(req, scope);
+        if (scope === 'mvp' && !String(key || '').startsWith('mvp_')) {
+            return res.status(400).json({ success: false, message: 'MVP scope 僅允許 mvp_ 開頭模板' });
+        }
         const { email, useEditorContent } = req.body;
         
         // 獲取 emailUser 設定
@@ -7401,6 +7434,17 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
 // API: 重置郵件模板為預設圖卡樣式
 app.post('/api/email-templates/reset-to-default', requireAuth, requireTenantContext, checkPermission('email_templates.edit'), adminLimiter, async (req, res) => {
     try {
+        const scope = resolveEmailTemplateScope(req);
+        assertMvpEmailTemplateScopeAccess(req, scope);
+        const { templateKey } = req.body || {};
+        if (scope === 'mvp' && String(templateKey || '').startsWith('mvp_')) {
+            await db.resetMvpEmailTemplateToDefault(templateKey, req.tenantId);
+            return res.json({
+                success: true,
+                message: `MVP 測試模板「${templateKey}」已還原為預設內容`
+            });
+        }
+
         // 使用圖卡樣式的模板
         const fallbackTemplates = [
             {
@@ -8478,8 +8522,7 @@ app.post('/api/email-templates/reset-to-default', requireAuth, requireTenantCont
             }
             ];
         
-        // 檢查是否指定了單個模板重置
-        const { templateKey } = req.body;
+        // 檢查是否指定了單個模板重置（templateKey 已於函式開頭解析）
         
         // 使用原始簡單排版樣式的模板（無圖卡樣式）
         const defaultTemplates = fallbackTemplates;

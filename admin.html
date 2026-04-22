@@ -1659,11 +1659,18 @@
                 <div class="section-header">
                     <h2><span class="material-symbols-outlined" style="font-size: 28px; vertical-align: middle; margin-right: 8px;">mail</span> 郵件模板管理</h2>
                     <div style="display: flex; gap: 10px;">
+                        <select id="emailTemplateScopeSelect" style="display:none; min-width: 180px; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px;">
+                            <option value="standard">正式模板</option>
+                            <option value="mvp">MVP 測試模板（超管）</option>
+                        </select>
                         <button class="btn-refresh" onclick="loadEmailTemplates()">
                             <span class="material-symbols-outlined">refresh</span> 重新整理
                         </button>
                     </div>
                 </div>
+                <p id="emailTemplateScopeHint" style="display:none; margin: 0 0 12px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px;">
+                    目前為 MVP 測試模板模式（僅超級管理員可見），不影響正式寄送模板。
+                </p>
 
                 <div class="email-templates-container">
                     <div class="templates-list" id="emailTemplatesList">

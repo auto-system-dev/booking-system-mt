@@ -9126,11 +9126,60 @@ async function saveWeekdaySettings() {
     }
 }
 
+let currentEmailTemplateScope = 'standard';
+
+function getCurrentEmailTemplateScope() {
+    const safe = String(currentEmailTemplateScope || 'standard').trim().toLowerCase();
+    return safe === 'mvp' ? 'mvp' : 'standard';
+}
+
+function buildEmailTemplateApiUrl(pathSuffix = '') {
+    const suffix = String(pathSuffix || '').trim();
+    const scope = encodeURIComponent(getCurrentEmailTemplateScope());
+    const base = `/api/email-templates${suffix}`;
+    return `${base}${base.includes('?') ? '&' : '?'}scope=${scope}`;
+}
+
+function syncEmailTemplateScopeUi() {
+    const selectEl = document.getElementById('emailTemplateScopeSelect');
+    const hintEl = document.getElementById('emailTemplateScopeHint');
+    const isSuper = !!(window.currentAdminInfo && window.currentAdminInfo.role === 'super_admin');
+
+    if (selectEl) {
+        selectEl.style.display = isSuper ? '' : 'none';
+        if (!isSuper) {
+            currentEmailTemplateScope = 'standard';
+        } else if (selectEl.value) {
+            currentEmailTemplateScope = selectEl.value;
+        }
+        selectEl.value = getCurrentEmailTemplateScope();
+    }
+    if (hintEl) {
+        hintEl.style.display = (isSuper && getCurrentEmailTemplateScope() === 'mvp') ? '' : 'none';
+    }
+}
+
+function initEmailTemplateScopeSwitcher() {
+    const selectEl = document.getElementById('emailTemplateScopeSelect');
+    if (!selectEl || selectEl.dataset.bound === '1') {
+        syncEmailTemplateScopeUi();
+        return;
+    }
+    selectEl.dataset.bound = '1';
+    selectEl.addEventListener('change', () => {
+        currentEmailTemplateScope = selectEl.value || 'standard';
+        syncEmailTemplateScopeUi();
+        loadEmailTemplates().catch(() => {});
+    });
+    syncEmailTemplateScopeUi();
+}
+
 // 載入郵件模板列表
 async function loadEmailTemplates() {
     try {
+        initEmailTemplateScopeSwitcher();
         console.log('開始載入郵件模板...');
-        const response = await adminFetch('/api/email-templates');
+        const response = await adminFetch(buildEmailTemplateApiUrl());
         console.log('API 回應狀態:', response.status);
         
         const result = await response.json();
@@ -9188,7 +9237,9 @@ function renderEmailTemplates(templates) {
         'booking_confirmation': '訂房確認（客戶）',
         'booking_confirmation_admin': '訂房確認（管理員）',
         'payment_completed': '付款完成確認',
-        'cancel_notification': '取消通知'
+        'cancel_notification': '取消通知',
+        'mvp_booking_confirmation': 'MVP 測試：訂房確認',
+        'mvp_payment_reminder': 'MVP 測試：付款提醒'
     };
     
     container.innerHTML = templates.map(template => `
@@ -9196,7 +9247,7 @@ function renderEmailTemplates(templates) {
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; gap: 12px;">
                 <div>
                     <h3 style="margin: 0 0 5px 0; color: #333;">${template.template_name || templateNames[template.template_key] || template.template_key}</h3>
-                    <p style="margin: 0; color: #666; font-size: 14px;">模板代碼：${template.template_key}</p>
+                    <p style="margin: 0; color: #666; font-size: 14px;">模板代碼：${template.template_key}　・　更新：${template.updated_at ? formatDateTime(template.updated_at) : '-'}</p>
                 </div>
                 <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
                     <span class="status-badge ${template.is_enabled === 1 ? 'status-sent' : 'status-unsent'}">
@@ -9235,7 +9286,7 @@ window.resetCurrentTemplateToDefault = async function resetCurrentTemplateToDefa
     }
     
     try {
-        const response = await adminFetch('/api/email-templates/reset-to-default', {
+        const response = await adminFetch(buildEmailTemplateApiUrl('/reset-to-default'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -9595,7 +9646,7 @@ window.toggleEmailPreview = function toggleEmailPreview() {
 async function showEmailTemplateModal(templateKey) {
     try {
         console.log('📧 載入郵件模板:', templateKey);
-        const response = await adminFetch(`/api/email-templates/${templateKey}`);
+        const response = await adminFetch(buildEmailTemplateApiUrl(`/${templateKey}`));
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -9941,7 +9992,7 @@ async function showEmailTemplateModal(templateKey) {
                             } else {
                                 // 從 API 獲取模板
                                 try {
-                                    const templateResponse = await adminFetch(`/api/email-templates/${templateKey}`);
+                                    const templateResponse = await adminFetch(buildEmailTemplateApiUrl(`/${templateKey}`));
                                     const templateResult = await templateResponse.json();
                                     if (templateResult.success && templateResult.data) {
                                         const templateContent = templateResult.data.content;
@@ -9968,7 +10019,7 @@ async function showEmailTemplateModal(templateKey) {
                         }
                         
                         // 發送測試郵件
-                        const response = await adminFetch(`/api/email-templates/${templateKey}/test`, {
+                        const response = await adminFetch(buildEmailTemplateApiUrl(`/${templateKey}/test`), {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -10381,7 +10432,7 @@ async function saveEmailTemplate(event) {
         if (content && !content.includes('<!DOCTYPE html>') && !content.includes('<html')) {
             console.log('⚠️ HTML 模式：textarea 內容不是完整 HTML，從資料庫讀取模板結構');
             try {
-                const templateResponse = await adminFetch(`/api/email-templates/${templateKey}`);
+                const templateResponse = await adminFetch(buildEmailTemplateApiUrl(`/${templateKey}`));
                 const templateResult = await templateResponse.json();
                 if (templateResult.success && templateResult.data && templateResult.data.content) {
                     const templateContent = templateResult.data.content;
@@ -10415,7 +10466,7 @@ async function saveEmailTemplate(event) {
         if (content && !content.includes('<!DOCTYPE html>') && !content.includes('<html')) {
             console.log('⚠️ textarea 內容不是完整 HTML，從資料庫讀取模板結構');
             try {
-                const templateResponse = await adminFetch(`/api/email-templates/${templateKey}`);
+                const templateResponse = await adminFetch(buildEmailTemplateApiUrl(`/${templateKey}`));
                 const templateResult = await templateResponse.json();
                 if (templateResult.success && templateResult.data && templateResult.data.content) {
                     const templateContent = templateResult.data.content;
@@ -10444,7 +10495,7 @@ async function saveEmailTemplate(event) {
             
             // 從資料庫讀取模板結構
             try {
-                const templateResponse = await adminFetch(`/api/email-templates/${templateKey}`);
+                const templateResponse = await adminFetch(buildEmailTemplateApiUrl(`/${templateKey}`));
                 const templateResult = await templateResponse.json();
                 if (templateResult.success && templateResult.data && templateResult.data.content) {
                     const templateContent = templateResult.data.content;
@@ -10472,7 +10523,7 @@ async function saveEmailTemplate(event) {
             const quillHtml = quillEditor.root.innerHTML;
             // 從資料庫讀取模板結構
             try {
-                const templateResponse = await adminFetch(`/api/email-templates/${templateKey}`);
+                const templateResponse = await adminFetch(buildEmailTemplateApiUrl(`/${templateKey}`));
                 const templateResult = await templateResponse.json();
                 if (templateResult.success && templateResult.data && templateResult.data.content) {
                     const templateContent = templateResult.data.content;
@@ -10599,7 +10650,7 @@ async function saveEmailTemplate(event) {
         });
         console.log('完整資料物件:', data);
         
-        const response = await adminFetch(`/api/email-templates/${templateKey}`, {
+        const response = await adminFetch(buildEmailTemplateApiUrl(`/${templateKey}`), {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -10685,7 +10736,7 @@ async function sendTestEmail() {
             } else {
                 // 如果原始內容不是完整 HTML，從資料庫讀取模板結構
                 try {
-                    const templateResponse = await adminFetch(`/api/email-templates/${templateKey}`);
+                    const templateResponse = await adminFetch(buildEmailTemplateApiUrl(`/${templateKey}`));
                     const templateResult = await templateResponse.json();
                     if (templateResult.success && templateResult.data && templateResult.data.content) {
                         const templateContent = templateResult.data.content;
@@ -10741,7 +10792,7 @@ async function sendTestEmail() {
             note: '不發送 content，讓後端直接從資料庫讀取完整的模板內容'
         });
         
-        const response = await adminFetch(`/api/email-templates/${templateKey}/test`, {
+        const response = await adminFetch(buildEmailTemplateApiUrl(`/${templateKey}/test`), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -10847,7 +10898,7 @@ async function sendTestEmail() {
             } else {
                 // 如果沒有原始內容，使用資料庫中的內容
                 try {
-                    const templateResponse = await adminFetch(`/api/email-templates/${templateKey}`);
+                    const templateResponse = await adminFetch(buildEmailTemplateApiUrl(`/${templateKey}`));
                     const templateResult = await templateResponse.json();
                     if (templateResult.success && templateResult.data) {
                         const templateContent = templateResult.data.content;
@@ -10902,7 +10953,7 @@ ${quillHtml}
         }
         
         // 使用編輯器中的內容（用戶修改後的內容），但保留完整的 HTML 結構
-        const response = await adminFetch(`/api/email-templates/${templateKey}/test`, {
+        const response = await adminFetch(buildEmailTemplateApiUrl(`/${templateKey}/test`), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -10956,7 +11007,7 @@ async function restoreEmailTemplate() {
     }
     
     try {
-        const response = await adminFetch(`/api/email-templates/${templateKey}/default`, {
+        const response = await adminFetch(buildEmailTemplateApiUrl(`/${templateKey}/default`), {
             method: 'GET',
             credentials: 'include'
         });
@@ -11168,7 +11219,7 @@ async function resetEmailTemplateToDefault(templateKey, templateName) {
     }
     
     try {
-        const response = await adminFetch('/api/email-templates/reset-to-default', {
+        const response = await adminFetch(buildEmailTemplateApiUrl('/reset-to-default'), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
