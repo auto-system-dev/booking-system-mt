@@ -9149,7 +9149,6 @@ function composeMvpTemplateHtml(fields = {}) {
     const amountSummary = String(fields.amountSummary || '').trim();
     const payNowTitle = String(fields.payNowTitle || '應付金額').trim();
     const payNowContent = String(fields.payNowContent || 'NT$ {{finalAmount}}').trim();
-    const remainingAmount = String(fields.remainingAmount || '').trim();
     const remainingTitle = String(fields.remainingTitle || '💡 剩餘尾款').trim();
     const remainingContent = String(fields.remainingContent || '剩餘尾款：NT$ {{remainingAmount}}').trim();
     const notice = String(fields.notice || '').trim();
@@ -9175,12 +9174,10 @@ function composeMvpTemplateHtml(fields = {}) {
   <div style="max-width:640px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;padding:18px;background:#fff;">
     <!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->
     ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
-    ${mainContent ? `<!--MVP:mainContent:start-->${toParagraphs(mainContent)}<!--MVP:mainContent:end-->` : ''}
     ${wrapSection('bookingInfo', '訂房資訊', toParagraphs(bookingInfo))}
     ${wrapSection('amountSummary', '費用摘要', toParagraphs(amountSummary), 'background:#eff6ff;border-color:#bfdbfe;')}
     ${(payNowTitle || payNowContent) ? `<!--MVP:payNowCard:start--><div style="margin:14px 0;padding:12px;border:1px solid #93c5fd;border-radius:10px;background:#dbeafe;"><p style="margin:0 0 6px;font-weight:700;color:#1d4ed8;">${escapeHtml(payNowTitle)}</p><p style="margin:0;font-weight:700;font-size:24px;color:#1e3a8a;">${escapeHtml(payNowContent)}</p></div><!--MVP:payNowCard:end-->` : ''}
-    ${wrapSection('remainingAmount', '待付尾款', toParagraphs(remainingAmount), 'background:#f0fdf4;border-color:#86efac;')}
-    ${(remainingTitle || remainingContent) ? `<!--MVP:remainingCard:start--><div style="margin:14px 0;padding:12px;border:1px solid #86efac;border-radius:10px;background:#dcfce7;"><p style="margin:0 0 6px;font-weight:700;color:#15803d;">${escapeHtml(remainingTitle)}</p><p style="margin:0;font-weight:700;font-size:22px;color:#166534;">${escapeHtml(remainingContent)}</p></div><!--MVP:remainingCard:end-->` : ''}
+    ${(remainingTitle || remainingContent) ? `<!--MVP:remainingCard:start--><div style="margin:14px 0;padding:12px;border:1px solid #86efac;border-radius:10px;background:#dcfce7;"><p style="margin:0 0 8px;font-weight:700;color:#15803d;">${escapeHtml(remainingTitle)}</p><div style="color:#166534;font-weight:700;font-size:22px;">${toParagraphs(remainingContent)}</div></div><!--MVP:remainingCard:end-->` : ''}
     ${notice ? `<!--MVP:notice:start--><div style="margin:14px 0;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;"><p style="margin:0 0 8px;font-weight:700;color:#854d0e;">注意事項</p>${toParagraphs(notice)}</div><!--MVP:notice:end-->` : ''}
     ${(bankInfo || bankIntro) ? `<!--MVP:bankInfo:start--><div style="margin:14px 0;padding:12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;"><p style="margin:0 0 8px;font-weight:700;color:#92400e;">${escapeHtml(bankTitle)}</p>${bankIntro ? `<p style="margin:0 0 10px;color:#92400e;">${escapeHtml(bankIntro)}</p>` : ''}${toParagraphs(bankInfo)}</div><!--MVP:bankInfo:end-->` : ''}
     ${reminderList ? `<!--MVP:reminderList:start--><div style="margin:14px 0;padding:10px 12px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;"><p style="margin:0 0 8px;font-weight:700;color:#9a3412;">${escapeHtml(reminderTitle)}</p><ul style="margin:0;padding-left:18px;">${toList(reminderList)}</ul></div><!--MVP:reminderList:end-->` : ''}
@@ -9450,7 +9447,7 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
 window.insertMvpVariable = function insertMvpVariable(token) {
     const safeToken = String(token || '').trim();
     if (!safeToken) return;
-    const target = document.getElementById(mvpLastFocusedFieldId) || document.getElementById('mvpFieldMainContent');
+    const target = document.getElementById(mvpLastFocusedFieldId) || document.getElementById('mvpFieldGreeting') || document.getElementById('mvpFieldBookingInfo');
     if (!target) return;
     const start = Number.isInteger(target.selectionStart) ? target.selectionStart : target.value.length;
     const end = Number.isInteger(target.selectionEnd) ? target.selectionEnd : start;
