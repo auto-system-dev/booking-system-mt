@@ -9141,6 +9141,26 @@ async function ensureMvpEmailTemplatesForTenant(tenantId) {
             );
         }
     }
+
+    // 直接用正式模板內容覆蓋 mvp 訂房確認模板，方便做同版測試
+    const source = await queryOne(
+        usePostgreSQL
+            ? `SELECT subject, content FROM email_templates WHERE tenant_id = $1 AND template_key = $2 LIMIT 1`
+            : `SELECT subject, content FROM email_templates WHERE tenant_id = ? AND template_key = ? LIMIT 1`,
+        [safeTenantId, 'booking_confirmation']
+    );
+    if (source && String(source.content || '').trim()) {
+        await query(
+            usePostgreSQL
+                ? `UPDATE email_templates
+                   SET subject = $1, content = $2, updated_at = CURRENT_TIMESTAMP
+                   WHERE tenant_id = $3 AND template_key = $4`
+                : `UPDATE email_templates
+                   SET subject = ?, content = ?, updated_at = CURRENT_TIMESTAMP
+                   WHERE tenant_id = ? AND template_key = ?`,
+            [String(source.subject || '').trim(), source.content, safeTenantId, 'mvp_booking_confirmation']
+        );
+    }
 }
 
 async function resetMvpEmailTemplateToDefault(templateKey, tenantId) {
