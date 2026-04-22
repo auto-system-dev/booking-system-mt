@@ -2985,79 +2985,99 @@
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{hotelPhone}}')">電話</button>
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{hotelEmail}}')">Email</button>
                         </div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                            <div style="grid-column:1 / -1; padding:8px 10px; border-radius:8px; background:#e0f2fe; border-left:4px solid #0284c7; font-weight:700; color:#0c4a6e;">基本資訊</div>
-                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
-                                <label>標題</label>
-                                <input type="text" id="mvpFieldTitle" placeholder="例如：訂房確認通知">
+                        <div style="display:grid;grid-template-columns:1fr;gap:12px;">
+                            <div style="border:1px solid #93c5fd; border-radius:10px; background:#f0f9ff; padding:10px;">
+                                <div style="font-size:13px; font-weight:700; color:#1e3a8a; margin-bottom:8px;">基本資訊</div>
+                                <div style="display:grid;grid-template-columns:1fr;gap:12px;">
+                                    <div class="form-group" style="margin:0;">
+                                        <label>標題</label>
+                                        <input type="text" id="mvpFieldTitle" placeholder="例如：訂房確認通知">
+                                    </div>
+                                    <div class="form-group" style="margin:0;">
+                                        <label>開頭問候</label>
+                                        <textarea id="mvpFieldGreeting" rows="2" placeholder="例如：親愛的 {{guestName}}，&#10;您的訂房已成功確認，以下是您的訂房資訊："></textarea>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
-                                <label>開頭問候</label>
-                                <textarea id="mvpFieldGreeting" rows="2" placeholder="例如：親愛的 {{guestName}}，&#10;您的訂房已成功確認，以下是您的訂房資訊："></textarea>
+                            <div style="border:1px solid #93c5fd; border-radius:10px; background:#f0f9ff; padding:10px;">
+                                <div style="font-size:13px; font-weight:700; color:#1e3a8a; margin-bottom:8px;">訂房與金額區塊</div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                                    <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                        <label>訂房資訊區塊</label>
+                                        <textarea id="mvpFieldBookingInfo" rows="4" placeholder="例如：訂單編號：{{bookingId}}"></textarea>
+                                    </div>
+                                    <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                        <label>費用摘要區塊</label>
+                                        <textarea id="mvpFieldAmountSummary" rows="4" placeholder="例如：訂房金額：NT$ {{totalAmount}}"></textarea>
+                                    </div>
+                                    <div class="form-group" style="margin:0;">
+                                        <label>應付金額卡片標題</label>
+                                        <input type="text" id="mvpFieldPayNowTitle" placeholder="例如：應付金額">
+                                    </div>
+                                    <div class="form-group" style="margin:0;">
+                                        <label>應付金額卡片內容</label>
+                                        <input type="text" id="mvpFieldPayNowContent" placeholder="例如：NT$ {{finalAmount}}">
+                                    </div>
+                                    <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                        <label>尾款卡片標題</label>
+                                        <input type="text" id="mvpFieldRemainingTitle" placeholder="例如：💡 剩餘尾款">
+                                    </div>
+                                    <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                        <label>尾款卡片內容</label>
+                                        <textarea id="mvpFieldRemainingContent" rows="3" placeholder="例如：剩餘尾款：NT$ {{remainingAmount}}"></textarea>
+                                    </div>
+                                </div>
                             </div>
-                            <div style="grid-column:1 / -1; padding:8px 10px; border-radius:8px; background:#eff6ff; border-left:4px solid #2563eb; font-weight:700; color:#1e3a8a;">訂房與金額區塊</div>
-                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
-                                <label>訂房資訊區塊</label>
-                                <textarea id="mvpFieldBookingInfo" rows="4" placeholder="例如：訂單編號：{{bookingId}}"></textarea>
+                            <div style="border:1px solid #93c5fd; border-radius:10px; background:#f0f9ff; padding:10px;">
+                                <div style="font-size:13px; font-weight:700; color:#1e3a8a; margin-bottom:8px;">匯款區塊</div>
+                                <div style="display:grid;grid-template-columns:1fr;gap:12px;">
+                                    <div class="form-group" style="margin:0;">
+                                        <label>匯款區塊標題</label>
+                                        <input type="text" id="mvpFieldBankTitle" placeholder="例如：💰 匯款提醒">
+                                    </div>
+                                    <div class="form-group" style="margin:0;">
+                                        <label>匯款區塊說明</label>
+                                        <textarea id="mvpFieldBankIntro" rows="2" placeholder="例如：請於 {{paymentDeadline}} 前完成匯款&#10;* 逾期將自動取消訂房。"></textarea>
+                                    </div>
+                                    <div class="form-group" style="margin:0;">
+                                        <label>匯款資訊區塊</label>
+                                        <textarea id="mvpFieldBankInfo" rows="4" placeholder="例如：銀行：{{bankName}}{{bankBranchDisplay}}"></textarea>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
-                                <label>費用摘要區塊</label>
-                                <textarea id="mvpFieldAmountSummary" rows="4" placeholder="例如：訂房金額：NT$ {{totalAmount}}"></textarea>
+                            <div style="border:1px solid #93c5fd; border-radius:10px; background:#f0f9ff; padding:10px;">
+                                <div style="font-size:13px; font-weight:700; color:#1e3a8a; margin-bottom:8px;">提醒與聯絡區塊</div>
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                                    <div class="form-group" style="margin:0;">
+                                        <label>重要提醒標題</label>
+                                        <input type="text" id="mvpFieldReminderTitle" placeholder="例如：重要提醒">
+                                    </div>
+                                    <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                        <label>重要提醒區塊</label>
+                                        <textarea id="mvpFieldReminderList" rows="4" placeholder="每行一點提醒內容"></textarea>
+                                    </div>
+                                    <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                        <label>注意事項</label>
+                                        <textarea id="mvpFieldNotice" rows="3" placeholder="可選填，支援變數"></textarea>
+                                    </div>
+                                    <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                        <label>聯絡資訊標題</label>
+                                        <input type="text" id="mvpFieldContactTitle" placeholder="例如：聯絡資訊">
+                                    </div>
+                                    <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                        <label>聯絡資訊區塊</label>
+                                        <textarea id="mvpFieldContactInfo" rows="4" placeholder="例如：電話：{{hotelPhone}}"></textarea>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="form-group" style="margin:0;">
-                                <label>應付金額卡片標題</label>
-                                <input type="text" id="mvpFieldPayNowTitle" placeholder="例如：應付金額">
-                            </div>
-                            <div class="form-group" style="margin:0;">
-                                <label>應付金額卡片內容</label>
-                                <input type="text" id="mvpFieldPayNowContent" placeholder="例如：NT$ {{finalAmount}}">
-                            </div>
-                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
-                                <label>尾款卡片標題</label>
-                                <input type="text" id="mvpFieldRemainingTitle" placeholder="例如：💡 剩餘尾款">
-                            </div>
-                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
-                                <label>尾款卡片內容</label>
-                                <textarea id="mvpFieldRemainingContent" rows="3" placeholder="例如：剩餘尾款：NT$ {{remainingAmount}}"></textarea>
-                            </div>
-                            <div style="grid-column:1 / -1; padding:8px 10px; border-radius:8px; background:#fff7ed; border-left:4px solid #ea580c; font-weight:700; color:#7c2d12;">匯款區塊</div>
-                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
-                                <label>匯款區塊標題</label>
-                                <input type="text" id="mvpFieldBankTitle" placeholder="例如：💰 匯款提醒">
-                            </div>
-                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
-                                <label>匯款區塊說明</label>
-                                <textarea id="mvpFieldBankIntro" rows="2" placeholder="例如：請於 {{paymentDeadline}} 前完成匯款&#10;* 逾期將自動取消訂房。"></textarea>
-                            </div>
-                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
-                                <label>匯款資訊區塊</label>
-                                <textarea id="mvpFieldBankInfo" rows="4" placeholder="例如：銀行：{{bankName}}{{bankBranchDisplay}}"></textarea>
-                            </div>
-                            <div style="grid-column:1 / -1; padding:8px 10px; border-radius:8px; background:#fefce8; border-left:4px solid #ca8a04; font-weight:700; color:#713f12;">提醒與聯絡區塊</div>
-                            <div class="form-group" style="margin:0;">
-                                <label>重要提醒標題</label>
-                                <input type="text" id="mvpFieldReminderTitle" placeholder="例如：重要提醒">
-                            </div>
-                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
-                                <label>重要提醒區塊</label>
-                                <textarea id="mvpFieldReminderList" rows="4" placeholder="每行一點提醒內容"></textarea>
-                            </div>
-                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
-                                <label>注意事項</label>
-                                <textarea id="mvpFieldNotice" rows="3" placeholder="可選填，支援變數"></textarea>
-                            </div>
-                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
-                                <label>聯絡資訊標題</label>
-                                <input type="text" id="mvpFieldContactTitle" placeholder="例如：聯絡資訊">
-                            </div>
-                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
-                                <label>聯絡資訊區塊</label>
-                                <textarea id="mvpFieldContactInfo" rows="4" placeholder="例如：電話：{{hotelPhone}}"></textarea>
-                            </div>
-                            <div style="grid-column:1 / -1; padding:8px 10px; border-radius:8px; background:#f8fafc; border-left:4px solid #64748b; font-weight:700; color:#334155;">結尾區塊</div>
-                            <div class="form-group" style="margin:0; grid-column: 1 / -1;">
-                                <label>結尾訊息</label>
-                                <textarea id="mvpFieldClosingMessage" rows="2" placeholder="例如：感謝您的預訂，期待為您服務！"></textarea>
+                            <div style="border:1px solid #93c5fd; border-radius:10px; background:#f0f9ff; padding:10px;">
+                                <div style="font-size:13px; font-weight:700; color:#1e3a8a; margin-bottom:8px;">結尾區塊</div>
+                                <div style="display:grid;grid-template-columns:1fr;gap:12px;">
+                                    <div class="form-group" style="margin:0;">
+                                        <label>結尾訊息</label>
+                                        <textarea id="mvpFieldClosingMessage" rows="2" placeholder="例如：感謝您的預訂，期待為您服務！"></textarea>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div id="mvpUnknownVariableHint" style="display:none; margin: 6px 0; color:#b91c1c; font-size:13px;"></div>
