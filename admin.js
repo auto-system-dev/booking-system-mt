@@ -9147,12 +9147,22 @@ function composeMvpTemplateHtml(fields = {}) {
     const mainContent = String(fields.mainContent || '').trim();
     const bookingInfo = String(fields.bookingInfo || '').trim();
     const amountSummary = String(fields.amountSummary || '').trim();
+    const payNowTitle = String(fields.payNowTitle || '應付金額').trim();
+    const payNowContent = String(fields.payNowContent || 'NT$ {{finalAmount}}').trim();
     const remainingAmount = String(fields.remainingAmount || '').trim();
+    const remainingTitle = String(fields.remainingTitle || '💡 剩餘尾款').trim();
+    const remainingContent = String(fields.remainingContent || '剩餘尾款：NT$ {{remainingAmount}}').trim();
     const notice = String(fields.notice || '').trim();
+    const bankTitle = String(fields.bankTitle || '💰 匯款提醒').trim();
+    const bankIntro = String(fields.bankIntro || '').trim();
     const bankInfo = String(fields.bankInfo || '').trim();
+    const reminderTitle = String(fields.reminderTitle || '重要提醒').trim();
     const reminderList = String(fields.reminderList || '').trim();
+    const contactTitle = String(fields.contactTitle || '聯絡資訊').trim();
     const contactInfo = String(fields.contactInfo || '').trim();
+    const closingMessage = String(fields.closingMessage || '').trim();
     const footer = String(fields.footer || '').trim();
+    const systemFooter = String(fields.systemFooter || '此為 MVP 測試模板，不影響正式模板。').trim();
     const toParagraphs = (text) => String(text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => `<p style="margin: 0 0 10px;">${escapeHtml(line)}</p>`).join('');
     const toList = (text) => String(text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => `<li style="margin:0 0 8px;">${escapeHtml(line)}</li>`).join('');
     const wrapSection = (key, heading, bodyHtml, style = '') => {
@@ -9168,13 +9178,16 @@ function composeMvpTemplateHtml(fields = {}) {
     ${mainContent ? `<!--MVP:mainContent:start-->${toParagraphs(mainContent)}<!--MVP:mainContent:end-->` : ''}
     ${wrapSection('bookingInfo', '訂房資訊', toParagraphs(bookingInfo))}
     ${wrapSection('amountSummary', '費用摘要', toParagraphs(amountSummary), 'background:#eff6ff;border-color:#bfdbfe;')}
+    ${(payNowTitle || payNowContent) ? `<!--MVP:payNowCard:start--><div style="margin:14px 0;padding:12px;border:1px solid #93c5fd;border-radius:10px;background:#dbeafe;"><p style="margin:0 0 6px;font-weight:700;color:#1d4ed8;">${escapeHtml(payNowTitle)}</p><p style="margin:0;font-weight:700;font-size:24px;color:#1e3a8a;">${escapeHtml(payNowContent)}</p></div><!--MVP:payNowCard:end-->` : ''}
     ${wrapSection('remainingAmount', '待付尾款', toParagraphs(remainingAmount), 'background:#f0fdf4;border-color:#86efac;')}
+    ${(remainingTitle || remainingContent) ? `<!--MVP:remainingCard:start--><div style="margin:14px 0;padding:12px;border:1px solid #86efac;border-radius:10px;background:#dcfce7;"><p style="margin:0 0 6px;font-weight:700;color:#15803d;">${escapeHtml(remainingTitle)}</p><p style="margin:0;font-weight:700;font-size:22px;color:#166534;">${escapeHtml(remainingContent)}</p></div><!--MVP:remainingCard:end-->` : ''}
     ${notice ? `<!--MVP:notice:start--><div style="margin:14px 0;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;"><p style="margin:0 0 8px;font-weight:700;color:#854d0e;">注意事項</p>${toParagraphs(notice)}</div><!--MVP:notice:end-->` : ''}
-    ${wrapSection('bankInfo', '匯款資訊', toParagraphs(bankInfo), 'background:#fffbeb;border-color:#fcd34d;')}
-    ${reminderList ? `<!--MVP:reminderList:start--><div style="margin:14px 0;padding:10px 12px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;"><p style="margin:0 0 8px;font-weight:700;color:#9a3412;">重要提醒</p><ul style="margin:0;padding-left:18px;">${toList(reminderList)}</ul></div><!--MVP:reminderList:end-->` : ''}
-    ${wrapSection('contactInfo', '聯絡資訊', toParagraphs(contactInfo), 'background:#f8fafc;border-color:#cbd5e1;')}
+    ${(bankInfo || bankIntro) ? `<!--MVP:bankInfo:start--><div style="margin:14px 0;padding:12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;"><p style="margin:0 0 8px;font-weight:700;color:#92400e;">${escapeHtml(bankTitle)}</p>${bankIntro ? `<p style="margin:0 0 10px;color:#92400e;">${escapeHtml(bankIntro)}</p>` : ''}${toParagraphs(bankInfo)}</div><!--MVP:bankInfo:end-->` : ''}
+    ${reminderList ? `<!--MVP:reminderList:start--><div style="margin:14px 0;padding:10px 12px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;"><p style="margin:0 0 8px;font-weight:700;color:#9a3412;">${escapeHtml(reminderTitle)}</p><ul style="margin:0;padding-left:18px;">${toList(reminderList)}</ul></div><!--MVP:reminderList:end-->` : ''}
+    ${(contactInfo || contactTitle) ? `<!--MVP:contactInfo:start--><div style="margin:14px 0;padding:12px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;"><p style="margin:0 0 10px;font-weight:700;color:#0f172a;">${escapeHtml(contactTitle)}</p>${toParagraphs(contactInfo)}</div><!--MVP:contactInfo:end-->` : ''}
+    ${closingMessage ? `<!--MVP:closingMessage:start--><p style="margin:14px 0 0;">${escapeHtml(closingMessage)}</p><!--MVP:closingMessage:end-->` : ''}
     ${footer ? `<!--MVP:footer:start--><hr style="margin:16px 0;border:none;border-top:1px solid #e5e7eb;"><div style="color:#475569;">${toParagraphs(footer)}</div><!--MVP:footer:end-->` : ''}
-    <p style="margin:10px 0 0;color:#64748b;font-size:12px;">此為 MVP 測試模板，不影響正式模板。</p>
+    ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:10px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
   </div>
 </body></html>`;
 }
@@ -9198,22 +9211,44 @@ function extractMvpMarkedSection(html, key) {
         .trim();
 }
 
+function splitLines(text) {
+    return String(text || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+}
+
 function parseMvpTemplateFieldsFromHtml(html) {
     const source = String(html || '');
     const hasMvpMarkers = source.includes('<!--MVP:title:start-->');
     if (hasMvpMarkers) {
+        const payNowLines = splitLines(extractMvpMarkedSection(source, 'payNowCard'));
+        const remainingLines = splitLines(extractMvpMarkedSection(source, 'remainingCard'));
+        const bankLines = splitLines(extractMvpMarkedSection(source, 'bankInfo'));
+        const reminderLines = splitLines(extractMvpMarkedSection(source, 'reminderList'));
+        const contactLines = splitLines(extractMvpMarkedSection(source, 'contactInfo'));
         return {
             title: extractMvpMarkedSection(source, 'title'),
             greeting: extractMvpMarkedSection(source, 'greeting'),
             mainContent: extractMvpMarkedSection(source, 'mainContent'),
             bookingInfo: extractMvpMarkedSection(source, 'bookingInfo'),
             amountSummary: extractMvpMarkedSection(source, 'amountSummary'),
+            payNowTitle: payNowLines[0] || '',
+            payNowContent: payNowLines.slice(1).join('\n').trim(),
             remainingAmount: extractMvpMarkedSection(source, 'remainingAmount'),
+            remainingTitle: remainingLines[0] || '',
+            remainingContent: remainingLines.slice(1).join('\n').trim(),
             notice: extractMvpMarkedSection(source, 'notice'),
-            bankInfo: extractMvpMarkedSection(source, 'bankInfo'),
-            reminderList: extractMvpMarkedSection(source, 'reminderList'),
-            contactInfo: extractMvpMarkedSection(source, 'contactInfo'),
-            footer: extractMvpMarkedSection(source, 'footer')
+            bankTitle: bankLines[0] || '',
+            bankIntro: bankLines[1] || '',
+            bankInfo: bankLines.slice(2).join('\n').trim(),
+            reminderTitle: reminderLines[0] || '',
+            reminderList: reminderLines.slice(1).join('\n').trim(),
+            contactTitle: contactLines[0] || '',
+            contactInfo: contactLines.slice(1).join('\n').trim(),
+            closingMessage: extractMvpMarkedSection(source, 'closingMessage'),
+            footer: extractMvpMarkedSection(source, 'footer'),
+            systemFooter: extractMvpMarkedSection(source, 'systemFooter')
         };
     }
 
@@ -9228,12 +9263,22 @@ function parseMvpTemplateFieldsFromHtml(html) {
         mainContent,
         bookingInfo: '',
         amountSummary: '',
+        payNowTitle: '',
+        payNowContent: '',
         remainingAmount: '',
+        remainingTitle: '',
+        remainingContent: '',
         notice: '',
+        bankTitle: '',
+        bankIntro: '',
         bankInfo: '',
+        reminderTitle: '',
         reminderList: '',
+        contactTitle: '',
         contactInfo: '',
-        footer
+        closingMessage: '',
+        footer,
+        systemFooter: ''
     };
 }
 
@@ -9244,12 +9289,22 @@ function collectMvpEditorFields() {
         mainContent: document.getElementById('mvpFieldMainContent')?.value || '',
         bookingInfo: document.getElementById('mvpFieldBookingInfo')?.value || '',
         amountSummary: document.getElementById('mvpFieldAmountSummary')?.value || '',
+        payNowTitle: document.getElementById('mvpFieldPayNowTitle')?.value || '',
+        payNowContent: document.getElementById('mvpFieldPayNowContent')?.value || '',
         remainingAmount: document.getElementById('mvpFieldRemainingAmount')?.value || '',
+        remainingTitle: document.getElementById('mvpFieldRemainingTitle')?.value || '',
+        remainingContent: document.getElementById('mvpFieldRemainingContent')?.value || '',
         notice: document.getElementById('mvpFieldNotice')?.value || '',
+        bankTitle: document.getElementById('mvpFieldBankTitle')?.value || '',
+        bankIntro: document.getElementById('mvpFieldBankIntro')?.value || '',
         bankInfo: document.getElementById('mvpFieldBankInfo')?.value || '',
+        reminderTitle: document.getElementById('mvpFieldReminderTitle')?.value || '',
         reminderList: document.getElementById('mvpFieldReminderList')?.value || '',
+        contactTitle: document.getElementById('mvpFieldContactTitle')?.value || '',
         contactInfo: document.getElementById('mvpFieldContactInfo')?.value || '',
-        footer: document.getElementById('mvpFieldFooter')?.value || ''
+        closingMessage: document.getElementById('mvpFieldClosingMessage')?.value || '',
+        footer: document.getElementById('mvpFieldFooter')?.value || '',
+        systemFooter: document.getElementById('mvpFieldSystemFooter')?.value || ''
     };
 }
 
@@ -9304,8 +9359,12 @@ function initMvpEditorBindings() {
     const ids = [
         'mvpFieldTitle', 'mvpFieldGreeting', 'mvpFieldMainContent',
         'mvpFieldBookingInfo', 'mvpFieldAmountSummary', 'mvpFieldRemainingAmount',
-        'mvpFieldNotice', 'mvpFieldBankInfo', 'mvpFieldReminderList',
-        'mvpFieldContactInfo', 'mvpFieldFooter'
+        'mvpFieldPayNowTitle', 'mvpFieldPayNowContent',
+        'mvpFieldRemainingTitle', 'mvpFieldRemainingContent',
+        'mvpFieldNotice', 'mvpFieldBankTitle', 'mvpFieldBankIntro', 'mvpFieldBankInfo',
+        'mvpFieldReminderTitle', 'mvpFieldReminderList',
+        'mvpFieldContactTitle', 'mvpFieldContactInfo',
+        'mvpFieldClosingMessage', 'mvpFieldFooter', 'mvpFieldSystemFooter'
     ];
     ids.forEach((id) => {
         const el = document.getElementById(id);
@@ -9334,12 +9393,22 @@ function loadMvpFieldsFromTemplateContent(content) {
     setVal('mvpFieldMainContent', parsed.mainContent || '');
     setVal('mvpFieldBookingInfo', parsed.bookingInfo || '訂單編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}');
     setVal('mvpFieldAmountSummary', parsed.amountSummary || '訂房金額：NT$ {{totalAmount}}\n折扣：-NT$ {{discountAmount}}\n折後金額：NT$ {{discountedTotal}}\n本次應付：NT$ {{finalAmount}}');
+    setVal('mvpFieldPayNowTitle', parsed.payNowTitle || '應付金額');
+    setVal('mvpFieldPayNowContent', parsed.payNowContent || 'NT$ {{finalAmount}}');
     setVal('mvpFieldRemainingAmount', parsed.remainingAmount || '剩餘尾款：NT$ {{remainingAmount}}');
+    setVal('mvpFieldRemainingTitle', parsed.remainingTitle || '💡 剩餘尾款');
+    setVal('mvpFieldRemainingContent', parsed.remainingContent || '剩餘尾款：NT$ {{remainingAmount}}');
     setVal('mvpFieldNotice', parsed.notice || '');
+    setVal('mvpFieldBankTitle', parsed.bankTitle || '💰 匯款提醒');
+    setVal('mvpFieldBankIntro', parsed.bankIntro || '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款');
     setVal('mvpFieldBankInfo', parsed.bankInfo || '銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n匯款請備註訂單後五碼：{{bookingIdLast5}}');
+    setVal('mvpFieldReminderTitle', parsed.reminderTitle || '重要提醒');
     setVal('mvpFieldReminderList', parsed.reminderList || '此訂房將保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款\n逾期未付款，系統將自動取消訂單');
+    setVal('mvpFieldContactTitle', parsed.contactTitle || '聯絡資訊');
     setVal('mvpFieldContactInfo', parsed.contactInfo || '電話：{{hotelPhone}}\nEmail：{{hotelEmail}}\n官方 LINE：{{officialLineUrl}}');
+    setVal('mvpFieldClosingMessage', parsed.closingMessage || '感謝您的預訂，期待為您服務！');
     setVal('mvpFieldFooter', parsed.footer || '{{hotelName}} 團隊 敬上');
+    setVal('mvpFieldSystemFooter', parsed.systemFooter || '此為 MVP 測試模板，不影響正式模板。');
     renderMvpTemplatePreview();
 }
 
