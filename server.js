@@ -6871,6 +6871,24 @@ app.put('/api/email-templates/:key', requireAuth, requireTenantContext, checkPer
 // API: 發送測試郵件
 app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, checkPermission('email_templates.send_test'), adminLimiter, async (req, res) => {
     try {
+        const removeDuplicatedMvpSectionHeading = (html, headingText) => {
+            let output = String(html || '');
+            const safeHeading = String(headingText || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            if (!safeHeading) return output;
+
+            const patterns = [
+                // 移除緊接在標題後、內容中重覆出現的段落
+                new RegExp(`(<p[^>]*>\\s*${safeHeading}\\s*<\\/p>\\s*)`, 'gi'),
+                // 移除可能被包在 span/strong 的同名段落
+                new RegExp(`(<p[^>]*>\\s*(?:<[^>]+>\\s*)*${safeHeading}\\s*(?:<\\/[^>]+>\\s*)*<\\/p>\\s*)`, 'gi')
+            ];
+
+            patterns.forEach((pattern) => {
+                output = output.replace(pattern, '');
+            });
+            return output;
+        };
+
         const { key } = req.params;
         const scope = resolveEmailTemplateScope(req);
         assertMvpEmailTemplateScopeAccess(req, scope);
@@ -7091,6 +7109,12 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
                 testSubject = testResult.subject;
                 console.log('✅ 使用 replaceTemplateVariables 函數生成測試郵件（備用方案）');
             }
+        }
+
+        // 最後保險：MVP 訂房確認測試信去除重覆區塊標題
+        if (isMvpTemplate && key === 'mvp_booking_confirmation') {
+            testContent = removeDuplicatedMvpSectionHeading(testContent, '訂房資訊');
+            testContent = removeDuplicatedMvpSectionHeading(testContent, '費用摘要');
         }
         
         // 確保測試郵件使用資料庫中的完整 HTML 模板內容

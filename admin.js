@@ -9242,6 +9242,31 @@ function splitLines(text) {
         .filter(Boolean);
 }
 
+function normalizeMvpSectionFieldText(heading, text) {
+    const headingNormalized = String(heading || '')
+        .trim()
+        .replace(/[:：]/g, '')
+        .replace(/\s+/g, '')
+        .toLowerCase();
+    if (!headingNormalized) return String(text || '').trim();
+
+    return String(text || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => {
+            const normalized = String(line || '')
+                .trim()
+                .replace(/^[^\u4e00-\u9fa5A-Za-z0-9]+/, '')
+                .replace(/[:：]/g, '')
+                .replace(/\s+/g, '')
+                .toLowerCase();
+            if (!normalized) return false;
+            return !(normalized === headingNormalized || (normalized.includes(headingNormalized) && normalized.length <= headingNormalized.length + 4));
+        })
+        .join('\n')
+        .trim();
+}
+
 function parseMvpTemplateFieldsFromHtml(html) {
     const source = String(html || '');
     const hasMvpMarkers = source.includes('<!--MVP:title:start-->');
@@ -9447,12 +9472,14 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
         if (useBookingDefaults) return defaultValue || parsedValue || fallbackValue;
         return parsedValue || defaultValue || fallbackValue;
     };
+    const bookingInfoText = normalizeMvpSectionFieldText('訂房資訊', pick(parsed.bookingInfo, defaults.bookingInfo, '訂單編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}'));
+    const amountSummaryText = normalizeMvpSectionFieldText('費用摘要', pick(parsed.amountSummary, defaults.amountSummary, '訂房金額：NT$ {{totalAmount}}\n折扣：-NT$ {{discountAmount}}\n折後金額：NT$ {{discountedTotal}}\n本次應付：NT$ {{finalAmount}}'));
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
     setVal('mvpFieldTitle', pick(parsed.title, defaults.title, 'MVP 測試通知'));
     setVal('mvpFieldGreeting', pick(parsed.greeting, defaults.greeting, '親愛的 {{guestName}}，'));
     setVal('mvpFieldMainContent', pick(parsed.mainContent, defaults.mainContent, ''));
-    setVal('mvpFieldBookingInfo', pick(parsed.bookingInfo, defaults.bookingInfo, '訂單編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}'));
-    setVal('mvpFieldAmountSummary', pick(parsed.amountSummary, defaults.amountSummary, '訂房金額：NT$ {{totalAmount}}\n折扣：-NT$ {{discountAmount}}\n折後金額：NT$ {{discountedTotal}}\n本次應付：NT$ {{finalAmount}}'));
+    setVal('mvpFieldBookingInfo', bookingInfoText);
+    setVal('mvpFieldAmountSummary', amountSummaryText);
     setVal('mvpFieldPayNowTitle', pick(parsed.payNowTitle, defaults.payNowTitle, '應付金額'));
     setVal('mvpFieldPayNowContent', pick(parsed.payNowContent, defaults.payNowContent, 'NT$ {{finalAmount}}'));
     setVal('mvpFieldRemainingAmount', pick(parsed.remainingAmount, defaults.remainingAmount, '剩餘尾款：NT$ {{remainingAmount}}'));
