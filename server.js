@@ -6878,6 +6878,7 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
             return res.status(400).json({ success: false, message: 'MVP scope 僅允許 mvp_ 開頭模板' });
         }
         const { email, useEditorContent } = req.body;
+        const isMvpTemplate = String(key || '').startsWith('mvp_');
         
         // 獲取 emailUser 設定
         const emailUser = await getRequiredEmailUser('發送測試郵件');
@@ -6912,8 +6913,13 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
         console.log(`   內容長度: ${content.length} 字元`);
         console.log(`   主旨: ${subject}`);
         
-        // 如果前端明確要求使用編輯器中的內容，則覆蓋資料庫中的值
-        if (useEditorContent && req.body.content && req.body.subject) {
+        // MVP 模板一律優先採用編輯器內容（若有提供），避免預覽與測試信不一致
+        const shouldUseEditorContent =
+            (!!req.body.content && !!req.body.subject) &&
+            (useEditorContent === true || isMvpTemplate);
+
+        // 如果前端明確要求使用編輯器中的內容，或為 MVP 模板，則覆蓋資料庫中的值
+        if (shouldUseEditorContent) {
             // 使用編輯器中的內容（用戶修改後的內容）
             content = req.body.content;
             subject = req.body.subject;
