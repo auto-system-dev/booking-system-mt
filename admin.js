@@ -9165,6 +9165,20 @@ function composeMvpTemplateHtml(fields = {}) {
     const systemFooter = String(fields.systemFooter || '此為 MVP 測試模板，不影響正式模板。').trim();
     const toParagraphs = (text) => String(text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => `<p style="margin: 0 0 10px;">${escapeHtml(line)}</p>`).join('');
     const toList = (text) => String(text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => `<li style="margin:0 0 8px;">${escapeHtml(line)}</li>`).join('');
+    const stripDuplicatedHeadingLine = (heading, text) => {
+        const lines = String(text || '')
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean);
+        const normalizedHeading = String(heading || '').trim();
+        if (!normalizedHeading || !lines.length) return String(text || '').trim();
+        const firstLine = lines[0].replace(/[:：]$/, '').trim();
+        const headingLine = normalizedHeading.replace(/[:：]$/, '').trim();
+        if (firstLine === headingLine) {
+            return lines.slice(1).join('\n').trim();
+        }
+        return lines.join('\n').trim();
+    };
     const wrapSection = (key, heading, bodyHtml, style = '') => {
         if (!bodyHtml) return '';
         return `<!--MVP:${key}:start--><div style="margin:14px 0;padding:12px;border:1px solid #e2e8f0;border-radius:10px;${style}"><p style="margin:0 0 10px;font-weight:700;color:#0f172a;">${heading}</p>${bodyHtml}</div><!--MVP:${key}:end-->`;
@@ -9175,8 +9189,8 @@ function composeMvpTemplateHtml(fields = {}) {
   <div style="max-width:640px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;padding:18px;background:#fff;">
     <!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->
     ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
-    ${wrapSection('bookingInfo', '訂房資訊', toParagraphs(bookingInfo))}
-    ${wrapSection('amountSummary', '費用摘要', toParagraphs(amountSummary), 'background:#eff6ff;border-color:#bfdbfe;')}
+    ${wrapSection('bookingInfo', '訂房資訊', toParagraphs(stripDuplicatedHeadingLine('訂房資訊', bookingInfo)))}
+    ${wrapSection('amountSummary', '費用摘要', toParagraphs(stripDuplicatedHeadingLine('費用摘要', amountSummary)), 'background:#eff6ff;border-color:#bfdbfe;')}
     ${(payNowTitle || payNowContent) ? `<!--MVP:payNowCard:start--><div style="margin:14px 0;padding:12px;border:1px solid #93c5fd;border-radius:10px;background:#dbeafe;"><p style="margin:0 0 6px;font-weight:700;color:#1d4ed8;">${escapeHtml(payNowTitle)}</p><p style="margin:0;font-weight:700;font-size:24px;color:#1e3a8a;">${escapeHtml(payNowContent)}</p></div><!--MVP:payNowCard:end-->` : ''}
     ${(remainingTitle || remainingContent) ? `<!--MVP:remainingCard:start--><div style="margin:14px 0;padding:12px;border:1px solid #86efac;border-radius:10px;background:#dcfce7;"><p style="margin:0 0 8px;font-weight:700;color:#15803d;">${escapeHtml(remainingTitle)}</p><div style="color:#166534;font-weight:700;font-size:22px;">${toParagraphs(remainingContent)}</div></div><!--MVP:remainingCard:end-->` : ''}
     ${(bankInfo || bankIntro) ? `<!--MVP:bankInfo:start--><div style="margin:14px 0;padding:12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;"><p style="margin:0 0 8px;font-weight:700;color:#92400e;">${escapeHtml(bankTitle)}</p>${bankIntro ? `<p style="margin:0 0 10px;color:#92400e;">${escapeHtml(bankIntro)}</p>` : ''}${toParagraphs(bankInfo)}</div><!--MVP:bankInfo:end-->` : ''}
