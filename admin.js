@@ -9666,7 +9666,8 @@ function renderEmailTemplates(templates) {
             </div>
             <div style="margin-bottom: 15px; min-height: 68px;">
                 <h3 style="margin: 0 0 5px 0; color: #333;">${template.template_name || templateNames[template.template_key] || template.template_key}</h3>
-                <p style="margin: 0; color: #666; font-size: 14px;">模板代碼：${template.template_key}　・　更新：${template.updated_at ? formatDateTime(template.updated_at) : '-'}</p>
+                <p style="margin: 0; color: #666; font-size: 14px;">模板代碼：${template.template_key}</p>
+                <p style="margin: 2px 0 0; color: #666; font-size: 14px;">更新：${template.updated_at ? formatDateTime(template.updated_at) : '-'}</p>
                 <p style="margin: 4px 0 0; color: #64748b; font-size: 13px;">用途：${templatePurpose[template.template_key] || '自訂用途'}</p>
             </div>
             <div style="border-top: 1px solid #eee; padding-top: 15px;">
