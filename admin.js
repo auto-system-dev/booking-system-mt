@@ -9187,12 +9187,8 @@ function composeMvpTemplateHtml(fields = {}) {
             return normalized === headingLine || (normalized.includes(headingLine) && normalized.length <= headingLine.length + 4);
         };
 
-        // 去除區塊開頭連續重覆標題（相容舊資料多次寫入標題）
-        let start = 0;
-        while (start < lines.length && isLikelyHeadingLine(lines[start])) {
-            start += 1;
-        }
-        const stripped = lines.slice(start);
+        // 去除內容中與標題同名的行（相容舊資料已混入重覆標題）
+        const stripped = lines.filter((line) => !isLikelyHeadingLine(line));
         if (!stripped.length) return '';
         return stripped.join('\n').trim();
     };
