@@ -9658,18 +9658,16 @@ function renderEmailTemplates(templates) {
     
     container.innerHTML = templates.map(template => `
         <div class="template-card" style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onclick="showEmailTemplateModal('${template.template_key}')">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; gap: 12px;">
-                <div style="min-height: 68px;">
-                    <h3 style="margin: 0 0 5px 0; color: #333;">${template.template_name || templateNames[template.template_key] || template.template_key}</h3>
-                    <p style="margin: 0; color: #666; font-size: 14px;">模板代碼：${template.template_key}　・　更新：${template.updated_at ? formatDateTime(template.updated_at) : '-'}</p>
-                    <p style="margin: 4px 0 0; color: #64748b; font-size: 13px;">用途：${templatePurpose[template.template_key] || '自訂用途'}</p>
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px; margin-top: 2px;">
-                    <span class="status-badge ${template.is_enabled === 1 ? 'status-sent' : 'status-unsent'}" style="height:32px;display:inline-flex;align-items:center;justify-content:center;padding:0 12px;border-radius:999px;font-size:12px;white-space:nowrap;">
-                        ${template.is_enabled === 1 ? '啟用中' : '已停用'}
-                    </span>
-                    <button class="btn-edit" type="button" style="height:32px;padding:0 14px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;" onclick="event.stopPropagation(); showEmailTemplateModal('${template.template_key}')">編輯</button>
-                </div>
+            <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-bottom:10px;">
+                <span class="status-badge ${template.is_enabled === 1 ? 'status-sent' : 'status-unsent'}" style="height:32px;display:inline-flex;align-items:center;justify-content:center;padding:0 12px;border-radius:999px;font-size:12px;white-space:nowrap;">
+                    ${template.is_enabled === 1 ? '啟用中' : '已停用'}
+                </span>
+                <button class="btn-edit" type="button" style="height:32px;padding:0 14px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;" onclick="event.stopPropagation(); showEmailTemplateModal('${template.template_key}')">編輯</button>
+            </div>
+            <div style="margin-bottom: 15px; min-height: 68px;">
+                <h3 style="margin: 0 0 5px 0; color: #333;">${template.template_name || templateNames[template.template_key] || template.template_key}</h3>
+                <p style="margin: 0; color: #666; font-size: 14px;">模板代碼：${template.template_key}　・　更新：${template.updated_at ? formatDateTime(template.updated_at) : '-'}</p>
+                <p style="margin: 4px 0 0; color: #64748b; font-size: 13px;">用途：${templatePurpose[template.template_key] || '自訂用途'}</p>
             </div>
             <div style="border-top: 1px solid #eee; padding-top: 15px;">
                 <div style="margin-bottom: 10px;">
