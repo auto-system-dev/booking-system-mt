@@ -9166,15 +9166,24 @@ function composeMvpTemplateHtml(fields = {}) {
     const toParagraphs = (text) => String(text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => `<p style="margin: 0 0 10px;">${escapeHtml(line)}</p>`).join('');
     const toList = (text) => String(text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => `<li style="margin:0 0 8px;">${escapeHtml(line)}</li>`).join('');
     const stripDuplicatedHeadingLine = (heading, text) => {
+        const normalizeHeadingText = (value) => String(value || '')
+            .trim()
+            .replace(/^[^\u4e00-\u9fa5A-Za-z0-9]+/, '')
+            .replace(/[:：]/g, '')
+            .replace(/\s+/g, '')
+            .trim()
+            .toLowerCase();
         const lines = String(text || '')
             .split('\n')
             .map((line) => line.trim())
             .filter(Boolean);
         const normalizedHeading = String(heading || '').trim();
         if (!normalizedHeading || !lines.length) return String(text || '').trim();
-        const firstLine = lines[0].replace(/[:：]$/, '').trim();
-        const headingLine = normalizedHeading.replace(/[:：]$/, '').trim();
-        if (firstLine === headingLine) {
+        const firstLineRaw = lines[0] || '';
+        const firstLine = normalizeHeadingText(firstLineRaw);
+        const headingLine = normalizeHeadingText(normalizedHeading);
+        const isLikelyHeadingLine = firstLine === headingLine || (firstLine.includes(headingLine) && firstLine.length <= headingLine.length + 4);
+        if (isLikelyHeadingLine) {
             return lines.slice(1).join('\n').trim();
         }
         return lines.join('\n').trim();
