@@ -9179,14 +9179,22 @@ function composeMvpTemplateHtml(fields = {}) {
             .filter(Boolean);
         const normalizedHeading = String(heading || '').trim();
         if (!normalizedHeading || !lines.length) return String(text || '').trim();
-        const firstLineRaw = lines[0] || '';
-        const firstLine = normalizeHeadingText(firstLineRaw);
+
         const headingLine = normalizeHeadingText(normalizedHeading);
-        const isLikelyHeadingLine = firstLine === headingLine || (firstLine.includes(headingLine) && firstLine.length <= headingLine.length + 4);
-        if (isLikelyHeadingLine) {
-            return lines.slice(1).join('\n').trim();
+        const isLikelyHeadingLine = (line) => {
+            const normalized = normalizeHeadingText(line);
+            if (!normalized || !headingLine) return false;
+            return normalized === headingLine || (normalized.includes(headingLine) && normalized.length <= headingLine.length + 4);
+        };
+
+        // 去除區塊開頭連續重覆標題（相容舊資料多次寫入標題）
+        let start = 0;
+        while (start < lines.length && isLikelyHeadingLine(lines[start])) {
+            start += 1;
         }
-        return lines.join('\n').trim();
+        const stripped = lines.slice(start);
+        if (!stripped.length) return '';
+        return stripped.join('\n').trim();
     };
     const wrapSection = (key, heading, bodyHtml, style = '') => {
         if (!bodyHtml) return '';
