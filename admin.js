@@ -9658,7 +9658,7 @@ function renderEmailTemplates(templates) {
     
     container.innerHTML = templates.map(template => `
         <div class="template-card" style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onclick="showEmailTemplateModal('${template.template_key}')">
-            <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-bottom:10px;">
+            <div style="display:flex; justify-content:flex-start; align-items:center; gap:8px; margin-bottom:10px;">
                 <span class="status-badge ${template.is_enabled === 1 ? 'status-sent' : 'status-unsent'}" style="height:32px;display:inline-flex;align-items:center;justify-content:center;padding:0 12px;border-radius:999px;font-size:12px;white-space:nowrap;">
                     ${template.is_enabled === 1 ? '啟用中' : '已停用'}
                 </span>
