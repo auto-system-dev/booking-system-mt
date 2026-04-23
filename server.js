@@ -6876,15 +6876,18 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
             const safeHeading = String(headingText || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             if (!safeHeading) return output;
 
-            const patterns = [
-                // 移除緊接在標題後、內容中重覆出現的段落
-                new RegExp(`(<p[^>]*>\\s*${safeHeading}\\s*<\\/p>\\s*)`, 'gi'),
-                // 移除可能被包在 span/strong 的同名段落
-                new RegExp(`(<p[^>]*>\\s*(?:<[^>]+>\\s*)*${safeHeading}\\s*(?:<\\/[^>]+>\\s*)*<\\/p>\\s*)`, 'gi')
-            ];
-
-            patterns.forEach((pattern) => {
-                output = output.replace(pattern, '');
+            // 保留第一個正式區塊標題，只移除後續重覆標題行
+            const headingParagraphRegex = new RegExp(
+                `(<p[^>]*>\\s*(?:<[^>]+>\\s*)*${safeHeading}\\s*(?:<\\/[^>]+>\\s*)*<\\/p>\\s*)`,
+                'gi'
+            );
+            let keptFirst = false;
+            output = output.replace(headingParagraphRegex, (match) => {
+                if (!keptFirst) {
+                    keptFirst = true;
+                    return match;
+                }
+                return '';
             });
             return output;
         };
