@@ -7062,28 +7062,34 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
             accountName: await db.getSetting('account_name', getRequestTenantId(req)) || testData.accountName
         };
         
-        // 使用與實際發送相同的 generateEmailFromTemplate 函數（與訂房確認邏輯一致）
-        // 這確保測試郵件與實際發送的郵件完全一致
+        // 生成測試郵件內容
         let testContent, testSubject;
-        try {
-            // 優先使用 generateEmailFromTemplate（與實際發送邏輯一致）
-            const testResult = await generateEmailFromTemplate(key, mockBooking, testBankInfo, additionalData);
-            testContent = testResult.content;
-            testSubject = testResult.subject;
-            console.log('✅ 使用 generateEmailFromTemplate 函數生成測試郵件（與實際發送邏輯一致）');
-            console.log(`   模板內容長度: ${template.content.length} 字元`);
-            console.log(`   處理後內容長度: ${testContent.length} 字元`);
-        } catch (templateError) {
-            console.error('⚠️ 使用 generateEmailFromTemplate 失敗，使用備用方案:', templateError.message);
-            // 備用方案：使用 replaceTemplateVariables（與實際發送邏輯一致）
+        if (isMvpTemplate) {
+            // MVP 測試信強制使用當前模板內容（避免回讀資料庫造成與預覽不一致）
             try {
                 const testResult = await replaceTemplateVariables(template, mockBooking, testBankInfo, additionalData);
                 testContent = testResult.content;
                 testSubject = testResult.subject;
+                console.log('✅ MVP 測試信使用當前編輯器內容生成（replaceTemplateVariables）');
+            } catch (mvpError) {
+                console.error('❌ MVP 測試信內容生成失敗:', mvpError);
+                throw mvpError;
+            }
+        } else {
+            // 非 MVP 模板維持原有流程
+            try {
+                const testResult = await generateEmailFromTemplate(key, mockBooking, testBankInfo, additionalData);
+                testContent = testResult.content;
+                testSubject = testResult.subject;
+                console.log('✅ 使用 generateEmailFromTemplate 函數生成測試郵件（與實際發送邏輯一致）');
+                console.log(`   模板內容長度: ${template.content.length} 字元`);
+                console.log(`   處理後內容長度: ${testContent.length} 字元`);
+            } catch (templateError) {
+                console.error('⚠️ 使用 generateEmailFromTemplate 失敗，使用備用方案:', templateError.message);
+                const testResult = await replaceTemplateVariables(template, mockBooking, testBankInfo, additionalData);
+                testContent = testResult.content;
+                testSubject = testResult.subject;
                 console.log('✅ 使用 replaceTemplateVariables 函數生成測試郵件（備用方案）');
-            } catch (error) {
-                console.error('❌ 使用 replaceTemplateVariables 也失敗:', error);
-                throw error;
             }
         }
         
