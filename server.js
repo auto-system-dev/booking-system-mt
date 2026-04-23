@@ -6871,27 +6871,6 @@ app.put('/api/email-templates/:key', requireAuth, requireTenantContext, checkPer
 // API: 發送測試郵件
 app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, checkPermission('email_templates.send_test'), adminLimiter, async (req, res) => {
     try {
-        const removeDuplicatedMvpSectionHeading = (html, headingText) => {
-            let output = String(html || '');
-            const safeHeading = String(headingText || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            if (!safeHeading) return output;
-
-            // 保留第一個正式區塊標題，只移除後續重覆標題行
-            const headingParagraphRegex = new RegExp(
-                `(<p[^>]*>\\s*(?:<[^>]+>\\s*)*${safeHeading}\\s*(?:<\\/[^>]+>\\s*)*<\\/p>\\s*)`,
-                'gi'
-            );
-            let keptFirst = false;
-            output = output.replace(headingParagraphRegex, (match) => {
-                if (!keptFirst) {
-                    keptFirst = true;
-                    return match;
-                }
-                return '';
-            });
-            return output;
-        };
-
         const { key } = req.params;
         const scope = resolveEmailTemplateScope(req);
         assertMvpEmailTemplateScopeAccess(req, scope);
@@ -7114,12 +7093,6 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
             }
         }
 
-        // 最後保險：MVP 訂房確認測試信去除重覆區塊標題
-        if (isMvpTemplate && key === 'mvp_booking_confirmation') {
-            testContent = removeDuplicatedMvpSectionHeading(testContent, '訂房資訊');
-            testContent = removeDuplicatedMvpSectionHeading(testContent, '費用摘要');
-        }
-        
         // 確保測試郵件使用資料庫中的完整 HTML 模板內容
         // replaceTemplateVariables 已經處理了所有變數替換和條件區塊處理
         // 直接使用處理後的內容，不進行額外的檢查或修復，確保與實際郵件完全一致

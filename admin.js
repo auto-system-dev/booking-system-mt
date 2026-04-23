@@ -9636,6 +9636,25 @@ function renderEmailTemplates(templates) {
         mvp_booking_confirmation: 'MVP 測試版：訂房確認流程',
         mvp_payment_reminder: 'MVP 測試版：付款提醒流程'
     };
+    const toPreviewText = (html) => {
+        const source = String(html || '');
+        const body = source.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] || source;
+        const withNewlines = body
+            .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+            .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+            .replace(/<!--[\s\S]*?-->/g, ' ')
+            .replace(/<(br|\/p|\/div|\/li|\/h[1-6])\b[^>]*>/gi, '\n')
+            .replace(/<[^>]+>/g, ' ');
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = withNewlines;
+        return String(textarea.value || '')
+            .replace(/\r/g, '')
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .join('\n')
+            .slice(0, 260);
+    };
     
     container.innerHTML = templates.map(template => `
         <div class="template-card" style="background: white; border: 1px solid #ddd; border-radius: 8px; padding: 20px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onclick="showEmailTemplateModal('${template.template_key}')">
@@ -9657,8 +9676,11 @@ function renderEmailTemplates(templates) {
                     <strong style="color: #666;">主旨：</strong>
                     <span style="color: #333;">${escapeHtml(template.subject)}</span>
                 </div>
-                <div style="max-height: 150px; overflow-y: auto; background: #f8f8f8; padding: 10px; border-radius: 4px; font-size: 12px; color: #666;">
-                    ${escapeHtml(template.content).substring(0, 500)}${template.content.length > 500 ? '...' : ''}
+                <div style="border:1px solid #dbeafe;background:#f8fbff;border-radius:8px;padding:10px;">
+                    <div style="font-size:12px;font-weight:700;color:#1e3a8a;margin-bottom:6px;">內容預覽</div>
+                    <div style="max-height:150px; overflow-y:auto; white-space:pre-wrap; font-size:13px; color:#475569; line-height:1.6;">
+                        ${escapeHtml(toPreviewText(template.content) || '（尚無內容）')}
+                    </div>
                 </div>
             </div>
         </div>
