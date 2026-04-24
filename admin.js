@@ -9216,7 +9216,18 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     const renderBlock = (markerKey, text) => {
         const body = toParagraphs(text);
         if (!body) return '';
-        return `<!--MVP:${markerKey}:start-->${body}<!--MVP:${markerKey}:end-->`;
+        const blockStyleMap = {
+            bookingInfo: 'border:1px solid #e5e7eb;background:#ffffff;',
+            amountSummary: 'border:1px solid #bfdbfe;background:#eff6ff;',
+            payNowCard: 'border:1px solid #93c5fd;background:#dbeafe;',
+            remainingCard: 'border:1px solid #86efac;background:#dcfce7;',
+            bankInfo: 'border:1px solid #fcd34d;background:#fffbeb;',
+            reminderList: 'border:1px solid #fdba74;background:#fff7ed;',
+            notice: 'border:1px solid #fde68a;background:#fffbeb;',
+            contactInfo: 'border:1px solid #cbd5e1;background:#f8fafc;'
+        };
+        const blockStyle = blockStyleMap[markerKey] || 'border:1px solid #e2e8f0;background:#ffffff;';
+        return `<!--MVP:${markerKey}:start--><div style="margin:14px 0;padding:12px;border-radius:10px;${blockStyle}">${body}</div><!--MVP:${markerKey}:end-->`;
     };
     const payNowBlock = [payNowTitle, payNowContent].filter(Boolean).join('\n');
     const remainingBlock = [remainingTitle, remainingContent].filter(Boolean).join('\n');
