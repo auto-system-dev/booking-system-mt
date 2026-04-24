@@ -9533,9 +9533,9 @@ function getMvpBookingConfirmationDefaultFields() {
         bankTitle: '💰 匯款提醒',
         bankIntro: '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款。\n* 逾期將自動取消訂房。',
         bankInfo: '匯款資訊：\n銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n請在匯款時備註訂單後五碼：{{bookingIdLast5}}',
-        reminderTitle: '重要提醒',
+        reminderTitle: '⚠️ 重要提醒',
         reminderList: '請於入住當天攜帶身分證件辦理入住手續\n如需取消或變更訂房，請提前 3 天通知\n如有任何問題，請隨時與我們聯繫',
-        contactTitle: '聯絡資訊',
+        contactTitle: '📞 聯絡資訊',
         contactInfo: '電話：{{hotelPhone}}\nEmail：{{hotelEmail}}\n官方 LINE：{{officialLineUrl}}',
         closingMessage: '感謝您的預訂，期待為您服務！',
         footer: '{{hotelName}} 團隊 敬上',
@@ -9656,9 +9656,19 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     setVal('mvpFieldBankTitle', pick(parsed.bankTitle, defaults.bankTitle, '💰 匯款提醒'));
     setVal('mvpFieldBankIntro', pick(parsed.bankIntro, defaults.bankIntro, '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款'));
     setVal('mvpFieldBankInfo', pick(parsed.bankInfo, defaults.bankInfo, '銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n匯款請備註訂單後五碼：{{bookingIdLast5}}'));
-    setVal('mvpFieldReminderTitle', pick(parsed.reminderTitle, defaults.reminderTitle, '重要提醒'));
+    let reminderTitleText = pick(parsed.reminderTitle, defaults.reminderTitle, '重要提醒');
+    let contactTitleText = pick(parsed.contactTitle, defaults.contactTitle, '聯絡資訊');
+    if (key === 'booking_confirmation') {
+        if (String(reminderTitleText || '').trim() === '重要提醒') {
+            reminderTitleText = '⚠️ 重要提醒';
+        }
+        if (String(contactTitleText || '').trim() === '聯絡資訊') {
+            contactTitleText = '📞 聯絡資訊';
+        }
+    }
+    setVal('mvpFieldReminderTitle', reminderTitleText);
     setVal('mvpFieldReminderList', pick(parsed.reminderList, defaults.reminderList, '此訂房將保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款\n逾期未付款，系統將自動取消訂單'));
-    setVal('mvpFieldContactTitle', pick(parsed.contactTitle, defaults.contactTitle, '聯絡資訊'));
+    setVal('mvpFieldContactTitle', contactTitleText);
     setVal('mvpFieldContactInfo', pick(parsed.contactInfo, defaults.contactInfo, '電話：{{hotelPhone}}\nEmail：{{hotelEmail}}\n官方 LINE：{{officialLineUrl}}'));
     setVal('mvpFieldClosingMessage', pick(parsed.closingMessage, defaults.closingMessage, '感謝您的預訂，期待為您服務！'));
     setVal('mvpFieldFooter', pick(parsed.footer, defaults.footer, '{{hotelName}} 團隊 敬上'));
