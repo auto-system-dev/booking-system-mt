@@ -6960,50 +6960,45 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
             });
         }
         
-        // 生成隨機數的輔助函數
-        const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-        const randomAmount = (min, max) => randomInt(min, max).toLocaleString();
-        
         // 檢查是否為入住提醒郵件（需要在整個函數中使用）
         const isCheckinReminder = key === 'checkin_reminder';
         
-        // 計算日期
+        // 計算日期（測試郵件固定使用近端日期，避免隨機資料）
         const today = new Date();
-        const checkInDate = new Date(today.getTime() + randomInt(1, 30) * 24 * 60 * 60 * 1000);
-        const checkOutDate = new Date(checkInDate.getTime() + randomInt(1, 7) * 24 * 60 * 60 * 1000);
-        const nights = Math.max(1, Math.round((checkOutDate - checkInDate) / (24 * 60 * 60 * 1000)));
-        const paymentDeadlineDate = new Date(today.getTime() + randomInt(1, 7) * 24 * 60 * 60 * 1000);
+        const checkInDate = null;
+        const checkOutDate = null;
+        const paymentDeadlineDate = null;
         
         const hotelDefaults = await getHotelSettingsWithFallback(req.tenantId);
 
         // 創建測試資料來替換模板變數
         const testData = {
-            guestName: '測試用戶' + randomInt(1, 999),
-            bookingId: 'TEST' + Date.now().toString().slice(-6) + randomInt(100, 999),
-            checkInDate: checkInDate.toLocaleDateString('zh-TW'),
-            checkOutDate: checkOutDate.toLocaleDateString('zh-TW'),
-            nights: nights.toString(),
-            roomType: ['標準雙人房', '豪華雙人房', '標準單人房', '豪華單人房', '家庭房'][randomInt(0, 4)],
-            pricePerNight: randomAmount(2000, 5000),
-            totalAmount: randomAmount(5000, 20000),
-            finalAmount: randomAmount(2000, 8000),
-            remainingAmount: randomAmount(1000, 10000),
-            bankName: ['台灣銀行', '中國信託', '第一銀行', '華南銀行', '玉山銀行'][randomInt(0, 4)],
-            bankBranch: ['台北分行', '台中分行', '高雄分行', '新竹分行'][randomInt(0, 3)],
-            bankBranchDisplay: ' - ' + ['台北分行', '台中分行', '高雄分行', '新竹分行'][randomInt(0, 3)],
-            bankAccount: Array.from({length: 14}, () => randomInt(0, 9)).join(''),
-            accountName: '測試戶名' + randomInt(1, 99),
-            daysReserved: randomInt(1, 7).toString(),
-            paymentDeadline: paymentDeadlineDate.toLocaleDateString('zh-TW'),
-            addonsList: ['加床 x1 (NT$ 500)', '早餐券 x2 (NT$ 300)', '停車券 x1 (NT$ 200)', '加床 x2 (NT$ 1,000)'][randomInt(0, 3)],
-            addonsTotal: randomAmount(200, 1500),
-            paymentMethod: ['匯款轉帳', '線上刷卡', '現金'][randomInt(0, 2)],
-            paymentAmount: ['全額', '訂金 (30%)', '訂金 (50%)'][randomInt(0, 2)],
-            guestPhone: '09' + Array.from({length: 8}, () => randomInt(0, 9)).join(''),
-            guestEmail: 'test' + randomInt(1000, 9999) + '@example.com',
-            bookingDate: today.toLocaleDateString('zh-TW'),
-            bookingDateTime: today.toLocaleString('zh-TW'),
-            bookingIdLast5: (Date.now().toString().slice(-6) + randomInt(100, 999)).slice(-5),
+            guestName: '',
+            bookingId: '',
+            checkInDate: '',
+            checkOutDate: '',
+            nights: '',
+            roomType: '',
+            pricePerNight: '',
+            totalAmount: '',
+            finalAmount: '',
+            remainingAmount: '',
+            bankName: '',
+            bankBranch: '',
+            bankBranchDisplay: '',
+            bankAccount: '',
+            accountName: '',
+            daysReserved: '',
+            paymentDeadline: '',
+            addonsList: '',
+            addonsTotal: '',
+            paymentMethod: '',
+            paymentAmount: '',
+            guestPhone: '',
+            guestEmail: '',
+            bookingDate: '',
+            bookingDateTime: '',
+            bookingIdLast5: '',
             hotelEmail: hotelDefaults.hotelEmail,
             hotelPhone: hotelDefaults.hotelPhone
         };
@@ -7014,23 +7009,19 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
         // 這裡不需要再次設置，因為已經在 useEditorContent 分支中處理過了
         
         // 創建模擬的 booking 對象，用於 replaceTemplateVariables 函數
-        const totalAmount = parseInt(testData.totalAmount.replace(/,/g, ''));
-        
-        // 計算測試資料的折扣金額和折後總額（用於測試折扣顯示）
-        const testDiscountAmount = randomInt(100, 1000); // 隨機折扣金額
-        const testDiscountedTotal = Math.max(0, totalAmount - testDiscountAmount);
-        
-        // 計算測試資料的剩餘尾款（如果是訂金，則計算剩餘尾款）
-        const testFinalAmount = parseInt(testData.finalAmount.replace(/,/g, ''));
-        const testRemainingAmount = testData.paymentAmount.includes('訂金') ? (totalAmount - testFinalAmount) : 0;
+        const totalAmount = 0;
+        const testDiscountAmount = 0;
+        const testDiscountedTotal = 0;
+        const testFinalAmount = 0;
+        const testRemainingAmount = 0;
         
         const mockBooking = {
             guest_name: testData.guestName,
             booking_id: testData.bookingId,
-            check_in_date: checkInDate.toISOString().split('T')[0],
-            check_out_date: checkOutDate.toISOString().split('T')[0],
+            check_in_date: '',
+            check_out_date: '',
             room_type: testData.roomType,
-            price_per_night: parseInt(testData.pricePerNight.replace(/,/g, '')),
+            price_per_night: 0,
             total_amount: totalAmount,
             final_amount: testFinalAmount,
             remaining_amount: testRemainingAmount,
@@ -7039,11 +7030,11 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
             payment_status: 'pending',
             guest_phone: testData.guestPhone,
             guest_email: testData.guestEmail,
-            booking_date: today.toISOString().split('T')[0],
-            payment_deadline: paymentDeadlineDate.toISOString().split('T')[0],
-            days_reserved: parseInt(testData.daysReserved),
+            booking_date: '',
+            payment_deadline: '',
+            days_reserved: 0,
             addons: testData.addonsList,
-            addons_total: parseInt(testData.addonsTotal.replace(/,/g, '')),
+            addons_total: 0,
             // 添加折扣資訊（用於測試折扣顯示）
             discount_amount: testDiscountAmount,
             discountAmount: testDiscountAmount,
@@ -7055,7 +7046,8 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
         // 準備 additionalData（與實際發送時一致）
         const additionalData = {
             ...(testData.hotelEmail ? { '{{hotelEmail}}': testData.hotelEmail } : {}),
-            ...(testData.hotelPhone ? { '{{hotelPhone}}': testData.hotelPhone } : {})
+            ...(testData.hotelPhone ? { '{{hotelPhone}}': testData.hotelPhone } : {}),
+            __useEmptyTestValues: true
         };
         
         // 準備測試用的 bankInfo：
@@ -11157,6 +11149,19 @@ ${htmlEnd}`;
     }
     if (!buildingName) buildingName = showBuildingInEmail ? '預設館' : '';
 
+    const useEmptyTestValues = additionalData && additionalData.__useEmptyTestValues === true;
+    const formatAmountValue = (value) => {
+        if (useEmptyTestValues) {
+            return '';
+        }
+        const num = Number(value || 0);
+        return Number.isFinite(num) ? num.toLocaleString() : '';
+    };
+    const nightsValue = useEmptyTestValues ? '' : nights.toString();
+    const daysReservedValue = useEmptyTestValues ? '' : daysReserved.toString();
+    const addonsTotalValue = useEmptyTestValues ? '' : formatAmountValue(addonsTotal);
+    const specialRequestValue = useEmptyTestValues ? '' : (specialRequest || '-');
+
     const variables = {
         '{{guestName}}': guestName,
         '{{bookingId}}': bookingId,
@@ -11165,28 +11170,28 @@ ${htmlEnd}`;
         '{{checkInDate}}': checkInDate,
         '{{checkOutDate}}': checkOutDate,
         '{{roomType}}': roomType,
-        '{{nights}}': nights.toString(),
-        '{{pricePerNight}}': pricePerNight.toLocaleString(),
-        '{{totalAmount}}': totalAmount.toLocaleString(),
-        '{{originalAmount}}': originalAmount.toLocaleString(),
-        '{{discountAmount}}': discountAmount.toLocaleString(),
-        '{{discountedTotal}}': discountedTotal.toLocaleString(),
-        '{{finalAmount}}': finalAmount.toLocaleString(),
-        '{{remainingAmount}}': remainingAmount.toLocaleString(),
-        '{{bankName}}': bankInfo ? bankInfo.bankName : 'XXX銀行',
-        '{{bankBranch}}': bankInfo ? bankInfo.bankBranch : 'XXX分行',
+        '{{nights}}': nightsValue,
+        '{{pricePerNight}}': formatAmountValue(pricePerNight),
+        '{{totalAmount}}': formatAmountValue(totalAmount),
+        '{{originalAmount}}': formatAmountValue(originalAmount),
+        '{{discountAmount}}': formatAmountValue(discountAmount),
+        '{{discountedTotal}}': formatAmountValue(discountedTotal),
+        '{{finalAmount}}': formatAmountValue(finalAmount),
+        '{{remainingAmount}}': formatAmountValue(remainingAmount),
+        '{{bankName}}': bankInfo ? (bankInfo.bankName || '') : '',
+        '{{bankBranch}}': bankInfo ? (bankInfo.bankBranch || '') : '',
         '{{bankBranchDisplay}}': bankBranchDisplay,
-        '{{bankAccount}}': bankInfo ? bankInfo.account : '1234567890123',
-        '{{accountName}}': bankInfo ? bankInfo.accountName : 'XXX',
-        '{{daysReserved}}': daysReserved.toString(),
+        '{{bankAccount}}': bankInfo ? (bankInfo.account || '') : '',
+        '{{accountName}}': bankInfo ? (bankInfo.accountName || '') : '',
+        '{{daysReserved}}': daysReservedValue,
         '{{paymentDeadline}}': paymentDeadline,
         '{{addonsList}}': addonsList,
-        '{{addonsTotal}}': addonsTotal.toLocaleString(),
+        '{{addonsTotal}}': addonsTotalValue,
         '{{paymentMethod}}': paymentMethodValue,
         '{{paymentAmount}}': paymentAmount,
         '{{guestPhone}}': guestPhone,
         '{{guestEmail}}': guestEmail,
-        '{{specialRequest}}': specialRequest || '-',
+        '{{specialRequest}}': specialRequestValue,
         '{{bookingDate}}': bookingDate,
         '{{bookingDateTime}}': bookingDateTime,
         '{{bookingInfoContent}}': bookingInfoContent,
