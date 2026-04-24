@@ -10400,6 +10400,41 @@ async function replaceTemplateVariables(template, booking, bankInfo = null, addi
     
     const templateKey = template.key || template.template_key;
     const emailTenantId = Number.parseInt(booking?.tenant_id ?? booking?.tenantId ?? defaultTenantId, 10) || defaultTenantId;
+
+    const sanitizeMvpMarkedSection = (html, sectionKey, headingText) => {
+        const source = String(html || '');
+        const startToken = `<!--MVP:${sectionKey}:start-->`;
+        const endToken = `<!--MVP:${sectionKey}:end-->`;
+        const sectionRegex = new RegExp(`(${startToken})([\\s\\S]*?)(${endToken})`, 'i');
+        if (!sectionRegex.test(source)) return source;
+
+        const escapedHeading = String(headingText || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return source.replace(sectionRegex, (_, start, sectionBody, end) => {
+            let body = String(sectionBody || '');
+            body = body
+                .replace(new RegExp(`<p[^>]*>\\s*${escapedHeading}\\s*[:：]?\\s*<\\/p>`, 'gi'), '')
+                .replace(new RegExp(`<li[^>]*>\\s*${escapedHeading}\\s*[:：]?\\s*<\\/li>`, 'gi'), '')
+                .replace(new RegExp(`(^|\\n)\\s*${escapedHeading}\\s*[:：]?\\s*(?=\\n|$)`, 'gmi'), '$1')
+                .replace(/\n{3,}/g, '\n\n');
+            return `${start}${body}${end}`;
+        });
+    };
+
+    const ensureMvpAmountSummaryPaymentMethod = (html) => {
+        const source = String(html || '');
+        const startToken = '<!--MVP:amountSummary:start-->';
+        const endToken = '<!--MVP:amountSummary:end-->';
+        const sectionRegex = new RegExp(`(${startToken})([\\s\\S]*?)(${endToken})`, 'i');
+        if (!sectionRegex.test(source)) return source;
+        return source.replace(sectionRegex, (_, start, sectionBody, end) => {
+            const body = String(sectionBody || '');
+            if (/付款方式\s*[:：]/.test(body) || /\{\{\s*paymentMethod\s*\}\}/i.test(body)) {
+                return `${start}${body}${end}`;
+            }
+            const appended = `${body}<p style="margin: 0 0 10px;">付款方式：{{paymentMethod}}</p>`;
+            return `${start}${appended}${end}`;
+        });
+    };
     
     // 確保使用資料庫中的完整 HTML 內容
     if (!content || content.trim() === '') {
@@ -10408,6 +10443,14 @@ async function replaceTemplateVariables(template, booking, bankInfo = null, addi
         if (dbTemplate && dbTemplate.content) {
             content = dbTemplate.content;
             console.log(`⚠️ 模板內容為空，已從資料庫重新讀取完整 HTML 模板 (${templateKey})`);
+        }
+    }
+
+    if (String(templateKey || '').startsWith('mvp_')) {
+        content = sanitizeMvpMarkedSection(content, 'bookingInfo', '訂房資訊');
+        content = sanitizeMvpMarkedSection(content, 'amountSummary', '費用摘要');
+        if (String(templateKey) === 'mvp_booking_confirmation') {
+            content = ensureMvpAmountSummaryPaymentMethod(content);
         }
     }
     
