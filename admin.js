@@ -9192,7 +9192,6 @@ function syncFieldEditorLayout(templateKey) {
 
 function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     const key = String(templateKey || '').trim();
-    const isAdminBookingTemplate = key === 'booking_confirmation_admin';
     const title = String(fields.title || '通知').trim() || '通知';
     const greeting = String(fields.greeting || '').trim();
     const mainContent = String(fields.mainContent || '').trim();
@@ -9214,56 +9213,17 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     const footer = String(fields.footer || '').trim();
     const systemFooter = String(fields.systemFooter || '此為 MVP 測試模板，不影響正式模板。').trim();
     const toParagraphs = (text) => String(text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => `<p style="margin: 0 0 10px;">${escapeHtml(line)}</p>`).join('');
-    const toList = (text) => String(text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => `<li style="margin:0 0 8px;">${escapeHtml(line)}</li>`).join('');
-    const stripDuplicatedHeadingLine = (heading, text) => {
-        const normalizeHeadingText = (value) => String(value || '')
-            .trim()
-            .replace(/^[^\u4e00-\u9fa5A-Za-z0-9]+/, '')
-            .replace(/[:：]/g, '')
-            .replace(/\s+/g, '')
-            .trim()
-            .toLowerCase();
-        const lines = String(text || '')
-            .split('\n')
-            .map((line) => line.trim())
-            .filter(Boolean);
-        const normalizedHeading = String(heading || '').trim();
-        if (!normalizedHeading || !lines.length) return String(text || '').trim();
-
-        const headingLine = normalizeHeadingText(normalizedHeading);
-        const isLikelyHeadingLine = (line) => {
-            const normalized = normalizeHeadingText(line);
-            if (!normalized || !headingLine) return false;
-            return normalized === headingLine || (normalized.includes(headingLine) && normalized.length <= headingLine.length + 4);
-        };
-
-        // 去除內容中與標題同名的行（相容舊資料已混入重覆標題）
-        const stripped = lines.filter((line) => !isLikelyHeadingLine(line));
-        if (!stripped.length) return '';
-        return stripped.join('\n').trim();
+    const renderBlock = (markerKey, text) => {
+        const body = toParagraphs(text);
+        if (!body) return '';
+        return `<!--MVP:${markerKey}:start-->${body}<!--MVP:${markerKey}:end-->`;
     };
-    const wrapSection = (key, heading, bodyHtml, style = '') => {
-        if (!bodyHtml) return '';
-        return `<!--MVP:${key}:start--><div style="margin:14px 0;padding:12px;border:1px solid #e2e8f0;border-radius:10px;${style}"><p style="margin:0 0 10px;font-weight:700;color:#0f172a;">${heading}</p>${bodyHtml}</div><!--MVP:${key}:end-->`;
-    };
-
-    if (isAdminBookingTemplate) {
-        const payNowLines = [payNowTitle, payNowContent].filter(Boolean).join('\n');
-        const contactBlock = [contactTitle, contactInfo].filter(Boolean).join('\n');
-        return `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
-  <div style="max-width:640px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;padding:18px;background:#fff;">
-    <!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->
-    ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
-    ${bookingInfo ? `<!--MVP:bookingInfo:start-->${toParagraphs(bookingInfo)}<!--MVP:bookingInfo:end-->` : ''}
-    ${amountSummary ? `<!--MVP:amountSummary:start-->${toParagraphs(amountSummary)}<!--MVP:amountSummary:end-->` : ''}
-    ${payNowLines ? `<!--MVP:payNowCard:start-->${toParagraphs(payNowLines)}<!--MVP:payNowCard:end-->` : ''}
-    ${contactBlock ? `<!--MVP:contactInfo:start-->${toParagraphs(contactBlock)}<!--MVP:contactInfo:end-->` : ''}
-    ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:10px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
-  </div>
-</body></html>`;
-    }
+    const payNowBlock = [payNowTitle, payNowContent].filter(Boolean).join('\n');
+    const remainingBlock = [remainingTitle, remainingContent].filter(Boolean).join('\n');
+    const bankBlock = [bankTitle, bankIntro, bankInfo].filter(Boolean).join('\n');
+    const reminderBlock = [reminderTitle, reminderList].filter(Boolean).join('\n');
+    const noticeBlock = notice;
+    const contactBlock = [contactTitle, contactInfo].filter(Boolean).join('\n');
 
     return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -9271,14 +9231,14 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
   <div style="max-width:640px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;padding:18px;background:#fff;">
     <!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->
     ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
-    ${wrapSection('bookingInfo', '訂房資訊', toParagraphs(stripDuplicatedHeadingLine('訂房資訊', bookingInfo)))}
-    ${wrapSection('amountSummary', '費用摘要', toParagraphs(stripDuplicatedHeadingLine('費用摘要', amountSummary)), 'background:#eff6ff;border-color:#bfdbfe;')}
-    ${(payNowTitle || payNowContent) ? `<!--MVP:payNowCard:start--><div style="margin:14px 0;padding:12px;border:1px solid #93c5fd;border-radius:10px;background:#dbeafe;"><p style="margin:0 0 6px;font-weight:700;color:#1d4ed8;">${escapeHtml(payNowTitle)}</p><p style="margin:0;font-weight:700;font-size:24px;color:#1e3a8a;">${escapeHtml(payNowContent)}</p></div><!--MVP:payNowCard:end-->` : ''}
-    ${(remainingTitle || remainingContent) ? `<!--MVP:remainingCard:start--><div style="margin:14px 0;padding:12px;border:1px solid #86efac;border-radius:10px;background:#dcfce7;"><p style="margin:0 0 8px;font-weight:700;color:#15803d;">${escapeHtml(remainingTitle)}</p><div style="color:#166534;font-weight:700;font-size:22px;">${toParagraphs(remainingContent)}</div></div><!--MVP:remainingCard:end-->` : ''}
-    ${(bankInfo || bankIntro) ? `<!--MVP:bankInfo:start--><div style="margin:14px 0;padding:12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;"><p style="margin:0 0 8px;font-weight:700;color:#92400e;">${escapeHtml(bankTitle)}</p>${bankIntro ? `<!--MVP:bankIntro:start-->${toParagraphs(bankIntro)}<!--MVP:bankIntro:end-->` : ''}${bankInfo ? `<!--MVP:bankDetails:start-->${toParagraphs(bankInfo)}<!--MVP:bankDetails:end-->` : ''}</div><!--MVP:bankInfo:end-->` : ''}
-    ${reminderList ? `<!--MVP:reminderList:start--><div style="margin:14px 0;padding:10px 12px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;"><p style="margin:0 0 8px;font-weight:700;color:#9a3412;">${escapeHtml(reminderTitle)}</p><ul style="margin:0;padding-left:18px;">${toList(reminderList)}</ul></div><!--MVP:reminderList:end-->` : ''}
-    ${notice ? `<!--MVP:notice:start--><div style="margin:14px 0;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;"><p style="margin:0 0 8px;font-weight:700;color:#854d0e;">注意事項</p>${toParagraphs(notice)}</div><!--MVP:notice:end-->` : ''}
-    ${(contactInfo || contactTitle) ? `<!--MVP:contactInfo:start--><div style="margin:14px 0;padding:12px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;"><p style="margin:0 0 10px;font-weight:700;color:#0f172a;">${escapeHtml(contactTitle)}</p>${toParagraphs(contactInfo)}</div><!--MVP:contactInfo:end-->` : ''}
+    ${renderBlock('bookingInfo', bookingInfo)}
+    ${renderBlock('amountSummary', amountSummary)}
+    ${renderBlock('payNowCard', payNowBlock)}
+    ${renderBlock('remainingCard', remainingBlock)}
+    ${renderBlock('bankInfo', bankBlock)}
+    ${renderBlock('reminderList', reminderBlock)}
+    ${renderBlock('notice', noticeBlock)}
+    ${renderBlock('contactInfo', contactBlock)}
     ${closingMessage ? `<!--MVP:closingMessage:start--><p style="margin:14px 0 0;">${escapeHtml(closingMessage)}</p><!--MVP:closingMessage:end-->` : ''}
     ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:10px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
   </div>
