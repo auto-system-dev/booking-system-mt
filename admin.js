@@ -9205,6 +9205,7 @@ function syncFieldEditorLayout(templateKey) {
 function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     const key = String(templateKey || '').trim();
     const isAdminBookingTemplate = key === 'booking_confirmation_admin';
+    const isCancelTemplate = key === 'cancel_notification';
     const title = String(fields.title ?? '').trim();
     const greeting = String(fields.greeting || '').trim();
     const mainContent = String(fields.mainContent || '').trim();
@@ -9271,6 +9272,30 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     const reminderBlock = [reminderTitle, reminderList].filter(Boolean).join('\n');
     const noticeBlock = notice;
     const contactBlock = [contactTitle, contactInfo].filter(Boolean).join('\n');
+
+    if (isCancelTemplate) {
+        const renderPlainSection = (markerKey, titleText, bodyText) => {
+            const title = String(titleText || '').trim();
+            const body = toParagraphs(bodyText, { firstLineBold: false });
+            if (!title && !body) return '';
+            const titleHtml = title ? `<p style="margin:16px 0 10px;font-weight:700;color:#0f172a;">${escapeHtml(title)}</p>` : '';
+            return `<!--MVP:${markerKey}:start-->${titleHtml}${body}<!--MVP:${markerKey}:end-->`;
+        };
+
+        return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
+  <div style="max-width:640px;margin:0 auto;">
+    ${title ? `<!--MVP:title:start--><h2 style="margin:0 0 12px;color:#dc2626;">${escapeHtml(title)}</h2><!--MVP:title:end-->` : ''}
+    ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
+    ${renderPlainSection('bookingInfo', '取消的訂房資訊', bookingInfo)}
+    ${renderPlainSection('notice', '', notice)}
+    ${renderPlainSection('reminderList', '', reminderBlock)}
+    ${renderPlainSection('contactInfo', '', contactBlock)}
+    ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:18px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
+  </div>
+</body></html>`;
+    }
 
     if (isAdminBookingTemplate) {
         return `<!DOCTYPE html>
