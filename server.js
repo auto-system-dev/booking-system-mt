@@ -6916,15 +6916,17 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
         console.log(`   主旨: ${subject}`);
         
         // MVP 模板一律優先採用編輯器內容（若有提供），避免預覽與測試信不一致
+        const isFieldStyleConfirmationTemplate =
+            isMvpTemplate || String(key || '') === 'booking_confirmation';
+        const hasEditorContent = !!req.body.content;
         const shouldUseEditorContent =
-            (!!req.body.content && !!req.body.subject) &&
-            (useEditorContent === true || isMvpTemplate);
+            hasEditorContent && (useEditorContent === true || isFieldStyleConfirmationTemplate);
 
         // 如果前端明確要求使用編輯器中的內容，或為 MVP 模板，則覆蓋資料庫中的值
         if (shouldUseEditorContent) {
             // 使用編輯器中的內容（用戶修改後的內容）
             content = req.body.content;
-            subject = req.body.subject;
+            subject = req.body.subject || subject;
             console.log(`📧 測試郵件：使用編輯器中的內容 (${key})`);
             console.log(`   內容長度: ${content.length} 字元`);
             console.log(`   主旨: ${subject}`);
