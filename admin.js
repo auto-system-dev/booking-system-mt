@@ -9250,25 +9250,16 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     if (isAdminBookingTemplate) {
         const payNowLines = [payNowTitle, payNowContent].filter(Boolean).join('\n');
         const contactBlock = [contactTitle, contactInfo].filter(Boolean).join('\n');
-        const wrapColoredSection = (markerKey, heading, bodyText, colorStyle) => {
-            const contentText = String(bodyText || '').trim();
-            if (!contentText) return '';
-            const headingText = String(heading || '').trim();
-            const headingHtml = headingText
-                ? `<p style="margin:0 0 10px;font-weight:700;color:#0f172a;">${escapeHtml(headingText)}</p>`
-                : '';
-            return `<!--MVP:${markerKey}:start--><div style="margin:14px 0;padding:12px;border-radius:10px;${colorStyle}">${headingHtml}${toParagraphs(contentText)}</div><!--MVP:${markerKey}:end-->`;
-        };
         return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
   <div style="max-width:640px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;padding:18px;background:#fff;">
     <!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->
     ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
-    ${wrapColoredSection('bookingInfo', '訂房資訊', bookingInfo, 'border:1px solid #e2e8f0;background:#ffffff;')}
-    ${wrapColoredSection('amountSummary', '費用摘要', amountSummary, 'border:1px solid #bfdbfe;background:#eff6ff;')}
-    ${wrapColoredSection('payNowCard', payNowTitle, payNowLines, 'border:1px solid #fecaca;background:#fef2f2;')}
-    ${wrapColoredSection('contactInfo', contactTitle, contactBlock, 'border:1px solid #fde68a;background:#fffbeb;')}
+    ${bookingInfo ? `<!--MVP:bookingInfo:start-->${toParagraphs(bookingInfo)}<!--MVP:bookingInfo:end-->` : ''}
+    ${amountSummary ? `<!--MVP:amountSummary:start-->${toParagraphs(amountSummary)}<!--MVP:amountSummary:end-->` : ''}
+    ${payNowLines ? `<!--MVP:payNowCard:start-->${toParagraphs(payNowLines)}<!--MVP:payNowCard:end-->` : ''}
+    ${contactBlock ? `<!--MVP:contactInfo:start-->${toParagraphs(contactBlock)}<!--MVP:contactInfo:end-->` : ''}
     ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:10px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
   </div>
 </body></html>`;
