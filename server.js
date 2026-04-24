@@ -6976,7 +6976,7 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
         
         const hotelDefaults = await getHotelSettingsWithFallback(req.tenantId);
 
-        // 創建測試資料來替換模板變數（使用隨機數生成缺失的參數）
+        // 創建測試資料來替換模板變數
         const testData = {
             guestName: '測試用戶' + randomInt(1, 999),
             bookingId: 'TEST' + Date.now().toString().slice(-6) + randomInt(100, 999),
@@ -7058,12 +7058,13 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
             ...(testData.hotelPhone ? { '{{hotelPhone}}': testData.hotelPhone } : {})
         };
         
-        // 準備測試用的 bankInfo（與實際發送時一致）
+        // 準備測試用的 bankInfo：
+        // 後台未設定時保持空值，避免測試郵件顯示隨機資料。
         const testBankInfo = {
-            bankName: await db.getSetting('bank_name', getRequestTenantId(req)) || testData.bankName,
-            bankBranch: await db.getSetting('bank_branch', getRequestTenantId(req)) || testData.bankBranch,
-            account: await db.getSetting('bank_account', getRequestTenantId(req)) || testData.bankAccount,
-            accountName: await db.getSetting('account_name', getRequestTenantId(req)) || testData.accountName
+            bankName: (await db.getSetting('bank_name', getRequestTenantId(req)) || '').trim(),
+            bankBranch: (await db.getSetting('bank_branch', getRequestTenantId(req)) || '').trim(),
+            account: (await db.getSetting('bank_account', getRequestTenantId(req)) || '').trim(),
+            accountName: (await db.getSetting('account_name', getRequestTenantId(req)) || '').trim()
         };
         
         // 生成測試郵件內容
