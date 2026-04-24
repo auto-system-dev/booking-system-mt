@@ -9293,12 +9293,12 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
             const body = toParagraphs(bodyText, { firstLineBold: false });
             if (!title && !body) return '';
             const sectionStyleMap = {
-                bookingInfo: 'background:#f8fafc;border-left:4px solid #ef4444;padding:10px 12px;border-radius:6px;',
-                notice: 'background:#fffbeb;border-left:4px solid #f59e0b;padding:10px 12px;border-radius:6px;',
-                reminderList: 'background:#f0fdf4;border-left:4px solid #22c55e;padding:10px 12px;border-radius:6px;',
-                contactInfo: 'background:#eff6ff;border-left:4px solid #3b82f6;padding:10px 12px;border-radius:6px;'
+                bookingInfo: 'border:1px solid #e5e7eb;background:#ffffff;padding:12px;border-radius:10px;',
+                notice: 'border:1px solid #fde68a;background:#fffbeb;padding:12px;border-radius:10px;',
+                reminderList: 'border:1px solid #fdba74;background:#fff7ed;padding:12px;border-radius:10px;',
+                contactInfo: 'border:1px solid #cbd5e1;background:#f8fafc;padding:12px;border-radius:10px;'
             };
-            const sectionStyle = sectionStyleMap[markerKey] || 'padding:0;';
+            const sectionStyle = sectionStyleMap[markerKey] || 'border:1px solid #e2e8f0;background:#ffffff;padding:12px;border-radius:10px;';
             const titleHtml = title ? `<p style="margin:16px 0 10px;font-weight:700;color:#0f172a;">${escapeHtml(title)}</p>` : '';
             return `<!--MVP:${markerKey}:start--><div style="margin:12px 0;${sectionStyle}">${titleHtml}${body}</div><!--MVP:${markerKey}:end-->`;
         };
@@ -9310,8 +9310,8 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     ${title ? `<!--MVP:title:start--><h2 style="margin:0 0 12px;color:#dc2626;">${escapeHtml(title)}</h2><!--MVP:title:end-->` : ''}
     ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
     ${renderPlainSection('bookingInfo', '取消的訂房資訊', bookingInfo)}
-    ${renderPlainSection('reminderList', '', reminderBlock)}
     ${renderPlainSection('notice', '', notice)}
+    ${renderPlainSection('reminderList', '', reminderBlock)}
     ${renderPlainSection('contactInfo', '', contactBlock)}
     ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:18px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
   </div>
