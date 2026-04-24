@@ -9128,7 +9128,7 @@ async function saveWeekdaySettings() {
 
 let currentEmailTemplateScope = 'standard';
 const MVP_TEMPLATE_KEY_PREFIX = 'mvp_';
-const FIELD_EDITOR_STANDARD_TEMPLATE_KEYS = new Set(['booking_confirmation']);
+const FIELD_EDITOR_STANDARD_TEMPLATE_KEYS = new Set(['booking_confirmation', 'booking_confirmation_admin']);
 const MVP_ALLOWED_VARIABLES = new Set([
     'guestName', 'bookingId', 'checkInDate', 'checkOutDate', 'roomType',
     'totalAmount', 'discountAmount', 'discountedTotal', 'finalAmount', 'remainingAmount',
@@ -9157,6 +9157,8 @@ function syncFieldEditorTitle(templateKey) {
         titleEl.textContent = 'MVP 欄位式編輯';
     } else if (key === 'booking_confirmation') {
         titleEl.textContent = '正式模板欄位式編輯';
+    } else if (key === 'booking_confirmation_admin') {
+        titleEl.textContent = '管理員模板欄位式編輯';
     } else {
         titleEl.textContent = '欄位式編輯';
     }
@@ -9485,31 +9487,67 @@ function getMvpBookingConfirmationDefaultFields() {
     };
 }
 
+function getBookingConfirmationAdminDefaultFields() {
+    return {
+        title: '新訂房通知',
+        greeting: '您有一筆新的訂房申請，以下是訂房詳細資訊：',
+        mainContent: '',
+        bookingInfo: '訂房時間：{{bookingDate}}\n訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n住宿天數：{{nights}} 晚\n房型：{{roomType}}\n訂房人：{{guestName}}\n聯絡電話：{{guestPhone}}\nEmail：{{guestEmail}}',
+        amountSummary: '總金額：NT$ {{totalAmount}}\n優惠折扣：-NT$ {{discountAmount}}\n折後總額：NT$ {{discountedTotal}}\n付款方式：{{paymentMethod}}（{{paymentAmount}}）',
+        payNowTitle: '應付金額',
+        payNowContent: 'NT$ {{finalAmount}}',
+        remainingAmount: '剩餘尾款提醒可顯示時間與條件',
+        remainingTitle: '💡 剩餘尾款',
+        remainingContent: '剩餘尾款請於現場付清！\n剩餘尾款：NT$ {{remainingAmount}}',
+        notice: '',
+        bankTitle: '💰 匯款提醒',
+        bankIntro: '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款。\n* 逾期將自動取消訂房。',
+        bankInfo: '匯款資訊：\n銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n請在匯款時備註訂單後五碼：{{bookingIdLast5}}',
+        reminderTitle: '內部提醒',
+        reminderList: '請確認訂單資料與付款狀態\n如需與客戶聯繫，請盡快處理',
+        contactTitle: '旅宿聯絡資訊',
+        contactInfo: '電話：{{hotelPhone}}\nEmail：{{hotelEmail}}\n官方 LINE：{{officialLineUrl}}',
+        closingMessage: '此郵件為系統自動通知。',
+        footer: '{{hotelName}} 系統通知',
+        systemFooter: '此為系統自動發送郵件，請勿直接回覆'
+    };
+}
+
+function getFieldEditorDefaultFields(templateKey) {
+    const key = String(templateKey || '').trim();
+    if (key === 'booking_confirmation_admin') {
+        return getBookingConfirmationAdminDefaultFields();
+    }
+    return getMvpBookingConfirmationDefaultFields();
+}
+
 function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     const parsed = parseMvpTemplateFieldsFromHtml(content);
     const source = String(content || '');
     const key = String(templateKey || '').trim();
     const hasMvpMarkers = source.includes('<!--MVP:title:start-->');
-    const useBookingDefaults = key === 'mvp_booking_confirmation' && !hasMvpMarkers;
-    const defaults = useBookingDefaults ? getMvpBookingConfirmationDefaultFields() : {};
+    const useBookingDefaults = (key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin') && !hasMvpMarkers;
+    const defaults = useBookingDefaults ? getFieldEditorDefaultFields(key) : {};
     const pick = (parsedValue, defaultValue, fallbackValue = '') => {
         if (useBookingDefaults) return defaultValue || parsedValue || fallbackValue;
         return parsedValue || defaultValue || fallbackValue;
     };
     const bookingInfoText = normalizeMvpSectionFieldText('訂房資訊', pick(parsed.bookingInfo, defaults.bookingInfo, '訂單編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}'));
     let amountSummaryText = normalizeMvpSectionFieldText('費用摘要', pick(parsed.amountSummary, defaults.amountSummary, '訂房金額：NT$ {{totalAmount}}\n折扣：-NT$ {{discountAmount}}\n折後金額：NT$ {{discountedTotal}}\n本次應付：NT$ {{finalAmount}}\n付款方式：{{paymentMethod}}（{{paymentAmount}}）'));
-    if (key === 'mvp_booking_confirmation' && !/\{\{\s*paymentMethod\s*\}\}/.test(amountSummaryText)) {
+    if ((key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin') && !/\{\{\s*paymentMethod\s*\}\}/.test(amountSummaryText)) {
         amountSummaryText = `${amountSummaryText}\n付款方式：{{paymentMethod}}（{{paymentAmount}}）`.trim();
     }
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
     let titleText = pick(parsed.title, defaults.title, 'MVP 測試通知');
     let greetingText = pick(parsed.greeting, defaults.greeting, '親愛的 {{guestName}}，');
-    if (key === 'booking_confirmation' || key === 'mvp_booking_confirmation') {
+    if (key === 'booking_confirmation' || key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin') {
         if (!titleText || /mvp\s*測試通知/i.test(String(titleText))) {
-            titleText = defaults.title || '訂房確認成功';
+            titleText = defaults.title || (key === 'booking_confirmation_admin' ? '新訂房通知' : '訂房確認成功');
         }
         if (!greetingText || /感謝您的預訂/.test(String(greetingText))) {
-            greetingText = defaults.greeting || '親愛的 {{guestName}}，\n您的訂房已成功確認，以下是您的訂房資訊：';
+            greetingText = defaults.greeting || (key === 'booking_confirmation_admin'
+                ? '您有一筆新的訂房申請，以下是訂房詳細資訊：'
+                : '親愛的 {{guestName}}，\n您的訂房已成功確認，以下是您的訂房資訊：');
         }
     }
     setVal('mvpFieldTitle', titleText);
@@ -9738,10 +9776,10 @@ window.resetCurrentTemplateToDefault = async function resetCurrentTemplateToDefa
     const applyFieldEditorDefaults = (key) => {
         const normalizedKey = String(key || '').trim();
         if (!isFieldEditorTemplateKey(normalizedKey)) return false;
-        if (normalizedKey !== 'booking_confirmation' && normalizedKey !== 'mvp_booking_confirmation') {
+        if (normalizedKey !== 'booking_confirmation' && normalizedKey !== 'mvp_booking_confirmation' && normalizedKey !== 'booking_confirmation_admin') {
             return false;
         }
-        const defaults = getMvpBookingConfirmationDefaultFields();
+        const defaults = getFieldEditorDefaultFields(normalizedKey);
         const setVal = (id, val) => {
             const el = document.getElementById(id);
             if (el) el.value = String(val || '');
