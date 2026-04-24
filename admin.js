@@ -9213,9 +9213,21 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     const closingMessage = String(fields.closingMessage || '').trim();
     const footer = String(fields.footer || '').trim();
     const systemFooter = String(fields.systemFooter || '').trim();
-    const toParagraphs = (text) => String(text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => `<p style="margin: 0 0 10px;">${escapeHtml(line)}</p>`).join('');
+    const toParagraphs = (text, options = {}) => {
+        const { firstLineBold = false } = options;
+        const lines = String(text || '')
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean);
+        return lines
+            .map((line, index) => {
+                const fontWeight = firstLineBold && index === 0 ? '700' : '400';
+                return `<p style="margin: 0 0 10px;font-weight:${fontWeight};">${escapeHtml(line)}</p>`;
+            })
+            .join('');
+    };
     const renderBlock = (markerKey, text) => {
-        const body = toParagraphs(text);
+        const body = toParagraphs(text, { firstLineBold: true });
         if (!body) return '';
         const blockStyleMap = {
             bookingInfo: 'border:1px solid #e5e7eb;background:#ffffff;',
