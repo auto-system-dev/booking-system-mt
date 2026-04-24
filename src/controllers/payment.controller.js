@@ -6,6 +6,30 @@ function createPaymentController(deps) {
         logPaymentEvent
     } = deps;
 
+    async function resolveTenantHomeUrl(context = {}) {
+        const {
+            tenantId: tenantIdFromContext,
+            bookingId
+        } = context;
+
+        let tenantId = tenantIdFromContext;
+        if (!tenantId && bookingId && typeof db.resolveTenantIdByBookingId === 'function') {
+            tenantId = await db.resolveTenantIdByBookingId(bookingId);
+        }
+
+        if (!tenantId) return '/';
+
+        const tenant = await db.getTenantById(tenantId);
+        const tenantCode = String(tenant?.code || '').trim().toLowerCase();
+        const publicBaseDomain = String(process.env.PUBLIC_BASE_DOMAIN || '').trim().toLowerCase();
+        if (!tenantCode || !publicBaseDomain) {
+            return '/';
+        }
+
+        const tenantSubdomainLabel = tenantCode.replace(/_/g, '-');
+        return `https://${tenantSubdomainLabel}.${publicBaseDomain}/`;
+    }
+
     async function createPayment(req, res) {
         try {
             const { bookingId } = req.body;
@@ -163,6 +187,10 @@ function createPaymentController(deps) {
             }
 
             const paymentResult = paymentClient.parseReturnData(returnData);
+            const tenantHomeUrl = await resolveTenantHomeUrl({
+                tenantId: req.tenantId || req.subdomainTenantId,
+                bookingId: paymentResult?.merchantTradeNo || returnData?.MerchantTradeNo || null
+            });
             logPaymentEvent('info', 'payment.result.parsed', {
                 requestId,
                 route,
@@ -267,7 +295,7 @@ function createPaymentController(deps) {
                                 <p>交易編號：${paymentResult.tradeNo}</p>
                                 <p>付款金額：NT$ ${paymentResult.tradeAmt.toLocaleString()}</p>
                                 <p>付款時間：${paymentResult.paymentDate}</p>
-                                <a href="/" class="btn">返回首頁</a>
+                                <a href="${tenantHomeUrl}" class="btn">返回首頁</a>
                                 </div>
                             </div>
                         </body>
@@ -361,7 +389,7 @@ function createPaymentController(deps) {
                             <div class="error-icon">✗</div>
                             <h1>付款失敗</h1>
                             <p>${paymentResult.rtnMsg || '付款處理失敗'}</p>
-                            <a href="/" class="btn">返回首頁</a>
+                            <a href="${tenantHomeUrl}" class="btn">返回首頁</a>
                         </div>
                     </body>
                 </html>
