@@ -18,6 +18,7 @@ function createPaymentController(deps) {
             }
 
             const booking = await db.getBookingById(bookingId, req.tenantId);
+            const tenant = await db.getTenantById(req.tenantId);
 
             if (!booking) {
                 return res.status(404).json({
@@ -32,7 +33,8 @@ function createPaymentController(deps) {
                 finalAmount: booking.final_amount,
                 guestName: booking.guest_name,
                 guestEmail: booking.guest_email,
-                guestPhone: booking.guest_phone
+                guestPhone: booking.guest_phone,
+                tenantCode: String(tenant?.code || '').trim().toLowerCase()
             }, {
                 amount: booking.final_amount,
                 description: `訂房編號：${booking.booking_id}`

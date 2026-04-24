@@ -102,6 +102,14 @@ function createPaymentForm(bookingData, paymentInfo, customConfig = null) {
     }
     
     const { finalAmount, bookingId, guestName, guestEmail, guestPhone } = bookingData;
+    const normalizedTenantCode = String(bookingData?.tenantCode || bookingData?.tenant_code || '').trim().toLowerCase();
+    const publicBaseDomain = String(process.env.PUBLIC_BASE_DOMAIN || '').trim().toLowerCase();
+    const tenantSubdomainLabel = normalizedTenantCode ? normalizedTenantCode.replace(/_/g, '-') : '';
+    const tenantPublicBaseUrl = (publicBaseDomain && tenantSubdomainLabel)
+        ? `https://${tenantSubdomainLabel}.${publicBaseDomain}`
+        : '';
+    const fallbackBaseUrl = process.env.FRONTEND_URL ||
+        (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '');
     
     // 訂單編號（限制 20 字元，使用 bookingId）
     const merchantTradeNo = bookingId.substring(0, 20);
@@ -131,11 +139,11 @@ function createPaymentForm(bookingData, paymentInfo, customConfig = null) {
         TotalAmount: Math.round(finalAmount).toString(), // 金額（整數）
         TradeDesc: `訂房編號：${bookingId}`, // 交易描述
         ItemName: `住宿訂房-${bookingId}`, // 商品名稱
-        ReturnURL: process.env.ECPAY_RETURN_URL || `http://localhost:3000/api/payment/return`, // 付款完成回傳網址
-        OrderResultURL: process.env.ECPAY_ORDER_RESULT_URL || `http://localhost:3000/api/payment/result`, // 付款完成導向網址
+        ReturnURL: process.env.ECPAY_RETURN_URL || `${tenantPublicBaseUrl || fallbackBaseUrl || 'http://localhost:3000'}/api/payment/return`, // 付款完成回傳網址
+        OrderResultURL: process.env.ECPAY_ORDER_RESULT_URL || `${tenantPublicBaseUrl || fallbackBaseUrl || 'http://localhost:3000'}/api/payment/result`, // 付款完成導向網址
         ChoosePayment: 'Credit', // 選擇付款方式：Credit（信用卡）
         EncryptType: 1, // 加密類型：1
-        ClientBackURL: process.env.ECPAY_CLIENT_BACK_URL || `http://localhost:3000/?bookingId=${bookingId}`, // 返回商店網址
+        ClientBackURL: process.env.ECPAY_CLIENT_BACK_URL || `${tenantPublicBaseUrl || fallbackBaseUrl || 'http://localhost:3000'}/`, // 返回商店網址（租戶子網域首頁）
         // 客戶資料（選填）
         CustomerName: guestName,
         CustomerEmail: guestEmail,

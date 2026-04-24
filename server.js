@@ -1109,11 +1109,13 @@ async function handleCreateBooking(req, res) {
         const normalizedReferrer = String(referrer || req.body.referrer || '').trim().slice(0, 500);
 
         // 儲存訂房資料（這裡可以連接資料庫）
+        const tenantInfoForPayment = await db.getTenantById(req.tenantId);
         const bookingData = {
             checkInDate,
             checkOutDate,
             tenantId: req.tenantId,
             tenant_id: req.tenantId,
+            tenantCode: String(tenantInfoForPayment?.code || '').trim().toLowerCase(),
             roomType: roomTypeName, // 使用房型名稱（display_name）
             guestName,
             guestPhone,
