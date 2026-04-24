@@ -9149,6 +9149,19 @@ function isFieldEditorTemplateKey(templateKey) {
     return isMvpTemplateKey(key) || FIELD_EDITOR_STANDARD_TEMPLATE_KEYS.has(key);
 }
 
+function syncFieldEditorTitle(templateKey) {
+    const titleEl = document.getElementById('fieldEditorTitle');
+    if (!titleEl) return;
+    const key = String(templateKey || '').trim();
+    if (isMvpTemplateKey(key)) {
+        titleEl.textContent = 'MVP 欄位式編輯';
+    } else if (key === 'booking_confirmation') {
+        titleEl.textContent = '正式模板欄位式編輯';
+    } else {
+        titleEl.textContent = '欄位式編輯';
+    }
+}
+
 function composeMvpTemplateHtml(fields = {}) {
     const title = String(fields.title || '通知').trim() || '通知';
     const greeting = String(fields.greeting || '').trim();
@@ -9473,7 +9486,7 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     const source = String(content || '');
     const key = String(templateKey || '').trim();
     const hasMvpMarkers = source.includes('<!--MVP:title:start-->');
-    const useBookingDefaults = key === 'mvp_booking_confirmation' && !hasMvpMarkers;
+    const useBookingDefaults = (key === 'mvp_booking_confirmation' || key === 'booking_confirmation') && !hasMvpMarkers;
     const defaults = useBookingDefaults ? getMvpBookingConfirmationDefaultFields() : {};
     const pick = (parsedValue, defaultValue, fallbackValue = '') => {
         if (useBookingDefaults) return defaultValue || parsedValue || fallbackValue;
@@ -9485,8 +9498,18 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
         amountSummaryText = `${amountSummaryText}\n付款方式：{{paymentMethod}}（{{paymentAmount}}）`.trim();
     }
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-    setVal('mvpFieldTitle', pick(parsed.title, defaults.title, 'MVP 測試通知'));
-    setVal('mvpFieldGreeting', pick(parsed.greeting, defaults.greeting, '親愛的 {{guestName}}，'));
+    let titleText = pick(parsed.title, defaults.title, 'MVP 測試通知');
+    let greetingText = pick(parsed.greeting, defaults.greeting, '親愛的 {{guestName}}，');
+    if (key === 'booking_confirmation' || key === 'mvp_booking_confirmation') {
+        if (!titleText || /mvp\s*測試通知/i.test(String(titleText))) {
+            titleText = defaults.title || '訂房確認成功';
+        }
+        if (!greetingText || /感謝您的預訂/.test(String(greetingText))) {
+            greetingText = defaults.greeting || '親愛的 {{guestName}}，\n您的訂房已成功確認，以下是您的訂房資訊：';
+        }
+    }
+    setVal('mvpFieldTitle', titleText);
+    setVal('mvpFieldGreeting', greetingText);
     setVal('mvpFieldMainContent', pick(parsed.mainContent, defaults.mainContent, ''));
     setVal('mvpFieldBookingInfo', bookingInfoText);
     setVal('mvpFieldAmountSummary', amountSummaryText);
@@ -10149,6 +10172,7 @@ async function showEmailTemplateModal(templateKey) {
             const isMvpTemplate = isMvpTemplateKey(templateKey);
             const isFieldEditorTemplate = isFieldEditorTemplateKey(templateKey);
             setMvpEditorVisible(isFieldEditorTemplate);
+            syncFieldEditorTitle(templateKey);
             if (isFieldEditorTemplate) {
                 initMvpEditorBindings();
                 loadMvpFieldsFromTemplateContent(template.content || '', templateKey);
