@@ -10461,10 +10461,14 @@ async function replaceTemplateVariables(template, booking, bankInfo = null, addi
         }
     }
 
-    if (String(templateKey || '').startsWith('mvp_')) {
+    const isFieldStyleConfirmationTemplate =
+        String(templateKey || '').startsWith('mvp_') ||
+        String(templateKey || '') === 'booking_confirmation';
+
+    if (isFieldStyleConfirmationTemplate) {
         content = sanitizeMvpMarkedSection(content, 'bookingInfo', '訂房資訊');
         content = sanitizeMvpMarkedSection(content, 'amountSummary', '費用摘要');
-        if (String(templateKey) === 'mvp_booking_confirmation') {
+        if (String(templateKey) === 'mvp_booking_confirmation' || String(templateKey) === 'booking_confirmation') {
             content = ensureMvpAmountSummaryPaymentMethod(content);
         }
     }
