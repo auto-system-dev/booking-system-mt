@@ -9493,8 +9493,8 @@ function getBookingConfirmationAdminDefaultFields() {
         title: '新訂房通知',
         greeting: '您有一筆新的訂房申請，以下是訂房詳細資訊：',
         mainContent: '',
-        bookingInfo: '訂房時間：{{bookingDate}}\n訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n住宿天數：{{nights}} 晚\n房型：{{roomType}}\n房價（每晚）：NT$ {{pricePerNight}}\n加購商品：{{addonsList}}\n加購商品總額：NT$ {{addonsTotal}}',
-        amountSummary: '總金額：NT$ {{totalAmount}}\n優惠折扣：-NT$ {{discountAmount}}\n折後總額：NT$ {{discountedTotal}}\n支付方式：{{paymentAmount}} - {{paymentMethod}}',
+        bookingInfo: '訂房時間：{{bookingDate}}\n訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n住宿天數：{{nights}} 晚\n房型：{{roomType}}\n房價（每晚）：NT$ {{pricePerNight}}',
+        amountSummary: '總金額：NT$ {{totalAmount}}\n支付方式：{{paymentAmount}} - {{paymentMethod}}',
         payNowTitle: '應付金額',
         payNowContent: 'NT$ {{finalAmount}}',
         remainingAmount: '',
@@ -9529,9 +9529,12 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     const hasMvpMarkers = source.includes('<!--MVP:title:start-->');
     const isLegacyBookingConfirmationAdminTemplate = key === 'booking_confirmation_admin'
         && hasMvpMarkers
-        && source.includes('訂房人：{{guestName}}')
-        && source.includes('旅宿聯絡資訊')
-        && !source.includes('房價（每晚）：NT$ {{pricePerNight}}');
+        && (
+            source.includes('訂房人：{{guestName}}')
+            || source.includes('旅宿聯絡資訊')
+            || source.includes('加購商品：{{addonsList}}')
+            || source.includes('優惠折扣：-NT$ {{discountAmount}}')
+        );
     const useBookingDefaults = ((key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin') && !hasMvpMarkers)
         || isLegacyBookingConfirmationAdminTemplate;
     const defaults = useBookingDefaults ? getFieldEditorDefaultFields(key) : {};
