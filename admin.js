@@ -9310,8 +9310,8 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     ${title ? `<!--MVP:title:start--><h2 style="margin:0 0 12px;color:#dc2626;">${escapeHtml(title)}</h2><!--MVP:title:end-->` : ''}
     ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
     ${renderPlainSection('bookingInfo', '取消的訂房資訊', bookingInfo)}
-    ${renderPlainSection('notice', '', notice)}
     ${renderPlainSection('reminderList', '', reminderBlock)}
+    ${renderPlainSection('notice', '', notice)}
     ${renderPlainSection('contactInfo', '', contactBlock)}
     ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:18px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
   </div>
