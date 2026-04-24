@@ -10434,8 +10434,14 @@ async function replaceTemplateVariables(template, booking, bankInfo = null, addi
                 .replace(/<p[^>]*>\s*付款方式\s*[:：][\s\S]*?<\/p>/gi, '')
                 .replace(/<li[^>]*>\s*付款方式\s*[:：][\s\S]*?<\/li>/gi, '')
                 .replace(/(^|\n)\s*付款方式\s*[:：].*(?=\n|$)/gmi, '$1');
-            const appended = `${body}<p style="margin: 0 0 10px;">付款方式：{{paymentMethod}}（{{paymentAmount}}）</p>`;
-            return `${start}${appended}${end}`;
+            const paymentRow = '<p style="margin: 0 0 10px;">付款方式：{{paymentMethod}}（{{paymentAmount}}）</p>';
+            if (/<\/div>\s*$/i.test(body)) {
+                // 放在費用摘要卡片內容內（關閉 div 之前）
+                body = body.replace(/<\/div>\s*$/i, `${paymentRow}</div>`);
+            } else {
+                body = `${body}${paymentRow}`;
+            }
+            return `${start}${body}${end}`;
         });
 
         // 清理舊模板可能殘留在費用摘要區塊外的付款方式行
