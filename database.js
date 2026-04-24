@@ -4997,8 +4997,8 @@ async function resolveTenantIdByBookingId(bookingId) {
             ? `SELECT DISTINCT tenant_id FROM bookings WHERE booking_id = $1 LIMIT 2`
             : `SELECT DISTINCT tenant_id FROM bookings WHERE booking_id = ? LIMIT 2`;
 
-        const rows = await query(sql, [normalizedBookingId]);
-        const tenantIds = (rows || [])
+        const queryResult = await query(sql, [normalizedBookingId]);
+        const tenantIds = (queryResult?.rows || [])
             .map(row => Number.parseInt(String(row.tenant_id || ''), 10))
             .filter(id => Number.isInteger(id) && id > 0);
 
