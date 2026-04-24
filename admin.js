@@ -9190,7 +9190,9 @@ function syncFieldEditorLayout(templateKey) {
     }
 }
 
-function composeMvpTemplateHtml(fields = {}) {
+function composeMvpTemplateHtml(fields = {}, templateKey = '') {
+    const key = String(templateKey || '').trim();
+    const isAdminBookingTemplate = key === 'booking_confirmation_admin';
     const title = String(fields.title || '通知').trim() || '通知';
     const greeting = String(fields.greeting || '').trim();
     const mainContent = String(fields.mainContent || '').trim();
@@ -9244,6 +9246,25 @@ function composeMvpTemplateHtml(fields = {}) {
         if (!bodyHtml) return '';
         return `<!--MVP:${key}:start--><div style="margin:14px 0;padding:12px;border:1px solid #e2e8f0;border-radius:10px;${style}"><p style="margin:0 0 10px;font-weight:700;color:#0f172a;">${heading}</p>${bodyHtml}</div><!--MVP:${key}:end-->`;
     };
+
+    if (isAdminBookingTemplate) {
+        const payNowLines = [payNowTitle, payNowContent].filter(Boolean).join('\n');
+        const contactBlock = [contactTitle, contactInfo].filter(Boolean).join('\n');
+        return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
+  <div style="max-width:640px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;padding:18px;background:#fff;">
+    <!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->
+    ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
+    ${bookingInfo ? `<!--MVP:bookingInfo:start-->${toParagraphs(bookingInfo)}<!--MVP:bookingInfo:end-->` : ''}
+    ${amountSummary ? `<!--MVP:amountSummary:start-->${toParagraphs(amountSummary)}<!--MVP:amountSummary:end-->` : ''}
+    ${payNowLines ? `<!--MVP:payNowCard:start-->${toParagraphs(payNowLines)}<!--MVP:payNowCard:end-->` : ''}
+    ${contactBlock ? `<!--MVP:contactInfo:start-->${toParagraphs(contactBlock)}<!--MVP:contactInfo:end-->` : ''}
+    ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:10px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
+  </div>
+</body></html>`;
+    }
+
     return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
@@ -9441,7 +9462,8 @@ function validateMvpEditorVariables() {
 function renderMvpTemplatePreview() {
     const frame = document.getElementById('mvpTemplatePreviewFrame');
     if (!frame) return;
-    const html = composeMvpTemplateHtml(collectMvpEditorFields());
+    const templateKey = document.getElementById('emailTemplateForm')?.dataset?.templateKey || '';
+    const html = composeMvpTemplateHtml(collectMvpEditorFields(), templateKey);
     frame.style.maxWidth = mvpPreviewMode === 'mobile' ? '390px' : '100%';
     frame.style.margin = mvpPreviewMode === 'mobile' ? '0 auto' : '0';
     frame.srcdoc = html;
@@ -9853,7 +9875,7 @@ window.resetCurrentTemplateToDefault = async function resetCurrentTemplateToDefa
         }
         if (applyFieldEditorDefaults(templateKey)) {
             try {
-                const content = composeMvpTemplateHtml(collectMvpEditorFields());
+                const content = composeMvpTemplateHtml(collectMvpEditorFields(), templateKey);
                 const payload = {
                     template_name: (document.getElementById('emailTemplateName')?.value || '').trim() || templateName,
                     subject: (document.getElementById('emailTemplateSubject')?.value || '').trim(),
@@ -10589,7 +10611,7 @@ async function showEmailTemplateModal(templateKey) {
                         const subject = subjectEl ? subjectEl.value : '';
                         
                         if (isFieldEditorTemplateKey(templateKey)) {
-                            content = composeMvpTemplateHtml(collectMvpEditorFields());
+                            content = composeMvpTemplateHtml(collectMvpEditorFields(), templateKey);
                             if (contentEl) contentEl.value = content;
                         } else if (typeof isHtmlMode !== 'undefined' && isHtmlMode && contentEl) {
                             content = contentEl.value;
@@ -11054,7 +11076,7 @@ async function saveEmailTemplate(event) {
                 return;
             }
         }
-        content = composeMvpTemplateHtml(collectMvpEditorFields());
+        content = composeMvpTemplateHtml(collectMvpEditorFields(), templateKey);
         if (textarea) textarea.value = content;
     }
     
@@ -11409,7 +11431,7 @@ async function sendTestEmail() {
             subject: subject
         };
         if (isFieldEditorTemplateKey(templateKey)) {
-            const fieldContent = composeMvpTemplateHtml(collectMvpEditorFields());
+            const fieldContent = composeMvpTemplateHtml(collectMvpEditorFields(), templateKey);
             requestData.useEditorContent = true;
             requestData.content = fieldContent;
         }
