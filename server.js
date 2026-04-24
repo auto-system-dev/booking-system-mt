@@ -10458,15 +10458,11 @@ async function replaceTemplateVariables(template, booking, bankInfo = null, addi
         }
     }
 
-    const isFieldStyleConfirmationTemplate =
-        String(templateKey || '').startsWith('mvp_') ||
-        String(templateKey || '') === 'booking_confirmation' ||
-        String(templateKey || '') === 'booking_confirmation_admin';
-
-    if (isFieldStyleConfirmationTemplate) {
+    const isMvpFieldTemplate = String(templateKey || '').startsWith('mvp_');
+    if (isMvpFieldTemplate) {
         content = sanitizeMvpMarkedSection(content, 'bookingInfo', '訂房資訊');
         content = sanitizeMvpMarkedSection(content, 'amountSummary', '費用摘要');
-        if (String(templateKey) === 'mvp_booking_confirmation' || String(templateKey) === 'booking_confirmation') {
+        if (String(templateKey) === 'mvp_booking_confirmation') {
             content = ensureMvpAmountSummaryPaymentMethod(content);
         }
     }
