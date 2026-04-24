@@ -10510,6 +10510,8 @@ async function showEmailTemplateModal(templateKey) {
 
             const isMvpTemplate = isMvpTemplateKey(templateKey);
             const isFieldEditorTemplate = isFieldEditorTemplateKey(templateKey);
+            // 必須在載入欄位與預覽前先設定，避免第一次開啟仍沿用上一次模板 key
+            form.dataset.templateKey = templateKey;
             setMvpEditorVisible(isFieldEditorTemplate);
             syncFieldEditorTitle(templateKey);
             syncFieldEditorLayout(templateKey);
@@ -10716,8 +10718,7 @@ async function showEmailTemplateModal(templateKey) {
                 console.log('✅ 內容已載入到 textarea，長度:', textarea.value.length);
             }
             
-            // 儲存 templateKey 以便儲存時使用
-            form.dataset.templateKey = templateKey;
+            // templateKey 已於上方預覽流程前設定
             
             // 設置發送測試郵件按鈕的事件監聽器（直接使用本地函數）
             const sendTestEmailBtn = document.getElementById('sendTestEmailBtn');
