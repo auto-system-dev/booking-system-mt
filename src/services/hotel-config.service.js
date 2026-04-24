@@ -6,9 +6,10 @@ function createHotelConfigService(deps) {
 
     const DEFAULT_HOTEL_SETTINGS = {
         name: 'XX旅宿',
-        phone: '02-1234-5678',
+        // Contact fields should stay empty when tenant has not configured them.
+        phone: '',
         address: '台北市信義區信義路五段7號',
-        email: 'service@hotel.com'
+        email: ''
     };
 
     async function getHotelSettingsWithFallback(tenantId = defaultTenantId) {
