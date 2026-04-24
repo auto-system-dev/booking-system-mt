@@ -9200,6 +9200,20 @@ function syncFieldEditorLayout(templateKey) {
             reminderContactTitle.textContent = '提醒與聯絡區塊';
         }
     }
+
+    const setGroupLabel = (groupId, text) => {
+        const labelEl = document.querySelector(`#${groupId} label`);
+        if (labelEl) labelEl.textContent = text;
+    };
+    if (isCancelTemplate) {
+        setGroupLabel('fieldGroupReminderTitle', '重新訂房標題');
+        setGroupLabel('fieldGroupReminderList', '重新訂房區塊');
+        setGroupLabel('fieldGroupNotice', '取消原因');
+    } else {
+        setGroupLabel('fieldGroupReminderTitle', '重要提醒標題');
+        setGroupLabel('fieldGroupReminderList', '重要提醒區塊');
+        setGroupLabel('fieldGroupNotice', '注意事項');
+    }
 }
 
 function composeMvpTemplateHtml(fields = {}, templateKey = '') {
@@ -9278,8 +9292,15 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
             const title = String(titleText || '').trim();
             const body = toParagraphs(bodyText, { firstLineBold: false });
             if (!title && !body) return '';
+            const sectionStyleMap = {
+                bookingInfo: 'background:#f8fafc;border-left:4px solid #ef4444;padding:10px 12px;border-radius:6px;',
+                notice: 'background:#fffbeb;border-left:4px solid #f59e0b;padding:10px 12px;border-radius:6px;',
+                reminderList: 'background:#f0fdf4;border-left:4px solid #22c55e;padding:10px 12px;border-radius:6px;',
+                contactInfo: 'background:#eff6ff;border-left:4px solid #3b82f6;padding:10px 12px;border-radius:6px;'
+            };
+            const sectionStyle = sectionStyleMap[markerKey] || 'padding:0;';
             const titleHtml = title ? `<p style="margin:16px 0 10px;font-weight:700;color:#0f172a;">${escapeHtml(title)}</p>` : '';
-            return `<!--MVP:${markerKey}:start-->${titleHtml}${body}<!--MVP:${markerKey}:end-->`;
+            return `<!--MVP:${markerKey}:start--><div style="margin:12px 0;${sectionStyle}">${titleHtml}${body}</div><!--MVP:${markerKey}:end-->`;
         };
 
         return `<!DOCTYPE html>
