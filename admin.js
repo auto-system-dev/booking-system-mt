@@ -9226,7 +9226,7 @@ function composeMvpTemplateHtml(fields = {}) {
     ${wrapSection('amountSummary', '費用摘要', toParagraphs(stripDuplicatedHeadingLine('費用摘要', amountSummary)), 'background:#eff6ff;border-color:#bfdbfe;')}
     ${(payNowTitle || payNowContent) ? `<!--MVP:payNowCard:start--><div style="margin:14px 0;padding:12px;border:1px solid #93c5fd;border-radius:10px;background:#dbeafe;"><p style="margin:0 0 6px;font-weight:700;color:#1d4ed8;">${escapeHtml(payNowTitle)}</p><p style="margin:0;font-weight:700;font-size:24px;color:#1e3a8a;">${escapeHtml(payNowContent)}</p></div><!--MVP:payNowCard:end-->` : ''}
     ${(remainingTitle || remainingContent) ? `<!--MVP:remainingCard:start--><div style="margin:14px 0;padding:12px;border:1px solid #86efac;border-radius:10px;background:#dcfce7;"><p style="margin:0 0 8px;font-weight:700;color:#15803d;">${escapeHtml(remainingTitle)}</p><div style="color:#166534;font-weight:700;font-size:22px;">${toParagraphs(remainingContent)}</div></div><!--MVP:remainingCard:end-->` : ''}
-    ${(bankInfo || bankIntro) ? `<!--MVP:bankInfo:start--><div style="margin:14px 0;padding:12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;"><p style="margin:0 0 8px;font-weight:700;color:#92400e;">${escapeHtml(bankTitle)}</p>${bankIntro ? `<p style="margin:0 0 10px;color:#92400e;">${escapeHtml(bankIntro)}</p>` : ''}${toParagraphs(bankInfo)}</div><!--MVP:bankInfo:end-->` : ''}
+    ${(bankInfo || bankIntro) ? `<!--MVP:bankInfo:start--><div style="margin:14px 0;padding:12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;"><p style="margin:0 0 8px;font-weight:700;color:#92400e;">${escapeHtml(bankTitle)}</p>${bankIntro ? `<!--MVP:bankIntro:start-->${toParagraphs(bankIntro)}<!--MVP:bankIntro:end-->` : ''}${bankInfo ? `<!--MVP:bankDetails:start-->${toParagraphs(bankInfo)}<!--MVP:bankDetails:end-->` : ''}</div><!--MVP:bankInfo:end-->` : ''}
     ${reminderList ? `<!--MVP:reminderList:start--><div style="margin:14px 0;padding:10px 12px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;"><p style="margin:0 0 8px;font-weight:700;color:#9a3412;">${escapeHtml(reminderTitle)}</p><ul style="margin:0;padding-left:18px;">${toList(reminderList)}</ul></div><!--MVP:reminderList:end-->` : ''}
     ${notice ? `<!--MVP:notice:start--><div style="margin:14px 0;padding:10px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;"><p style="margin:0 0 8px;font-weight:700;color:#854d0e;">注意事項</p>${toParagraphs(notice)}</div><!--MVP:notice:end-->` : ''}
     ${(contactInfo || contactTitle) ? `<!--MVP:contactInfo:start--><div style="margin:14px 0;padding:12px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;"><p style="margin:0 0 10px;font-weight:700;color:#0f172a;">${escapeHtml(contactTitle)}</p>${toParagraphs(contactInfo)}</div><!--MVP:contactInfo:end-->` : ''}
@@ -9294,8 +9294,12 @@ function parseMvpTemplateFieldsFromHtml(html) {
         const payNowLines = splitLines(extractMvpMarkedSection(source, 'payNowCard'));
         const remainingLines = splitLines(extractMvpMarkedSection(source, 'remainingCard'));
         const bankLines = splitLines(extractMvpMarkedSection(source, 'bankInfo'));
+        const bankIntroMarked = extractMvpMarkedSection(source, 'bankIntro');
+        const bankDetailsMarked = extractMvpMarkedSection(source, 'bankDetails');
         const reminderLines = splitLines(extractMvpMarkedSection(source, 'reminderList'));
         const contactLines = splitLines(extractMvpMarkedSection(source, 'contactInfo'));
+        const bankIntroValue = bankIntroMarked || (bankLines[1] || '');
+        const bankInfoValue = bankDetailsMarked || bankLines.slice(2).join('\n').trim();
         return {
             title: extractMvpMarkedSection(source, 'title'),
             greeting: extractMvpMarkedSection(source, 'greeting'),
@@ -9309,8 +9313,8 @@ function parseMvpTemplateFieldsFromHtml(html) {
             remainingContent: remainingLines.slice(1).join('\n').trim(),
             notice: extractMvpMarkedSection(source, 'notice'),
             bankTitle: bankLines[0] || '',
-            bankIntro: bankLines[1] || '',
-            bankInfo: bankLines.slice(2).join('\n').trim(),
+            bankIntro: bankIntroValue,
+            bankInfo: bankInfoValue,
             reminderTitle: reminderLines[0] || '',
             reminderList: reminderLines.slice(1).join('\n').trim(),
             contactTitle: contactLines[0] || '',
