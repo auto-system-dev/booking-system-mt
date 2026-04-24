@@ -9128,7 +9128,7 @@ async function saveWeekdaySettings() {
 
 let currentEmailTemplateScope = 'standard';
 const MVP_TEMPLATE_KEY_PREFIX = 'mvp_';
-const FIELD_EDITOR_STANDARD_TEMPLATE_KEYS = new Set(['booking_confirmation', 'booking_confirmation_admin']);
+const FIELD_EDITOR_STANDARD_TEMPLATE_KEYS = new Set(['booking_confirmation', 'booking_confirmation_admin', 'cancel_notification']);
 const MVP_ALLOWED_VARIABLES = new Set([
     'guestName', 'bookingId', 'checkInDate', 'checkOutDate', 'roomType',
     'totalAmount', 'discountAmount', 'discountedTotal', 'finalAmount', 'remainingAmount',
@@ -9136,7 +9136,7 @@ const MVP_ALLOWED_VARIABLES = new Set([
     'accountName', 'bookingIdLast5', 'hotelPhone', 'hotelEmail', 'officialLineUrl', 'hotelName',
     'paymentMethod', 'paymentAmount', 'pricePerNight', 'addonsList', 'addonsTotal',
     'guestPhone', 'guestEmail', 'specialRequest',
-    'bookingDate', 'nights'
+    'bookingDate', 'nights', 'bookingUrl'
 ]);
 let mvpPreviewMode = 'desktop';
 let mvpLastFocusedFieldId = '';
@@ -9160,6 +9160,8 @@ function syncFieldEditorTitle(templateKey) {
         titleEl.textContent = '正式模板欄位式編輯';
     } else if (key === 'booking_confirmation_admin') {
         titleEl.textContent = '管理員模板欄位式編輯';
+    } else if (key === 'cancel_notification') {
+        titleEl.textContent = '取消通知欄位式編輯';
     } else {
         titleEl.textContent = '欄位式編輯';
     }
@@ -9168,6 +9170,7 @@ function syncFieldEditorTitle(templateKey) {
 function syncFieldEditorLayout(templateKey) {
     const key = String(templateKey || '').trim();
     const isAdminBookingTemplate = key === 'booking_confirmation_admin';
+    const isCancelTemplate = key === 'cancel_notification';
     const setVisible = (id, visible) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -9175,18 +9178,27 @@ function syncFieldEditorLayout(templateKey) {
     };
 
     // 預設顯示全部欄位；管理員模板則對齊截圖版型，只保留必要區塊。
-    setVisible('fieldSectionBank', !isAdminBookingTemplate);
-    setVisible('fieldSectionClosing', !isAdminBookingTemplate);
-    setVisible('fieldGroupRemainingTitle', !isAdminBookingTemplate);
-    setVisible('fieldGroupRemainingContent', !isAdminBookingTemplate);
+    setVisible('fieldSectionBank', !isAdminBookingTemplate && !isCancelTemplate);
+    setVisible('fieldSectionClosing', !isAdminBookingTemplate && !isCancelTemplate);
+    setVisible('fieldGroupRemainingTitle', !isAdminBookingTemplate && !isCancelTemplate);
+    setVisible('fieldGroupRemainingContent', !isAdminBookingTemplate && !isCancelTemplate);
     setVisible('fieldGroupReminderTitle', !isAdminBookingTemplate);
     setVisible('fieldGroupReminderList', !isAdminBookingTemplate);
     setVisible('fieldGroupNotice', !isAdminBookingTemplate);
     setVisible('fieldGroupContactTitle', !isAdminBookingTemplate);
+    setVisible('fieldGroupAmountSummary', !isCancelTemplate);
+    setVisible('fieldGroupPayNowTitle', !isCancelTemplate);
+    setVisible('fieldGroupPayNowContent', !isCancelTemplate);
 
     const reminderContactTitle = document.getElementById('fieldSectionReminderContactTitle');
     if (reminderContactTitle) {
-        reminderContactTitle.textContent = isAdminBookingTemplate ? '客戶聯絡資訊區塊' : '提醒與聯絡區塊';
+        if (isAdminBookingTemplate) {
+            reminderContactTitle.textContent = '客戶聯絡資訊區塊';
+        } else if (isCancelTemplate) {
+            reminderContactTitle.textContent = '取消原因與聯絡區塊';
+        } else {
+            reminderContactTitle.textContent = '提醒與聯絡區塊';
+        }
     }
 }
 
@@ -9231,6 +9243,9 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
             bookingInfo: '訂房資訊',
             amountSummary: '費用摘要'
         };
+        if (key === 'cancel_notification') {
+            sectionTitleMap.bookingInfo = '取消的訂房資訊';
+        }
         const useSectionTitle = !!sectionTitleMap[markerKey];
         const body = toParagraphs(text, { firstLineBold: !useSectionTitle });
         if (!body) return '';
@@ -9569,10 +9584,39 @@ function getBookingConfirmationAdminDefaultFields() {
     };
 }
 
+function getCancelNotificationDefaultFields() {
+    return {
+        title: '⚠️ 訂房已自動取消',
+        greeting: '親愛的 {{guestName}}，\n很抱歉通知您，由於超過匯款保留期限，您的訂房已自動取消。以下是取消的訂房資訊：',
+        mainContent: '',
+        bookingInfo: '訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n住宿天數：{{nights}} 晚\n房型：{{roomType}}\n訂房日期：{{bookingDate}}\n應付金額：NT$ {{finalAmount}}',
+        amountSummary: '',
+        payNowTitle: '',
+        payNowContent: '',
+        remainingAmount: '',
+        remainingTitle: '',
+        remainingContent: '',
+        notice: '📌 取消原因\n此訂房因超過匯款保留期限（{{bookingDate}} 起算），且未在期限內完成付款，系統已自動取消。',
+        bankTitle: '',
+        bankIntro: '',
+        bankInfo: '',
+        reminderTitle: '💡 如需重新訂房',
+        reminderList: '如果您仍希望預訂，歡迎重新進行訂房。如有任何疑問，請隨時與我們聯繫。',
+        contactTitle: '📞 聯絡方式',
+        contactInfo: '線上訂房：{{bookingUrl}}\nEmail：{{hotelEmail}}\n電話：{{hotelPhone}}\n官方 LINE：{{officialLineUrl}}',
+        closingMessage: '',
+        footer: '',
+        systemFooter: '此為系統自動發送郵件，請勿直接回覆'
+    };
+}
+
 function getFieldEditorDefaultFields(templateKey) {
     const key = String(templateKey || '').trim();
     if (key === 'booking_confirmation_admin') {
         return getBookingConfirmationAdminDefaultFields();
+    }
+    if (key === 'cancel_notification') {
+        return getCancelNotificationDefaultFields();
     }
     return getMvpBookingConfirmationDefaultFields();
 }
@@ -9593,7 +9637,7 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
             || source.includes('<!--MVP:bankInfo:start-->')
             || source.includes('<!--MVP:reminderList:start-->')
         );
-    const useBookingDefaults = ((key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin') && !hasMvpMarkers)
+    const useBookingDefaults = ((key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin' || key === 'cancel_notification') && !hasMvpMarkers)
         || isLegacyBookingConfirmationAdminTemplate;
     const defaults = useBookingDefaults ? getFieldEditorDefaultFields(key) : {};
     const pick = (parsedValue, defaultValue, fallbackValue = '') => {
@@ -9615,15 +9659,17 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
     let titleText = pick(parsed.title, defaults.title, 'MVP 測試通知');
     let greetingText = pick(parsed.greeting, defaults.greeting, '親愛的 {{guestName}}，');
-    if (key === 'booking_confirmation' || key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin') {
+    if (key === 'booking_confirmation' || key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin' || key === 'cancel_notification') {
         if (!titleText || /mvp\s*測試通知/i.test(String(titleText))) {
-            titleText = defaults.title || (key === 'booking_confirmation_admin' ? '新訂房通知' : '訂房確認成功');
+            titleText = defaults.title || (key === 'booking_confirmation_admin' ? '新訂房通知' : (key === 'cancel_notification' ? '⚠️ 訂房已自動取消' : '訂房確認成功'));
         }
         titleText = String(titleText || '').replace(/^🔔\s*/, '').trim();
         if (!greetingText || /感謝您的預訂/.test(String(greetingText))) {
             greetingText = defaults.greeting || (key === 'booking_confirmation_admin'
                 ? '您有一筆新的訂房申請，以下是訂房詳細資訊：'
-                : '親愛的 {{guestName}}，\n您的訂房已成功確認，以下是您的訂房資訊：');
+                : (key === 'cancel_notification'
+                    ? '親愛的 {{guestName}}，\n很抱歉通知您，由於超過匯款保留期限，您的訂房已自動取消。以下是取消的訂房資訊：'
+                    : '親愛的 {{guestName}}，\n您的訂房已成功確認，以下是您的訂房資訊：'));
         }
     }
     setVal('mvpFieldTitle', titleText);
@@ -9878,7 +9924,7 @@ window.resetCurrentTemplateToDefault = async function resetCurrentTemplateToDefa
     const applyFieldEditorDefaults = (key) => {
         const normalizedKey = String(key || '').trim();
         if (!isFieldEditorTemplateKey(normalizedKey)) return false;
-        if (normalizedKey !== 'booking_confirmation' && normalizedKey !== 'mvp_booking_confirmation' && normalizedKey !== 'booking_confirmation_admin') {
+        if (normalizedKey !== 'booking_confirmation' && normalizedKey !== 'mvp_booking_confirmation' && normalizedKey !== 'booking_confirmation_admin' && normalizedKey !== 'cancel_notification') {
             return false;
         }
         const defaults = getFieldEditorDefaultFields(normalizedKey);
