@@ -9486,7 +9486,7 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     const source = String(content || '');
     const key = String(templateKey || '').trim();
     const hasMvpMarkers = source.includes('<!--MVP:title:start-->');
-    const useBookingDefaults = (key === 'mvp_booking_confirmation' || key === 'booking_confirmation') && !hasMvpMarkers;
+    const useBookingDefaults = key === 'mvp_booking_confirmation' && !hasMvpMarkers;
     const defaults = useBookingDefaults ? getMvpBookingConfirmationDefaultFields() : {};
     const pick = (parsedValue, defaultValue, fallbackValue = '') => {
         if (useBookingDefaults) return defaultValue || parsedValue || fallbackValue;
