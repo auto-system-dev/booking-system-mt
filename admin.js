@@ -9165,6 +9165,31 @@ function syncFieldEditorTitle(templateKey) {
     }
 }
 
+function syncFieldEditorLayout(templateKey) {
+    const key = String(templateKey || '').trim();
+    const isAdminBookingTemplate = key === 'booking_confirmation_admin';
+    const setVisible = (id, visible) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.display = visible ? '' : 'none';
+    };
+
+    // 預設顯示全部欄位；管理員模板則對齊截圖版型，只保留必要區塊。
+    setVisible('fieldSectionBank', !isAdminBookingTemplate);
+    setVisible('fieldSectionClosing', !isAdminBookingTemplate);
+    setVisible('fieldGroupRemainingTitle', !isAdminBookingTemplate);
+    setVisible('fieldGroupRemainingContent', !isAdminBookingTemplate);
+    setVisible('fieldGroupReminderTitle', !isAdminBookingTemplate);
+    setVisible('fieldGroupReminderList', !isAdminBookingTemplate);
+    setVisible('fieldGroupNotice', !isAdminBookingTemplate);
+    setVisible('fieldGroupContactTitle', !isAdminBookingTemplate);
+
+    const reminderContactTitle = document.getElementById('fieldSectionReminderContactTitle');
+    if (reminderContactTitle) {
+        reminderContactTitle.textContent = isAdminBookingTemplate ? '客戶聯絡資訊區塊' : '提醒與聯絡區塊';
+    }
+}
+
 function composeMvpTemplateHtml(fields = {}) {
     const title = String(fields.title || '通知').trim() || '通知';
     const greeting = String(fields.greeting || '').trim();
@@ -10298,6 +10323,7 @@ async function showEmailTemplateModal(templateKey) {
             const isFieldEditorTemplate = isFieldEditorTemplateKey(templateKey);
             setMvpEditorVisible(isFieldEditorTemplate);
             syncFieldEditorTitle(templateKey);
+            syncFieldEditorLayout(templateKey);
             if (isFieldEditorTemplate) {
                 initMvpEditorBindings();
                 loadMvpFieldsFromTemplateContent(template.content || '', templateKey);

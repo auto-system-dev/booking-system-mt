@@ -2966,7 +2966,7 @@
                             <h3 id="fieldEditorTitle" style="display:none;margin:0;font-size:16px;color:#1e3a8a;">欄位式編輯</h3>
                             <button type="button" class="btn-edit" id="fieldEditorRestoreBtn" style="height:32px;padding:0 14px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;" onclick="window.resetCurrentTemplateToDefault && window.resetCurrentTemplateToDefault()">還原郵件範本</button>
                         </div>
-                        <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 8px;">
+                        <div id="fieldVarButtons" style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 8px;">
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{guestName}}')">姓名</button>
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{bookingId}}')">訂單編號</button>
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{bookingDate}}')">訂房日期</button>
@@ -2987,7 +2987,7 @@
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{hotelEmail}}')">Email</button>
                         </div>
                         <div style="display:grid;grid-template-columns:1fr;gap:12px;">
-                            <div style="border:1px solid #93c5fd; border-radius:10px; background:#f0f9ff; padding:10px;">
+                            <div id="fieldSectionBasic" style="border:1px solid #93c5fd; border-radius:10px; background:#f0f9ff; padding:10px;">
                                 <div style="font-size:13px; font-weight:700; color:#1e3a8a; margin-bottom:8px;">基本資訊</div>
                                 <div style="display:grid;grid-template-columns:1fr;gap:12px;">
                                     <div class="form-group" style="margin:0;">
@@ -3000,14 +3000,14 @@
                                     </div>
                                 </div>
                             </div>
-                            <div style="border:1px solid #93c5fd; border-radius:10px; background:#f0f9ff; padding:10px;">
+                            <div id="fieldSectionBookingAmount" style="border:1px solid #93c5fd; border-radius:10px; background:#f0f9ff; padding:10px;">
                                 <div style="font-size:13px; font-weight:700; color:#1e3a8a; margin-bottom:8px;">訂房與金額區塊</div>
                                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                                    <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                    <div id="fieldGroupBookingInfo" class="form-group" style="margin:0; grid-column: 1 / -1;">
                                         <label>訂房資訊區塊</label>
                                         <textarea id="mvpFieldBookingInfo" rows="4" placeholder="例如：訂單編號：{{bookingId}}"></textarea>
                                     </div>
-                                    <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                    <div id="fieldGroupAmountSummary" class="form-group" style="margin:0; grid-column: 1 / -1;">
                                         <label>費用摘要區塊</label>
                                         <textarea id="mvpFieldAmountSummary" rows="4" placeholder="例如：訂房金額：NT$ {{totalAmount}}"></textarea>
                                     </div>
@@ -3019,17 +3019,17 @@
                                         <label>應付金額卡片內容</label>
                                         <input type="text" id="mvpFieldPayNowContent" placeholder="例如：NT$ {{finalAmount}}">
                                     </div>
-                                    <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                    <div id="fieldGroupRemainingTitle" class="form-group" style="margin:0; grid-column: 1 / -1;">
                                         <label>尾款卡片標題</label>
                                         <input type="text" id="mvpFieldRemainingTitle" placeholder="例如：💡 剩餘尾款">
                                     </div>
-                                    <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                    <div id="fieldGroupRemainingContent" class="form-group" style="margin:0; grid-column: 1 / -1;">
                                         <label>尾款卡片內容</label>
                                         <textarea id="mvpFieldRemainingContent" rows="3" placeholder="例如：剩餘尾款：NT$ {{remainingAmount}}"></textarea>
                                     </div>
                                 </div>
                             </div>
-                            <div style="border:1px solid #93c5fd; border-radius:10px; background:#f0f9ff; padding:10px;">
+                            <div id="fieldSectionBank" style="border:1px solid #93c5fd; border-radius:10px; background:#f0f9ff; padding:10px;">
                                 <div style="font-size:13px; font-weight:700; color:#1e3a8a; margin-bottom:8px;">匯款區塊</div>
                                 <div style="display:grid;grid-template-columns:1fr;gap:12px;">
                                     <div class="form-group" style="margin:0;">
@@ -3046,22 +3046,22 @@
                                     </div>
                                 </div>
                             </div>
-                            <div style="border:1px solid #93c5fd; border-radius:10px; background:#f0f9ff; padding:10px;">
-                                <div style="font-size:13px; font-weight:700; color:#1e3a8a; margin-bottom:8px;">提醒與聯絡區塊</div>
+                            <div id="fieldSectionReminderContact" style="border:1px solid #93c5fd; border-radius:10px; background:#f0f9ff; padding:10px;">
+                                <div id="fieldSectionReminderContactTitle" style="font-size:13px; font-weight:700; color:#1e3a8a; margin-bottom:8px;">提醒與聯絡區塊</div>
                                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                                    <div class="form-group" style="margin:0;">
+                                    <div id="fieldGroupReminderTitle" class="form-group" style="margin:0;">
                                         <label>重要提醒標題</label>
                                         <input type="text" id="mvpFieldReminderTitle" placeholder="例如：重要提醒">
                                     </div>
-                                    <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                    <div id="fieldGroupReminderList" class="form-group" style="margin:0; grid-column: 1 / -1;">
                                         <label>重要提醒區塊</label>
                                         <textarea id="mvpFieldReminderList" rows="4" placeholder="每行一點提醒內容"></textarea>
                                     </div>
-                                    <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                    <div id="fieldGroupNotice" class="form-group" style="margin:0; grid-column: 1 / -1;">
                                         <label>注意事項</label>
                                         <textarea id="mvpFieldNotice" rows="3" placeholder="可選填，支援變數"></textarea>
                                     </div>
-                                    <div class="form-group" style="margin:0; grid-column: 1 / -1;">
+                                    <div id="fieldGroupContactTitle" class="form-group" style="margin:0; grid-column: 1 / -1;">
                                         <label>聯絡資訊標題</label>
                                         <input type="text" id="mvpFieldContactTitle" placeholder="例如：聯絡資訊">
                                     </div>
@@ -3071,7 +3071,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div style="border:1px solid #93c5fd; border-radius:10px; background:#f0f9ff; padding:10px;">
+                            <div id="fieldSectionClosing" style="border:1px solid #93c5fd; border-radius:10px; background:#f0f9ff; padding:10px;">
                                 <div style="font-size:13px; font-weight:700; color:#1e3a8a; margin-bottom:8px;">結尾區塊</div>
                                 <div style="display:grid;grid-template-columns:1fr;gap:12px;">
                                     <div class="form-group" style="margin:0;">
