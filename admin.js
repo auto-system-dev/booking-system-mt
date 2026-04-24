@@ -9768,7 +9768,31 @@ window.resetCurrentTemplateToDefault = async function resetCurrentTemplateToDefa
             return;
         }
         if (applyFieldEditorDefaults(templateKey)) {
-            await appAlert('✅ 已還原為欄位式預設值（請按「儲存變更」套用）');
+            try {
+                const content = composeMvpTemplateHtml(collectMvpEditorFields());
+                const payload = {
+                    template_name: (document.getElementById('emailTemplateName')?.value || '').trim() || templateName,
+                    subject: (document.getElementById('emailTemplateSubject')?.value || '').trim(),
+                    content: content,
+                    is_enabled: document.getElementById('emailTemplateEnabled')?.checked ? 1 : 0
+                };
+                const saveResponse = await adminFetch(buildEmailTemplateApiUrl(`/${templateKey}`), {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const saveResult = await saveResponse.json();
+                if (!saveResult.success) {
+                    showError('還原後儲存失敗：' + (saveResult.message || '未知錯誤'));
+                    return;
+                }
+            } catch (saveErr) {
+                showError('還原後儲存失敗：' + (saveErr.message || '未知錯誤'));
+                return;
+            }
+            await appAlert('✅ 已還原為欄位式預設值');
+            await showEmailTemplateModal(templateKey);
+            await loadEmailTemplates();
             return;
         }
     }
