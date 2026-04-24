@@ -10412,7 +10412,8 @@ async function replaceTemplateVariables(template, booking, bankInfo = null, addi
         return source.replace(sectionRegex, (_, start, sectionBody, end) => {
             let body = String(sectionBody || '');
             body = body
-                .replace(new RegExp(`<p[^>]*>\\s*${escapedHeading}\\s*[:：]?\\s*<\\/p>`, 'gi'), '')
+                // 保留區塊主標題（通常含 font-weight 樣式），僅清理內容段落重覆標題
+                .replace(new RegExp(`<p(?![^>]*font-weight)[^>]*>\\s*${escapedHeading}\\s*[:：]?\\s*<\\/p>`, 'gi'), '')
                 .replace(new RegExp(`<li[^>]*>\\s*${escapedHeading}\\s*[:：]?\\s*<\\/li>`, 'gi'), '')
                 .replace(new RegExp(`(^|\\n)\\s*${escapedHeading}\\s*[:：]?\\s*(?=\\n|$)`, 'gmi'), '$1')
                 .replace(/\n{3,}/g, '\n\n');
@@ -10431,7 +10432,7 @@ async function replaceTemplateVariables(template, booking, bankInfo = null, addi
             if (/付款方式\s*[:：]/.test(body) || /\{\{\s*paymentMethod\s*\}\}/i.test(body)) {
                 return `${start}${body}${end}`;
             }
-            const appended = `${body}<p style="margin: 0 0 10px;">付款方式：{{paymentMethod}}</p>`;
+            const appended = `${body}<p style="margin: 0 0 10px;">付款方式：{{paymentMethod}}（{{paymentAmount}}）</p>`;
             return `${start}${appended}${end}`;
         });
     };
