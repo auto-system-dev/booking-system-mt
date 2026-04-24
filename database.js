@@ -4988,6 +4988,33 @@ async function getBookingById(bookingId, tenantId) {
     }
 }
 
+async function resolveTenantIdByBookingId(bookingId) {
+    try {
+        const normalizedBookingId = String(bookingId || '').trim();
+        if (!normalizedBookingId) return null;
+
+        const sql = usePostgreSQL
+            ? `SELECT DISTINCT tenant_id FROM bookings WHERE booking_id = $1 LIMIT 2`
+            : `SELECT DISTINCT tenant_id FROM bookings WHERE booking_id = ? LIMIT 2`;
+
+        const rows = await query(sql, [normalizedBookingId]);
+        const tenantIds = (rows || [])
+            .map(row => Number.parseInt(String(row.tenant_id || ''), 10))
+            .filter(id => Number.isInteger(id) && id > 0);
+
+        if (tenantIds.length === 1) {
+            return tenantIds[0];
+        }
+        if (tenantIds.length > 1) {
+            throw new Error(`booking_id 對應到多個 tenant，無法判定租戶：${normalizedBookingId}`);
+        }
+        return null;
+    } catch (error) {
+        console.error('❌ 依 booking_id 解析 tenant_id 失敗:', error.message);
+        throw error;
+    }
+}
+
 // 根據 Email 查詢訂房記錄
 async function getBookingsByEmail(email, bookingMode, tenantId) {
     try {
@@ -11008,6 +11035,7 @@ module.exports = {
     updateEmailStatus,
     getAllBookings,
     getBookingById,
+    resolveTenantIdByBookingId,
     getBookingsByEmail,
     getBookingsByLineUserId,
     updateBooking,

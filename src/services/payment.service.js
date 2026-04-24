@@ -480,14 +480,19 @@ function createPaymentService(deps) {
             result: 'processing'
         });
 
-        const tenantId = context.tenantId || context.subdomainTenantId;
-        const booking = await db.getBookingById(bookingId, tenantId);
+        let tenantId = context.tenantId || context.subdomainTenantId;
+        if (!tenantId && typeof db.resolveTenantIdByBookingId === 'function') {
+            tenantId = await db.resolveTenantIdByBookingId(bookingId);
+        }
+
+        const booking = tenantId ? await db.getBookingById(bookingId, tenantId) : null;
         if (!booking) {
             logPaymentEvent('error', 'ALERT_PAYMENT_CALLBACK_BOOKING_NOT_FOUND', {
                 requestId: context.requestId || null,
                 route: '/api/payment/return',
                 bookingId: bookingId,
                 tradeNo: context.tradeNo || null,
+                tenantId: tenantId || null,
                 result: 'failed'
             });
             throw new Error(`找不到訂房記錄: ${bookingId}`);
