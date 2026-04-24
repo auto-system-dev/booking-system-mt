@@ -9329,8 +9329,8 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
     ${renderPlainSection('bookingInfo', '取消的訂房資訊', bookingInfo)}
     ${renderPlainSection('notice', noticeTitle, notice)}
-    ${renderPlainSection('reminderList', '', reminderBlock)}
-    ${renderPlainSection('contactInfo', '', contactBlock)}
+    ${renderPlainSection('reminderList', reminderTitle, reminderList)}
+    ${renderPlainSection('contactInfo', contactTitle, contactInfo)}
     ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:18px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
   </div>
 </body></html>`;

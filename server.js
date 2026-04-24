@@ -11215,10 +11215,19 @@ ${htmlEnd}`;
     }
     // 訂房網址變數：供模板中直接使用 {{bookingUrl}}
     if (!variables['{{bookingUrl}}']) {
-        // 優先使用環境變數，其次使用系統設定，最後使用預設值
-        const bookingUrl = process.env.FRONTEND_URL || 
-                          await db.getSetting('frontend_url', emailTenantId) || 
-                          (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'https://your-booking-site.com');
+        // 優先使用租戶子網域，其次使用環境變數/系統設定
+        const baseDomain = String(process.env.PUBLIC_BASE_DOMAIN || '').trim().toLowerCase();
+        const tenantForBookingUrl = await db.getTenantById(emailTenantId);
+        const tenantCode = String(tenantForBookingUrl?.code || '').trim().toLowerCase().replace(/_/g, '-');
+        let bookingUrl = '';
+        if (baseDomain && tenantCode) {
+            bookingUrl = `https://${tenantCode}.${baseDomain}`;
+        }
+        if (!bookingUrl) {
+            bookingUrl = process.env.FRONTEND_URL ||
+                await db.getSetting('frontend_url', emailTenantId) ||
+                (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'https://your-booking-site.com');
+        }
         variables['{{bookingUrl}}'] = bookingUrl;
     }
     // 官方 LINE 連結：供模板中直接使用 {{officialLineUrl}}
