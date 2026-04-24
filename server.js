@@ -7068,16 +7068,16 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
         
         // 生成測試郵件內容
         let testContent, testSubject;
-        if (isMvpTemplate) {
-            // MVP 測試信強制使用當前模板內容（避免回讀資料庫造成與預覽不一致）
+        if (isFieldStyleConfirmationTemplate) {
+            // 欄位式模板（MVP/正式訂房確認）強制使用當前模板內容（避免回讀資料庫造成與預覽不一致）
             try {
                 const testResult = await replaceTemplateVariables(template, mockBooking, testBankInfo, additionalData);
                 testContent = testResult.content;
                 testSubject = testResult.subject;
-                console.log('✅ MVP 測試信使用當前編輯器內容生成（replaceTemplateVariables）');
-            } catch (mvpError) {
-                console.error('❌ MVP 測試信內容生成失敗:', mvpError);
-                throw mvpError;
+                console.log('✅ 欄位式模板測試信使用當前編輯器內容生成（replaceTemplateVariables）');
+            } catch (fieldEditorError) {
+                console.error('❌ 欄位式模板測試信內容生成失敗:', fieldEditorError);
+                throw fieldEditorError;
             }
         } else {
             // 非 MVP 模板維持原有流程
