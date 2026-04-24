@@ -101,7 +101,8 @@ function createPaymentController(deps) {
                 await paymentService.handleCardPaymentSuccessByCallback(paymentResult.merchantTradeNo, {
                     requestId,
                     tradeNo: paymentResult.tradeNo,
-                    tenantId: req.tenantId
+                    tenantId: req.tenantId,
+                    subdomainTenantId: req.subdomainTenantId
                 });
             }
 
@@ -172,6 +173,14 @@ function createPaymentController(deps) {
             });
 
             if (paymentResult.rtnCode === '1') {
+                // 補償機制：若綠界後端回調未成功，使用結果頁請求再執行一次（具冪等性）
+                await paymentService.handleCardPaymentSuccessByCallback(paymentResult.merchantTradeNo, {
+                    requestId,
+                    tradeNo: paymentResult.tradeNo,
+                    tenantId: req.tenantId,
+                    subdomainTenantId: req.subdomainTenantId
+                });
+
                 logPaymentEvent('info', 'payment.result.render_success', {
                     requestId,
                     route,
