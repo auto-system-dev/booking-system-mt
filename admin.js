@@ -9227,12 +9227,13 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
             .join('');
     };
     const renderBlock = (markerKey, text) => {
-        const body = toParagraphs(text, { firstLineBold: false });
-        if (!body) return '';
         const sectionTitleMap = {
             bookingInfo: '訂房資訊',
             amountSummary: '費用摘要'
         };
+        const useSectionTitle = !!sectionTitleMap[markerKey];
+        const body = toParagraphs(text, { firstLineBold: !useSectionTitle });
+        if (!body) return '';
         const sectionTitle = sectionTitleMap[markerKey]
             ? `<p style="margin: 0 0 10px;font-weight:700;">${sectionTitleMap[markerKey]}</p>`
             : '';
@@ -9615,6 +9616,7 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
         if (!titleText || /mvp\s*測試通知/i.test(String(titleText))) {
             titleText = defaults.title || (key === 'booking_confirmation_admin' ? '新訂房通知' : '訂房確認成功');
         }
+        titleText = String(titleText || '').replace(/^🔔\s*/, '').trim();
         if (!greetingText || /感謝您的預訂/.test(String(greetingText))) {
             greetingText = defaults.greeting || (key === 'booking_confirmation_admin'
                 ? '您有一筆新的訂房申請，以下是訂房詳細資訊：'
