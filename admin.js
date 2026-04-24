@@ -9527,7 +9527,13 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     const source = String(content || '');
     const key = String(templateKey || '').trim();
     const hasMvpMarkers = source.includes('<!--MVP:title:start-->');
-    const useBookingDefaults = (key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin') && !hasMvpMarkers;
+    const isLegacyBookingConfirmationAdminTemplate = key === 'booking_confirmation_admin'
+        && hasMvpMarkers
+        && source.includes('訂房人：{{guestName}}')
+        && source.includes('旅宿聯絡資訊')
+        && !source.includes('房價（每晚）：NT$ {{pricePerNight}}');
+    const useBookingDefaults = ((key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin') && !hasMvpMarkers)
+        || isLegacyBookingConfirmationAdminTemplate;
     const defaults = useBookingDefaults ? getFieldEditorDefaultFields(key) : {};
     const pick = (parsedValue, defaultValue, fallbackValue = '') => {
         if (useBookingDefaults) return defaultValue || parsedValue || fallbackValue;
