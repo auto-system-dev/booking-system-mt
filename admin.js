@@ -11296,10 +11296,14 @@ async function sendTestEmail() {
         // 不發送 content，讓後端直接從資料庫讀取完整的模板內容
         const requestData = {
             email: email,
-            useEditorContent: false, // 設為 false，讓後端使用資料庫中的最新完整內容
+            useEditorContent: false, // 預設走資料庫模板
             subject: subject
-            // 不發送 content，讓後端直接從資料庫讀取完整的模板內容（7873 字元）
         };
+        if (isFieldEditorTemplateKey(templateKey)) {
+            const fieldContent = composeMvpTemplateHtml(collectMvpEditorFields());
+            requestData.useEditorContent = true;
+            requestData.content = fieldContent;
+        }
         
         console.log('📧 測試郵件：不發送編輯器內容，讓後端直接從資料庫讀取完整模板');
         
@@ -11312,10 +11316,10 @@ async function sendTestEmail() {
         console.log('📧 發送測試郵件請求:', {
             templateKey,
             email,
-            useEditorContent: false,
+            useEditorContent: requestData.useEditorContent,
             subject,
             hasBlockSettings: !!requestData.blockSettings,
-            note: '不發送 content，讓後端直接從資料庫讀取完整的模板內容'
+            note: requestData.content ? '已發送欄位式 content' : '不發送 content，讓後端直接從資料庫讀取完整模板內容'
         });
         
         const response = await adminFetch(buildEmailTemplateApiUrl(`/${templateKey}/test`), {
