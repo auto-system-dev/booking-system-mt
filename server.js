@@ -6917,7 +6917,9 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
         
         // MVP 模板一律優先採用編輯器內容（若有提供），避免預覽與測試信不一致
         const isFieldStyleConfirmationTemplate =
-            isMvpTemplate || String(key || '') === 'booking_confirmation';
+            isMvpTemplate ||
+            String(key || '') === 'booking_confirmation' ||
+            String(key || '') === 'booking_confirmation_admin';
         const hasEditorContent = !!req.body.content;
         const shouldUseEditorContent =
             hasEditorContent && (useEditorContent === true || isFieldStyleConfirmationTemplate);
@@ -10458,7 +10460,8 @@ async function replaceTemplateVariables(template, booking, bankInfo = null, addi
 
     const isFieldStyleConfirmationTemplate =
         String(templateKey || '').startsWith('mvp_') ||
-        String(templateKey || '') === 'booking_confirmation';
+        String(templateKey || '') === 'booking_confirmation' ||
+        String(templateKey || '') === 'booking_confirmation_admin';
 
     if (isFieldStyleConfirmationTemplate) {
         content = sanitizeMvpMarkedSection(content, 'bookingInfo', '訂房資訊');
