@@ -3452,7 +3452,12 @@ async function ensureEmailTemplatesForTenant(tenantId) {
         [safeTenantId]
     );
     const count = Number(row?.count || 0);
-    if (count > 0) return;
+    // 既有租戶也要套用模板結構升級（例如欄位式模板遷移）
+    // 因此不在 count > 0 時直接返回，而是持續走 initEmailTemplates 的差異更新邏輯。
+    if (count > 0) {
+        await initEmailTemplates(safeTenantId);
+        return;
+    }
     await initEmailTemplates(safeTenantId);
 }
 
