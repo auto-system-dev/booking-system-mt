@@ -9730,6 +9730,48 @@ window.resetCurrentTemplateToDefault = async function resetCurrentTemplateToDefa
     
     const templateKey = form.dataset.templateKey;
     const templateName = document.getElementById('emailTemplateModalTitle')?.textContent?.replace('編輯郵件模板：', '') || templateKey;
+
+    const applyFieldEditorDefaults = (key) => {
+        const normalizedKey = String(key || '').trim();
+        if (!isFieldEditorTemplateKey(normalizedKey)) return false;
+        if (normalizedKey !== 'booking_confirmation' && normalizedKey !== 'mvp_booking_confirmation') {
+            return false;
+        }
+        const defaults = getMvpBookingConfirmationDefaultFields();
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.value = String(val || '');
+        };
+        setVal('mvpFieldTitle', defaults.title);
+        setVal('mvpFieldGreeting', defaults.greeting);
+        setVal('mvpFieldBookingInfo', defaults.bookingInfo);
+        setVal('mvpFieldAmountSummary', defaults.amountSummary);
+        setVal('mvpFieldPayNowTitle', defaults.payNowTitle);
+        setVal('mvpFieldPayNowContent', defaults.payNowContent);
+        setVal('mvpFieldRemainingTitle', defaults.remainingTitle);
+        setVal('mvpFieldRemainingContent', defaults.remainingContent);
+        setVal('mvpFieldNotice', defaults.notice);
+        setVal('mvpFieldBankTitle', defaults.bankTitle);
+        setVal('mvpFieldBankIntro', defaults.bankIntro);
+        setVal('mvpFieldBankInfo', defaults.bankInfo);
+        setVal('mvpFieldReminderTitle', defaults.reminderTitle);
+        setVal('mvpFieldReminderList', defaults.reminderList);
+        setVal('mvpFieldContactTitle', defaults.contactTitle);
+        setVal('mvpFieldContactInfo', defaults.contactInfo);
+        setVal('mvpFieldClosingMessage', defaults.closingMessage);
+        renderMvpTemplatePreview();
+        return true;
+    };
+
+    if (isFieldEditorTemplateKey(templateKey)) {
+        if (!(await appConfirm(`確定要將郵件模板「${templateName}」還原為欄位式預設值嗎？此操作會覆蓋目前欄位內容。`))) {
+            return;
+        }
+        if (applyFieldEditorDefaults(templateKey)) {
+            await appAlert('✅ 已還原為欄位式預設值（請按「儲存變更」套用）');
+            return;
+        }
+    }
     
     if (!(await appConfirm(`確定要將郵件模板「${templateName}」重置為預設的圖卡樣式嗎？此操作將覆蓋現有的模板內容。`))) {
         return;
