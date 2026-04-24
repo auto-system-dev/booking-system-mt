@@ -9128,6 +9128,7 @@ async function saveWeekdaySettings() {
 
 let currentEmailTemplateScope = 'standard';
 const MVP_TEMPLATE_KEY_PREFIX = 'mvp_';
+const FIELD_EDITOR_STANDARD_TEMPLATE_KEYS = new Set(['booking_confirmation']);
 const MVP_ALLOWED_VARIABLES = new Set([
     'guestName', 'bookingId', 'checkInDate', 'checkOutDate', 'roomType',
     'totalAmount', 'discountAmount', 'discountedTotal', 'finalAmount', 'remainingAmount',
@@ -9141,6 +9142,11 @@ let mvpLastFocusedFieldId = '';
 
 function isMvpTemplateKey(templateKey) {
     return String(templateKey || '').trim().startsWith(MVP_TEMPLATE_KEY_PREFIX);
+}
+
+function isFieldEditorTemplateKey(templateKey) {
+    const key = String(templateKey || '').trim();
+    return isMvpTemplateKey(key) || FIELD_EDITOR_STANDARD_TEMPLATE_KEYS.has(key);
 }
 
 function composeMvpTemplateHtml(fields = {}) {
@@ -10141,8 +10147,9 @@ async function showEmailTemplateModal(templateKey) {
             updateEmailTemplateEnabledToggleUI(template.is_enabled === 1);
 
             const isMvpTemplate = isMvpTemplateKey(templateKey);
-            setMvpEditorVisible(isMvpTemplate);
-            if (isMvpTemplate) {
+            const isFieldEditorTemplate = isFieldEditorTemplateKey(templateKey);
+            setMvpEditorVisible(isFieldEditorTemplate);
+            if (isFieldEditorTemplate) {
                 initMvpEditorBindings();
                 loadMvpFieldsFromTemplateContent(template.content || '', templateKey);
             }
@@ -10158,7 +10165,7 @@ async function showEmailTemplateModal(templateKey) {
             if (paymentSettings) paymentSettings.style.display = 'none';
             
             // 根據模板類型顯示對應的設定欄位
-            if (!isMvpTemplate && templateKey === 'checkin_reminder') {
+            if (!isFieldEditorTemplate && templateKey === 'checkin_reminder') {
                 if (checkinSettings) {
                     checkinSettings.style.display = 'block';
                     document.getElementById('daysBeforeCheckin').value = template.days_before_checkin || 1;
@@ -10182,13 +10189,13 @@ async function showEmailTemplateModal(templateKey) {
             // 儲存當前模板 key 到全域變數，供還原功能使用
             window.currentTemplateKey = templateKey;
             
-            if (!isMvpTemplate && templateKey === 'feedback_request') {
+            if (!isFieldEditorTemplate && templateKey === 'feedback_request') {
                 if (feedbackSettings) {
                     feedbackSettings.style.display = 'block';
                     document.getElementById('daysAfterCheckout').value = template.days_after_checkout || 1;
                     document.getElementById('sendHourFeedback').value = template.send_hour_feedback || 10;
                 }
-            } else if (!isMvpTemplate && templateKey === 'payment_reminder') {
+            } else if (!isFieldEditorTemplate && templateKey === 'payment_reminder') {
                 if (paymentSettings) {
                     paymentSettings.style.display = 'block';
                     const daysReservedValue = template.days_reserved !== null && template.days_reserved !== undefined ? template.days_reserved : 3;
@@ -10406,7 +10413,10 @@ async function showEmailTemplateModal(templateKey) {
                         const subjectEl = document.getElementById('emailTemplateSubject');
                         const subject = subjectEl ? subjectEl.value : '';
                         
-                        if (typeof isHtmlMode !== 'undefined' && isHtmlMode && contentEl) {
+                        if (isFieldEditorTemplateKey(templateKey)) {
+                            content = composeMvpTemplateHtml(collectMvpEditorFields());
+                            if (contentEl) contentEl.value = content;
+                        } else if (typeof isHtmlMode !== 'undefined' && isHtmlMode && contentEl) {
                             content = contentEl.value;
                         } else if (typeof quillEditor !== 'undefined' && quillEditor) {
                             const quillHtml = quillEditor.root.innerHTML;
@@ -10805,6 +10815,7 @@ async function saveEmailTemplate(event) {
     const form = event.target;
     const templateKey = form.dataset.templateKey;
     const isMvpTemplate = isMvpTemplateKey(templateKey);
+    const isFieldEditorTemplate = isFieldEditorTemplateKey(templateKey);
     
     if (!templateKey) {
         showError('找不到模板代碼');
@@ -10860,17 +10871,19 @@ async function saveEmailTemplate(event) {
     let content = '';
     const textarea = document.getElementById('emailTemplateContent');
 
-    if (isMvpTemplate) {
-        const unknown = validateMvpEditorVariables();
-        if (unknown.length) {
-            showError(`有未知變數，請修正後再儲存：${unknown.map((v) => `{{${v}}}`).join('、')}`);
-            return;
+    if (isFieldEditorTemplate) {
+        if (isMvpTemplate) {
+            const unknown = validateMvpEditorVariables();
+            if (unknown.length) {
+                showError(`有未知變數，請修正後再儲存：${unknown.map((v) => `{{${v}}}`).join('、')}`);
+                return;
+            }
         }
         content = composeMvpTemplateHtml(collectMvpEditorFields());
         if (textarea) textarea.value = content;
     }
     
-    if (!isMvpTemplate && isHtmlMode) {
+    if (!isFieldEditorTemplate && isHtmlMode) {
         // HTML 模式：直接從 textarea 獲取
         content = textarea ? textarea.value : '';
         console.log('📝 HTML 模式：從 textarea 獲取內容，長度:', content.length);
@@ -10900,7 +10913,7 @@ async function saveEmailTemplate(event) {
                 // 如果失敗，直接使用 textarea 的內容（不完整，但至少保存了用戶的修改）
             }
         }
-    } else if (!isMvpTemplate) {
+    } else if (!isFieldEditorTemplate) {
         // 可視化模式：從 Quill 獲取 HTML
         // 由於 text-change 事件已經同步更新了 textarea，直接使用 textarea 的值
         // 這樣可以確保使用最新的內容，並且保留完整的 HTML 結構
