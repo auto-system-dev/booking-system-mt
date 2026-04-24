@@ -9185,6 +9185,7 @@ function syncFieldEditorLayout(templateKey) {
     setVisible('fieldGroupReminderTitle', !isAdminBookingTemplate);
     setVisible('fieldGroupReminderList', !isAdminBookingTemplate);
     setVisible('fieldGroupNotice', !isAdminBookingTemplate);
+    setVisible('fieldGroupNoticeTitle', isCancelTemplate);
     setVisible('fieldGroupContactTitle', !isAdminBookingTemplate);
     setVisible('fieldGroupAmountSummary', !isCancelTemplate);
     setVisible('fieldGroupPayNowTitle', !isCancelTemplate);
@@ -9208,11 +9209,27 @@ function syncFieldEditorLayout(templateKey) {
     if (isCancelTemplate) {
         setGroupLabel('fieldGroupReminderTitle', '重新訂房標題');
         setGroupLabel('fieldGroupReminderList', '重新訂房區塊');
-        setGroupLabel('fieldGroupNotice', '取消原因');
+        setGroupLabel('fieldGroupNotice', '取消原因內容');
     } else {
         setGroupLabel('fieldGroupReminderTitle', '重要提醒標題');
         setGroupLabel('fieldGroupReminderList', '重要提醒區塊');
         setGroupLabel('fieldGroupNotice', '注意事項');
+    }
+
+    // 取消通知：欄位顯示順序也要對調（先取消原因，再重新訂房）
+    const reminderContactGrid = document.querySelector('#fieldSectionReminderContact > div:last-child');
+    const groupNotice = document.getElementById('fieldGroupNotice');
+    const groupNoticeTitle = document.getElementById('fieldGroupNoticeTitle');
+    const groupReminderTitle = document.getElementById('fieldGroupReminderTitle');
+    const groupReminderList = document.getElementById('fieldGroupReminderList');
+    if (reminderContactGrid && groupNotice && groupReminderTitle && groupReminderList) {
+        if (isCancelTemplate) {
+            if (groupNoticeTitle) reminderContactGrid.insertBefore(groupNoticeTitle, groupNotice);
+            reminderContactGrid.insertBefore(groupNotice, groupReminderTitle);
+        } else {
+            reminderContactGrid.insertBefore(groupReminderTitle, groupNotice);
+            reminderContactGrid.insertBefore(groupReminderList, groupNotice.nextSibling);
+        }
     }
 }
 
@@ -9229,6 +9246,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     const payNowContent = String(fields.payNowContent || '').trim();
     const remainingTitle = String(fields.remainingTitle || '').trim();
     const remainingContent = String(fields.remainingContent || '').trim();
+    const noticeTitle = String(fields.noticeTitle || '').trim();
     const notice = String(fields.notice || '').trim();
     const bankTitle = String(fields.bankTitle || '').trim();
     const bankIntro = String(fields.bankIntro || '').trim();
@@ -9284,7 +9302,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     const remainingBlock = [remainingTitle, remainingContent].filter(Boolean).join('\n');
     const bankBlock = [bankTitle, bankIntro, bankInfo].filter(Boolean).join('\n');
     const reminderBlock = [reminderTitle, reminderList].filter(Boolean).join('\n');
-    const noticeBlock = notice;
+    const noticeBlock = [noticeTitle, notice].filter(Boolean).join('\n');
     const contactBlock = [contactTitle, contactInfo].filter(Boolean).join('\n');
 
     if (isCancelTemplate) {
@@ -9310,7 +9328,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     ${title ? `<!--MVP:title:start--><h2 style="margin:0 0 12px;color:#dc2626;">${escapeHtml(title)}</h2><!--MVP:title:end-->` : ''}
     ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
     ${renderPlainSection('bookingInfo', '取消的訂房資訊', bookingInfo)}
-    ${renderPlainSection('notice', '', notice)}
+    ${renderPlainSection('notice', noticeTitle, notice)}
     ${renderPlainSection('reminderList', '', reminderBlock)}
     ${renderPlainSection('contactInfo', '', contactBlock)}
     ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:18px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
@@ -9429,6 +9447,7 @@ function parseMvpTemplateFieldsFromHtml(html) {
             remainingAmount: extractMvpMarkedSection(source, 'remainingAmount'),
             remainingTitle: remainingLines[0] || '',
             remainingContent: remainingLines.slice(1).join('\n').trim(),
+            noticeTitle: '',
             notice: extractMvpMarkedSection(source, 'notice'),
             bankTitle: bankLines[0] || '',
             bankIntro: bankIntroValue,
@@ -9459,6 +9478,7 @@ function parseMvpTemplateFieldsFromHtml(html) {
         remainingAmount: '',
         remainingTitle: '',
         remainingContent: '',
+        noticeTitle: '',
         notice: '',
         bankTitle: '',
         bankIntro: '',
@@ -9485,6 +9505,7 @@ function collectMvpEditorFields() {
         remainingAmount: document.getElementById('mvpFieldRemainingAmount')?.value || '',
         remainingTitle: document.getElementById('mvpFieldRemainingTitle')?.value || '',
         remainingContent: document.getElementById('mvpFieldRemainingContent')?.value || '',
+        noticeTitle: document.getElementById('mvpFieldNoticeTitle')?.value || '',
         notice: document.getElementById('mvpFieldNotice')?.value || '',
         bankTitle: document.getElementById('mvpFieldBankTitle')?.value || '',
         bankIntro: document.getElementById('mvpFieldBankIntro')?.value || '',
@@ -9554,7 +9575,7 @@ function initMvpEditorBindings() {
         'mvpFieldBookingInfo', 'mvpFieldAmountSummary', 'mvpFieldRemainingAmount',
         'mvpFieldPayNowTitle', 'mvpFieldPayNowContent',
         'mvpFieldRemainingTitle', 'mvpFieldRemainingContent',
-        'mvpFieldNotice', 'mvpFieldBankTitle', 'mvpFieldBankIntro', 'mvpFieldBankInfo',
+        'mvpFieldNoticeTitle', 'mvpFieldNotice', 'mvpFieldBankTitle', 'mvpFieldBankIntro', 'mvpFieldBankInfo',
         'mvpFieldReminderTitle', 'mvpFieldReminderList',
         'mvpFieldContactTitle', 'mvpFieldContactInfo',
         'mvpFieldClosingMessage', 'mvpFieldFooter'
@@ -9590,6 +9611,7 @@ function getMvpBookingConfirmationDefaultFields() {
         remainingAmount: '剩餘尾款提醒可顯示時間與條件',
         remainingTitle: '💡 剩餘尾款',
         remainingContent: '剩餘尾款請於現場付清！\n剩餘尾款：NT$ {{remainingAmount}}',
+        noticeTitle: '',
         notice: '',
         bankTitle: '💰 匯款提醒',
         bankIntro: '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款。\n* 逾期將自動取消訂房。',
@@ -9616,6 +9638,7 @@ function getBookingConfirmationAdminDefaultFields() {
         remainingAmount: '',
         remainingTitle: '',
         remainingContent: '',
+        noticeTitle: '',
         notice: '',
         bankTitle: '',
         bankIntro: '',
@@ -9642,7 +9665,8 @@ function getCancelNotificationDefaultFields() {
         remainingAmount: '',
         remainingTitle: '',
         remainingContent: '',
-        notice: '📌 取消原因\n此訂房因超過匯款保留期限（{{bookingDate}} 起算），且未在期限內完成付款，系統已自動取消。',
+        noticeTitle: '📌 取消原因',
+        notice: '此訂房因超過匯款保留期限（{{bookingDate}} 起算），且未在期限內完成付款，系統已自動取消。',
         bankTitle: '',
         bankIntro: '',
         bankInfo: '',
@@ -9744,7 +9768,19 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     setVal('mvpFieldRemainingAmount', remainingAmountText);
     setVal('mvpFieldRemainingTitle', remainingTitleText);
     setVal('mvpFieldRemainingContent', remainingContentText);
-    setVal('mvpFieldNotice', pick(parsed.notice, defaults.notice, ''));
+    let noticeTitleText = pick(parsed.noticeTitle, defaults.noticeTitle, '');
+    let noticeText = pick(parsed.notice, defaults.notice, '');
+    if (key === 'cancel_notification' && !String(noticeTitleText || '').trim()) {
+        const noticeLines = String(noticeText || '').split('\n').map((line) => line.trim()).filter(Boolean);
+        if (noticeLines.length > 1) {
+            noticeTitleText = noticeLines[0];
+            noticeText = noticeLines.slice(1).join('\n');
+        } else {
+            noticeTitleText = defaults.noticeTitle || '📌 取消原因';
+        }
+    }
+    setVal('mvpFieldNoticeTitle', noticeTitleText);
+    setVal('mvpFieldNotice', noticeText);
     setVal('mvpFieldBankTitle', pick(parsed.bankTitle, defaults.bankTitle, '💰 匯款提醒'));
     setVal('mvpFieldBankIntro', pick(parsed.bankIntro, defaults.bankIntro, '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款'));
     setVal('mvpFieldBankInfo', pick(parsed.bankInfo, defaults.bankInfo, '銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n匯款請備註訂單後五碼：{{bookingIdLast5}}'));
@@ -9986,6 +10022,7 @@ window.resetCurrentTemplateToDefault = async function resetCurrentTemplateToDefa
         setVal('mvpFieldPayNowContent', defaults.payNowContent);
         setVal('mvpFieldRemainingTitle', defaults.remainingTitle);
         setVal('mvpFieldRemainingContent', defaults.remainingContent);
+        setVal('mvpFieldNoticeTitle', defaults.noticeTitle);
         setVal('mvpFieldNotice', defaults.notice);
         setVal('mvpFieldBankTitle', defaults.bankTitle);
         setVal('mvpFieldBankIntro', defaults.bankIntro);
