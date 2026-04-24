@@ -9542,7 +9542,11 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
         || isLegacyBookingConfirmationAdminTemplate;
     const defaults = useBookingDefaults ? getFieldEditorDefaultFields(key) : {};
     const pick = (parsedValue, defaultValue, fallbackValue = '') => {
-        if (useBookingDefaults) return defaultValue || parsedValue || fallbackValue;
+        if (useBookingDefaults) {
+            // defaultValue 允許為空字串：代表明確要清空該欄位，而不是沿用舊內容
+            if (defaultValue !== undefined && defaultValue !== null) return defaultValue;
+            return parsedValue || fallbackValue;
+        }
         return parsedValue || defaultValue || fallbackValue;
     };
     const bookingInfoText = normalizeMvpSectionFieldText('訂房資訊', pick(parsed.bookingInfo, defaults.bookingInfo, '訂單編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}'));
