@@ -9192,6 +9192,7 @@ function syncFieldEditorLayout(templateKey) {
 
 function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     const key = String(templateKey || '').trim();
+    const isAdminBookingTemplate = key === 'booking_confirmation_admin';
     const title = String(fields.title || '通知').trim() || '通知';
     const greeting = String(fields.greeting || '').trim();
     const mainContent = String(fields.mainContent || '').trim();
@@ -9235,6 +9236,22 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     const reminderBlock = [reminderTitle, reminderList].filter(Boolean).join('\n');
     const noticeBlock = notice;
     const contactBlock = [contactTitle, contactInfo].filter(Boolean).join('\n');
+
+    if (isAdminBookingTemplate) {
+        return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
+  <div style="max-width:640px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;padding:18px;background:#fff;">
+    <!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->
+    ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
+    ${renderBlock('bookingInfo', bookingInfo)}
+    ${renderBlock('amountSummary', amountSummary)}
+    ${renderBlock('payNowCard', payNowBlock)}
+    ${renderBlock('contactInfo', contactBlock)}
+    ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:10px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
+  </div>
+</body></html>`;
+    }
 
     return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
