@@ -9522,7 +9522,7 @@ function getMvpBookingConfirmationDefaultFields() {
         title: '訂房確認成功',
         greeting: '親愛的 {{guestName}}，\n您的訂房已成功確認，以下是您的訂房資訊：',
         mainContent: '',
-        bookingInfo: '訂房時間：{{bookingDate}}\n訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n住宿天數：{{nights}} 晚\n房型：{{roomType}}',
+        bookingInfo: '訂房時間：{{bookingDate}}\n訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n住宿天數：{{nights}} 晚\n房型：{{roomType}}\n房價（每晚）：NT$ {{pricePerNight}}',
         amountSummary: '總金額：NT$ {{totalAmount}}\n優惠折扣：-NT$ {{discountAmount}}\n折後總額：NT$ {{discountedTotal}}\n付款方式：{{paymentMethod}}（{{paymentAmount}}）',
         payNowTitle: '應付金額',
         payNowContent: 'NT$ {{finalAmount}}',
@@ -9604,7 +9604,10 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
         }
         return parsedValue || defaultValue || fallbackValue;
     };
-    const bookingInfoText = normalizeMvpSectionFieldText('訂房資訊', pick(parsed.bookingInfo, defaults.bookingInfo, '訂單編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}'));
+    let bookingInfoText = normalizeMvpSectionFieldText('訂房資訊', pick(parsed.bookingInfo, defaults.bookingInfo, '訂單編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}\n房價（每晚）：NT$ {{pricePerNight}}'));
+    if (key === 'booking_confirmation' && !/\{\{\s*pricePerNight\s*\}\}/.test(bookingInfoText)) {
+        bookingInfoText = `${bookingInfoText}\n房價（每晚）：NT$ {{pricePerNight}}`.trim();
+    }
     let amountSummaryText = normalizeMvpSectionFieldText('費用摘要', pick(parsed.amountSummary, defaults.amountSummary, '訂房金額：NT$ {{totalAmount}}\n折扣：-NT$ {{discountAmount}}\n折後金額：NT$ {{discountedTotal}}\n本次應付：NT$ {{finalAmount}}\n付款方式：{{paymentMethod}}（{{paymentAmount}}）'));
     if ((key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin') && !/\{\{\s*paymentMethod\s*\}\}/.test(amountSummaryText)) {
         amountSummaryText = `${amountSummaryText}\n付款方式：{{paymentMethod}}（{{paymentAmount}}）`.trim();
