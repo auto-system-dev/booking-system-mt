@@ -9607,11 +9607,27 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     setVal('mvpFieldMainContent', pick(parsed.mainContent, defaults.mainContent, ''));
     setVal('mvpFieldBookingInfo', bookingInfoText);
     setVal('mvpFieldAmountSummary', amountSummaryText);
-    setVal('mvpFieldPayNowTitle', pick(parsed.payNowTitle, defaults.payNowTitle, '應付金額'));
-    setVal('mvpFieldPayNowContent', pick(parsed.payNowContent, defaults.payNowContent, 'NT$ {{finalAmount}}'));
-    setVal('mvpFieldRemainingAmount', pick(parsed.remainingAmount, defaults.remainingAmount, '剩餘尾款請於現場付清！\n剩餘尾款：NT$ {{remainingAmount}}'));
-    setVal('mvpFieldRemainingTitle', pick(parsed.remainingTitle, defaults.remainingTitle, '💡 剩餘尾款'));
-    setVal('mvpFieldRemainingContent', pick(parsed.remainingContent, defaults.remainingContent, '剩餘尾款請於現場付清！\n剩餘尾款：NT$ {{remainingAmount}}'));
+    let payNowTitleText = pick(parsed.payNowTitle, defaults.payNowTitle, '應付金額');
+    let payNowContentText = pick(parsed.payNowContent, defaults.payNowContent, 'NT$ {{finalAmount}}');
+    let remainingAmountText = pick(parsed.remainingAmount, defaults.remainingAmount, '剩餘尾款請於現場付清！\n剩餘尾款：NT$ {{remainingAmount}}');
+    let remainingTitleText = pick(parsed.remainingTitle, defaults.remainingTitle, '💡 剩餘尾款');
+    let remainingContentText = pick(parsed.remainingContent, defaults.remainingContent, '剩餘尾款請於現場付清！\n剩餘尾款：NT$ {{remainingAmount}}');
+    if (key === 'booking_confirmation' || key === 'mvp_booking_confirmation') {
+        const payNowTitleLooksLikeAmount = /\{\{\s*finalAmount\s*\}\}|NT\$/i.test(String(payNowTitleText || ''));
+        if (payNowTitleLooksLikeAmount && !String(payNowContentText || '').trim()) {
+            payNowContentText = payNowTitleText;
+            payNowTitleText = defaults.payNowTitle || '應付金額';
+        }
+        // 舊模板若缺少尾款標題，補上預設標題避免預覽區塊錯位
+        if (!String(remainingTitleText || '').trim() && String(remainingContentText || '').trim()) {
+            remainingTitleText = defaults.remainingTitle || '💡 剩餘尾款';
+        }
+    }
+    setVal('mvpFieldPayNowTitle', payNowTitleText);
+    setVal('mvpFieldPayNowContent', payNowContentText);
+    setVal('mvpFieldRemainingAmount', remainingAmountText);
+    setVal('mvpFieldRemainingTitle', remainingTitleText);
+    setVal('mvpFieldRemainingContent', remainingContentText);
     setVal('mvpFieldNotice', pick(parsed.notice, defaults.notice, ''));
     setVal('mvpFieldBankTitle', pick(parsed.bankTitle, defaults.bankTitle, '💰 匯款提醒'));
     setVal('mvpFieldBankIntro', pick(parsed.bankIntro, defaults.bankIntro, '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款'));
