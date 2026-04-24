@@ -9534,6 +9534,9 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
             || source.includes('旅宿聯絡資訊')
             || source.includes('加購商品：{{addonsList}}')
             || source.includes('優惠折扣：-NT$ {{discountAmount}}')
+            || source.includes('<!--MVP:remainingCard:start-->')
+            || source.includes('<!--MVP:bankInfo:start-->')
+            || source.includes('<!--MVP:reminderList:start-->')
         );
     const useBookingDefaults = ((key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin') && !hasMvpMarkers)
         || isLegacyBookingConfirmationAdminTemplate;
