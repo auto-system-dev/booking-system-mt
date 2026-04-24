@@ -6996,7 +6996,7 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
             addonsList: ['加床 x1 (NT$ 500)', '早餐券 x2 (NT$ 300)', '停車券 x1 (NT$ 200)', '加床 x2 (NT$ 1,000)'][randomInt(0, 3)],
             addonsTotal: randomAmount(200, 1500),
             paymentMethod: ['匯款轉帳', '線上刷卡', '現金'][randomInt(0, 2)],
-            paymentAmount: ['全額 NT$ ' + randomAmount(2000, 8000), '訂金 NT$ ' + randomAmount(2000, 8000), '訂金 NT$ ' + randomAmount(2000, 8000)][randomInt(0, 2)],
+            paymentAmount: ['全額', '訂金 (30%)', '訂金 (50%)'][randomInt(0, 2)],
             guestPhone: '09' + Array.from({length: 8}, () => randomInt(0, 9)).join(''),
             guestEmail: 'test' + randomInt(1000, 9999) + '@example.com',
             bookingDate: today.toLocaleDateString('zh-TW'),
@@ -10427,14 +10427,22 @@ async function replaceTemplateVariables(template, booking, bankInfo = null, addi
         const endToken = '<!--MVP:amountSummary:end-->';
         const sectionRegex = new RegExp(`(${startToken})([\\s\\S]*?)(${endToken})`, 'i');
         if (!sectionRegex.test(source)) return source;
-        return source.replace(sectionRegex, (_, start, sectionBody, end) => {
-            const body = String(sectionBody || '');
-            if (/付款方式\s*[:：]/.test(body) || /\{\{\s*paymentMethod\s*\}\}/i.test(body)) {
-                return `${start}${body}${end}`;
-            }
+        let updated = source.replace(sectionRegex, (_, start, sectionBody, end) => {
+            let body = String(sectionBody || '');
+            // 先移除區塊內既有付款方式行，避免重覆
+            body = body
+                .replace(/<p[^>]*>\s*付款方式\s*[:：][\s\S]*?<\/p>/gi, '')
+                .replace(/<li[^>]*>\s*付款方式\s*[:：][\s\S]*?<\/li>/gi, '')
+                .replace(/(^|\n)\s*付款方式\s*[:：].*(?=\n|$)/gmi, '$1');
             const appended = `${body}<p style="margin: 0 0 10px;">付款方式：{{paymentMethod}}（{{paymentAmount}}）</p>`;
             return `${start}${appended}${end}`;
         });
+
+        // 清理舊模板可能殘留在費用摘要區塊外的付款方式行
+        updated = updated
+            .replace(/(<\/div>\s*<!--MVP:amountSummary:end-->)([\s\S]*?)(<p[^>]*>\s*付款方式\s*[:：][\s\S]*?<\/p>)/i, '$1$2')
+            .replace(/(<\/div>\s*<!--MVP:amountSummary:end-->)([\s\S]*?)(付款方式\s*[:：].*?)(?=(<!--MVP:|<\/body>|<\/html>))/is, '$1$2');
+        return updated;
     };
     
     // 確保使用資料庫中的完整 HTML 內容
