@@ -9227,8 +9227,15 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
             .join('');
     };
     const renderBlock = (markerKey, text) => {
-        const body = toParagraphs(text, { firstLineBold: true });
+        const body = toParagraphs(text, { firstLineBold: false });
         if (!body) return '';
+        const sectionTitleMap = {
+            bookingInfo: '訂房資訊',
+            amountSummary: '費用摘要'
+        };
+        const sectionTitle = sectionTitleMap[markerKey]
+            ? `<p style="margin: 0 0 10px;font-weight:700;">${sectionTitleMap[markerKey]}</p>`
+            : '';
         const blockStyleMap = {
             bookingInfo: 'border:1px solid #e5e7eb;background:#ffffff;',
             amountSummary: 'border:1px solid #bfdbfe;background:#eff6ff;',
@@ -9240,7 +9247,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
             contactInfo: 'border:1px solid #cbd5e1;background:#f8fafc;'
         };
         const blockStyle = blockStyleMap[markerKey] || 'border:1px solid #e2e8f0;background:#ffffff;';
-        return `<!--MVP:${markerKey}:start--><div style="margin:14px 0;padding:12px;border-radius:10px;${blockStyle}">${body}</div><!--MVP:${markerKey}:end-->`;
+        return `<!--MVP:${markerKey}:start--><div style="margin:14px 0;padding:12px;border-radius:10px;${blockStyle}">${sectionTitle}${body}</div><!--MVP:${markerKey}:end-->`;
     };
     const payNowBlock = [payNowTitle, payNowContent].filter(Boolean).join('\n');
     const remainingBlock = [remainingTitle, remainingContent].filter(Boolean).join('\n');
