@@ -9193,26 +9193,26 @@ function syncFieldEditorLayout(templateKey) {
 function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     const key = String(templateKey || '').trim();
     const isAdminBookingTemplate = key === 'booking_confirmation_admin';
-    const title = String(fields.title || '通知').trim() || '通知';
+    const title = String(fields.title ?? '').trim();
     const greeting = String(fields.greeting || '').trim();
     const mainContent = String(fields.mainContent || '').trim();
     const bookingInfo = String(fields.bookingInfo || '').trim();
     const amountSummary = String(fields.amountSummary || '').trim();
-    const payNowTitle = String(fields.payNowTitle || '應付金額').trim();
-    const payNowContent = String(fields.payNowContent || 'NT$ {{finalAmount}}').trim();
-    const remainingTitle = String(fields.remainingTitle || '💡 剩餘尾款').trim();
-    const remainingContent = String(fields.remainingContent || '剩餘尾款請於現場付清！\n剩餘尾款：NT$ {{remainingAmount}}').trim();
+    const payNowTitle = String(fields.payNowTitle || '').trim();
+    const payNowContent = String(fields.payNowContent || '').trim();
+    const remainingTitle = String(fields.remainingTitle || '').trim();
+    const remainingContent = String(fields.remainingContent || '').trim();
     const notice = String(fields.notice || '').trim();
-    const bankTitle = String(fields.bankTitle || '💰 匯款提醒').trim();
+    const bankTitle = String(fields.bankTitle || '').trim();
     const bankIntro = String(fields.bankIntro || '').trim();
     const bankInfo = String(fields.bankInfo || '').trim();
-    const reminderTitle = String(fields.reminderTitle || '重要提醒').trim();
+    const reminderTitle = String(fields.reminderTitle || '').trim();
     const reminderList = String(fields.reminderList || '').trim();
-    const contactTitle = String(fields.contactTitle || '聯絡資訊').trim();
+    const contactTitle = String(fields.contactTitle || '').trim();
     const contactInfo = String(fields.contactInfo || '').trim();
     const closingMessage = String(fields.closingMessage || '').trim();
     const footer = String(fields.footer || '').trim();
-    const systemFooter = String(fields.systemFooter || '此為 MVP 測試模板，不影響正式模板。').trim();
+    const systemFooter = String(fields.systemFooter || '').trim();
     const toParagraphs = (text) => String(text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => `<p style="margin: 0 0 10px;">${escapeHtml(line)}</p>`).join('');
     const renderBlock = (markerKey, text) => {
         const body = toParagraphs(text);
@@ -9242,7 +9242,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
   <div style="max-width:640px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;padding:18px;background:#fff;">
-    <!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->
+    ${title ? `<!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->` : ''}
     ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
     ${renderBlock('bookingInfo', bookingInfo)}
     ${renderBlock('amountSummary', amountSummary)}
@@ -9257,7 +9257,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
   <div style="max-width:640px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;padding:18px;background:#fff;">
-    <!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->
+    ${title ? `<!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->` : ''}
     ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
     ${renderBlock('bookingInfo', bookingInfo)}
     ${renderBlock('amountSummary', amountSummary)}
