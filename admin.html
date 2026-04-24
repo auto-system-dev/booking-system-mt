@@ -2963,7 +2963,8 @@
                     </div>
                     <div id="mvpTemplateEditorGroup" class="form-group" style="display:none; border:1px solid #dbeafe; border-radius:10px; padding:14px; background:#f8fbff;">
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-                            <h3 id="fieldEditorTitle" style="margin:0;font-size:16px;color:#1e3a8a;">欄位式編輯</h3>
+                            <h3 id="fieldEditorTitle" style="display:none;margin:0;font-size:16px;color:#1e3a8a;">欄位式編輯</h3>
+                            <button type="button" class="btn-edit" id="fieldEditorRestoreBtn" style="height:32px;padding:0 14px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;" onclick="window.resetCurrentTemplateToDefault && window.resetCurrentTemplateToDefault()">還原郵件範本</button>
                         </div>
                         <div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 8px;">
                             <button type="button" class="btn-var" onclick="insertMvpVariable('{{guestName}}')">姓名</button>
