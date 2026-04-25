@@ -9288,7 +9288,7 @@ function syncFieldEditorLayout(templateKey) {
         } else if (isCancelTemplate) {
             reminderContactTitle.textContent = '取消原因與聯絡區塊';
         } else if (isCheckinTemplate) {
-            reminderContactTitle.textContent = '入住與聯絡區塊';
+            reminderContactTitle.textContent = '聯絡區塊';
         } else if (isFeedbackTemplate) {
             reminderContactTitle.textContent = '意見與優惠區塊';
         } else {
@@ -9459,6 +9459,13 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
             notice: 'border:1px solid #fde68a;background:#fffbeb;',
             contactInfo: 'border:1px solid #cbd5e1;background:#f8fafc;'
         };
+        if (key === 'checkin_reminder') {
+            blockStyleMap.bookingInfo = 'border:1px solid #93c5fd;background:#eff6ff;';
+            blockStyleMap.amountSummary = 'border:1px solid #60a5fa;background:#dbeafe;';
+            blockStyleMap.payNowCard = 'border:1px solid #a78bfa;background:#f5f3ff;';
+            blockStyleMap.remainingCard = 'border:1px solid #f59e0b;background:#fffbeb;';
+            blockStyleMap.contactInfo = 'border:1px solid #34d399;background:#ecfdf5;';
+        }
         const blockStyle = blockStyleMap[markerKey] || 'border:1px solid #e2e8f0;background:#ffffff;';
         return `<!--MVP:${markerKey}:start--><div style="margin:14px 0;padding:12px;border-radius:10px;${blockStyle}">${titleMarker}${sectionTitle}${body}</div><!--MVP:${markerKey}:end-->`;
     };
@@ -9551,11 +9558,17 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
 </body></html>`;
     }
 
+    const titleHtml = title
+        ? (key === 'checkin_reminder'
+            ? `<!--MVP:title:start--><div style="margin:0 0 16px;background:#2196f3;color:#fff;padding:20px 16px;border-radius:8px;text-align:center;"><div style="margin:0;font-size:30px;line-height:1.2;font-weight:700;border:none;text-decoration:none;">${escapeHtml(title)}</div></div><!--MVP:title:end-->`
+            : `<!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->`)
+        : '';
+
     return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
   <div style="max-width:640px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;padding:18px;background:#fff;">
-    ${title ? `<!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->` : ''}
+    ${titleHtml}
     ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
     ${renderBlock('bookingInfo', bookingInfo)}
     ${renderBlock('amountSummary', amountSummary)}
@@ -9566,7 +9579,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     ${key === 'booking_confirmation'
         ? `${renderBlock('contactInfo', contactBlock)}${renderBlock('notice', noticeBlock)}`
         : `${renderBlock('notice', noticeBlock)}${renderBlock('contactInfo', contactBlock)}`}
-    ${closingMessage ? `<!--MVP:closingMessage:start--><div style="margin:14px 0 0;">${toParagraphs(closingMessage, { firstLineBold: false })}</div><!--MVP:closingMessage:end-->` : ''}
+    ${closingMessage ? `<!--MVP:closingMessage:start--><div style="margin:14px 0 0;${key === 'checkin_reminder' ? 'text-align:center;' : ''}">${toParagraphs(closingMessage, { firstLineBold: false })}</div><!--MVP:closingMessage:end-->` : ''}
     ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:10px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
   </div>
 </body></html>`;
