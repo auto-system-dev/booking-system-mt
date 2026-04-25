@@ -308,6 +308,17 @@ async function checkAuthStatus(options = {}) {
             console.log('✅ 已登入，顯示管理後台');
             setAdminAuthHint(true);
             showAdminPage(result.admin);
+            // 清除一次性登入導向參數，避免重新整理時殘留 fromLogin=1
+            try {
+                const url = new URL(window.location.href);
+                if (url.searchParams.get('fromLogin') === '1') {
+                    url.searchParams.delete('fromLogin');
+                    const next = `${url.pathname}${url.search}${url.hash}`;
+                    window.history.replaceState({}, '', next || '/admin');
+                }
+            } catch (_e) {
+                // ignore
+            }
             // 非阻塞預取 CSRF Token，讓後續寫入請求更快
             getCsrfToken().catch(err => {
                 console.warn('⚠️ 預取 CSRF Token 失敗（非關鍵）:', err);
@@ -1751,13 +1762,20 @@ document.addEventListener('DOMContentLoaded', async function() {
         setBootLoadingVisible(false);
 
         const authHint = getAdminAuthHint();
-        if (!authHint) {
+        const isFromLogin = (() => {
+            try {
+                return new URLSearchParams(window.location.search).get('fromLogin') === '1';
+            } catch (_e) {
+                return false;
+            }
+        })();
+        if (!authHint && !isFromLogin) {
             // 未登入提示：直接顯示登入頁，不發送 check-auth 請求，避免分頁持續轉圈
             showLoginPage();
         } else {
             // 有登入提示才檢查，並限制逾時避免卡住
             console.log('🔐 準備檢查登入狀態...');
-            const authenticated = await checkAuthStatus({ timeoutMs: 2200 });
+            const authenticated = await checkAuthStatus({ timeoutMs: isFromLogin ? 5000 : 2200 });
             if (!authenticated) {
                 showLoginPage();
             }

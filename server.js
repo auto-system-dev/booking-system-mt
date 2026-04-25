@@ -3386,14 +3386,19 @@ app.use('/api/admin', (req, res, next) => {
 });
 
 // 管理後台（未登入時顯示輕量登入頁，已登入時顯示完整後台）
-app.get('/admin', (req, res) => {
+app.get('/admin', async (req, res) => {
     // 強制禁用快取：避免瀏覽器/代理拿到截斷或舊版的 admin.html / admin.js 造成白畫面
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    const sessionStatus = validateAdminSession(req, { touch: false });
+    let sessionStatus = validateAdminSession(req, { touch: false });
     const fromLogin = String(req.query?.fromLogin || '') === '1';
-    if (!sessionStatus.valid && !fromLogin) {
+    // fromLogin 只做一次短暫緩衝重查，避免 session 落地競態；不可無條件放行
+    if (!sessionStatus.valid && fromLogin) {
+        await new Promise((resolve) => setTimeout(resolve, 220));
+        sessionStatus = validateAdminSession(req, { touch: false });
+    }
+    if (!sessionStatus.valid) {
         return res.sendFile(path.join(__dirname, 'admin-login.html'));
     }
     res.sendFile(path.join(__dirname, 'admin.html'));
