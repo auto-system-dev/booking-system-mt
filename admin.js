@@ -9186,7 +9186,7 @@ function syncFieldEditorLayout(templateKey) {
     setVisible('fieldGroupReminderList', !isAdminBookingTemplate);
     setVisible('fieldGroupNotice', !isAdminBookingTemplate);
     setVisible('fieldGroupNoticeTitle', isCancelTemplate);
-    setVisible('fieldGroupContactTitle', !isAdminBookingTemplate);
+    setVisible('fieldGroupContactTitle', !isAdminBookingTemplate && !isCancelTemplate);
     setVisible('fieldGroupContactInfo', !isCancelTemplate);
     setVisible('fieldGroupAmountSummary', !isCancelTemplate);
     setVisible('fieldGroupPayNowTitle', !isCancelTemplate);
@@ -9217,7 +9217,7 @@ function syncFieldEditorLayout(templateKey) {
         setGroupLabel('fieldGroupNotice', '注意事項');
     }
 
-    // 取消通知：欄位顯示順序也要對調（先取消原因，再重新訂房）
+    // 取消通知：欄位顯示順序調整（先取消原因，再重新訂房）
     const reminderContactGrid = document.querySelector('#fieldSectionReminderContact > div:last-child');
     const groupNotice = document.getElementById('fieldGroupNotice');
     const groupNoticeTitle = document.getElementById('fieldGroupNoticeTitle');
@@ -9225,15 +9225,17 @@ function syncFieldEditorLayout(templateKey) {
     const groupReminderList = document.getElementById('fieldGroupReminderList');
     const groupContactTitle = document.getElementById('fieldGroupContactTitle');
     const groupContactInfo = document.getElementById('fieldGroupContactInfo');
-    if (reminderContactGrid && groupNotice && groupReminderTitle && groupReminderList) {
+    if (reminderContactGrid && groupNotice) {
         if (isCancelTemplate) {
+            // 先確保「取消原因標題」緊貼在「取消原因內容」上方
             if (groupNoticeTitle) reminderContactGrid.insertBefore(groupNoticeTitle, groupNotice);
-            reminderContactGrid.insertBefore(groupNotice, groupReminderTitle);
+            // 再把「取消原因」整塊放到「重新訂房」之前
+            if (groupReminderTitle) reminderContactGrid.insertBefore(groupNotice, groupReminderTitle);
         } else if (key === 'booking_confirmation' && groupContactTitle && groupContactInfo) {
             // 訂房確認（客戶）：注意事項移到聯絡資訊區塊下方
             reminderContactGrid.insertBefore(groupContactTitle, groupNotice);
             reminderContactGrid.insertBefore(groupContactInfo, groupNotice);
-        } else {
+        } else if (groupReminderTitle && groupReminderList) {
             reminderContactGrid.insertBefore(groupReminderTitle, groupNotice);
             reminderContactGrid.insertBefore(groupReminderList, groupNotice.nextSibling);
         }
