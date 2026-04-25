@@ -1850,6 +1850,10 @@ document.addEventListener('DOMContentLoaded', async function() {
 
 // 切換區塊
 function switchSection(section) {
+    // 相容舊路由鍵：tenant-management 實際對應 subscription-overview
+    if (section === 'tenant-management') {
+        section = 'subscription-overview';
+    }
     // 區塊對應的權限
     const sectionPermissions = {
         'dashboard': 'dashboard.view',
@@ -1862,7 +1866,6 @@ function switchSection(section) {
         'settings': 'settings.view',
         'subscription-overview': 'admins.view',
         'plan-management': 'admins.view',
-        'tenant-management': 'admins.view',
         'email-templates': 'email_templates.view',
         'statistics': 'statistics.view',
         'admin-management': 'admins.view',
@@ -1874,7 +1877,7 @@ function switchSection(section) {
     // 檢查權限（僅在已登入後才檢查）
     const requiredPermission = sectionPermissions[section];
     const isLoggedIn = window.currentAdminInfo || (window.currentAdminPermissions && window.currentAdminPermissions.length > 0);
-    if ((section === 'subscription-overview' || section === 'plan-management' || section === 'tenant-management') && (!window.currentAdminInfo || window.currentAdminInfo.role !== 'super_admin')) {
+    if ((section === 'subscription-overview' || section === 'plan-management') && (!window.currentAdminInfo || window.currentAdminInfo.role !== 'super_admin')) {
         showError('僅超級管理員可查看此功能');
         if (section !== 'dashboard') switchSection('dashboard');
         return;
@@ -2013,7 +2016,7 @@ function loadInitialAdminRoute() {
     } else if (urlHash === '#plan-management') {
         switchSection('plan-management');
     } else if (urlHash === '#tenant-management') {
-        switchSection('tenant-management');
+        switchSection('subscription-overview');
     } else if (urlHash === '#addons') {
         switchSection('addons');
     } else if (urlHash === '#promotions') {
@@ -2043,8 +2046,7 @@ function loadInitialAdminRoute() {
         switchSection('landing-page');
     } else if (!urlHash) {
         const isSuperAdmin = !!(window.currentAdminInfo && window.currentAdminInfo.role === 'super_admin');
-        // 超管首屏預設走租戶管理（單一 API），降低登入後首屏等待時間
-        switchSection(isSuperAdmin ? 'tenant-management' : 'dashboard');
+        switchSection(isSuperAdmin ? 'subscription-overview' : 'dashboard');
     }
 }
 
