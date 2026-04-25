@@ -9296,6 +9296,11 @@ function syncFieldEditorLayout(templateKey) {
         }
     }
 
+    const bookingAmountTitle = document.querySelector('#fieldSectionBookingAmount > div:first-child');
+    if (bookingAmountTitle) {
+        bookingAmountTitle.textContent = isFeedbackTemplate ? '訂房與評分區塊' : '訂房與金額區塊';
+    }
+
     const setGroupLabel = (groupId, text) => {
         const labelEl = document.querySelector(`#${groupId} label`);
         if (labelEl) labelEl.textContent = text;
@@ -9343,6 +9348,10 @@ function syncFieldEditorLayout(templateKey) {
             reminderContactGrid.insertBefore(groupReminderList, groupReminderTitle.nextSibling);
             reminderContactGrid.insertBefore(groupContactTitle, groupNotice);
             reminderContactGrid.insertBefore(groupContactInfo, groupNotice);
+        } else if (isFeedbackTemplate && groupReminderTitle && groupReminderList) {
+            // 感謝入住：意見回饋區塊緊貼意見回饋標題
+            reminderContactGrid.insertBefore(groupReminderTitle, reminderContactGrid.firstChild);
+            reminderContactGrid.insertBefore(groupReminderList, groupReminderTitle.nextSibling);
         } else if (groupReminderTitle && groupReminderList) {
             reminderContactGrid.insertBefore(groupReminderTitle, groupNotice);
             reminderContactGrid.insertBefore(groupReminderList, groupNotice.nextSibling);
@@ -9909,7 +9918,7 @@ function getFeedbackRequestDefaultFields() {
         reminderList: '如果您有任何建議、意見或希望協助，歡迎隨時透過以下方式與我們聯繫。\nEmail：{{hotelEmail}}\n電話：{{hotelPhone}}\n我們會記錄與重視您的意見，謝謝您撥冗留言！',
         contactTitle: '',
         contactInfo: '',
-        closingMessage: '期待再次為您服務！\n祝您 身體健康，萬事如意',
+        closingMessage: '期待再次為您服務！\n祝您 身體健康，萬事如意\n感謝您的支持與信任',
         footer: '{{hotelName}} 敬上',
         systemFooter: '此為系統自動發送郵件，請勿直接回覆'
     };
