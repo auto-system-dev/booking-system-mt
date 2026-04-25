@@ -9380,7 +9380,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
         if (key === 'cancel_notification') {
             sectionTitleMap.bookingInfo = '取消的訂房資訊';
         } else if (key === 'checkin_reminder') {
-            sectionTitleMap.amountSummary = '交通路線';
+            sectionTitleMap.amountSummary = '🚆 交通路線';
         }
         const useSectionTitle = !!sectionTitleMap[markerKey];
         const body = toParagraphs(text, { firstLineBold: !useSectionTitle });
@@ -9793,7 +9793,7 @@ function getCancelNotificationDefaultFields() {
 
 function getCheckinReminderDefaultFields() {
     return {
-        title: '🏨 入住提醒',
+        title: '入住提醒',
         greeting: '親愛的 {{guestName}}，\n您預定的住宿行程即將開始，我們特別提醒您以下資訊：',
         mainContent: '',
         bookingInfo: '訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}',
@@ -9872,9 +9872,13 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     let greetingText = pick(parsed.greeting, defaults.greeting, '親愛的 {{guestName}}，');
     if (key === 'booking_confirmation' || key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin' || key === 'cancel_notification' || key === 'checkin_reminder') {
         if (!titleText || /mvp\s*測試通知/i.test(String(titleText))) {
-            titleText = defaults.title || (key === 'booking_confirmation_admin' ? '新訂房通知' : (key === 'cancel_notification' ? '⚠️ 訂房已自動取消' : (key === 'checkin_reminder' ? '🏨 入住提醒' : '訂房確認成功')));
+            titleText = defaults.title || (key === 'booking_confirmation_admin' ? '新訂房通知' : (key === 'cancel_notification' ? '⚠️ 訂房已自動取消' : (key === 'checkin_reminder' ? '入住提醒' : '訂房確認成功')));
         }
         titleText = String(titleText || '').replace(/^🔔\s*/, '').trim();
+        if (key === 'checkin_reminder') {
+            titleText = titleText.replace(/^🏨\s*/, '').trim();
+            if (!titleText) titleText = defaults.title || '入住提醒';
+        }
         if (!greetingText || /感謝您的預訂/.test(String(greetingText))) {
             greetingText = defaults.greeting || (key === 'booking_confirmation_admin'
                 ? '您有一筆新的訂房申請，以下是訂房詳細資訊：'
