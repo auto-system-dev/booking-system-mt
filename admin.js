@@ -9387,7 +9387,19 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
             sectionTitleMap.amountSummary = amountSummaryTitle || '📍 交通路線';
         }
         const useSectionTitle = !!sectionTitleMap[markerKey];
-        const body = toParagraphs(text, { firstLineBold: !useSectionTitle });
+        let renderText = text;
+        if (key === 'booking_confirmation' && markerKey === 'reminderList') {
+            renderText = String(text || '')
+                .split('\n')
+                .map((line) => line.trim())
+                .filter(Boolean)
+                .map((line) => {
+                    const normalized = line.replace(/^[•●▪◦]\s*/, '').trim();
+                    return `• ${normalized}`;
+                })
+                .join('\n');
+        }
+        const body = toParagraphs(renderText, { firstLineBold: !useSectionTitle });
         if (!body) return '';
         const titleMarker = sectionTitleMap[markerKey]
             ? `<!--MVP:${markerKey}Title:start--><span style="display:none;">${escapeHtml(sectionTitleMap[markerKey])}</span><!--MVP:${markerKey}Title:end-->`
