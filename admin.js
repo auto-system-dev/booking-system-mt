@@ -9314,6 +9314,28 @@ function syncFieldEditorLayout(templateKey) {
     const sectionClosingTitle = document.querySelector('#fieldSectionClosing > div:first-child');
     if (sectionClosingTitle) sectionClosingTitle.style.display = hideSectionExplainTitle ? 'none' : '';
 
+    // 感謝入住：欄位對齊預覽內容，用獨立框線標示主要內容區
+    const setInputBlockFrame = (targetEl, framed) => {
+        if (!targetEl) return;
+        if (framed) {
+            targetEl.style.border = '1px solid #cbd5e1';
+            targetEl.style.background = '#ffffff';
+            targetEl.style.borderRadius = '8px';
+            targetEl.style.padding = '10px';
+        } else {
+            targetEl.style.border = '';
+            targetEl.style.background = '';
+            targetEl.style.borderRadius = '';
+            targetEl.style.padding = '';
+        }
+    };
+    const greetingGroup = document.getElementById('mvpFieldGreeting')?.closest('.form-group');
+    const bookingInfoGroup = document.getElementById('fieldGroupBookingInfo');
+    const amountSummaryGroup = document.getElementById('fieldGroupAmountSummary');
+    setInputBlockFrame(greetingGroup, isFeedbackTemplate);
+    setInputBlockFrame(bookingInfoGroup, isFeedbackTemplate);
+    setInputBlockFrame(amountSummaryGroup, isFeedbackTemplate);
+
     const setGroupLabel = (groupId, text) => {
         const labelEl = document.querySelector(`#${groupId} label`);
         if (labelEl) labelEl.textContent = text;
