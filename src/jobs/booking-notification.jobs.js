@@ -235,7 +235,8 @@ function createBookingNotificationJobs(deps) {
 
                     const additionalData = {
                         '{{hotelEmail}}': hotelSettings.hotelEmail,
-                        '{{hotelPhone}}': hotelSettings.hotelPhone
+                        '{{hotelPhone}}': hotelSettings.hotelPhone,
+                        '{{googleReviewUrl}}': hotelSettings.googleReviewUrl
                     };
 
                         const emailSent = await notificationService.sendCheckinReminderEmail({

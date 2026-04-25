@@ -9217,7 +9217,7 @@ const MVP_ALLOWED_VARIABLES = new Set([
     'accountName', 'bookingIdLast5', 'hotelPhone', 'hotelEmail', 'officialLineUrl', 'hotelName',
     'paymentMethod', 'paymentAmount', 'pricePerNight', 'addonsList', 'addonsTotal', 'hotelAddress',
     'guestPhone', 'guestEmail', 'specialRequest',
-    'bookingDate', 'nights', 'bookingUrl'
+    'bookingDate', 'nights', 'bookingUrl', 'googleReviewUrl'
 ]);
 let mvpPreviewMode = 'desktop';
 let mvpLastFocusedFieldId = '';
@@ -9538,7 +9538,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
   <div style="max-width:640px;margin:0 auto;">
-    ${title ? `<!--MVP:title:start--><div style="margin:0 0 16px;background:#4caf50;color:#fff;padding:20px 16px;border-radius:8px;text-align:center;"><h2 style="margin:0 0 6px;font-size:30px;line-height:1.2;">${escapeHtml(title)}</h2></div><!--MVP:title:end-->` : ''}
+    ${title ? `<!--MVP:title:start--><div style="margin:0 0 16px;background:#4caf50;color:#fff;padding:20px 16px;border-radius:8px;text-align:center;"><div style="margin:0;font-size:30px;line-height:1.2;font-weight:700;border:none;text-decoration:none;">${escapeHtml(title)}</div></div><!--MVP:title:end-->` : ''}
     ${greeting ? `<!--MVP:greeting:start--><div style="margin:0 0 12px;">${toParagraphs(greeting, { firstLineBold: false })}</div><!--MVP:greeting:end-->` : ''}
     ${renderBlock('bookingInfo', bookingInfo)}
     ${renderBlock('amountSummary', amountSummary)}
@@ -9918,7 +9918,7 @@ function getFeedbackRequestDefaultFields() {
         mainContent: '',
         bookingInfo: '訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}',
         amountSummaryTitle: '您的寶貴意見對我們非常重要！',
-        amountSummary: '請為我們的服務評分：\n★★★★★\n{{bookingUrl}}\n\n歡迎分享您對本次住宿體驗出色服務的讚賞，也讓我們能持續改進並帶給您更好的體驗。',
+        amountSummary: '請為我們的服務評分：\n★★★★★\n{{googleReviewUrl}}\n\n歡迎分享您對本次住宿體驗出色服務的讚賞，也讓我們能持續改進並帶給您更好的體驗。',
         payNowTitle: '',
         payNowContent: '',
         remainingAmount: '',
@@ -9930,7 +9930,7 @@ function getFeedbackRequestDefaultFields() {
         bankIntro: '',
         bankInfo: '',
         reminderTitle: '💬 意見回饋',
-        reminderList: '如果您有任何建議、意見或希望協助，歡迎隨時透過以下方式與我們聯繫。\nEmail：{{hotelEmail}}\n電話：{{hotelPhone}}\n我們會記錄與重視您的意見，謝謝您撥冗留言！',
+        reminderList: '如果您有任何建議、意見或希望協助，歡迎隨時透過以下方式與我們聯繫。\nEmail：{{hotelEmail}}\n電話：{{hotelPhone}}\n我們會認真聆聽您的意見，並持續改進服務品質！',
         contactTitle: '',
         contactInfo: '',
         closingMessage: '期待再次為您服務！\n祝您 身體健康，萬事如意\n感謝您的支持與信任',
@@ -10097,7 +10097,8 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
         const normalizedAmountSummary = String(amountSummaryText || '').replace(/\r/g, '').trim();
         const legacyFeedbackAmountSummaries = new Set([
             '請為我們的服務評分：\n{{bookingUrl}}\n\n歡迎分享您對本次住宿體驗出色服務的讚賞，也讓我們能持續改進並帶給您更好的體驗。',
-            '請為我們的服務評分：\n{{bookingUrl}}\n歡迎分享您對本次住宿體驗出色服務的讚賞，也讓我們能持續改進並帶給您更好的體驗。'
+            '請為我們的服務評分：\n{{bookingUrl}}\n歡迎分享您對本次住宿體驗出色服務的讚賞，也讓我們能持續改進並帶給您更好的體驗。',
+            '請為我們的服務評分：\n★★★★★\n{{bookingUrl}}\n\n歡迎分享您對本次住宿體驗出色服務的讚賞，也讓我們能持續改進並帶給您更好的體驗。'
         ]);
         if (!normalizedAmountSummary || legacyFeedbackAmountSummaries.has(normalizedAmountSummary)) {
             amountSummaryText = defaults.amountSummary || getFeedbackRequestDefaultFields().amountSummary;

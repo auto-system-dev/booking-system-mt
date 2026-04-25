@@ -7014,7 +7014,8 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
             bookingDateTime: '',
             bookingIdLast5: '',
             hotelEmail: hotelDefaults.hotelEmail,
-            hotelPhone: hotelDefaults.hotelPhone
+            hotelPhone: hotelDefaults.hotelPhone,
+            googleReviewUrl: hotelDefaults.googleReviewUrl
         };
         
         // 確保使用正確的模板內容
@@ -7061,6 +7062,7 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
         const additionalData = {
             ...(testData.hotelEmail ? { '{{hotelEmail}}': testData.hotelEmail } : {}),
             ...(testData.hotelPhone ? { '{{hotelPhone}}': testData.hotelPhone } : {}),
+            ...(testData.googleReviewUrl ? { '{{googleReviewUrl}}': testData.googleReviewUrl } : {}),
             __useEmptyTestValues: true
         };
         

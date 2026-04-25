@@ -9,7 +9,8 @@ function createHotelConfigService(deps) {
         // Contact fields should stay empty when tenant has not configured them.
         phone: '',
         address: '台北市信義區信義路五段7號',
-        email: ''
+        email: '',
+        googleReviewUrl: ''
     };
 
     async function getHotelSettingsWithFallback(tenantId = defaultTenantId) {
@@ -20,7 +21,8 @@ function createHotelConfigService(deps) {
         const hotelPhone = ((await db.getSetting('hotel_phone', safeTenantId)) || '').trim() || DEFAULT_HOTEL_SETTINGS.phone;
         const hotelAddress = ((await db.getSetting('hotel_address', safeTenantId)) || '').trim() || DEFAULT_HOTEL_SETTINGS.address;
         const hotelEmail = ((await db.getSetting('hotel_email', safeTenantId)) || '').trim() || DEFAULT_HOTEL_SETTINGS.email;
-        return { hotelName, hotelPhone, hotelAddress, hotelEmail };
+        const googleReviewUrl = ((await db.getSetting('landing_google_review_url', safeTenantId)) || '').trim() || DEFAULT_HOTEL_SETTINGS.googleReviewUrl;
+        return { hotelName, hotelPhone, hotelAddress, hotelEmail, googleReviewUrl };
     }
 
     return {
