@@ -3364,6 +3364,17 @@ async function initEmailTemplates(tenantId) {
                     console.log(`⚠️ 取消通知模板缺少官方 LINE 聯絡資訊，需要更新`);
                 }
             }
+
+            // 欄位式模板由後台編輯器維護，避免在每次讀取模板時被初始化邏輯覆寫使用者內容。
+            // 僅在內容過短/為空等明顯異常時，才走既有修復更新。
+            const isFieldEditorManagedTemplate = ['booking_confirmation', 'booking_confirmation_admin', 'cancel_notification'].includes(template.key);
+            if (isFieldEditorManagedTemplate && existing && existing.content && existing.content.trim() !== '') {
+                needsUpdateForBookingContactInfo = false;
+                needsUpdateForBookingTransferLineNotice = false;
+                needsUpdateForBookingFooterText = false;
+                needsUpdateForBookingAdminContactAlign = false;
+                needsUpdateForCancelNotificationOfficialLine = false;
+            }
             
             if (!existing || !existing.content || existing.content.trim() === '' || existing.template_name !== template.name || isContentTooShort || needsUpdateForHtmlStructure || forceUpdateCheckinReminder || forceUpdatePaymentReminder || needsUpdateForPaymentReminder || needsUpdateForFeedbackResponsive || needsUpdateForFeedbackOfficialLine || needsUpdateForFeedbackContactStyle || needsUpdateForFeedbackContactTextColorAndSpacing || needsUpdateForBookingContactInfo || needsUpdateForBookingTransferLineNotice || needsUpdateForBookingFooterText || needsUpdateForBookingAdminContactAlign || needsUpdateForPaymentCompletedContactInfo || needsUpdateForCancelNotificationOfficialLine) {
                 if (usePostgreSQL) {
