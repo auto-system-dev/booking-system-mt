@@ -9326,6 +9326,15 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
             const titleHtml = title ? `<p style="margin:16px 0 10px;font-weight:700;color:#0f172a;">${escapeHtml(title)}</p>` : '';
             return `<!--MVP:${markerKey}:start--><div style="margin:12px 0;${sectionStyle}">${titleHtml}${body}</div><!--MVP:${markerKey}:end-->`;
         };
+        const reminderBody = toParagraphs(reminderList, { firstLineBold: false });
+        const contactBody = toParagraphs(contactInfo, { firstLineBold: false });
+        const mergedReminderContactSection = (reminderBody || contactBody)
+            ? `<!--MVP:reminderList:start--><div style="margin:12px 0;border:1px solid #22c55e;background:#f0fdf4;padding:12px;border-radius:10px;">
+                ${reminderTitle ? `<p style="margin:0 0 10px;font-weight:700;color:#15803d;">${escapeHtml(reminderTitle)}</p>` : ''}
+                ${reminderBody}
+                <!--MVP:contactInfo:start-->${contactBody}<!--MVP:contactInfo:end-->
+            </div><!--MVP:reminderList:end-->`
+            : '';
 
         return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
@@ -9335,8 +9344,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
     ${renderPlainSection('bookingInfo', '取消的訂房資訊', bookingInfo)}
     ${renderPlainSection('notice', noticeTitle, notice)}
-    ${renderPlainSection('reminderList', reminderTitle, reminderList)}
-    ${renderPlainSection('contactInfo', contactTitle, contactInfo)}
+    ${mergedReminderContactSection}
     ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:18px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
   </div>
 </body></html>`;
