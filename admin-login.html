@@ -204,7 +204,7 @@
                         throw new Error(result.message || ('HTTP ' + response.status));
                     }
                     await waitForAuthReady();
-                    window.location.replace('/admin');
+                    window.location.replace('/admin?fromLogin=1');
                 } catch (error) {
                     showError('登入失敗：' + (error && error.message ? error.message : '請稍後再試'));
                 } finally {

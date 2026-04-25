@@ -3392,7 +3392,8 @@ app.get('/admin', (req, res) => {
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
     const sessionStatus = validateAdminSession(req, { touch: false });
-    if (!sessionStatus.valid) {
+    const fromLogin = String(req.query?.fromLogin || '') === '1';
+    if (!sessionStatus.valid && !fromLogin) {
         return res.sendFile(path.join(__dirname, 'admin-login.html'));
     }
     res.sendFile(path.join(__dirname, 'admin.html'));
