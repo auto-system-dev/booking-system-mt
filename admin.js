@@ -10755,7 +10755,7 @@ async function showEmailTemplateModal(templateKey) {
             if (paymentSettings) paymentSettings.style.display = 'none';
             
             // 根據模板類型顯示對應的設定欄位
-            if (!isFieldEditorTemplate && templateKey === 'checkin_reminder') {
+            if (templateKey === 'checkin_reminder') {
                 if (checkinSettings) {
                     checkinSettings.style.display = 'block';
                     const daysBeforeCheckinValue = template.days_before_checkin ?? 1;
