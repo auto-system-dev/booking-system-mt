@@ -9222,8 +9222,8 @@ function syncFieldEditorLayout(templateKey) {
         setGroupLabel('fieldGroupNotice', '取消原因內容');
     } else if (isCheckinTemplate) {
         setGroupLabel('fieldGroupAmountSummary', '交通路線');
-        setGroupLabel('fieldGroupPayNowTitle', '停車須知標題');
-        setGroupLabel('fieldGroupPayNowContent', '停車須知內容');
+        setGroupLabel('fieldGroupPayNowTitle', '停車資訊標題');
+        setGroupLabel('fieldGroupPayNowContent', '停車資訊內容');
         setGroupLabel('fieldGroupRemainingTitle', '入住注意事項標題');
         setGroupLabel('fieldGroupRemainingContent', '入住注意事項內容');
     } else {
@@ -9304,9 +9304,6 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
             sectionTitleMap.bookingInfo = '取消的訂房資訊';
         } else if (key === 'checkin_reminder') {
             sectionTitleMap.amountSummary = '交通路線';
-            sectionTitleMap.payNowCard = '停車須知';
-            sectionTitleMap.remainingCard = '入住注意事項';
-            sectionTitleMap.contactInfo = '聯絡資訊';
         }
         const useSectionTitle = !!sectionTitleMap[markerKey];
         const body = toParagraphs(text, { firstLineBold: !useSectionTitle });
