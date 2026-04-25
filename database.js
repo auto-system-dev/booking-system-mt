@@ -3377,7 +3377,34 @@ async function initEmailTemplates(tenantId) {
                 needsUpdateForCancelNotificationOfficialLine = false;
             }
             
-            if (!existing || !existing.content || existing.content.trim() === '' || existing.template_name !== template.name || isContentTooShort || needsUpdateForHtmlStructure || forceUpdateCheckinReminder || forceUpdatePaymentReminder || needsUpdateForPaymentReminder || needsUpdateForFeedbackResponsive || needsUpdateForFeedbackOfficialLine || needsUpdateForFeedbackContactStyle || needsUpdateForFeedbackContactTextColorAndSpacing || needsUpdateForBookingContactInfo || needsUpdateForBookingTransferLineNotice || needsUpdateForBookingFooterText || needsUpdateForBookingAdminContactAlign || needsUpdateForPaymentCompletedContactInfo || needsUpdateForCancelNotificationOfficialLine) {
+            const shouldUpdateByGeneralRules =
+                !existing ||
+                !existing.content ||
+                existing.content.trim() === '' ||
+                existing.template_name !== template.name ||
+                isContentTooShort ||
+                needsUpdateForHtmlStructure ||
+                forceUpdateCheckinReminder ||
+                forceUpdatePaymentReminder ||
+                needsUpdateForPaymentReminder ||
+                needsUpdateForFeedbackResponsive ||
+                needsUpdateForFeedbackOfficialLine ||
+                needsUpdateForFeedbackContactStyle ||
+                needsUpdateForFeedbackContactTextColorAndSpacing ||
+                needsUpdateForBookingContactInfo ||
+                needsUpdateForBookingTransferLineNotice ||
+                needsUpdateForBookingFooterText ||
+                needsUpdateForBookingAdminContactAlign ||
+                needsUpdateForPaymentCompletedContactInfo ||
+                needsUpdateForCancelNotificationOfficialLine;
+
+            // 欄位式模板：只在不存在或內容為空時補預設，避免覆蓋租戶自行儲存內容（含自訂名稱）。
+            const shouldUpdate =
+                isFieldEditorManagedTemplate
+                    ? (!existing || !existing.content || existing.content.trim() === '')
+                    : shouldUpdateByGeneralRules;
+
+            if (shouldUpdate) {
                 if (usePostgreSQL) {
                     await query(
                         `INSERT INTO email_templates (tenant_id, template_key, template_name, subject, content, is_enabled, days_before_checkin, send_hour_checkin, days_after_checkout, send_hour_feedback, days_reserved, send_hour_payment_reminder)
