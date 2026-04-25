@@ -2175,7 +2175,7 @@ app.get('/admin/login', (req, res) => {
     if (sessionStatus.valid) {
         return res.redirect('/admin');
     }
-    res.sendFile(path.join(__dirname, 'admin.html'));
+    res.sendFile(path.join(__dirname, 'admin-login.html'));
 });
 
 // 管理後台登入 API（應用嚴格 rate limiting）
@@ -3385,13 +3385,16 @@ app.use('/api/admin', (req, res, next) => {
     });
 });
 
-// 管理後台（未登入時顯示登入頁面，已登入時顯示管理後台）
-app.get('/admin', generateCsrfToken, (req, res) => {
+// 管理後台（未登入時顯示輕量登入頁，已登入時顯示完整後台）
+app.get('/admin', (req, res) => {
     // 強制禁用快取：避免瀏覽器/代理拿到截斷或舊版的 admin.html / admin.js 造成白畫面
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
-    // 直接返回 admin.html，由前端 JavaScript 檢查登入狀態並顯示對應頁面
+    const sessionStatus = validateAdminSession(req, { touch: false });
+    if (!sessionStatus.valid) {
+        return res.sendFile(path.join(__dirname, 'admin-login.html'));
+    }
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
 

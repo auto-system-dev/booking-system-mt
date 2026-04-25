@@ -8539,10 +8539,13 @@ async function loadTenantManagementList() {
         const qs = new URLSearchParams();
         if (status) qs.set('status', status);
         if (keyword) qs.set('keyword', keyword);
-        qs.set('limit', '100');
+        // 首屏先取較小筆數，避免超管登入後因大查詢造成「看起來卡住」
+        qs.set('limit', '30');
         qs.set('offset', '0');
 
-        const response = await adminFetch(`/api/admin/tenants?${qs.toString()}`);
+        const response = await adminFetch(`/api/admin/tenants?${qs.toString()}`, {
+            timeoutMs: 8000
+        });
         const result = await response.json().catch(() => ({}));
         if (!response.ok || !result.success) {
             throw new Error(result.message || `HTTP ${response.status}`);
