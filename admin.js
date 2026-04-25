@@ -9300,12 +9300,19 @@ function syncFieldEditorLayout(templateKey) {
     if (bookingAmountTitle) {
         bookingAmountTitle.textContent = isFeedbackTemplate ? '訂房與評分區塊' : '訂房與金額區塊';
     }
+    const hideSectionExplainTitle = (
+        key === 'feedback_request' ||
+        key === 'checkin_reminder' ||
+        key === 'cancel_notification' ||
+        key === 'booking_confirmation_admin' ||
+        key === 'booking_confirmation'
+    );
     const sectionBasicTitle = document.querySelector('#fieldSectionBasic > div:first-child');
-    if (sectionBasicTitle) sectionBasicTitle.style.display = isFeedbackTemplate ? 'none' : '';
-    if (bookingAmountTitle) bookingAmountTitle.style.display = isFeedbackTemplate ? 'none' : '';
-    if (reminderContactTitle) reminderContactTitle.style.display = isFeedbackTemplate ? 'none' : '';
+    if (sectionBasicTitle) sectionBasicTitle.style.display = hideSectionExplainTitle ? 'none' : '';
+    if (bookingAmountTitle) bookingAmountTitle.style.display = hideSectionExplainTitle ? 'none' : '';
+    if (reminderContactTitle) reminderContactTitle.style.display = hideSectionExplainTitle ? 'none' : '';
     const sectionClosingTitle = document.querySelector('#fieldSectionClosing > div:first-child');
-    if (sectionClosingTitle) sectionClosingTitle.style.display = isFeedbackTemplate ? 'none' : '';
+    if (sectionClosingTitle) sectionClosingTitle.style.display = hideSectionExplainTitle ? 'none' : '';
     const setGroupLabel = (groupId, text) => {
         const labelEl = document.querySelector(`#${groupId} label`);
         if (labelEl) labelEl.textContent = text;
