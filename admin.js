@@ -59,6 +59,8 @@ if (typeof window !== 'undefined') {
                         'Content-Type': 'application/json'
                     },
                     credentials: 'include', // 重要：包含 cookies
+                    skipCsrf: true, // 登入 API 已在後端排除 CSRF，避免先取 token 造成卡頓
+                    timeoutMs: 12000,
                     body: JSON.stringify({ username, password })
                 });
             } catch (fetchError) {
@@ -141,7 +143,9 @@ if (typeof window !== 'undefined') {
             
             // 提供更詳細的錯誤訊息
             let errorMessage = '登入時發生錯誤：' + (error.message || '請稍後再試');
-            if (error.message && error.message.includes('Failed to fetch')) {
+            if (error?.name === 'AbortError') {
+                errorMessage = '登入請求逾時，請稍後再試（伺服器可能忙碌或網路不穩）';
+            } else if (error.message && error.message.includes('Failed to fetch')) {
                 errorMessage = '無法連接到伺服器。請檢查：\n1. 網路連線是否正常\n2. 伺服器是否正在運行\n3. 是否有防火牆或代理阻擋';
             } else if (error.message && error.message.includes('NetworkError')) {
                 errorMessage = '網路錯誤。請檢查網路連線。';
@@ -695,9 +699,12 @@ function handleUnauthorizedSession() {
 async function adminFetch(url, options = {}) {
     const requestMethod = (options.method || 'GET').toUpperCase();
     const suppressUnauthorizedRedirect = !!options.suppressUnauthorizedRedirect;
+    const skipCsrf = !!options.skipCsrf;
+    const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 0;
+    const userSignal = options.signal;
     const needsCsrfToken = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(requestMethod);
     // 只有寫入請求才等待 CSRF Token，避免 check-auth/列表查詢被阻塞
-    const csrfToken = needsCsrfToken ? await getCsrfToken() : null;
+    const csrfToken = needsCsrfToken && !skipCsrf ? await getCsrfToken() : null;
     
     // 判斷是否為 FormData（檔案上傳時不能手動設定 Content-Type，瀏覽器會自動處理 multipart boundary）
     const isFormData = options.body instanceof FormData;
@@ -728,6 +735,22 @@ async function adminFetch(url, options = {}) {
             ...options.headers
         }
     };
+    delete mergedOptions.suppressUnauthorizedRedirect;
+    delete mergedOptions.skipCsrf;
+    delete mergedOptions.timeoutMs;
+
+    let timeoutId = null;
+    if (!userSignal && timeoutMs > 0) {
+        const controller = new AbortController();
+        mergedOptions.signal = controller.signal;
+        timeoutId = setTimeout(() => {
+            try {
+                controller.abort();
+            } catch (_e) {
+                // ignore
+            }
+        }, timeoutMs);
+    }
     
     try {
         const response = await fetch(url, mergedOptions);
@@ -769,6 +792,8 @@ async function adminFetch(url, options = {}) {
             console.error('API 請求錯誤:', error);
         }
         throw error;
+    } finally {
+        if (timeoutId) clearTimeout(timeoutId);
     }
 }
 
