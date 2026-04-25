@@ -114,20 +114,17 @@ if (typeof window !== 'undefined') {
                     errorDiv.textContent = '';
                 }
                 
-                // 穩定性優先：先驗證 session/cookie 已生效，再切換後台與載入資料
-                console.log('🔐 登入成功後再次檢查認證狀態（避免 Session 寫入競態）...');
-                await checkAuthStatus();
-
-                const adminPage = document.getElementById('adminPage');
-                const isAdminVisible = adminPage && window.getComputedStyle(adminPage).display !== 'none';
-                if (!isAdminVisible) {
-                    console.warn('⚠️ 登入後認證檢查未通過，維持登入頁面');
-                } else {
-                    if (typeof loadInitialAdminRoute === 'function') {
-                        loadInitialAdminRoute();
-                    }
-                    console.log('✅ 認證確認完成，已切換後台畫面');
+                // 登入 API 成功且後端已保存 session，直接切換後台避免「登入中...」被 check-auth 逾時卡住
+                setAdminAuthHint(true);
+                showAdminPage(result.admin);
+                if (typeof loadInitialAdminRoute === 'function') {
+                    loadInitialAdminRoute();
                 }
+                // 非阻塞背景驗證：只記錄結果，不影響已登入畫面
+                checkAuthStatus({ timeoutMs: 3000 }).catch((err) => {
+                    console.warn('⚠️ 背景登入狀態檢查失敗（不阻塞登入）:', err?.message || err);
+                });
+                console.log('✅ 登入成功，已切換後台畫面');
             } else {
                 // 登入失敗
                 console.warn('⚠️ 登入失敗:', result.message);
