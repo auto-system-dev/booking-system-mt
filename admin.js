@@ -9128,7 +9128,7 @@ async function saveWeekdaySettings() {
 
 let currentEmailTemplateScope = 'standard';
 const MVP_TEMPLATE_KEY_PREFIX = 'mvp_';
-const FIELD_EDITOR_STANDARD_TEMPLATE_KEYS = new Set(['booking_confirmation', 'booking_confirmation_admin', 'cancel_notification']);
+const FIELD_EDITOR_STANDARD_TEMPLATE_KEYS = new Set(['booking_confirmation', 'booking_confirmation_admin', 'cancel_notification', 'checkin_reminder']);
 const MVP_ALLOWED_VARIABLES = new Set([
     'guestName', 'bookingId', 'checkInDate', 'checkOutDate', 'roomType',
     'totalAmount', 'discountAmount', 'discountedTotal', 'finalAmount', 'remainingAmount',
@@ -9162,6 +9162,8 @@ function syncFieldEditorTitle(templateKey) {
         titleEl.textContent = '管理員模板欄位式編輯';
     } else if (key === 'cancel_notification') {
         titleEl.textContent = '取消通知欄位式編輯';
+    } else if (key === 'checkin_reminder') {
+        titleEl.textContent = '入住提醒欄位式編輯';
     } else {
         titleEl.textContent = '欄位式編輯';
     }
@@ -9171,6 +9173,7 @@ function syncFieldEditorLayout(templateKey) {
     const key = String(templateKey || '').trim();
     const isAdminBookingTemplate = key === 'booking_confirmation_admin';
     const isCancelTemplate = key === 'cancel_notification';
+    const isCheckinTemplate = key === 'checkin_reminder';
     const setVisible = (id, visible) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -9178,13 +9181,13 @@ function syncFieldEditorLayout(templateKey) {
     };
 
     // 預設顯示全部欄位；管理員模板則對齊截圖版型，只保留必要區塊。
-    setVisible('fieldSectionBank', !isAdminBookingTemplate && !isCancelTemplate);
-    setVisible('fieldSectionClosing', !isAdminBookingTemplate && !isCancelTemplate);
+    setVisible('fieldSectionBank', !isAdminBookingTemplate && !isCancelTemplate && !isCheckinTemplate);
+    setVisible('fieldSectionClosing', !isAdminBookingTemplate && !isCancelTemplate && !isCheckinTemplate);
     setVisible('fieldGroupRemainingTitle', !isAdminBookingTemplate && !isCancelTemplate);
     setVisible('fieldGroupRemainingContent', !isAdminBookingTemplate && !isCancelTemplate);
-    setVisible('fieldGroupReminderTitle', !isAdminBookingTemplate);
-    setVisible('fieldGroupReminderList', !isAdminBookingTemplate);
-    setVisible('fieldGroupNotice', !isAdminBookingTemplate);
+    setVisible('fieldGroupReminderTitle', !isAdminBookingTemplate && !isCheckinTemplate);
+    setVisible('fieldGroupReminderList', !isAdminBookingTemplate && !isCheckinTemplate);
+    setVisible('fieldGroupNotice', !isAdminBookingTemplate && !isCheckinTemplate);
     setVisible('fieldGroupNoticeTitle', isCancelTemplate);
     setVisible('fieldGroupContactTitle', !isAdminBookingTemplate && !isCancelTemplate);
     setVisible('fieldGroupContactInfo', !isCancelTemplate);
@@ -9198,6 +9201,8 @@ function syncFieldEditorLayout(templateKey) {
             reminderContactTitle.textContent = '客戶聯絡資訊區塊';
         } else if (isCancelTemplate) {
             reminderContactTitle.textContent = '取消原因與聯絡區塊';
+        } else if (isCheckinTemplate) {
+            reminderContactTitle.textContent = '入住與聯絡區塊';
         } else {
             reminderContactTitle.textContent = '提醒與聯絡區塊';
         }
@@ -9211,6 +9216,12 @@ function syncFieldEditorLayout(templateKey) {
         setGroupLabel('fieldGroupReminderTitle', '重新訂房標題');
         setGroupLabel('fieldGroupReminderList', '重新訂房與聯絡區塊');
         setGroupLabel('fieldGroupNotice', '取消原因內容');
+    } else if (isCheckinTemplate) {
+        setGroupLabel('fieldGroupAmountSummary', '交通路線');
+        setGroupLabel('fieldGroupPayNowTitle', '停車須知標題');
+        setGroupLabel('fieldGroupPayNowContent', '停車須知內容');
+        setGroupLabel('fieldGroupRemainingTitle', '入住注意事項標題');
+        setGroupLabel('fieldGroupRemainingContent', '入住注意事項內容');
     } else {
         setGroupLabel('fieldGroupReminderTitle', '重要提醒標題');
         setGroupLabel('fieldGroupReminderList', '重要提醒區塊');
@@ -9287,6 +9298,11 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
         };
         if (key === 'cancel_notification') {
             sectionTitleMap.bookingInfo = '取消的訂房資訊';
+        } else if (key === 'checkin_reminder') {
+            sectionTitleMap.amountSummary = '交通路線';
+            sectionTitleMap.payNowCard = '停車須知';
+            sectionTitleMap.remainingCard = '入住注意事項';
+            sectionTitleMap.contactInfo = '聯絡資訊';
         }
         const useSectionTitle = !!sectionTitleMap[markerKey];
         const body = toParagraphs(text, { firstLineBold: !useSectionTitle });
@@ -9697,6 +9713,33 @@ function getCancelNotificationDefaultFields() {
     };
 }
 
+function getCheckinReminderDefaultFields() {
+    return {
+        title: '🏨 入住提醒',
+        greeting: '親愛的 {{guestName}}，\n您預定的住宿行程即將開始，我們特別提醒您以下資訊：',
+        mainContent: '',
+        bookingInfo: '訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}',
+        amountSummary: '🚄 高鐵：左營站下車，轉乘計程車約 20 分鐘\n🚗 自行開車：導航至 {{hotelAddress}}',
+        payNowTitle: '🚗 停車資訊',
+        payNowContent: '停車位採先到先停，若遇客滿請依現場人員指引。',
+        remainingAmount: '',
+        remainingTitle: '⚠️ 入住注意事項',
+        remainingContent: '入住時間：下午 15:00 起\n退房時間：隔日 11:00 前\n如需提早入住或延後退房，請先與櫃台聯繫。',
+        noticeTitle: '',
+        notice: '',
+        bankTitle: '',
+        bankIntro: '',
+        bankInfo: '',
+        reminderTitle: '',
+        reminderList: '',
+        contactTitle: '📞 聯絡資訊',
+        contactInfo: 'Email：{{hotelEmail}}\n電話：{{hotelPhone}}\n官方 LINE：{{officialLineUrl}}',
+        closingMessage: '',
+        footer: '',
+        systemFooter: '此為系統自動發送郵件，請勿直接回覆'
+    };
+}
+
 function getFieldEditorDefaultFields(templateKey) {
     const key = String(templateKey || '').trim();
     if (key === 'booking_confirmation_admin') {
@@ -9704,6 +9747,9 @@ function getFieldEditorDefaultFields(templateKey) {
     }
     if (key === 'cancel_notification') {
         return getCancelNotificationDefaultFields();
+    }
+    if (key === 'checkin_reminder') {
+        return getCheckinReminderDefaultFields();
     }
     return getMvpBookingConfirmationDefaultFields();
 }
@@ -9724,7 +9770,7 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
             || source.includes('<!--MVP:bankInfo:start-->')
             || source.includes('<!--MVP:reminderList:start-->')
         );
-    const useBookingDefaults = ((key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin' || key === 'cancel_notification') && !hasMvpMarkers)
+    const useBookingDefaults = ((key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin' || key === 'cancel_notification' || key === 'checkin_reminder') && !hasMvpMarkers)
         || isLegacyBookingConfirmationAdminTemplate;
     const defaults = useBookingDefaults ? getFieldEditorDefaultFields(key) : {};
     const pick = (parsedValue, defaultValue, fallbackValue = '') => {
@@ -9746,9 +9792,9 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
     let titleText = pick(parsed.title, defaults.title, 'MVP 測試通知');
     let greetingText = pick(parsed.greeting, defaults.greeting, '親愛的 {{guestName}}，');
-    if (key === 'booking_confirmation' || key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin' || key === 'cancel_notification') {
+    if (key === 'booking_confirmation' || key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin' || key === 'cancel_notification' || key === 'checkin_reminder') {
         if (!titleText || /mvp\s*測試通知/i.test(String(titleText))) {
-            titleText = defaults.title || (key === 'booking_confirmation_admin' ? '新訂房通知' : (key === 'cancel_notification' ? '⚠️ 訂房已自動取消' : '訂房確認成功'));
+            titleText = defaults.title || (key === 'booking_confirmation_admin' ? '新訂房通知' : (key === 'cancel_notification' ? '⚠️ 訂房已自動取消' : (key === 'checkin_reminder' ? '🏨 入住提醒' : '訂房確認成功')));
         }
         titleText = String(titleText || '').replace(/^🔔\s*/, '').trim();
         if (!greetingText || /感謝您的預訂/.test(String(greetingText))) {
@@ -9756,7 +9802,9 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
                 ? '您有一筆新的訂房申請，以下是訂房詳細資訊：'
                 : (key === 'cancel_notification'
                     ? '親愛的 {{guestName}}，\n很抱歉通知您，由於超過匯款保留期限，您的訂房已自動取消。以下是取消的訂房資訊：'
-                    : '親愛的 {{guestName}}，\n您的訂房已成功確認，以下是您的訂房資訊：'));
+                    : (key === 'checkin_reminder'
+                        ? '親愛的 {{guestName}}，\n您預定的住宿行程即將開始，我們特別提醒您以下資訊：'
+                        : '親愛的 {{guestName}}，\n您的訂房已成功確認，以下是您的訂房資訊：')));
         }
     }
     setVal('mvpFieldTitle', titleText);
@@ -10039,7 +10087,7 @@ window.resetCurrentTemplateToDefault = async function resetCurrentTemplateToDefa
     const applyFieldEditorDefaults = (key) => {
         const normalizedKey = String(key || '').trim();
         if (!isFieldEditorTemplateKey(normalizedKey)) return false;
-        if (normalizedKey !== 'booking_confirmation' && normalizedKey !== 'mvp_booking_confirmation' && normalizedKey !== 'booking_confirmation_admin' && normalizedKey !== 'cancel_notification') {
+        if (normalizedKey !== 'booking_confirmation' && normalizedKey !== 'mvp_booking_confirmation' && normalizedKey !== 'booking_confirmation_admin' && normalizedKey !== 'cancel_notification' && normalizedKey !== 'checkin_reminder') {
             return false;
         }
         const defaults = getFieldEditorDefaultFields(normalizedKey);

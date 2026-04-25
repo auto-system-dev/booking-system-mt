@@ -6920,7 +6920,8 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
             isMvpTemplate ||
             String(key || '') === 'booking_confirmation' ||
             String(key || '') === 'booking_confirmation_admin' ||
-            String(key || '') === 'cancel_notification';
+            String(key || '') === 'cancel_notification' ||
+            String(key || '') === 'checkin_reminder';
         const hasEditorContent = !!req.body.content;
         const shouldUseEditorContent =
             hasEditorContent && (useEditorContent === true || isFieldStyleConfirmationTemplate);
