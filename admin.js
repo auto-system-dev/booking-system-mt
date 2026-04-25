@@ -9326,8 +9326,10 @@ function syncFieldEditorLayout(templateKey) {
             if (groupNoticeTitle) reminderContactGrid.insertBefore(groupNoticeTitle, groupNotice);
             // 再把「取消原因」整塊放到「重新訂房」之前
             if (groupReminderTitle) reminderContactGrid.insertBefore(groupNotice, groupReminderTitle);
-        } else if (key === 'booking_confirmation' && groupContactTitle && groupContactInfo) {
-            // 訂房確認（客戶）：注意事項移到聯絡資訊區塊下方
+        } else if (key === 'booking_confirmation' && groupReminderTitle && groupReminderList && groupContactTitle && groupContactInfo) {
+            // 訂房確認（客戶）：重要提醒區塊緊貼標題，其後為聯絡資訊，再來注意事項
+            reminderContactGrid.insertBefore(groupReminderTitle, reminderContactGrid.firstChild);
+            reminderContactGrid.insertBefore(groupReminderList, groupReminderTitle.nextSibling);
             reminderContactGrid.insertBefore(groupContactTitle, groupNotice);
             reminderContactGrid.insertBefore(groupContactInfo, groupNotice);
         } else if (groupReminderTitle && groupReminderList) {
@@ -9751,7 +9753,7 @@ function getMvpBookingConfirmationDefaultFields() {
         bankIntro: '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款。\n* 逾期將自動取消訂房。',
         bankInfo: '匯款資訊：\n銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n請在匯款時備註訂單後五碼：{{bookingIdLast5}}',
         reminderTitle: '⚠️ 重要提醒',
-        reminderList: '請於入住當天攜帶身分證件辦理入住手續\n如需取消或變更訂房，請提前 3 天通知\n如有任何問題，請隨時與我們聯繫',
+        reminderList: '• 請於入住當天攜帶身分證件辦理入住手續\n• 如需取消或變更訂房，請提前 3 天通知\n• 如有任何問題，請隨時與我們聯繫',
         contactTitle: '📞 聯絡資訊',
         contactInfo: '電話：{{hotelPhone}}\nEmail：{{hotelEmail}}\n官方 LINE：{{officialLineUrl}}',
         closingMessage: '感謝您的預訂，期待為您服務！',
@@ -9983,7 +9985,8 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
         const normalizedReminder = String(reminderListText || '').replace(/\r/g, '').trim();
         const legacyReminderDefaults = new Set([
             '此訂房將保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款\n逾期未付款，系統將自動取消訂單',
-            '此訂房將保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款。\n逾期未付款，系統將自動取消訂單'
+            '此訂房將保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款。\n逾期未付款，系統將自動取消訂單',
+            '請於入住當天攜帶身分證件辦理入住手續\n如需取消或變更訂房，請提前 3 天通知\n如有任何問題，請隨時與我們聯繫'
         ]);
         if (!normalizedReminder || legacyReminderDefaults.has(normalizedReminder)) {
             reminderListText = defaults.reminderList || getMvpBookingConfirmationDefaultFields().reminderList;
