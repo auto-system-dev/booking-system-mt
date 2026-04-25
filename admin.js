@@ -9792,17 +9792,22 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     setVal('mvpFieldBankIntro', pick(parsed.bankIntro, defaults.bankIntro, '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款'));
     setVal('mvpFieldBankInfo', pick(parsed.bankInfo, defaults.bankInfo, '銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n匯款請備註訂單後五碼：{{bookingIdLast5}}'));
     let reminderTitleText = pick(parsed.reminderTitle, defaults.reminderTitle, '重要提醒');
+    let reminderListText = pick(parsed.reminderList, defaults.reminderList, '此訂房將保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款\n逾期未付款，系統將自動取消訂單');
     let contactTitleText = pick(parsed.contactTitle, defaults.contactTitle, '聯絡資訊');
     if (key === 'booking_confirmation') {
         if (String(reminderTitleText || '').trim() === '重要提醒') {
             reminderTitleText = '⚠️ 重要提醒';
+        }
+        const legacyReminderPattern = /\{\{\s*daysReserved\s*\}\}|\{\{\s*paymentDeadline\s*\}\}|逾期未付款|自動取消訂單/;
+        if (!String(reminderListText || '').trim() || legacyReminderPattern.test(String(reminderListText || ''))) {
+            reminderListText = defaults.reminderList || getMvpBookingConfirmationDefaultFields().reminderList;
         }
         if (String(contactTitleText || '').trim() === '聯絡資訊') {
             contactTitleText = '📞 聯絡資訊';
         }
     }
     setVal('mvpFieldReminderTitle', reminderTitleText);
-    setVal('mvpFieldReminderList', pick(parsed.reminderList, defaults.reminderList, '此訂房將保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款\n逾期未付款，系統將自動取消訂單'));
+    setVal('mvpFieldReminderList', reminderListText);
     setVal('mvpFieldContactTitle', contactTitleText);
     setVal('mvpFieldContactInfo', pick(parsed.contactInfo, defaults.contactInfo, '電話：{{hotelPhone}}\nEmail：{{hotelEmail}}\n官方 LINE：{{officialLineUrl}}'));
     setVal('mvpFieldClosingMessage', pick(parsed.closingMessage, defaults.closingMessage, '感謝您的預訂，期待為您服務！'));
