@@ -9222,10 +9222,16 @@ function syncFieldEditorLayout(templateKey) {
     const groupNoticeTitle = document.getElementById('fieldGroupNoticeTitle');
     const groupReminderTitle = document.getElementById('fieldGroupReminderTitle');
     const groupReminderList = document.getElementById('fieldGroupReminderList');
+    const groupContactTitle = document.getElementById('fieldGroupContactTitle');
+    const groupContactInfo = document.getElementById('fieldGroupContactInfo');
     if (reminderContactGrid && groupNotice && groupReminderTitle && groupReminderList) {
         if (isCancelTemplate) {
             if (groupNoticeTitle) reminderContactGrid.insertBefore(groupNoticeTitle, groupNotice);
             reminderContactGrid.insertBefore(groupNotice, groupReminderTitle);
+        } else if (key === 'booking_confirmation' && groupContactTitle && groupContactInfo) {
+            // 訂房確認（客戶）：注意事項移到聯絡資訊區塊下方
+            reminderContactGrid.insertBefore(groupContactTitle, groupNotice);
+            reminderContactGrid.insertBefore(groupContactInfo, groupNotice);
         } else {
             reminderContactGrid.insertBefore(groupReminderTitle, groupNotice);
             reminderContactGrid.insertBefore(groupReminderList, groupNotice.nextSibling);
@@ -9364,8 +9370,9 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     ${renderBlock('remainingCard', remainingBlock)}
     ${renderBlock('bankInfo', bankBlock)}
     ${renderBlock('reminderList', reminderBlock)}
-    ${renderBlock('notice', noticeBlock)}
-    ${renderBlock('contactInfo', contactBlock)}
+    ${key === 'booking_confirmation'
+        ? `${renderBlock('contactInfo', contactBlock)}${renderBlock('notice', noticeBlock)}`
+        : `${renderBlock('notice', noticeBlock)}${renderBlock('contactInfo', contactBlock)}`}
     ${closingMessage ? `<!--MVP:closingMessage:start--><p style="margin:14px 0 0;">${escapeHtml(closingMessage)}</p><!--MVP:closingMessage:end-->` : ''}
     ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:10px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
   </div>
