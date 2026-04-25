@@ -9215,7 +9215,7 @@ const MVP_ALLOWED_VARIABLES = new Set([
     'totalAmount', 'discountAmount', 'discountedTotal', 'finalAmount', 'remainingAmount',
     'paymentDeadline', 'daysReserved', 'bankName', 'bankBranchDisplay', 'bankAccount',
     'accountName', 'bookingIdLast5', 'hotelPhone', 'hotelEmail', 'officialLineUrl', 'hotelName',
-    'paymentMethod', 'paymentAmount', 'pricePerNight', 'addonsList', 'addonsTotal',
+    'paymentMethod', 'paymentAmount', 'pricePerNight', 'addonsList', 'addonsTotal', 'hotelAddress',
     'guestPhone', 'guestEmail', 'specialRequest',
     'bookingDate', 'nights', 'bookingUrl'
 ]);
@@ -9484,7 +9484,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     ${key === 'booking_confirmation'
         ? `${renderBlock('contactInfo', contactBlock)}${renderBlock('notice', noticeBlock)}`
         : `${renderBlock('notice', noticeBlock)}${renderBlock('contactInfo', contactBlock)}`}
-    ${closingMessage ? `<!--MVP:closingMessage:start--><p style="margin:14px 0 0;">${escapeHtml(closingMessage)}</p><!--MVP:closingMessage:end-->` : ''}
+    ${closingMessage ? `<!--MVP:closingMessage:start--><div style="margin:14px 0 0;">${toParagraphs(closingMessage, { firstLineBold: false })}</div><!--MVP:closingMessage:end-->` : ''}
     ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:10px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
   </div>
 </body></html>`;
