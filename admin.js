@@ -10758,8 +10758,10 @@ async function showEmailTemplateModal(templateKey) {
             if (!isFieldEditorTemplate && templateKey === 'checkin_reminder') {
                 if (checkinSettings) {
                     checkinSettings.style.display = 'block';
-                    document.getElementById('daysBeforeCheckin').value = template.days_before_checkin || 1;
-                    document.getElementById('sendHourCheckin').value = template.send_hour_checkin || 9;
+                    const daysBeforeCheckinValue = template.days_before_checkin ?? 1;
+                    const sendHourCheckinValue = template.send_hour_checkin ?? 9;
+                    document.getElementById('daysBeforeCheckin').value = daysBeforeCheckinValue;
+                    document.getElementById('sendHourCheckin').value = sendHourCheckinValue;
                     // ✅ 完全手動版：不再自動從 block_settings 合併或改寫 content
                     // 之後編輯器看到的內容 = 資料庫裡存的 content，儲存時也只更新 content
                 }
@@ -10778,6 +10780,16 @@ async function showEmailTemplateModal(templateKey) {
             
             // 儲存當前模板 key 到全域變數，供還原功能使用
             window.currentTemplateKey = templateKey;
+            // 保留目前排程設定，避免欄位切換或還原內容時被意外覆蓋
+            window.currentTemplateSchedule = {
+                templateKey,
+                days_before_checkin: template.days_before_checkin,
+                send_hour_checkin: template.send_hour_checkin,
+                days_after_checkout: template.days_after_checkout,
+                send_hour_feedback: template.send_hour_feedback,
+                days_reserved: template.days_reserved,
+                send_hour_payment_reminder: template.send_hour_payment_reminder
+            };
             
             if (!isFieldEditorTemplate && templateKey === 'feedback_request') {
                 if (feedbackSettings) {
@@ -11628,6 +11640,9 @@ async function saveEmailTemplate(event) {
     if (!isMvpTemplate && templateKey === 'checkin_reminder') {
         const daysBeforeCheckinEl = document.getElementById('daysBeforeCheckin');
         const sendHourCheckinEl = document.getElementById('sendHourCheckin');
+        const scheduleSnapshot = (window.currentTemplateSchedule && window.currentTemplateSchedule.templateKey === templateKey)
+            ? window.currentTemplateSchedule
+            : {};
         console.log('🔍 入住提醒元素:', { 
             daysBeforeCheckinEl: daysBeforeCheckinEl ? '找到' : '未找到',
             sendHourCheckinEl: sendHourCheckinEl ? '找到' : '未找到',
@@ -11635,9 +11650,20 @@ async function saveEmailTemplate(event) {
             sendHourCheckinValue: sendHourCheckinEl ? sendHourCheckinEl.value : 'N/A'
         });
         if (daysBeforeCheckinEl && sendHourCheckinEl) {
-            data.days_before_checkin = parseInt(daysBeforeCheckinEl.value) || 1;
-            data.send_hour_checkin = parseInt(sendHourCheckinEl.value) || 9;
+            const parsedDays = parseInt(daysBeforeCheckinEl.value, 10);
+            const parsedHour = parseInt(sendHourCheckinEl.value, 10);
+            data.days_before_checkin = Number.isNaN(parsedDays)
+                ? (scheduleSnapshot.days_before_checkin ?? 1)
+                : parsedDays;
+            data.send_hour_checkin = Number.isNaN(parsedHour)
+                ? (scheduleSnapshot.send_hour_checkin ?? 9)
+                : parsedHour;
             console.log('✅ 已添加入住提醒設定:', { days_before_checkin: data.days_before_checkin, send_hour_checkin: data.send_hour_checkin });
+        } else if (scheduleSnapshot.days_before_checkin !== undefined || scheduleSnapshot.send_hour_checkin !== undefined) {
+            // 欄位未顯示時，沿用目前模板原本設定，避免被重設
+            data.days_before_checkin = scheduleSnapshot.days_before_checkin ?? 1;
+            data.send_hour_checkin = scheduleSnapshot.send_hour_checkin ?? 9;
+            console.log('✅ 已沿用入住提醒原排程設定:', { days_before_checkin: data.days_before_checkin, send_hour_checkin: data.send_hour_checkin });
         }
     } else if (!isMvpTemplate && templateKey === 'feedback_request') {
         const daysAfterCheckoutEl = document.getElementById('daysAfterCheckout');
