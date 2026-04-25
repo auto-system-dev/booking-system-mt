@@ -121,7 +121,7 @@ if (typeof window !== 'undefined') {
                     loadInitialAdminRoute();
                 }
                 // 非阻塞背景驗證：只記錄結果，不影響已登入畫面
-                checkAuthStatus({ timeoutMs: 3000 }).catch((err) => {
+                checkAuthStatus({ timeoutMs: 3000, silent: true }).catch((err) => {
                     console.warn('⚠️ 背景登入狀態檢查失敗（不阻塞登入）:', err?.message || err);
                 });
                 console.log('✅ 登入成功，已切換後台畫面');
@@ -252,6 +252,7 @@ window.closeEmailTemplateModal = function() {
 // 檢查登入狀態
 async function checkAuthStatus(options = {}) {
     const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 5000;
+    const silent = !!options.silent;
     const abortController = new AbortController();
     const timeoutId = setTimeout(() => {
         try {
@@ -264,7 +265,8 @@ async function checkAuthStatus(options = {}) {
     try {
         console.log('🔐 檢查登入狀態...');
         const response = await adminFetch('/api/admin/check-auth', {
-            signal: abortController.signal
+            signal: abortController.signal,
+            suppressUnauthorizedRedirect: silent
         });
         
         console.log('📡 API 回應狀態:', {
@@ -301,15 +303,19 @@ async function checkAuthStatus(options = {}) {
         } else {
             // 未登入，顯示登入頁面
             console.log('ℹ️ 未登入，顯示登入頁面');
-            setAdminAuthHint(false);
-            showLoginPage();
+            if (!silent) {
+                setAdminAuthHint(false);
+                showLoginPage();
+            }
             return false;
         }
     } catch (error) {
         if (error?.name === 'AbortError') {
             console.warn(`⚠️ 檢查登入狀態逾時（>${timeoutMs}ms），先顯示登入頁避免白畫面`);
-            setAdminAuthHint(false);
-            showLoginPage();
+            if (!silent) {
+                setAdminAuthHint(false);
+                showLoginPage();
+            }
             return false;
         }
         console.error('❌ 檢查登入狀態錯誤:', error);
@@ -688,6 +694,7 @@ function handleUnauthorizedSession() {
 
 async function adminFetch(url, options = {}) {
     const requestMethod = (options.method || 'GET').toUpperCase();
+    const suppressUnauthorizedRedirect = !!options.suppressUnauthorizedRedirect;
     const needsCsrfToken = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(requestMethod);
     // 只有寫入請求才等待 CSRF Token，避免 check-auth/列表查詢被阻塞
     const csrfToken = needsCsrfToken ? await getCsrfToken() : null;
@@ -726,7 +733,7 @@ async function adminFetch(url, options = {}) {
         const response = await fetch(url, mergedOptions);
         
         // 全站統一攔截 401：直接切回登入頁，避免各頁重複處理
-        if (response.status === 401) {
+        if (response.status === 401 && !suppressUnauthorizedRedirect) {
             handleUnauthorizedSession();
             return response;
         }
