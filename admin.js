@@ -9273,7 +9273,7 @@ function syncFieldEditorLayout(templateKey) {
     setVisible('fieldGroupReminderTitle', !isAdminBookingTemplate && !isCheckinTemplate);
     setVisible('fieldGroupReminderList', !isAdminBookingTemplate && !isCheckinTemplate);
     setVisible('fieldGroupNotice', !isAdminBookingTemplate && !isCheckinTemplate);
-    setVisible('fieldGroupNoticeTitle', isCancelTemplate);
+    setVisible('fieldGroupNoticeTitle', isCancelTemplate || isFeedbackTemplate);
     setVisible('fieldGroupContactTitle', !isAdminBookingTemplate && !isCancelTemplate && !isFeedbackTemplate);
     setVisible('fieldGroupContactInfo', !isCancelTemplate && !isFeedbackTemplate);
     setVisible('fieldGroupAmountSummaryTitle', isCheckinTemplate || isFeedbackTemplate);
@@ -9321,6 +9321,7 @@ function syncFieldEditorLayout(templateKey) {
         setGroupLabel('fieldGroupAmountSummary', '評分邀請區塊');
         setGroupLabel('fieldGroupReminderTitle', '意見回饋標題');
         setGroupLabel('fieldGroupReminderList', '意見回饋區塊');
+        setGroupLabel('fieldGroupNoticeTitle', '再次入住優惠標題');
         setGroupLabel('fieldGroupNotice', '再次入住優惠區塊');
     } else {
         setGroupLabel('fieldGroupReminderTitle', '重要提醒標題');
@@ -9348,6 +9349,9 @@ function syncFieldEditorLayout(templateKey) {
             reminderContactGrid.insertBefore(groupReminderList, groupReminderTitle.nextSibling);
             reminderContactGrid.insertBefore(groupContactTitle, groupNotice);
             reminderContactGrid.insertBefore(groupContactInfo, groupNotice);
+        } else if (isFeedbackTemplate && groupNoticeTitle && groupNotice) {
+            // 感謝入住：再次入住優惠標題顯示於優惠內容上方
+            reminderContactGrid.insertBefore(groupNoticeTitle, groupNotice);
         } else if (isFeedbackTemplate && groupReminderTitle && groupReminderList) {
             // 感謝入住：意見回饋區塊緊貼意見回饋標題
             reminderContactGrid.insertBefore(groupReminderTitle, reminderContactGrid.firstChild);
@@ -9528,7 +9532,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     ${renderBlock('bookingInfo', bookingInfo)}
     ${renderBlock('amountSummary', amountSummary)}
     ${renderFeedbackPanel('reminderList', reminderTitle, reminderList, 'border:1px solid #86efac;background:#f0fdf4;')}
-    ${renderFeedbackPanel('notice', '', notice, 'border:1px solid #fde68a;background:#fffbeb;')}
+    ${renderFeedbackPanel('notice', noticeTitle, notice, 'border:1px solid #fde68a;background:#fffbeb;')}
     ${closingMessage ? `<!--MVP:closingMessage:start--><div style="margin:16px 0 0;">${toParagraphs(closingMessage, { firstLineBold: false })}</div><!--MVP:closingMessage:end-->` : ''}
     ${footer ? `<!--MVP:footer:start--><p style="margin:10px 0 0;">${escapeHtml(footer)}</p><!--MVP:footer:end-->` : ''}
     ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:12px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
@@ -9903,14 +9907,14 @@ function getFeedbackRequestDefaultFields() {
         mainContent: '',
         bookingInfo: '訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}',
         amountSummaryTitle: '您的寶貴意見對我們非常重要！',
-        amountSummary: '請為我們的服務評分：\n{{bookingUrl}}\n\n歡迎分享您對本次住宿體驗出色服務的讚賞，也讓我們能持續改進並帶給您更好的體驗。',
+        amountSummary: '請為我們的服務評分：\n★★★★★\n{{bookingUrl}}\n\n歡迎分享您對本次住宿體驗出色服務的讚賞，也讓我們能持續改進並帶給您更好的體驗。',
         payNowTitle: '',
         payNowContent: '',
         remainingAmount: '',
         remainingTitle: '',
         remainingContent: '',
-        noticeTitle: '',
-        notice: '🎁 再次入住優惠\n感謝您的支持！\n再次預訂可享有 9 折優惠\n歡迎隨時與我們聯繫，我們期待再次為您服務',
+        noticeTitle: '🎁 再次入住優惠',
+        notice: '感謝您的支持！\n再次預訂可享有 9 折優惠\n歡迎隨時與我們聯繫，我們期待再次為您服務',
         bankTitle: '',
         bankIntro: '',
         bankInfo: '',
