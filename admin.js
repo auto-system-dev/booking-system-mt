@@ -9389,15 +9389,16 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
         const useSectionTitle = !!sectionTitleMap[markerKey];
         let renderText = text;
         if (key === 'booking_confirmation' && markerKey === 'reminderList') {
-            renderText = String(text || '')
+            const lines = String(text || '')
                 .split('\n')
                 .map((line) => line.trim())
-                .filter(Boolean)
-                .map((line) => {
+                .filter(Boolean);
+            const titleLine = lines[0] || '';
+            const contentLines = lines.slice(1).map((line) => {
                     const normalized = line.replace(/^[•●▪◦]\s*/, '').trim();
                     return `• ${normalized}`;
-                })
-                .join('\n');
+                });
+            renderText = [titleLine, ...contentLines].filter(Boolean).join('\n');
         }
         const body = toParagraphs(renderText, { firstLineBold: !useSectionTitle });
         if (!body) return '';
