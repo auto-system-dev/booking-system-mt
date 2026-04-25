@@ -9544,8 +9544,8 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     ${renderBlock('amountSummary', amountSummary)}
     ${renderFeedbackPanel('reminderList', reminderTitle, reminderList, 'border:1px solid #86efac;background:#f0fdf4;')}
     ${renderFeedbackPanel('notice', noticeTitle, notice, 'border:1px solid #fde68a;background:#fffbeb;')}
-    ${closingMessage ? `<!--MVP:closingMessage:start--><div style="margin:16px 0 0;">${toParagraphs(closingMessage, { firstLineBold: false })}</div><!--MVP:closingMessage:end-->` : ''}
-    ${footer ? `<!--MVP:footer:start--><p style="margin:10px 0 0;">${escapeHtml(footer)}</p><!--MVP:footer:end-->` : ''}
+    ${closingMessage ? `<!--MVP:closingMessage:start--><div style="margin:16px 0 0;text-align:center;">${toParagraphs(closingMessage, { firstLineBold: false })}</div><!--MVP:closingMessage:end-->` : ''}
+    ${footer ? `<!--MVP:footer:start--><p style="margin:10px 0 0;text-align:center;">${escapeHtml(footer)}</p><!--MVP:footer:end-->` : ''}
     ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:12px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
   </div>
 </body></html>`;
