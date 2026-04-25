@@ -9314,32 +9314,6 @@ function syncFieldEditorLayout(templateKey) {
     const sectionClosingTitle = document.querySelector('#fieldSectionClosing > div:first-child');
     if (sectionClosingTitle) sectionClosingTitle.style.display = hideSectionExplainTitle ? 'none' : '';
 
-    // 感謝入住：欄位區塊對齊預覽，以框線分段顯示
-    const setGroupFrame = (groupId, framed) => {
-        const el = document.getElementById(groupId);
-        if (!el) return;
-        if (framed) {
-            el.style.border = '1px solid #cbd5e1';
-            el.style.background = '#ffffff';
-            el.style.borderRadius = '8px';
-            el.style.padding = '10px';
-        } else {
-            el.style.border = '';
-            el.style.background = '';
-            el.style.borderRadius = '';
-            el.style.padding = '';
-        }
-    };
-    [
-        'fieldGroupBookingInfo',
-        'fieldGroupAmountSummaryTitle',
-        'fieldGroupAmountSummary',
-        'fieldGroupReminderTitle',
-        'fieldGroupReminderList',
-        'fieldGroupNoticeTitle',
-        'fieldGroupNotice'
-    ].forEach((groupId) => setGroupFrame(groupId, isFeedbackTemplate));
-
     const setGroupLabel = (groupId, text) => {
         const labelEl = document.querySelector(`#${groupId} label`);
         if (labelEl) labelEl.textContent = text;
