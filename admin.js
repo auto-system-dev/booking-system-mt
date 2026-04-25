@@ -1854,6 +1854,10 @@ function switchSection(section) {
     if (section === 'tenant-management') {
         section = 'subscription-overview';
     }
+    // holidays 為 room-types 內部分頁，不是獨立 section
+    if (section === 'holidays') {
+        section = 'room-types';
+    }
     // 區塊對應的權限
     const sectionPermissions = {
         'dashboard': 'dashboard.view',
@@ -1899,6 +1903,16 @@ function switchSection(section) {
         return;
     }
     
+    const targetSectionId = `${section}-section`;
+    const targetSection = document.getElementById(targetSectionId);
+    if (!targetSection) {
+        console.warn('⚠️ 找不到 section，改回 dashboard:', targetSectionId);
+        if (section !== 'dashboard') {
+            switchSection('dashboard');
+        }
+        return;
+    }
+
     // 更新導航狀態
     document.querySelectorAll('.nav-item').forEach(item => {
         item.classList.remove('active');
@@ -1917,7 +1931,7 @@ function switchSection(section) {
     });
     
     // 顯示選中的 section
-    const contentSection = document.getElementById(`${section}-section`);
+    const contentSection = targetSection;
     if (contentSection) {
         contentSection.classList.add('active');
         // 確保 active section 顯示
@@ -2028,8 +2042,8 @@ function loadInitialAdminRoute() {
         switchSection('promotions');
         switchPromotionTab('early-bird');
     } else if (urlHash === '#holidays') {
-        switchSection('holidays');
-        if (typeof loadHolidays === 'function') loadHolidays();
+        switchSection('room-types');
+        if (typeof switchRoomTypeTab === 'function') switchRoomTypeTab('holidays');
     } else if (urlHash === '#email-templates') {
         switchSection('email-templates');
     } else if (urlHash === '#statistics') {
