@@ -9187,6 +9187,7 @@ function syncFieldEditorLayout(templateKey) {
     setVisible('fieldGroupNotice', !isAdminBookingTemplate);
     setVisible('fieldGroupNoticeTitle', isCancelTemplate);
     setVisible('fieldGroupContactTitle', !isAdminBookingTemplate);
+    setVisible('fieldGroupContactInfo', !isCancelTemplate);
     setVisible('fieldGroupAmountSummary', !isCancelTemplate);
     setVisible('fieldGroupPayNowTitle', !isCancelTemplate);
     setVisible('fieldGroupPayNowContent', !isCancelTemplate);
@@ -9208,7 +9209,7 @@ function syncFieldEditorLayout(templateKey) {
     };
     if (isCancelTemplate) {
         setGroupLabel('fieldGroupReminderTitle', '重新訂房標題');
-        setGroupLabel('fieldGroupReminderList', '重新訂房區塊');
+        setGroupLabel('fieldGroupReminderList', '重新訂房與聯絡區塊');
         setGroupLabel('fieldGroupNotice', '取消原因內容');
     } else {
         setGroupLabel('fieldGroupReminderTitle', '重要提醒標題');
@@ -9327,12 +9328,11 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
             return `<!--MVP:${markerKey}:start--><div style="margin:12px 0;${sectionStyle}">${titleHtml}${body}</div><!--MVP:${markerKey}:end-->`;
         };
         const reminderBody = toParagraphs(reminderList, { firstLineBold: false });
-        const contactBody = toParagraphs(contactInfo, { firstLineBold: false });
-        const mergedReminderContactSection = (reminderBody || contactBody)
+        const mergedReminderContactSection = reminderBody
             ? `<!--MVP:reminderList:start--><div style="margin:12px 0;border:1px solid #22c55e;background:#f0fdf4;padding:12px;border-radius:10px;">
                 ${reminderTitle ? `<p style="margin:0 0 10px;font-weight:700;color:#15803d;">${escapeHtml(reminderTitle)}</p>` : ''}
                 ${reminderBody}
-                <!--MVP:contactInfo:start-->${contactBody}<!--MVP:contactInfo:end-->
+                <!--MVP:contactInfo:start--><!--MVP:contactInfo:end-->
             </div><!--MVP:reminderList:end-->`
             : '';
 
@@ -9818,10 +9818,17 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
             contactTitleText = '📞 聯絡資訊';
         }
     }
+    let finalReminderListText = reminderListText;
+    if (key === 'cancel_notification') {
+        const merged = [String(reminderListText || '').trim(), String(pick(parsed.contactInfo, defaults.contactInfo, '') || '').trim()]
+            .filter(Boolean)
+            .join('\n\n');
+        finalReminderListText = merged || reminderListText;
+    }
     setVal('mvpFieldReminderTitle', reminderTitleText);
-    setVal('mvpFieldReminderList', reminderListText);
+    setVal('mvpFieldReminderList', finalReminderListText);
     setVal('mvpFieldContactTitle', contactTitleText);
-    setVal('mvpFieldContactInfo', pick(parsed.contactInfo, defaults.contactInfo, '電話：{{hotelPhone}}\nEmail：{{hotelEmail}}\n官方 LINE：{{officialLineUrl}}'));
+    setVal('mvpFieldContactInfo', key === 'cancel_notification' ? '' : pick(parsed.contactInfo, defaults.contactInfo, '電話：{{hotelPhone}}\nEmail：{{hotelEmail}}\n官方 LINE：{{officialLineUrl}}'));
     setVal('mvpFieldClosingMessage', pick(parsed.closingMessage, defaults.closingMessage, '感謝您的預訂，期待為您服務！'));
     setVal('mvpFieldFooter', pick(parsed.footer, defaults.footer, '{{hotelName}} 團隊 敬上'));
     renderMvpTemplatePreview();
