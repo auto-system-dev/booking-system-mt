@@ -136,6 +136,27 @@
                 err.textContent = message;
             }
 
+            async function waitForAuthReady(maxAttempts = 4, delayMs = 250) {
+                for (let i = 0; i < maxAttempts; i += 1) {
+                    try {
+                        const resp = await fetch('/api/admin/check-auth', {
+                            method: 'GET',
+                            credentials: 'include'
+                        });
+                        const data = await resp.json().catch(() => ({}));
+                        if (resp.ok && data && data.success && data.authenticated) {
+                            return true;
+                        }
+                    } catch (_e) {
+                        // ignore and retry
+                    }
+                    if (i < maxAttempts - 1) {
+                        await new Promise((resolve) => setTimeout(resolve, delayMs));
+                    }
+                }
+                return false;
+            }
+
             form.addEventListener('submit', async function (event) {
                 event.preventDefault();
                 if (pending) return;
@@ -163,6 +184,7 @@
                     if (!response.ok || !result.success) {
                         throw new Error(result.message || ('HTTP ' + response.status));
                     }
+                    await waitForAuthReady();
                     window.location.replace('/admin');
                 } catch (error) {
                     showError('登入失敗：' + (error && error.message ? error.message : '請稍後再試'));
