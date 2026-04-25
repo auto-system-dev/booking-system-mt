@@ -9272,6 +9272,7 @@ function syncFieldEditorLayout(templateKey) {
     setVisible('fieldGroupNoticeTitle', isCancelTemplate);
     setVisible('fieldGroupContactTitle', !isAdminBookingTemplate && !isCancelTemplate);
     setVisible('fieldGroupContactInfo', !isCancelTemplate);
+    setVisible('fieldGroupAmountSummaryTitle', isCheckinTemplate);
     setVisible('fieldGroupAmountSummary', !isCancelTemplate);
     setVisible('fieldGroupPayNowTitle', !isCancelTemplate);
     setVisible('fieldGroupPayNowContent', !isCancelTemplate);
@@ -9298,6 +9299,7 @@ function syncFieldEditorLayout(templateKey) {
         setGroupLabel('fieldGroupReminderList', '重新訂房與聯絡區塊');
         setGroupLabel('fieldGroupNotice', '取消原因內容');
     } else if (isCheckinTemplate) {
+        setGroupLabel('fieldGroupAmountSummaryTitle', '交通路線標題');
         setGroupLabel('fieldGroupAmountSummary', '交通路線');
         setGroupLabel('fieldGroupPayNowTitle', '停車資訊標題');
         setGroupLabel('fieldGroupPayNowContent', '停車資訊內容');
@@ -9342,6 +9344,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     const greeting = String(fields.greeting || '').trim();
     const mainContent = String(fields.mainContent || '').trim();
     const bookingInfo = String(fields.bookingInfo || '').trim();
+    const amountSummaryTitle = String(fields.amountSummaryTitle || '').trim();
     const amountSummary = String(fields.amountSummary || '').trim();
     const payNowTitle = String(fields.payNowTitle || '').trim();
     const payNowContent = String(fields.payNowContent || '').trim();
@@ -9380,11 +9383,14 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
         if (key === 'cancel_notification') {
             sectionTitleMap.bookingInfo = '取消的訂房資訊';
         } else if (key === 'checkin_reminder') {
-            sectionTitleMap.amountSummary = '🚆 交通路線';
+            sectionTitleMap.amountSummary = amountSummaryTitle || '📍 交通路線';
         }
         const useSectionTitle = !!sectionTitleMap[markerKey];
         const body = toParagraphs(text, { firstLineBold: !useSectionTitle });
         if (!body) return '';
+        const titleMarker = sectionTitleMap[markerKey]
+            ? `<!--MVP:${markerKey}Title:start-->${escapeHtml(sectionTitleMap[markerKey])}<!--MVP:${markerKey}Title:end-->`
+            : '';
         const sectionTitle = sectionTitleMap[markerKey]
             ? `<p style="margin: 0 0 10px;font-weight:700;">${sectionTitleMap[markerKey]}</p>`
             : '';
@@ -9399,7 +9405,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
             contactInfo: 'border:1px solid #cbd5e1;background:#f8fafc;'
         };
         const blockStyle = blockStyleMap[markerKey] || 'border:1px solid #e2e8f0;background:#ffffff;';
-        return `<!--MVP:${markerKey}:start--><div style="margin:14px 0;padding:12px;border-radius:10px;${blockStyle}">${sectionTitle}${body}</div><!--MVP:${markerKey}:end-->`;
+        return `<!--MVP:${markerKey}:start--><div style="margin:14px 0;padding:12px;border-radius:10px;${blockStyle}">${titleMarker}${sectionTitle}${body}</div><!--MVP:${markerKey}:end-->`;
     };
     const payNowBlock = [payNowTitle, payNowContent].filter(Boolean).join('\n');
     const remainingBlock = [remainingTitle, remainingContent].filter(Boolean).join('\n');
@@ -9552,6 +9558,7 @@ function parseMvpTemplateFieldsFromHtml(html) {
             greeting: extractMvpMarkedSection(source, 'greeting'),
             mainContent: extractMvpMarkedSection(source, 'mainContent'),
             bookingInfo: extractMvpMarkedSection(source, 'bookingInfo'),
+            amountSummaryTitle: extractMvpMarkedSection(source, 'amountSummaryTitle'),
             amountSummary: extractMvpMarkedSection(source, 'amountSummary'),
             payNowTitle: payNowLines[0] || '',
             payNowContent: payNowLines.slice(1).join('\n').trim(),
@@ -9583,6 +9590,7 @@ function parseMvpTemplateFieldsFromHtml(html) {
         greeting,
         mainContent,
         bookingInfo: '',
+        amountSummaryTitle: '',
         amountSummary: '',
         payNowTitle: '',
         payNowContent: '',
@@ -9610,6 +9618,7 @@ function collectMvpEditorFields() {
         greeting: document.getElementById('mvpFieldGreeting')?.value || '',
         mainContent: document.getElementById('mvpFieldMainContent')?.value || '',
         bookingInfo: document.getElementById('mvpFieldBookingInfo')?.value || '',
+        amountSummaryTitle: document.getElementById('mvpFieldAmountSummaryTitle')?.value || '',
         amountSummary: document.getElementById('mvpFieldAmountSummary')?.value || '',
         payNowTitle: document.getElementById('mvpFieldPayNowTitle')?.value || '',
         payNowContent: document.getElementById('mvpFieldPayNowContent')?.value || '',
@@ -9683,7 +9692,7 @@ function setMvpEditorVisible(visible) {
 function initMvpEditorBindings() {
     const ids = [
         'mvpFieldTitle', 'mvpFieldGreeting', 'mvpFieldMainContent',
-        'mvpFieldBookingInfo', 'mvpFieldAmountSummary', 'mvpFieldRemainingAmount',
+        'mvpFieldBookingInfo', 'mvpFieldAmountSummaryTitle', 'mvpFieldAmountSummary', 'mvpFieldRemainingAmount',
         'mvpFieldPayNowTitle', 'mvpFieldPayNowContent',
         'mvpFieldRemainingTitle', 'mvpFieldRemainingContent',
         'mvpFieldNoticeTitle', 'mvpFieldNotice', 'mvpFieldBankTitle', 'mvpFieldBankIntro', 'mvpFieldBankInfo',
@@ -9797,12 +9806,13 @@ function getCheckinReminderDefaultFields() {
         greeting: '親愛的 {{guestName}}，\n您預定的住宿行程即將開始，我們特別提醒您以下資訊：',
         mainContent: '',
         bookingInfo: '訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}',
-        amountSummary: '🚄 高鐵：左營站下車，轉乘計程車約 20 分鐘\n🚗 自行開車：導航至 {{hotelAddress}}',
+        amountSummaryTitle: '📍 交通路線',
+        amountSummary: '地址：{{hotelAddress}}\n大眾運輸：\n• 捷運：搭乘板南線至「市政府站」，從2號出口步行約5分鐘\n• 公車：搭乘20、32、46路公車至「信義行政中心站」\n自行開車：\n• 國道一號：下「信義交流道」，沿信義路直行約3公里\n• 國道三號：下「木柵交流道」，接信義快速道路',
         payNowTitle: '🚗 停車資訊',
         payNowContent: '停車位採先到先停，若遇客滿請依現場人員指引。',
         remainingAmount: '',
         remainingTitle: '⚠️ 入住注意事項',
-        remainingContent: '入住時間：下午 15:00 起\n退房時間：隔日 11:00 前\n如需提早入住或延後退房，請先與櫃台聯繫。',
+        remainingContent: '• 入住時間：下午3:00後\n• 退房時間：上午11:30前\n• 請攜帶身分證件辦理入住手續\n• 房間內禁止吸菸，違者將收取清潔費 NT$ 3,000\n• 請保持安靜，避免影響其他住客\n• 貴重物品請妥善保管，建議使用房間保險箱\n• 如需延遲退房，請提前告知櫃檯',
         noticeTitle: '',
         notice: '',
         bankTitle: '',
@@ -9812,7 +9822,7 @@ function getCheckinReminderDefaultFields() {
         reminderList: '',
         contactTitle: '📞 聯絡資訊',
         contactInfo: 'Email：{{hotelEmail}}\n電話：{{hotelPhone}}\n官方 LINE：{{officialLineUrl}}',
-        closingMessage: '',
+        closingMessage: '期待您的到來，祝您住宿愉快！\n祝您 身體健康，萬事如意\n感謝您的支持與信任',
         footer: '',
         systemFooter: '此為系統自動發送郵件，請勿直接回覆'
     };
@@ -9863,9 +9873,18 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     if (key === 'booking_confirmation' && !/\{\{\s*pricePerNight\s*\}\}/.test(bookingInfoText)) {
         bookingInfoText = `${bookingInfoText}\n房價（每晚）：NT$ {{pricePerNight}}`.trim();
     }
-    let amountSummaryText = normalizeMvpSectionFieldText('費用摘要', pick(parsed.amountSummary, defaults.amountSummary, '訂房金額：NT$ {{totalAmount}}\n折扣：-NT$ {{discountAmount}}\n折後金額：NT$ {{discountedTotal}}\n本次應付：NT$ {{finalAmount}}\n付款方式：{{paymentMethod}}（{{paymentAmount}}）'));
+    const amountSummaryHeading = key === 'checkin_reminder'
+        ? '交通路線'
+        : '費用摘要';
+    let amountSummaryText = normalizeMvpSectionFieldText(amountSummaryHeading, pick(parsed.amountSummary, defaults.amountSummary, '訂房金額：NT$ {{totalAmount}}\n折扣：-NT$ {{discountAmount}}\n折後金額：NT$ {{discountedTotal}}\n本次應付：NT$ {{finalAmount}}\n付款方式：{{paymentMethod}}（{{paymentAmount}}）'));
     if ((key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin') && !/\{\{\s*paymentMethod\s*\}\}/.test(amountSummaryText)) {
         amountSummaryText = `${amountSummaryText}\n付款方式：{{paymentMethod}}（{{paymentAmount}}）`.trim();
+    }
+    if (key === 'checkin_reminder') {
+        const legacyTransport = '🚄 高鐵：左營站下車，轉乘計程車約 20 分鐘\n🚗 自行開車：導航至 {{hotelAddress}}';
+        if (!String(amountSummaryText || '').trim() || String(amountSummaryText || '').trim() === legacyTransport.trim()) {
+            amountSummaryText = defaults.amountSummary || getCheckinReminderDefaultFields().amountSummary;
+        }
     }
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
     let titleText = pick(parsed.title, defaults.title, 'MVP 測試通知');
@@ -9893,6 +9912,7 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     setVal('mvpFieldGreeting', greetingText);
     setVal('mvpFieldMainContent', pick(parsed.mainContent, defaults.mainContent, ''));
     setVal('mvpFieldBookingInfo', bookingInfoText);
+    setVal('mvpFieldAmountSummaryTitle', pick(parsed.amountSummaryTitle, defaults.amountSummaryTitle, ''));
     setVal('mvpFieldAmountSummary', amountSummaryText);
     let payNowTitleText = pick(parsed.payNowTitle, defaults.payNowTitle, '應付金額');
     let payNowContentText = pick(parsed.payNowContent, defaults.payNowContent, 'NT$ {{finalAmount}}');
@@ -9913,6 +9933,10 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     if (key === 'checkin_reminder') {
         // 舊資料仍可能是「停車須知」，統一轉成「停車資訊」
         payNowTitleText = String(payNowTitleText || '').replace(/停車須知/g, '停車資訊').trim();
+        const legacyCheckinNotes = '入住時間：下午 15:00 起\n退房時間：隔日 11:00 前\n如需提早入住或延後退房，請先與櫃台聯繫。';
+        if (!String(remainingContentText || '').trim() || String(remainingContentText || '').trim() === legacyCheckinNotes.trim()) {
+            remainingContentText = defaults.remainingContent || getCheckinReminderDefaultFields().remainingContent;
+        }
     }
     setVal('mvpFieldPayNowTitle', payNowTitleText);
     setVal('mvpFieldPayNowContent', payNowContentText);
@@ -9973,7 +9997,14 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     setVal('mvpFieldReminderList', finalReminderListText);
     setVal('mvpFieldContactTitle', contactTitleText);
     setVal('mvpFieldContactInfo', key === 'cancel_notification' ? '' : pick(parsed.contactInfo, defaults.contactInfo, '電話：{{hotelPhone}}\nEmail：{{hotelEmail}}\n官方 LINE：{{officialLineUrl}}'));
-    setVal('mvpFieldClosingMessage', pick(parsed.closingMessage, defaults.closingMessage, '感謝您的預訂，期待為您服務！'));
+    let closingMessageText = pick(parsed.closingMessage, defaults.closingMessage, '感謝您的預訂，期待為您服務！');
+    if (key === 'checkin_reminder') {
+        const legacyClosing = '感謝您的預訂，期待為您服務！';
+        if (!String(closingMessageText || '').trim() || String(closingMessageText || '').trim() === legacyClosing) {
+            closingMessageText = defaults.closingMessage || getCheckinReminderDefaultFields().closingMessage;
+        }
+    }
+    setVal('mvpFieldClosingMessage', closingMessageText);
     setVal('mvpFieldFooter', pick(parsed.footer, defaults.footer, '{{hotelName}} 團隊 敬上'));
     renderMvpTemplatePreview();
 }
@@ -10192,6 +10223,7 @@ window.resetCurrentTemplateToDefault = async function resetCurrentTemplateToDefa
         setVal('mvpFieldTitle', defaults.title);
         setVal('mvpFieldGreeting', defaults.greeting);
         setVal('mvpFieldBookingInfo', defaults.bookingInfo);
+        setVal('mvpFieldAmountSummaryTitle', defaults.amountSummaryTitle);
         setVal('mvpFieldAmountSummary', defaults.amountSummary);
         setVal('mvpFieldPayNowTitle', defaults.payNowTitle);
         setVal('mvpFieldPayNowContent', defaults.payNowContent);
