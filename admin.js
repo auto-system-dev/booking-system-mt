@@ -9798,8 +9798,12 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
         if (String(reminderTitleText || '').trim() === '重要提醒') {
             reminderTitleText = '⚠️ 重要提醒';
         }
-        const legacyReminderPattern = /\{\{\s*daysReserved\s*\}\}|\{\{\s*paymentDeadline\s*\}\}|逾期未付款|自動取消訂單/;
-        if (!String(reminderListText || '').trim() || legacyReminderPattern.test(String(reminderListText || ''))) {
+        const normalizedReminder = String(reminderListText || '').replace(/\r/g, '').trim();
+        const legacyReminderDefaults = new Set([
+            '此訂房將保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款\n逾期未付款，系統將自動取消訂單',
+            '此訂房將保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款。\n逾期未付款，系統將自動取消訂單'
+        ]);
+        if (!normalizedReminder || legacyReminderDefaults.has(normalizedReminder)) {
             reminderListText = defaults.reminderList || getMvpBookingConfirmationDefaultFields().reminderList;
         }
         if (String(contactTitleText || '').trim() === '聯絡資訊') {
