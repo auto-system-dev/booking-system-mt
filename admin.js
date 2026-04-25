@@ -9304,6 +9304,20 @@ function syncFieldEditorLayout(templateKey) {
         const labelEl = document.querySelector(`#${groupId} label`);
         if (labelEl) labelEl.textContent = text;
     };
+    // 先重置為通用預設，避免模板切換後殘留前一模板文案
+    setGroupLabel('fieldGroupAmountSummaryTitle', '交通路線標題');
+    setGroupLabel('fieldGroupAmountSummary', '費用摘要區塊');
+    setGroupLabel('fieldGroupPayNowTitle', '應付金額卡片標題');
+    setGroupLabel('fieldGroupPayNowContent', '應付金額卡片內容');
+    setGroupLabel('fieldGroupRemainingTitle', '尾款卡片標題');
+    setGroupLabel('fieldGroupRemainingContent', '尾款卡片內容');
+    setGroupLabel('fieldGroupReminderTitle', '重要提醒標題');
+    setGroupLabel('fieldGroupReminderList', '重要提醒區塊');
+    setGroupLabel('fieldGroupNoticeTitle', '取消原因標題');
+    setGroupLabel('fieldGroupNotice', '注意事項');
+    setGroupLabel('fieldGroupContactTitle', '聯絡資訊標題');
+    setGroupLabel('fieldGroupContactInfo', '聯絡資訊區塊');
+
     if (isCancelTemplate) {
         setGroupLabel('fieldGroupReminderTitle', '重新訂房標題');
         setGroupLabel('fieldGroupReminderList', '重新訂房與聯絡區塊');
@@ -9328,7 +9342,7 @@ function syncFieldEditorLayout(templateKey) {
         setGroupLabel('fieldGroupNotice', '注意事項');
     }
 
-    // 取消通知：欄位顯示順序調整（先取消原因，再重新訂房）
+    // 欄位順序：每次先重置為基準，再套入模板專屬順序，避免切換模板時版面「跑掉」
     const reminderContactGrid = document.querySelector('#fieldSectionReminderContact > div:last-child');
     const groupNotice = document.getElementById('fieldGroupNotice');
     const groupNoticeTitle = document.getElementById('fieldGroupNoticeTitle');
@@ -9336,28 +9350,55 @@ function syncFieldEditorLayout(templateKey) {
     const groupReminderList = document.getElementById('fieldGroupReminderList');
     const groupContactTitle = document.getElementById('fieldGroupContactTitle');
     const groupContactInfo = document.getElementById('fieldGroupContactInfo');
-    if (reminderContactGrid && groupNotice) {
+    if (reminderContactGrid) {
+        const appendInOrder = (els) => {
+            els.forEach((el) => {
+                if (el && el.parentElement === reminderContactGrid) {
+                    reminderContactGrid.appendChild(el);
+                }
+            });
+        };
+
+        // 基準順序（HTML 原始順序）
+        appendInOrder([
+            groupReminderTitle,
+            groupReminderList,
+            groupNotice,
+            groupNoticeTitle,
+            groupContactTitle,
+            groupContactInfo
+        ]);
+
         if (isCancelTemplate) {
-            // 先確保「取消原因標題」緊貼在「取消原因內容」上方
-            if (groupNoticeTitle) reminderContactGrid.insertBefore(groupNoticeTitle, groupNotice);
-            // 再把「取消原因」整塊放到「重新訂房」之前
-            if (groupReminderTitle) reminderContactGrid.insertBefore(groupNotice, groupReminderTitle);
-        } else if (key === 'booking_confirmation' && groupReminderTitle && groupReminderList && groupContactTitle && groupContactInfo) {
-            // 訂房確認（客戶）：重要提醒區塊緊貼標題，其後為聯絡資訊，再來注意事項
-            reminderContactGrid.insertBefore(groupReminderTitle, reminderContactGrid.firstChild);
-            reminderContactGrid.insertBefore(groupReminderList, groupReminderTitle.nextSibling);
-            reminderContactGrid.insertBefore(groupContactTitle, groupNotice);
-            reminderContactGrid.insertBefore(groupContactInfo, groupNotice);
-        } else if (isFeedbackTemplate && groupNoticeTitle && groupNotice) {
-            // 感謝入住：再次入住優惠標題顯示於優惠內容上方
-            reminderContactGrid.insertBefore(groupNoticeTitle, groupNotice);
-        } else if (isFeedbackTemplate && groupReminderTitle && groupReminderList) {
-            // 感謝入住：意見回饋區塊緊貼意見回饋標題
-            reminderContactGrid.insertBefore(groupReminderTitle, reminderContactGrid.firstChild);
-            reminderContactGrid.insertBefore(groupReminderList, groupReminderTitle.nextSibling);
-        } else if (groupReminderTitle && groupReminderList) {
-            reminderContactGrid.insertBefore(groupReminderTitle, groupNotice);
-            reminderContactGrid.insertBefore(groupReminderList, groupNotice.nextSibling);
+            // 取消通知：取消原因（標題+內容）置前，再重新訂房
+            appendInOrder([
+                groupNoticeTitle,
+                groupNotice,
+                groupReminderTitle,
+                groupReminderList,
+                groupContactTitle,
+                groupContactInfo
+            ]);
+        } else if (isFeedbackTemplate) {
+            // 感謝入住：意見回饋置前，再次入住優惠標題緊貼內容
+            appendInOrder([
+                groupReminderTitle,
+                groupReminderList,
+                groupNoticeTitle,
+                groupNotice,
+                groupContactTitle,
+                groupContactInfo
+            ]);
+        } else if (key === 'booking_confirmation') {
+            // 訂房確認（客戶）：重要提醒後接聯絡資訊，再注意事項
+            appendInOrder([
+                groupReminderTitle,
+                groupReminderList,
+                groupContactTitle,
+                groupContactInfo,
+                groupNotice,
+                groupNoticeTitle
+            ]);
         }
     }
 }
