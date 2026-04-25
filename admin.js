@@ -125,7 +125,10 @@ if (typeof window !== 'undefined') {
                 setAdminAuthHint(true);
                 showAdminPage(result.admin);
                 if (typeof loadInitialAdminRoute === 'function') {
-                    loadInitialAdminRoute();
+                    // 先讓畫面完成渲染，再載入首屏資料，避免登入後卡頓體感
+                    window.requestAnimationFrame(() => {
+                        setTimeout(() => loadInitialAdminRoute(), 0);
+                    });
                 }
                 // 非阻塞背景驗證：只記錄結果，不影響已登入畫面
                 checkAuthStatus({ timeoutMs: 3000, silent: true }).catch((err) => {
@@ -1776,7 +1779,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         // 僅載入目前路由對應區塊（不重複打訂房列表／營運報表等重 API）
         if (isAdminPageVisible()) {
             console.log('📊 依網址載入目前區塊…');
-            loadInitialAdminRoute();
+            window.requestAnimationFrame(() => {
+                setTimeout(() => loadInitialAdminRoute(), 0);
+            });
         } else {
             console.log('ℹ️ 未登入，跳過資料載入');
         }
@@ -2017,7 +2022,8 @@ function loadInitialAdminRoute() {
         switchSection('landing-page');
     } else if (!urlHash) {
         const isSuperAdmin = !!(window.currentAdminInfo && window.currentAdminInfo.role === 'super_admin');
-        switchSection(isSuperAdmin ? 'subscription-overview' : 'dashboard');
+        // 超管首屏預設走租戶管理（單一 API），降低登入後首屏等待時間
+        switchSection(isSuperAdmin ? 'tenant-management' : 'dashboard');
     }
 }
 
