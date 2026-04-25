@@ -9331,20 +9331,10 @@ function syncFieldEditorLayout(templateKey) {
     };
     const greetingGroup = document.getElementById('mvpFieldGreeting')?.closest('.form-group');
     const bookingInfoGroup = document.getElementById('fieldGroupBookingInfo');
-    const amountSummaryTitleGroup = document.getElementById('fieldGroupAmountSummaryTitle');
     const amountSummaryGroup = document.getElementById('fieldGroupAmountSummary');
-    const reminderTitleGroup = document.getElementById('fieldGroupReminderTitle');
-    const reminderListGroup = document.getElementById('fieldGroupReminderList');
-    const noticeTitleGroup = document.getElementById('fieldGroupNoticeTitle');
-    const noticeGroup = document.getElementById('fieldGroupNotice');
     setInputBlockFrame(greetingGroup, isFeedbackTemplate);
     setInputBlockFrame(bookingInfoGroup, isFeedbackTemplate);
-    setInputBlockFrame(amountSummaryTitleGroup, isFeedbackTemplate);
     setInputBlockFrame(amountSummaryGroup, isFeedbackTemplate);
-    setInputBlockFrame(reminderTitleGroup, isFeedbackTemplate);
-    setInputBlockFrame(reminderListGroup, isFeedbackTemplate);
-    setInputBlockFrame(noticeTitleGroup, isFeedbackTemplate);
-    setInputBlockFrame(noticeGroup, isFeedbackTemplate);
 
     const setGroupLabel = (groupId, text) => {
         const labelEl = document.querySelector(`#${groupId} label`);
