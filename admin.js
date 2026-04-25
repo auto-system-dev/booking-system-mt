@@ -9288,7 +9288,7 @@ function syncFieldEditorLayout(templateKey) {
         } else if (isCancelTemplate) {
             reminderContactTitle.textContent = '取消原因與聯絡區塊';
         } else if (isCheckinTemplate) {
-            reminderContactTitle.textContent = '聯絡資訊區塊';
+            reminderContactTitle.textContent = '聯絡區塊';
         } else if (isFeedbackTemplate) {
             reminderContactTitle.textContent = '意見與優惠區塊';
         } else {
@@ -9300,47 +9300,6 @@ function syncFieldEditorLayout(templateKey) {
     if (bookingAmountTitle) {
         bookingAmountTitle.textContent = isFeedbackTemplate ? '訂房與評分區塊' : '訂房與金額區塊';
     }
-    const setSectionTheme = (sectionId, titleId, borderColor, bgColor, titleColor) => {
-        const sectionEl = document.getElementById(sectionId);
-        if (sectionEl) {
-            sectionEl.style.border = `1px solid ${borderColor}`;
-            sectionEl.style.background = bgColor;
-        }
-        const titleEl = titleId ? document.getElementById(titleId) : sectionEl?.querySelector(':scope > div:first-child');
-        if (titleEl) titleEl.style.color = titleColor;
-    };
-    setSectionTheme('fieldSectionBasic', '', '#93c5fd', '#f0f9ff', '#1e3a8a');
-    setSectionTheme('fieldSectionBookingAmount', '', '#93c5fd', '#f0f9ff', '#1e3a8a');
-    setSectionTheme('fieldSectionReminderContact', 'fieldSectionReminderContactTitle', '#93c5fd', '#f0f9ff', '#1e3a8a');
-    setSectionTheme('fieldSectionClosing', '', '#93c5fd', '#f0f9ff', '#1e3a8a');
-
-    const checkinFramedGroups = [
-        'fieldGroupAmountSummaryTitle',
-        'fieldGroupAmountSummary',
-        'fieldGroupPayNowTitle',
-        'fieldGroupPayNowContent',
-        'fieldGroupRemainingTitle',
-        'fieldGroupRemainingContent',
-        'fieldGroupContactTitle',
-        'fieldGroupContactInfo'
-    ];
-    const setGroupFrame = (groupId, framed) => {
-        const el = document.getElementById(groupId);
-        if (!el) return;
-        if (framed) {
-            el.style.border = '1px solid #cbd5e1';
-            el.style.background = '#ffffff';
-            el.style.borderRadius = '8px';
-            el.style.padding = '10px';
-        } else {
-            el.style.border = '';
-            el.style.background = '';
-            el.style.borderRadius = '';
-            el.style.padding = '';
-        }
-    };
-    checkinFramedGroups.forEach((groupId) => setGroupFrame(groupId, isCheckinTemplate));
-
     const setGroupLabel = (groupId, text) => {
         const labelEl = document.querySelector(`#${groupId} label`);
         if (labelEl) labelEl.textContent = text;
@@ -9499,6 +9458,13 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
             notice: 'border:1px solid #fde68a;background:#fffbeb;',
             contactInfo: 'border:1px solid #cbd5e1;background:#f8fafc;'
         };
+        if (key === 'checkin_reminder') {
+            blockStyleMap.bookingInfo = 'border:1px solid #93c5fd;background:#eff6ff;';
+            blockStyleMap.amountSummary = 'border:1px solid #60a5fa;background:#dbeafe;';
+            blockStyleMap.payNowCard = 'border:1px solid #93c5fd;background:#dbeafe;';
+            blockStyleMap.remainingCard = 'border:1px solid #f59e0b;background:#fffbeb;';
+            blockStyleMap.contactInfo = 'border:1px solid #34d399;background:#ecfdf5;';
+        }
         const blockStyle = blockStyleMap[markerKey] || 'border:1px solid #e2e8f0;background:#ffffff;';
         return `<!--MVP:${markerKey}:start--><div style="margin:14px 0;padding:12px;border-radius:10px;${blockStyle}">${titleMarker}${sectionTitle}${body}</div><!--MVP:${markerKey}:end-->`;
     };
