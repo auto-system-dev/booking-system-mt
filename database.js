@@ -3199,7 +3199,7 @@ async function initEmailTemplates(tenantId) {
             
             // 如果模板不存在、內容為空、內容過短（可能是被誤刪）、或名稱需要更新，則插入或更新
             // 檢查內容長度：如果現有內容長度小於預設內容的 50%，視為內容過短，需要還原
-            const isContentTooShort = existing && existing.content && existing.content.trim() !== '' 
+            let isContentTooShort = existing && existing.content && existing.content.trim() !== '' 
                 && existing.content.length < template.content.length * 0.5;
             
             // 對於入住提醒模板，檢查是否缺少完整的 HTML 結構或格式不正確
@@ -3369,6 +3369,7 @@ async function initEmailTemplates(tenantId) {
             // 僅在內容過短/為空等明顯異常時，才走既有修復更新。
             const isFieldEditorManagedTemplate = ['booking_confirmation', 'booking_confirmation_admin', 'cancel_notification'].includes(template.key);
             if (isFieldEditorManagedTemplate && existing && existing.content && existing.content.trim() !== '') {
+                isContentTooShort = false;
                 needsUpdateForBookingContactInfo = false;
                 needsUpdateForBookingTransferLineNotice = false;
                 needsUpdateForBookingFooterText = false;
