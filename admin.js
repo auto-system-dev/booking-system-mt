@@ -9829,6 +9829,10 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
             remainingTitleText = defaults.remainingTitle || '💡 剩餘尾款';
         }
     }
+    if (key === 'checkin_reminder') {
+        // 舊資料仍可能是「停車須知」，統一轉成「停車資訊」
+        payNowTitleText = String(payNowTitleText || '').replace(/停車須知/g, '停車資訊').trim();
+    }
     setVal('mvpFieldPayNowTitle', payNowTitleText);
     setVal('mvpFieldPayNowContent', payNowContentText);
     setVal('mvpFieldRemainingAmount', remainingAmountText);
@@ -9867,6 +9871,14 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
         }
         if (String(contactTitleText || '').trim() === '聯絡資訊') {
             contactTitleText = '📞 聯絡資訊';
+        }
+    }
+    if (key === 'checkin_reminder') {
+        const normalizedRemainingTitle = String(remainingTitleText || '').replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, '').toLowerCase();
+        const normalizedContactTitle = String(contactTitleText || '').replace(/[^\u4e00-\u9fa5A-Za-z0-9]/g, '').toLowerCase();
+        // 避免舊模板把「入住注意事項標題」誤帶到「聯絡資訊標題」
+        if (!normalizedContactTitle || normalizedContactTitle === normalizedRemainingTitle || normalizedContactTitle.includes('入住注意事項')) {
+            contactTitleText = defaults.contactTitle || '📞 聯絡資訊';
         }
     }
     let finalReminderListText = reminderListText;
