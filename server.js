@@ -6930,7 +6930,8 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
             String(key || '') === 'booking_confirmation' ||
             String(key || '') === 'booking_confirmation_admin' ||
             String(key || '') === 'cancel_notification' ||
-            String(key || '') === 'checkin_reminder';
+            String(key || '') === 'checkin_reminder' ||
+            String(key || '') === 'feedback_request';
         const hasEditorContent = !!req.body.content;
         const shouldUseEditorContent =
             hasEditorContent && (useEditorContent === true || isFieldStyleConfirmationTemplate);

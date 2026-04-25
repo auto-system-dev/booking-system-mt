@@ -9209,7 +9209,7 @@ async function saveWeekdaySettings() {
 
 let currentEmailTemplateScope = 'standard';
 const MVP_TEMPLATE_KEY_PREFIX = 'mvp_';
-const FIELD_EDITOR_STANDARD_TEMPLATE_KEYS = new Set(['booking_confirmation', 'booking_confirmation_admin', 'cancel_notification', 'checkin_reminder']);
+const FIELD_EDITOR_STANDARD_TEMPLATE_KEYS = new Set(['booking_confirmation', 'booking_confirmation_admin', 'cancel_notification', 'checkin_reminder', 'feedback_request']);
 const MVP_ALLOWED_VARIABLES = new Set([
     'guestName', 'bookingId', 'checkInDate', 'checkOutDate', 'roomType',
     'totalAmount', 'discountAmount', 'discountedTotal', 'finalAmount', 'remainingAmount',
@@ -9245,6 +9245,8 @@ function syncFieldEditorTitle(templateKey) {
         titleEl.textContent = '取消通知欄位式編輯';
     } else if (key === 'checkin_reminder') {
         titleEl.textContent = '入住提醒欄位式編輯';
+    } else if (key === 'feedback_request') {
+        titleEl.textContent = '感謝入住欄位式編輯';
     } else {
         titleEl.textContent = '欄位式編輯';
     }
@@ -9255,6 +9257,7 @@ function syncFieldEditorLayout(templateKey) {
     const isAdminBookingTemplate = key === 'booking_confirmation_admin';
     const isCancelTemplate = key === 'cancel_notification';
     const isCheckinTemplate = key === 'checkin_reminder';
+    const isFeedbackTemplate = key === 'feedback_request';
     const setVisible = (id, visible) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -9262,21 +9265,21 @@ function syncFieldEditorLayout(templateKey) {
     };
 
     // 預設顯示全部欄位；管理員模板則對齊截圖版型，只保留必要區塊。
-    setVisible('fieldSectionBank', !isAdminBookingTemplate && !isCancelTemplate && !isCheckinTemplate);
+    setVisible('fieldSectionBank', !isAdminBookingTemplate && !isCancelTemplate && !isCheckinTemplate && !isFeedbackTemplate);
     // 入住提醒也需要可編輯「結尾訊息/頁尾」，因此不隱藏 closing 區塊
     setVisible('fieldSectionClosing', !isAdminBookingTemplate && !isCancelTemplate);
-    setVisible('fieldGroupRemainingTitle', !isAdminBookingTemplate && !isCancelTemplate);
-    setVisible('fieldGroupRemainingContent', !isAdminBookingTemplate && !isCancelTemplate);
+    setVisible('fieldGroupRemainingTitle', !isAdminBookingTemplate && !isCancelTemplate && !isFeedbackTemplate);
+    setVisible('fieldGroupRemainingContent', !isAdminBookingTemplate && !isCancelTemplate && !isFeedbackTemplate);
     setVisible('fieldGroupReminderTitle', !isAdminBookingTemplate && !isCheckinTemplate);
     setVisible('fieldGroupReminderList', !isAdminBookingTemplate && !isCheckinTemplate);
     setVisible('fieldGroupNotice', !isAdminBookingTemplate && !isCheckinTemplate);
     setVisible('fieldGroupNoticeTitle', isCancelTemplate);
-    setVisible('fieldGroupContactTitle', !isAdminBookingTemplate && !isCancelTemplate);
-    setVisible('fieldGroupContactInfo', !isCancelTemplate);
-    setVisible('fieldGroupAmountSummaryTitle', isCheckinTemplate);
+    setVisible('fieldGroupContactTitle', !isAdminBookingTemplate && !isCancelTemplate && !isFeedbackTemplate);
+    setVisible('fieldGroupContactInfo', !isCancelTemplate && !isFeedbackTemplate);
+    setVisible('fieldGroupAmountSummaryTitle', isCheckinTemplate || isFeedbackTemplate);
     setVisible('fieldGroupAmountSummary', !isCancelTemplate);
-    setVisible('fieldGroupPayNowTitle', !isCancelTemplate);
-    setVisible('fieldGroupPayNowContent', !isCancelTemplate);
+    setVisible('fieldGroupPayNowTitle', !isCancelTemplate && !isFeedbackTemplate);
+    setVisible('fieldGroupPayNowContent', !isCancelTemplate && !isFeedbackTemplate);
 
     const reminderContactTitle = document.getElementById('fieldSectionReminderContactTitle');
     if (reminderContactTitle) {
@@ -9286,6 +9289,8 @@ function syncFieldEditorLayout(templateKey) {
             reminderContactTitle.textContent = '取消原因與聯絡區塊';
         } else if (isCheckinTemplate) {
             reminderContactTitle.textContent = '入住與聯絡區塊';
+        } else if (isFeedbackTemplate) {
+            reminderContactTitle.textContent = '意見與優惠區塊';
         } else {
             reminderContactTitle.textContent = '提醒與聯絡區塊';
         }
@@ -9306,6 +9311,12 @@ function syncFieldEditorLayout(templateKey) {
         setGroupLabel('fieldGroupPayNowContent', '停車資訊內容');
         setGroupLabel('fieldGroupRemainingTitle', '入住注意事項標題');
         setGroupLabel('fieldGroupRemainingContent', '入住注意事項內容');
+    } else if (isFeedbackTemplate) {
+        setGroupLabel('fieldGroupAmountSummaryTitle', '評分邀請標題');
+        setGroupLabel('fieldGroupAmountSummary', '評分邀請區塊');
+        setGroupLabel('fieldGroupReminderTitle', '意見回饋標題');
+        setGroupLabel('fieldGroupReminderList', '意見回饋區塊');
+        setGroupLabel('fieldGroupNotice', '再次入住優惠區塊');
     } else {
         setGroupLabel('fieldGroupReminderTitle', '重要提醒標題');
         setGroupLabel('fieldGroupReminderList', '重要提醒區塊');
@@ -9343,6 +9354,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     const key = String(templateKey || '').trim();
     const isAdminBookingTemplate = key === 'booking_confirmation_admin';
     const isCancelTemplate = key === 'cancel_notification';
+    const isFeedbackTemplate = key === 'feedback_request';
     const title = String(fields.title ?? '').trim();
     const greeting = String(fields.greeting || '').trim();
     const mainContent = String(fields.mainContent || '').trim();
@@ -9387,6 +9399,9 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
             sectionTitleMap.bookingInfo = '取消的訂房資訊';
         } else if (key === 'checkin_reminder') {
             sectionTitleMap.amountSummary = amountSummaryTitle || '📍 交通路線';
+        } else if (key === 'feedback_request') {
+            sectionTitleMap.bookingInfo = '🏨 住宿資訊';
+            sectionTitleMap.amountSummary = amountSummaryTitle || '您的寶貴意見對我們非常重要！';
         }
         const useSectionTitle = !!sectionTitleMap[markerKey];
         let renderText = text;
@@ -9480,6 +9495,34 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     ${renderBlock('payNowCard', payNowBlock)}
     ${renderBlock('contactInfo', contactBlock)}
     ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:10px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
+  </div>
+</body></html>`;
+    }
+
+    if (isFeedbackTemplate) {
+        const renderFeedbackPanel = (markerKey, titleText, bodyText, style) => {
+            const panelTitle = String(titleText || '').trim();
+            const body = toParagraphs(bodyText, { firstLineBold: false });
+            if (!panelTitle && !body) return '';
+            return `<!--MVP:${markerKey}:start--><div style="margin:12px 0;padding:12px;border-radius:10px;${style}">
+                ${panelTitle ? `<p style="margin:0 0 10px;font-weight:700;color:#1f2937;">${escapeHtml(panelTitle)}</p>` : ''}
+                ${body}
+            </div><!--MVP:${markerKey}:end-->`;
+        };
+
+        return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
+  <div style="max-width:640px;margin:0 auto;">
+    ${title ? `<!--MVP:title:start--><div style="margin:0 0 16px;background:#4caf50;color:#fff;padding:20px 16px;border-radius:8px;text-align:center;"><h2 style="margin:0 0 6px;font-size:30px;line-height:1.2;">${escapeHtml(title)}</h2></div><!--MVP:title:end-->` : ''}
+    ${greeting ? `<!--MVP:greeting:start--><div style="margin:0 0 12px;">${toParagraphs(greeting, { firstLineBold: false })}</div><!--MVP:greeting:end-->` : ''}
+    ${renderBlock('bookingInfo', bookingInfo)}
+    ${renderBlock('amountSummary', amountSummary)}
+    ${renderFeedbackPanel('reminderList', reminderTitle, reminderList, 'border:1px solid #86efac;background:#f0fdf4;')}
+    ${renderFeedbackPanel('notice', '', notice, 'border:1px solid #fde68a;background:#fffbeb;')}
+    ${closingMessage ? `<!--MVP:closingMessage:start--><div style="margin:16px 0 0;">${toParagraphs(closingMessage, { firstLineBold: false })}</div><!--MVP:closingMessage:end-->` : ''}
+    ${footer ? `<!--MVP:footer:start--><p style="margin:10px 0 0;">${escapeHtml(footer)}</p><!--MVP:footer:end-->` : ''}
+    ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:12px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
   </div>
 </body></html>`;
     }
@@ -9844,6 +9887,34 @@ function getCheckinReminderDefaultFields() {
     };
 }
 
+function getFeedbackRequestDefaultFields() {
+    return {
+        title: '感謝您的入住',
+        greeting: '親愛的 {{guestName}}，\n感謝您選擇我們的住宿服務！希望您這次的住宿體驗愉快舒適，我們非常重視您的意見回饋。',
+        mainContent: '',
+        bookingInfo: '訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}',
+        amountSummaryTitle: '您的寶貴意見對我們非常重要！',
+        amountSummary: '請為我們的服務評分：\n{{bookingUrl}}\n\n歡迎分享您對本次住宿體驗出色服務的讚賞，也讓我們能持續改進並帶給您更好的體驗。',
+        payNowTitle: '',
+        payNowContent: '',
+        remainingAmount: '',
+        remainingTitle: '',
+        remainingContent: '',
+        noticeTitle: '',
+        notice: '🎁 再次入住優惠\n感謝您的支持！\n再次預訂可享有 9 折優惠\n歡迎隨時與我們聯繫，我們期待再次為您服務',
+        bankTitle: '',
+        bankIntro: '',
+        bankInfo: '',
+        reminderTitle: '💬 意見回饋',
+        reminderList: '如果您有任何建議、意見或希望協助，歡迎隨時透過以下方式與我們聯繫。\nEmail：{{hotelEmail}}\n電話：{{hotelPhone}}\n我們會記錄與重視您的意見，謝謝您撥冗留言！',
+        contactTitle: '',
+        contactInfo: '',
+        closingMessage: '期待再次為您服務！\n祝您 身體健康，萬事如意',
+        footer: '{{hotelName}} 敬上',
+        systemFooter: '此為系統自動發送郵件，請勿直接回覆'
+    };
+}
+
 function getFieldEditorDefaultFields(templateKey) {
     const key = String(templateKey || '').trim();
     if (key === 'booking_confirmation_admin') {
@@ -9854,6 +9925,9 @@ function getFieldEditorDefaultFields(templateKey) {
     }
     if (key === 'checkin_reminder') {
         return getCheckinReminderDefaultFields();
+    }
+    if (key === 'feedback_request') {
+        return getFeedbackRequestDefaultFields();
     }
     return getMvpBookingConfirmationDefaultFields();
 }
@@ -9874,7 +9948,7 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
             || source.includes('<!--MVP:bankInfo:start-->')
             || source.includes('<!--MVP:reminderList:start-->')
         );
-    const useBookingDefaults = ((key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin' || key === 'cancel_notification' || key === 'checkin_reminder') && !hasMvpMarkers)
+    const useBookingDefaults = ((key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin' || key === 'cancel_notification' || key === 'checkin_reminder' || key === 'feedback_request') && !hasMvpMarkers)
         || isLegacyBookingConfirmationAdminTemplate;
     const defaults = useBookingDefaults ? getFieldEditorDefaultFields(key) : {};
     const pick = (parsedValue, defaultValue, fallbackValue = '') => {
@@ -10791,11 +10865,11 @@ async function showEmailTemplateModal(templateKey) {
                 send_hour_payment_reminder: template.send_hour_payment_reminder
             };
             
-            if (!isFieldEditorTemplate && templateKey === 'feedback_request') {
+            if (templateKey === 'feedback_request') {
                 if (feedbackSettings) {
                     feedbackSettings.style.display = 'block';
-                    document.getElementById('daysAfterCheckout').value = template.days_after_checkout || 1;
-                    document.getElementById('sendHourFeedback').value = template.send_hour_feedback || 10;
+                    document.getElementById('daysAfterCheckout').value = template.days_after_checkout ?? 1;
+                    document.getElementById('sendHourFeedback').value = template.send_hour_feedback ?? 10;
                 }
             } else if (!isFieldEditorTemplate && templateKey === 'payment_reminder') {
                 if (paymentSettings) {
@@ -11675,8 +11749,10 @@ async function saveEmailTemplate(event) {
             sendHourFeedbackValue: sendHourFeedbackEl ? sendHourFeedbackEl.value : 'N/A'
         });
         if (daysAfterCheckoutEl && sendHourFeedbackEl) {
-            data.days_after_checkout = parseInt(daysAfterCheckoutEl.value) || 1;
-            data.send_hour_feedback = parseInt(sendHourFeedbackEl.value) || 10;
+            const parsedDays = parseInt(daysAfterCheckoutEl.value, 10);
+            const parsedHour = parseInt(sendHourFeedbackEl.value, 10);
+            data.days_after_checkout = Number.isNaN(parsedDays) ? 1 : parsedDays;
+            data.send_hour_feedback = Number.isNaN(parsedHour) ? 10 : parsedHour;
             console.log('✅ 已添加感謝入住設定:', { days_after_checkout: data.days_after_checkout, send_hour_feedback: data.send_hour_feedback });
         }
     } else if (!isMvpTemplate && templateKey === 'payment_reminder') {
