@@ -2,6 +2,7 @@
 
 // 立即確認腳本開始執行
 console.log('🚀 admin.js 腳本開始執行', new Date().toISOString());
+let loginRequestInFlight = false;
 
 // 立即定義 handleLogin 函數，確保在任何其他代碼執行前就可用
 // 直接定義真正的函數，不使用佔位符邏輯
@@ -11,6 +12,11 @@ if (typeof window !== 'undefined') {
         if (event && typeof event.preventDefault === 'function') {
             event.preventDefault();
         }
+        if (loginRequestInFlight) {
+            console.warn('⚠️ 登入請求進行中，忽略重複送出');
+            return;
+        }
+        loginRequestInFlight = true;
         
         console.log('🔐 開始處理登入...');
         
@@ -60,7 +66,6 @@ if (typeof window !== 'undefined') {
                     },
                     credentials: 'include', // 重要：包含 cookies
                     skipCsrf: true, // 登入 API 已在後端排除 CSRF，避免先取 token 造成卡頓
-                    timeoutMs: 12000,
                     body: JSON.stringify({ username, password })
                 });
             } catch (fetchError) {
@@ -167,6 +172,7 @@ if (typeof window !== 'undefined') {
                 }
             }
         } finally {
+            loginRequestInFlight = false;
             // 恢復按鈕狀態
             if (submitBtn) {
                 submitBtn.disabled = false;
