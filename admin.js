@@ -9413,7 +9413,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
         } else if (key === 'checkin_reminder') {
             sectionTitleMap.amountSummary = amountSummaryTitle || '📍 交通路線';
         } else if (key === 'feedback_request') {
-            sectionTitleMap.bookingInfo = '🏨 住宿資訊';
+            sectionTitleMap.bookingInfo = '住宿資訊';
             sectionTitleMap.amountSummary = amountSummaryTitle || '您的寶貴意見對我們非常重要！';
         }
         const useSectionTitle = !!sectionTitleMap[markerKey];
@@ -10080,6 +10080,16 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
         }
         if (String(contactTitleText || '').trim() === '聯絡資訊') {
             contactTitleText = '📞 聯絡資訊';
+        }
+    }
+    if (key === 'feedback_request') {
+        const normalizedAmountSummary = String(amountSummaryText || '').replace(/\r/g, '').trim();
+        const legacyFeedbackAmountSummaries = new Set([
+            '請為我們的服務評分：\n{{bookingUrl}}\n\n歡迎分享您對本次住宿體驗出色服務的讚賞，也讓我們能持續改進並帶給您更好的體驗。',
+            '請為我們的服務評分：\n{{bookingUrl}}\n歡迎分享您對本次住宿體驗出色服務的讚賞，也讓我們能持續改進並帶給您更好的體驗。'
+        ]);
+        if (!normalizedAmountSummary || legacyFeedbackAmountSummaries.has(normalizedAmountSummary)) {
+            amountSummaryText = defaults.amountSummary || getFeedbackRequestDefaultFields().amountSummary;
         }
     }
     if (key === 'checkin_reminder') {
