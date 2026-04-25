@@ -588,7 +588,10 @@ async function handleLogout() {
     try {
         const response = await adminFetch('/api/admin/logout', {
             method: 'POST',
-            credentials: 'include'
+            credentials: 'include',
+            skipCsrf: true, // logout API 已在後端排除 CSRF，避免多一次 token 請求
+            timeoutMs: 5000,
+            suppressUnauthorizedRedirect: true
         });
         
         const result = await response.json();
