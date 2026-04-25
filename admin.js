@@ -9263,7 +9263,8 @@ function syncFieldEditorLayout(templateKey) {
 
     // 預設顯示全部欄位；管理員模板則對齊截圖版型，只保留必要區塊。
     setVisible('fieldSectionBank', !isAdminBookingTemplate && !isCancelTemplate && !isCheckinTemplate);
-    setVisible('fieldSectionClosing', !isAdminBookingTemplate && !isCancelTemplate && !isCheckinTemplate);
+    // 入住提醒也需要可編輯「結尾訊息/頁尾」，因此不隱藏 closing 區塊
+    setVisible('fieldSectionClosing', !isAdminBookingTemplate && !isCancelTemplate);
     setVisible('fieldGroupRemainingTitle', !isAdminBookingTemplate && !isCancelTemplate);
     setVisible('fieldGroupRemainingContent', !isAdminBookingTemplate && !isCancelTemplate);
     setVisible('fieldGroupReminderTitle', !isAdminBookingTemplate && !isCheckinTemplate);
@@ -9389,7 +9390,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
         const body = toParagraphs(text, { firstLineBold: !useSectionTitle });
         if (!body) return '';
         const titleMarker = sectionTitleMap[markerKey]
-            ? `<!--MVP:${markerKey}Title:start-->${escapeHtml(sectionTitleMap[markerKey])}<!--MVP:${markerKey}Title:end-->`
+            ? `<!--MVP:${markerKey}Title:start--><span style="display:none;">${escapeHtml(sectionTitleMap[markerKey])}</span><!--MVP:${markerKey}Title:end-->`
             : '';
         const sectionTitle = sectionTitleMap[markerKey]
             ? `<p style="margin: 0 0 10px;font-weight:700;">${sectionTitleMap[markerKey]}</p>`
