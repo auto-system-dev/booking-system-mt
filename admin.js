@@ -9429,6 +9429,17 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
                     return `• ${normalized}`;
                 });
             renderText = [titleLine, ...contentLines].filter(Boolean).join('\n');
+        } else if (key === 'feedback_request' && markerKey === 'amountSummary') {
+            const lines = String(text || '')
+                .split('\n')
+                .map((line) => line.trim())
+                .filter(Boolean);
+            const hasStars = lines.some((line) => line.replace(/\s+/g, '') === '★★★★★');
+            if (!hasStars) {
+                const firstLine = lines[0] || '請為我們的服務評分：';
+                const restLines = lines.slice(1);
+                renderText = [firstLine, '★★★★★', ...restLines].filter(Boolean).join('\n');
+            }
         }
         const body = toParagraphs(renderText, { firstLineBold: !useSectionTitle });
         if (!body) return '';
