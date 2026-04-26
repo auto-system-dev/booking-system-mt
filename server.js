@@ -263,7 +263,8 @@ app.use(session({
     store: sessionStore, // 使用 PostgreSQL Store 或 MemoryStore
     secret: sessionSecret,
     resave: false,
-    saveUninitialized: true, // 改為 true，確保 Session 被儲存並設定 Cookie
+    // 避免第三方回跳（如金流 POST）在未攜帶既有 cookie 時覆蓋掉原本登入 session
+    saveUninitialized: false,
     cookie: {
         // Railway 使用 HTTPS，所以需要 secure cookie
         secure: useSecureCookie,
