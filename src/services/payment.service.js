@@ -248,7 +248,6 @@ function createPaymentService(deps) {
             RespondType: 'JSON',
             TimeStamp: String(ts),
             Version: version,
-            LangType: 'zh-tw',
             MerOrderNo: merchantOrderNo,
             ProdDesc: itemDesc,
             PeriodAmt: periodAmt,
