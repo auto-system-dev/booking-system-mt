@@ -210,7 +210,8 @@ function createPaymentService(deps) {
         const amount = Math.max(1, parseInt(selectedPlan.price_amount || 0, 10) || 1);
         const billingCycle = selectedPlan.billing_cycle === 'yearly' ? 'yearly' : 'monthly';
         const periodType = billingCycle === 'yearly' ? 'Y' : 'M';
-        const periodPoint = '1';
+        // 藍新要求固定長度：月繳 DD（01-31），年繳 MMDD（0101-1231）
+        const periodPoint = periodType === 'Y' ? '0101' : '01';
         const periodAmt = String(amount);
         const ts = Math.floor(Date.now() / 1000);
         // 藍新 MerOrderNo 僅允許英數與底線，避免使用連字號造成 PER10010
