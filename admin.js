@@ -9370,6 +9370,23 @@ function syncFieldEditorLayout(templateKey) {
     const groupPayNowContent = document.getElementById('fieldGroupPayNowContent');
     const groupRemainingTitle = document.getElementById('fieldGroupRemainingTitle');
     const groupRemainingContent = document.getElementById('fieldGroupRemainingContent');
+    if (bookingAmountGrid) {
+        const unwrapBookingPanel = (panelId) => {
+            const panel = document.getElementById(panelId);
+            if (!panel || panel.parentElement !== bookingAmountGrid) return;
+            Array.from(panel.children).forEach((child) => {
+                bookingAmountGrid.appendChild(child);
+            });
+            panel.remove();
+        };
+        // 先清掉所有模板可能建立的動態外包裝，避免切換時互相影響
+        unwrapBookingPanel('feedbackBookingInfoPanel');
+        unwrapBookingPanel('feedbackRatingPanel');
+        unwrapBookingPanel('checkinBookingInfoPanel');
+        unwrapBookingPanel('checkinTransportPanel');
+        unwrapBookingPanel('checkinParkingPanel');
+        unwrapBookingPanel('checkinNoticePanel');
+    }
 
     if (isCancelTemplate) {
         setGroupLabel('fieldGroupReminderTitle', '重新訂房標題');
@@ -9384,21 +9401,6 @@ function syncFieldEditorLayout(templateKey) {
         setGroupLabel('fieldGroupRemainingContent', '入住注意事項內容');
 
         if (bookingAmountGrid) {
-            const unwrapBookingPanels = (panelId) => {
-                const panel = document.getElementById(panelId);
-                if (!panel || panel.parentElement !== bookingAmountGrid) return;
-                Array.from(panel.children).forEach((child) => {
-                    bookingAmountGrid.appendChild(child);
-                });
-                panel.remove();
-            };
-            unwrapBookingPanels('feedbackBookingInfoPanel');
-            unwrapBookingPanels('feedbackRatingPanel');
-            unwrapBookingPanels('checkinBookingInfoPanel');
-            unwrapBookingPanels('checkinTransportPanel');
-            unwrapBookingPanels('checkinParkingPanel');
-            unwrapBookingPanels('checkinNoticePanel');
-
             const createBookingPanel = (panelId) => {
                 const panel = document.createElement('div');
                 panel.id = panelId;
@@ -9437,17 +9439,6 @@ function syncFieldEditorLayout(templateKey) {
         setGroupLabel('fieldGroupNotice', '再次入住優惠區塊');
 
         if (bookingAmountGrid) {
-            const unwrapBookingPanels = (panelId) => {
-                const panel = document.getElementById(panelId);
-                if (!panel || panel.parentElement !== bookingAmountGrid) return;
-                Array.from(panel.children).forEach((child) => {
-                    bookingAmountGrid.appendChild(child);
-                });
-                panel.remove();
-            };
-            unwrapBookingPanels('feedbackBookingInfoPanel');
-            unwrapBookingPanels('feedbackRatingPanel');
-
             const createBookingPanel = (panelId) => {
                 const panel = document.createElement('div');
                 panel.id = panelId;
@@ -9474,22 +9465,6 @@ function syncFieldEditorLayout(templateKey) {
         setGroupLabel('fieldGroupReminderList', '重要提醒區塊');
         setGroupLabel('fieldGroupNotice', '注意事項');
 
-        if (bookingAmountGrid) {
-            const unwrapBookingPanels = (panelId) => {
-                const panel = document.getElementById(panelId);
-                if (!panel || panel.parentElement !== bookingAmountGrid) return;
-                Array.from(panel.children).forEach((child) => {
-                    bookingAmountGrid.appendChild(child);
-                });
-                panel.remove();
-            };
-            unwrapBookingPanels('feedbackBookingInfoPanel');
-            unwrapBookingPanels('feedbackRatingPanel');
-            unwrapBookingPanels('checkinBookingInfoPanel');
-            unwrapBookingPanels('checkinTransportPanel');
-            unwrapBookingPanels('checkinParkingPanel');
-            unwrapBookingPanels('checkinNoticePanel');
-        }
     }
 
     // 欄位順序：每次先重置為基準，再套入模板專屬順序，避免切換模板時版面「跑掉」
