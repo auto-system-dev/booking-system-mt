@@ -3406,7 +3406,7 @@ app.get('/admin', async (req, res) => {
 
 // 藍新 ReturnURL 可能以 POST 回跳；統一轉回 GET /admin 避免 Cannot POST /admin
 app.post('/admin', (req, res) => {
-    res.redirect(303, '/admin');
+    res.redirect(303, '/admin?fromLogin=1');
 });
 
 // 必須註冊在 app.use('/api', createBookingRoutes) 之前，否則會被訂房 router 攔截而回傳 Cannot POST
