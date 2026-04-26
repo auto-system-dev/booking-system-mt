@@ -9315,6 +9315,8 @@ function syncFieldEditorLayout(templateKey) {
     if (sectionBasicTitle) sectionBasicTitle.style.display = hideSectionExplainTitle ? 'none' : '';
     if (bookingAmountTitle) bookingAmountTitle.style.display = hideSectionExplainTitle ? 'none' : '';
     if (reminderContactTitle) reminderContactTitle.style.display = hideSectionExplainTitle ? 'none' : '';
+    const sectionBankTitle = document.querySelector('#fieldSectionBank > div:first-child');
+    if (sectionBankTitle) sectionBankTitle.style.display = hideSectionExplainTitle ? 'none' : '';
     const sectionClosingTitle = document.querySelector('#fieldSectionClosing > div:first-child');
     if (sectionClosingTitle) sectionClosingTitle.style.display = hideSectionExplainTitle ? 'none' : '';
     if (bookingAmountSection) {
@@ -10429,8 +10431,28 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     setVal('mvpFieldNoticeTitle', noticeTitleText);
     setVal('mvpFieldNotice', noticeText);
     setVal('mvpFieldBankTitle', pick(parsed.bankTitle, defaults.bankTitle, '💰 匯款提醒'));
-    setVal('mvpFieldBankIntro', pick(parsed.bankIntro, defaults.bankIntro, '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款'));
-    setVal('mvpFieldBankInfo', pick(parsed.bankInfo, defaults.bankInfo, '銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n匯款請備註訂單後五碼：{{bookingIdLast5}}'));
+    let bankIntroText = pick(parsed.bankIntro, defaults.bankIntro, '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款');
+    let bankInfoText = pick(parsed.bankInfo, defaults.bankInfo, '銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n匯款請備註訂單後五碼：{{bookingIdLast5}}');
+    const overdueNoticeLine = '* 逾期將自動取消訂房。';
+    const normalizedBankInfoLines = String(bankInfoText || '')
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+    const hasOverdueLineInBankInfo = normalizedBankInfoLines.some((line) => /^[*＊]\s*逾期將自動取消訂房。?$/.test(line));
+    if (hasOverdueLineInBankInfo) {
+        bankInfoText = normalizedBankInfoLines
+            .filter((line) => !/^[*＊]\s*逾期將自動取消訂房。?$/.test(line))
+            .join('\n');
+        const bankIntroLines = String(bankIntroText || '')
+            .split('\n')
+            .map((line) => line.trim())
+            .filter(Boolean);
+        const hasOverdueLineInBankIntro = bankIntroLines.some((line) => /^[*＊]\s*逾期將自動取消訂房。?$/.test(line));
+        if (!hasOverdueLineInBankIntro) bankIntroLines.splice(1, 0, overdueNoticeLine);
+        bankIntroText = bankIntroLines.join('\n');
+    }
+    setVal('mvpFieldBankIntro', bankIntroText);
+    setVal('mvpFieldBankInfo', bankInfoText);
     let reminderTitleText = pick(parsed.reminderTitle, defaults.reminderTitle, '重要提醒');
     let reminderListText = pick(parsed.reminderList, defaults.reminderList, '此訂房將保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款\n逾期未付款，系統將自動取消訂單');
     let contactTitleText = pick(parsed.contactTitle, defaults.contactTitle, '聯絡資訊');
