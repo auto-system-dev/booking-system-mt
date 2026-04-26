@@ -9405,6 +9405,9 @@ function syncFieldEditorLayout(templateKey) {
     const groupBankTitle = document.getElementById('mvpFieldBankTitle')?.closest('.form-group');
     const groupBankIntro = document.getElementById('mvpFieldBankIntro')?.closest('.form-group');
     const groupBankInfo = document.getElementById('mvpFieldBankInfo')?.closest('.form-group');
+    if (groupBankIntro) {
+        groupBankIntro.style.display = isPaymentReminderTemplate ? 'none' : '';
+    }
     if (bookingAmountGrid) {
         const unwrapBookingPanel = (panelId) => {
             const panel = document.getElementById(panelId);
@@ -10484,7 +10487,7 @@ function getPaymentReminderDefaultFields() {
         noticeTitle: '',
         notice: '',
         bankTitle: '💰 匯款資訊',
-        bankIntro: '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款。\n* 逾期將自動取消訂房。',
+        bankIntro: '',
         bankInfo: '銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n請在匯款時備註訂單編號後5碼：{{bookingIdLast5}}\n匯款後請加入官方LINE告知，謝謝！',
         reminderTitle: '⚠️ 重要提醒',
         reminderList: '此訂房為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款，逾期將自動取消訂房。',
@@ -10661,6 +10664,7 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
         // 匯款提醒：應付金額需併入「訂房資訊區塊」，不顯示獨立應付金額卡片
         payNowTitleText = '';
         payNowContentText = '';
+        bankIntroText = '';
         if (!/\{\{\s*finalAmount\s*\}\}/.test(String(bookingInfoText || ''))) {
             bookingInfoText = `${String(bookingInfoText || '').trim()}\n應付金額：NT$ {{finalAmount}}`.trim();
             setVal('mvpFieldBookingInfo', bookingInfoText);
