@@ -467,8 +467,10 @@ function createPaymentController(deps) {
             if (!admin) {
                 return res.status(401).json({ success: false, message: '請先登入管理後台' });
             }
+            const tenantId = admin.tenant_id || parseInt(process.env.DEFAULT_TENANT_ID || '1', 10);
             const { merOrderNo, periodNo, alterType } = req.body || {};
             const data = await paymentService.alterNewebpaySubscriptionStatus({
+                tenantId,
                 merOrderNo,
                 periodNo,
                 alterType
@@ -485,6 +487,7 @@ function createPaymentController(deps) {
             if (!admin) {
                 return res.status(401).json({ success: false, message: '請先登入管理後台' });
             }
+            const tenantId = admin.tenant_id || parseInt(process.env.DEFAULT_TENANT_ID || '1', 10);
             const {
                 merOrderNo,
                 periodNo,
@@ -496,6 +499,7 @@ function createPaymentController(deps) {
                 notifyUrl
             } = req.body || {};
             const data = await paymentService.alterNewebpaySubscriptionContent({
+                tenantId,
                 merOrderNo,
                 periodNo,
                 alterAmt,

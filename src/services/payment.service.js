@@ -46,17 +46,18 @@ function createPaymentService(deps) {
         return config;
     }
 
-    async function getNewebpayConfigFromSettings(requiredKeys = ['MerchantID', 'HashKey', 'HashIV']) {
-        const settingValue = String((await db.getSetting('newebpay_is_production', defaultTenantId)) || '').trim().toLowerCase();
+    async function getNewebpayConfigFromSettings(requiredKeys = ['MerchantID', 'HashKey', 'HashIV'], tenantId = defaultTenantId) {
+        const safeTenantId = parseInt(tenantId, 10) || defaultTenantId;
+        const settingValue = String((await db.getSetting('newebpay_is_production', safeTenantId)) || '').trim().toLowerCase();
         const envValue = String(processEnv.NEWEBPAY_IS_PRODUCTION || '').trim().toLowerCase();
         // 優先順序：資料庫設定 > 環境變數 > NODE_ENV 自動推斷（production=true）
         const isProduction = settingValue
             ? settingValue === 'true'
             : (envValue ? envValue === 'true' : processEnv.NODE_ENV === 'production');
         const config = {
-            MerchantID: ((await db.getSetting('newebpay_merchant_id', defaultTenantId)) || processEnv.NEWEBPAY_MERCHANT_ID || '').trim(),
-            HashKey: ((await db.getSetting('newebpay_hash_key', defaultTenantId)) || processEnv.NEWEBPAY_HASH_KEY || '').trim(),
-            HashIV: ((await db.getSetting('newebpay_hash_iv', defaultTenantId)) || processEnv.NEWEBPAY_HASH_IV || '').trim(),
+            MerchantID: ((await db.getSetting('newebpay_merchant_id', safeTenantId)) || processEnv.NEWEBPAY_MERCHANT_ID || '').trim(),
+            HashKey: ((await db.getSetting('newebpay_hash_key', safeTenantId)) || processEnv.NEWEBPAY_HASH_KEY || '').trim(),
+            HashIV: ((await db.getSetting('newebpay_hash_iv', safeTenantId)) || processEnv.NEWEBPAY_HASH_IV || '').trim(),
             isProduction
         };
         const missing = requiredKeys.filter((key) => !config[key]);
@@ -173,7 +174,7 @@ function createPaymentService(deps) {
         } = params;
 
         const safeTenantId = parseInt(tenantId, 10) || defaultTenantId;
-        const config = await getNewebpayConfigFromSettings(['MerchantID', 'HashKey', 'HashIV']);
+        const config = await getNewebpayConfigFromSettings(['MerchantID', 'HashKey', 'HashIV'], safeTenantId);
         const plans = await db.getSubscriptionPlans();
         const selectedPlan = plans.find((p) => p.code === planCode) || plans.find((p) => p.code === 'pro_monthly') || plans[0];
         if (!selectedPlan) {
@@ -369,6 +370,7 @@ function createPaymentService(deps) {
 
     async function alterNewebpaySubscriptionStatus(params = {}) {
         const {
+            tenantId,
             merOrderNo,
             periodNo,
             alterType
@@ -382,7 +384,8 @@ function createPaymentService(deps) {
             throw new Error('alterType 僅接受 suspend、restart、terminate');
         }
 
-        const config = await getNewebpayConfigFromSettings(['MerchantID', 'HashKey', 'HashIV']);
+        const safeTenantId = parseInt(tenantId, 10) || defaultTenantId;
+        const config = await getNewebpayConfigFromSettings(['MerchantID', 'HashKey', 'HashIV'], safeTenantId);
         const isProduction = Boolean(config.isProduction);
         const actionUrl = isProduction
             ? 'https://core.newebpay.com/MPG/period/AlterStatus'
@@ -415,6 +418,7 @@ function createPaymentService(deps) {
 
     async function alterNewebpaySubscriptionContent(params = {}) {
         const {
+            tenantId,
             merOrderNo,
             periodNo,
             alterAmt,
@@ -447,7 +451,8 @@ function createPaymentService(deps) {
             throw new Error('至少需提供一個可修改欄位：alterAmt/periodType/periodPoint/periodTimes/extday/notifyUrl');
         }
 
-        const config = await getNewebpayConfigFromSettings(['MerchantID', 'HashKey', 'HashIV']);
+        const safeTenantId = parseInt(tenantId, 10) || defaultTenantId;
+        const config = await getNewebpayConfigFromSettings(['MerchantID', 'HashKey', 'HashIV'], safeTenantId);
         const isProduction = Boolean(config.isProduction);
         const actionUrl = isProduction
             ? 'https://core.newebpay.com/MPG/period/AlterAmt'
