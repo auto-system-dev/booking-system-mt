@@ -10642,6 +10642,8 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     let remainingAmountText = pick(parsed.remainingAmount, defaults.remainingAmount, '剩餘尾款請於現場付清！\n剩餘尾款：NT$ {{remainingAmount}}');
     let remainingTitleText = pick(parsed.remainingTitle, defaults.remainingTitle, '💡 剩餘尾款');
     let remainingContentText = pick(parsed.remainingContent, defaults.remainingContent, '剩餘尾款請於現場付清！\n剩餘尾款：NT$ {{remainingAmount}}');
+    let bankIntroText = pick(parsed.bankIntro, defaults.bankIntro, '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款');
+    let bankInfoText = pick(parsed.bankInfo, defaults.bankInfo, '銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n匯款請備註訂單後五碼：{{bookingIdLast5}}');
     if (key === 'booking_confirmation' || key === 'mvp_booking_confirmation') {
         const payNowTitleLooksLikeAmount = /\{\{\s*finalAmount\s*\}\}|NT\$/i.test(String(payNowTitleText || ''));
         if (payNowTitleLooksLikeAmount && !String(payNowContentText || '').trim()) {
@@ -10689,8 +10691,6 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     setVal('mvpFieldNoticeTitle', noticeTitleText);
     setVal('mvpFieldNotice', noticeText);
     setVal('mvpFieldBankTitle', pick(parsed.bankTitle, defaults.bankTitle, '💰 匯款提醒'));
-    let bankIntroText = pick(parsed.bankIntro, defaults.bankIntro, '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款');
-    let bankInfoText = pick(parsed.bankInfo, defaults.bankInfo, '銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n匯款請備註訂單後五碼：{{bookingIdLast5}}');
     const overdueNoticeLine = '* 逾期將自動取消訂房。';
     const normalizedBankInfoLines = String(bankInfoText || '')
         .split('\n')
