@@ -46,6 +46,13 @@ function createPaymentService(deps) {
         return config;
     }
 
+    function maskSecretForLog(value, keepTail = 4) {
+        const raw = String(value || '').trim();
+        if (!raw) return '(empty)';
+        if (raw.length <= keepTail) return '*'.repeat(raw.length);
+        return `${'*'.repeat(Math.max(1, raw.length - keepTail))}${raw.slice(-keepTail)}`;
+    }
+
     async function getNewebpayConfigFromSettings(requiredKeys = ['MerchantID', 'HashKey', 'HashIV'], tenantId = defaultTenantId) {
         const safeTenantId = parseInt(tenantId, 10) || defaultTenantId;
         const settingValue = String((await db.getSetting('newebpay_is_production', safeTenantId)) || '').trim().toLowerCase();
@@ -54,11 +61,26 @@ function createPaymentService(deps) {
         const isProduction = settingValue
             ? settingValue === 'true'
             : (envValue ? envValue === 'true' : processEnv.NODE_ENV === 'production');
+        const dbMerchantID = ((await db.getSetting('newebpay_merchant_id', safeTenantId)) || '').trim();
+        const dbHashKey = ((await db.getSetting('newebpay_hash_key', safeTenantId)) || '').trim();
+        const dbHashIV = ((await db.getSetting('newebpay_hash_iv', safeTenantId)) || '').trim();
+        const envMerchantID = String(processEnv.NEWEBPAY_MERCHANT_ID || '').trim();
+        const envHashKey = String(processEnv.NEWEBPAY_HASH_KEY || '').trim();
+        const envHashIV = String(processEnv.NEWEBPAY_HASH_IV || '').trim();
         const config = {
-            MerchantID: ((await db.getSetting('newebpay_merchant_id', safeTenantId)) || processEnv.NEWEBPAY_MERCHANT_ID || '').trim(),
-            HashKey: ((await db.getSetting('newebpay_hash_key', safeTenantId)) || processEnv.NEWEBPAY_HASH_KEY || '').trim(),
-            HashIV: ((await db.getSetting('newebpay_hash_iv', safeTenantId)) || processEnv.NEWEBPAY_HASH_IV || '').trim(),
-            isProduction
+            MerchantID: dbMerchantID || envMerchantID,
+            HashKey: dbHashKey || envHashKey,
+            HashIV: dbHashIV || envHashIV,
+            isProduction,
+            debugMeta: {
+                tenantId: safeTenantId,
+                isProduction,
+                modeSource: settingValue ? 'db' : (envValue ? 'env' : 'node_env'),
+                merchantSource: dbMerchantID ? 'db' : (envMerchantID ? 'env' : 'missing'),
+                hashKeySource: dbHashKey ? 'db' : (envHashKey ? 'env' : 'missing'),
+                hashIVSource: dbHashIV ? 'db' : (envHashIV ? 'env' : 'missing'),
+                merchantMasked: maskSecretForLog(dbMerchantID || envMerchantID)
+            }
         };
         const missing = requiredKeys.filter((key) => !config[key]);
         if (missing.length > 0) {
@@ -193,6 +215,19 @@ function createPaymentService(deps) {
         const actionUrl = config.isProduction
             ? 'https://core.newebpay.com/MPG/period'
             : 'https://ccore.newebpay.com/MPG/period';
+        logPaymentEvent('info', 'payment.newebpay.subscription.create.config', {
+            tenantId: safeTenantId,
+            planCode: selectedPlan.code,
+            actionUrl,
+            isProduction: !!config.isProduction,
+            merchantMasked: config?.debugMeta?.merchantMasked || '(unknown)',
+            modeSource: config?.debugMeta?.modeSource || '(unknown)',
+            merchantSource: config?.debugMeta?.merchantSource || '(unknown)',
+            hashKeySource: config?.debugMeta?.hashKeySource || '(unknown)',
+            hashIVSource: config?.debugMeta?.hashIVSource || '(unknown)',
+            hasNotifyUrl: !!(notifyUrl || processEnv.NEWEBPAY_SUBSCRIPTION_NOTIFY_URL || ''),
+            hasBackUrl: !!(returnUrl || processEnv.NEWEBPAY_SUBSCRIPTION_RETURN_URL || '')
+        });
 
         const tradeParams = {
             MerchantID: config.MerchantID,
