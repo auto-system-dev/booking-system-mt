@@ -9298,6 +9298,8 @@ function syncFieldEditorLayout(templateKey) {
     }
 
     const bookingAmountTitle = document.querySelector('#fieldSectionBookingAmount > div:first-child');
+    const bookingAmountSection = document.getElementById('fieldSectionBookingAmount');
+    const bookingAmountGrid = document.querySelector('#fieldSectionBookingAmount > div:last-child');
     if (bookingAmountTitle) {
         bookingAmountTitle.textContent = isFeedbackTemplate ? '訂房與評分區塊' : '訂房與金額區塊';
     }
@@ -9314,6 +9316,20 @@ function syncFieldEditorLayout(templateKey) {
     if (reminderContactTitle) reminderContactTitle.style.display = hideSectionExplainTitle ? 'none' : '';
     const sectionClosingTitle = document.querySelector('#fieldSectionClosing > div:first-child');
     if (sectionClosingTitle) sectionClosingTitle.style.display = hideSectionExplainTitle ? 'none' : '';
+    if (bookingAmountSection) {
+        if (isFeedbackTemplate) {
+            // 感謝入住：移除外層大框，僅保留內部兩個獨立區塊
+            bookingAmountSection.style.border = 'none';
+            bookingAmountSection.style.background = 'transparent';
+            bookingAmountSection.style.padding = '0';
+            bookingAmountSection.style.borderRadius = '0';
+        } else {
+            bookingAmountSection.style.border = '1px solid #93c5fd';
+            bookingAmountSection.style.background = '#f0f9ff';
+            bookingAmountSection.style.padding = '10px';
+            bookingAmountSection.style.borderRadius = '10px';
+        }
+    }
     if (reminderContactSection) {
         if (isFeedbackTemplate) {
             // 感謝入住：移除外層大框，僅保留內部兩個獨立區塊
@@ -9347,6 +9363,10 @@ function syncFieldEditorLayout(templateKey) {
     setGroupLabel('fieldGroupContactTitle', '聯絡資訊標題');
     setGroupLabel('fieldGroupContactInfo', '聯絡資訊區塊');
 
+    const groupBookingInfo = document.getElementById('fieldGroupBookingInfo');
+    const groupAmountSummaryTitle = document.getElementById('fieldGroupAmountSummaryTitle');
+    const groupAmountSummary = document.getElementById('fieldGroupAmountSummary');
+
     if (isCancelTemplate) {
         setGroupLabel('fieldGroupReminderTitle', '重新訂房標題');
         setGroupLabel('fieldGroupReminderList', '重新訂房與聯絡區塊');
@@ -9365,10 +9385,57 @@ function syncFieldEditorLayout(templateKey) {
         setGroupLabel('fieldGroupReminderList', '意見回饋區塊');
         setGroupLabel('fieldGroupNoticeTitle', '再次入住優惠標題');
         setGroupLabel('fieldGroupNotice', '再次入住優惠區塊');
+
+        if (bookingAmountGrid) {
+            const unwrapBookingPanels = (panelId) => {
+                const panel = document.getElementById(panelId);
+                if (!panel || panel.parentElement !== bookingAmountGrid) return;
+                Array.from(panel.children).forEach((child) => {
+                    bookingAmountGrid.appendChild(child);
+                });
+                panel.remove();
+            };
+            unwrapBookingPanels('feedbackBookingInfoPanel');
+            unwrapBookingPanels('feedbackRatingPanel');
+
+            const createBookingPanel = (panelId) => {
+                const panel = document.createElement('div');
+                panel.id = panelId;
+                panel.style.border = '1px solid #93c5fd';
+                panel.style.borderRadius = '10px';
+                panel.style.background = '#f0f9ff';
+                panel.style.padding = '10px';
+                panel.style.display = 'grid';
+                panel.style.gridTemplateColumns = '1fr';
+                panel.style.gap = '12px';
+                panel.style.gridColumn = '1 / -1';
+                return panel;
+            };
+            const bookingPanel = createBookingPanel('feedbackBookingInfoPanel');
+            const ratingPanel = createBookingPanel('feedbackRatingPanel');
+            bookingAmountGrid.appendChild(bookingPanel);
+            bookingAmountGrid.appendChild(ratingPanel);
+            if (groupBookingInfo) bookingPanel.appendChild(groupBookingInfo);
+            if (groupAmountSummaryTitle) ratingPanel.appendChild(groupAmountSummaryTitle);
+            if (groupAmountSummary) ratingPanel.appendChild(groupAmountSummary);
+        }
     } else {
         setGroupLabel('fieldGroupReminderTitle', '重要提醒標題');
         setGroupLabel('fieldGroupReminderList', '重要提醒區塊');
         setGroupLabel('fieldGroupNotice', '注意事項');
+
+        if (bookingAmountGrid) {
+            const unwrapBookingPanels = (panelId) => {
+                const panel = document.getElementById(panelId);
+                if (!panel || panel.parentElement !== bookingAmountGrid) return;
+                Array.from(panel.children).forEach((child) => {
+                    bookingAmountGrid.appendChild(child);
+                });
+                panel.remove();
+            };
+            unwrapBookingPanels('feedbackBookingInfoPanel');
+            unwrapBookingPanels('feedbackRatingPanel');
+        }
     }
 
     // 欄位順序：每次先重置為基準，再套入模板專屬順序，避免切換模板時版面「跑掉」
