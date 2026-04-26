@@ -3410,6 +3410,14 @@ app.post('/admin', (req, res) => {
     res.redirect(303, '/admin?fromLogin=1');
 });
 
+// 藍新定期定額回跳中轉（不論 GET/POST，一律導回後台）
+app.all('/api/payment/newebpay/subscription/return', (req, res) => {
+    const tenantId = String(req.query?.tenant_id || req.query?.tenantId || req.body?.tenant_id || req.body?.tenantId || '').trim();
+    const qs = new URLSearchParams({ fromLogin: '1', subscriptionReturn: '1' });
+    if (tenantId) qs.set('tenant_id', tenantId);
+    res.redirect(303, `/admin?${qs.toString()}`);
+});
+
 // 必須註冊在 app.use('/api', createBookingRoutes) 之前，否則會被訂房 router 攔截而回傳 Cannot POST
 app.post('/api/public/register-tenant', publicLimiter, async (req, res) => {
     try {

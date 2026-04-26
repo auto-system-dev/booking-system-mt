@@ -237,7 +237,7 @@ function createPaymentService(deps) {
             notifyUrl || processEnv.NEWEBPAY_SUBSCRIPTION_NOTIFY_URL || '',
             safeTenantId
         );
-        const backUrlResolved = appendTenantIdToUrl(
+        const backUrlResolved = buildNewebpayBrowserReturnUrl(
             returnUrl || processEnv.NEWEBPAY_SUBSCRIPTION_RETURN_URL || '',
             safeTenantId
         );
@@ -254,7 +254,7 @@ function createPaymentService(deps) {
             PeriodPoint: periodPoint,
             PeriodStartType: '2',
             PeriodTimes: '12',
-            // ReturnURL 是使用者端回跳頁，不應指向 webhook API
+            // Period 回跳欄位在不同版本文件語義略有差異，統一導向中轉頁避免回跳混亂
             ReturnURL: backUrlResolved || notifyUrlResolved,
             NotifyURL: notifyUrlResolved,
             BackURL: backUrlResolved,
@@ -357,6 +357,20 @@ function createPaymentService(deps) {
             if (base.includes('tenant_id=')) return base;
             const sep = base.includes('?') ? '&' : '?';
             return `${base}${sep}tenant_id=${safeTenantId}`;
+        }
+    }
+
+    function buildNewebpayBrowserReturnUrl(rawReturnUrl, tenantId) {
+        const fallback = String(processEnv.NEWEBPAY_SUBSCRIPTION_BROWSER_RETURN_URL || '').trim();
+        const base = String(rawReturnUrl || fallback).trim();
+        const safeTenantId = parseInt(tenantId, 10);
+        if (!base) return appendTenantIdToUrl('/api/payment/newebpay/subscription/return', safeTenantId);
+        try {
+            const url = new URL(base);
+            const returnUrl = `${url.origin}/api/payment/newebpay/subscription/return`;
+            return appendTenantIdToUrl(returnUrl, safeTenantId);
+        } catch (_) {
+            return appendTenantIdToUrl('/api/payment/newebpay/subscription/return', safeTenantId);
         }
     }
 
