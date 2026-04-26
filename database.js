@@ -5060,14 +5060,14 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
             
             // 總訂房數 - 已入住（check_in_date <= 今天）
             const checkedInWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND DATE(check_in_date) <= DATE('now') AND status != 'cancelled'${buildingClause}`
-                : ` WHERE DATE(check_in_date) <= DATE('now') AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND DATE(check_in_date) <= DATE('now') AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE DATE(check_in_date) <= DATE('now') AND status != 'cancelled'${tenantClause}${buildingClause}`;
             totalCheckedInSql = `SELECT COUNT(*) as count FROM bookings${checkedInWhereClause}`;
             
             // 總訂房數 - 未入住（check_in_date > 今天）
             const notCheckedInWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND DATE(check_in_date) > DATE('now') AND status != 'cancelled'${buildingClause}`
-                : ` WHERE DATE(check_in_date) > DATE('now') AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND DATE(check_in_date) > DATE('now') AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE DATE(check_in_date) > DATE('now') AND status != 'cancelled'${tenantClause}${buildingClause}`;
             totalNotCheckedInSql = `SELECT COUNT(*) as count FROM bookings${notCheckedInWhereClause}`;
             
             // 總營收
@@ -5075,14 +5075,14 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
             
             // 總營收 - 已付款
             const revenuePaidWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`
-                : ` WHERE payment_status = 'paid' AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_status = 'paid' AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE payment_status = 'paid' AND status != 'cancelled'${tenantClause}${buildingClause}`;
             revenuePaidSql = `SELECT SUM(total_amount) as total FROM bookings${revenuePaidWhereClause}`;
             
             // 總營收 - 未付款
             const revenueUnpaidWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`
-                : ` WHERE payment_status = 'pending' AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_status = 'pending' AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE payment_status = 'pending' AND status != 'cancelled'${tenantClause}${buildingClause}`;
             revenueUnpaidSql = `SELECT SUM(total_amount) as total FROM bookings${revenueUnpaidWhereClause}`;
             
             // 房型（SQLite）：入住日於區間內（含已取消）計算取消率
@@ -5171,14 +5171,14 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
             
             // 匯款轉帳 - 已付款
             const transferPaidWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`
-                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'paid' AND status != 'cancelled'${tenantClause}${buildingClause}`;
             transferPaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${transferPaidWhereClause}`;
             
             // 匯款轉帳 - 未付款
             const transferUnpaidWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`
-                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE payment_method LIKE '%匯款%' AND payment_status = 'pending' AND status != 'cancelled'${tenantClause}${buildingClause}`;
             transferUnpaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${transferUnpaidWhereClause}`;
             
             // 線上刷卡統計
@@ -5189,14 +5189,14 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
             
             // 線上刷卡 - 已付款
             const cardPaidWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`
-                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'paid' AND status != 'cancelled'${tenantClause}${buildingClause}`;
             cardPaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${cardPaidWhereClause}`;
             
             // 線上刷卡 - 未付款
             const cardUnpaidWhereClause = hasRange
-                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`
-                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'${buildingClause}`;
+                ? ` WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?) AND (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'${tenantClause}${buildingClause}`
+                : ` WHERE (payment_method LIKE '%線上%' OR payment_method LIKE '%卡%') AND payment_status = 'pending' AND status != 'cancelled'${tenantClause}${buildingClause}`;
             cardUnpaidSql = `SELECT COUNT(*) as count, SUM(total_amount) as total FROM bookings${cardUnpaidWhereClause}`;
 
             if (hasRange) {
