@@ -9858,6 +9858,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     const isAdminBookingTemplate = key === 'booking_confirmation_admin';
     const isCancelTemplate = key === 'cancel_notification';
     const isFeedbackTemplate = key === 'feedback_request';
+    const isPaymentReminderTemplate = key === 'payment_reminder';
     const title = String(fields.title ?? '').trim();
     const greeting = String(fields.greeting || '').trim();
     const mainContent = String(fields.mainContent || '').trim();
@@ -10046,6 +10047,23 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     ${closingMessage ? `<!--MVP:closingMessage:start--><div style="margin:16px 0 0;text-align:center;">${toParagraphs(closingMessage, { firstLineBold: false })}</div><!--MVP:closingMessage:end-->` : ''}
     ${footer ? `<!--MVP:footer:start--><p style="margin:10px 0 0;text-align:center;">${escapeHtml(footer)}</p><!--MVP:footer:end-->` : ''}
     ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:12px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
+  </div>
+</body></html>`;
+    }
+
+    if (isPaymentReminderTemplate) {
+        return `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
+  <div style="max-width:640px;margin:0 auto;">
+    ${title ? `<!--MVP:title:start--><div style="margin:0 0 16px;background:#e74c3c;color:#fff;padding:20px 16px;border-radius:8px;text-align:center;"><div style="margin:0;font-size:30px;line-height:1.2;font-weight:700;border:none;text-decoration:none;">${escapeHtml(title)}</div></div><!--MVP:title:end-->` : ''}
+    ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting, { firstLineBold: false })}<!--MVP:greeting:end-->` : ''}
+    ${renderBlock('reminderList', reminderBlock)}
+    ${renderBlock('bookingInfo', bookingInfo)}
+    ${renderBlock('bankInfo', bankBlock)}
+    ${renderBlock('contactInfo', contactBlock)}
+    ${closingMessage ? `<!--MVP:closingMessage:start--><div style="margin:14px 0 0;">${toParagraphs(closingMessage, { firstLineBold: false })}</div><!--MVP:closingMessage:end-->` : ''}
+    ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:10px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
   </div>
 </body></html>`;
     }
