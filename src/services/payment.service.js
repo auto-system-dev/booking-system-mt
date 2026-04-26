@@ -326,6 +326,14 @@ function createPaymentService(deps) {
         return null;
     }
 
+    function pickFirstNonEmpty(...values) {
+        for (const value of values) {
+            const text = String(value || '').trim();
+            if (text) return text;
+        }
+        return '';
+    }
+
     async function handleNewebpaySubscriptionWebhook(rawPayload = {}, context = {}) {
         const config = await getNewebpayConfigFromSettings(['HashKey', 'HashIV']);
         const encryptedPeriod = String(rawPayload.Period || rawPayload.period || '').trim();
@@ -357,11 +365,40 @@ function createPaymentService(deps) {
         }
         const resultPayload = (periodPayload && typeof periodPayload.Result === 'object' && periodPayload.Result) || {};
 
-        const tenantId = resolveTenantIdFromNewebpayPayload({
+        let tenantId = resolveTenantIdFromNewebpayPayload({
             ...rawPayload,
             ...periodPayload,
             ...resultPayload
         });
+        if (!tenantId && typeof db.resolveTenantIdByRecurringReference === 'function') {
+            const merOrderNo = pickFirstNonEmpty(
+                resultPayload.MerchantOrderNo,
+                resultPayload.merchantOrderNo,
+                resultPayload.MerOrderNo,
+                resultPayload.merOrderNo,
+                periodPayload.MerchantOrderNo,
+                periodPayload.merchantOrderNo,
+                periodPayload.MerOrderNo,
+                periodPayload.merOrderNo,
+                rawPayload.MerchantOrderNo,
+                rawPayload.merchantOrderNo,
+                rawPayload.MerOrderNo,
+                rawPayload.merOrderNo
+            );
+            const periodNo = pickFirstNonEmpty(
+                resultPayload.PeriodNo,
+                resultPayload.periodNo,
+                periodPayload.PeriodNo,
+                periodPayload.periodNo,
+                rawPayload.PeriodNo,
+                rawPayload.periodNo
+            );
+            tenantId = await db.resolveTenantIdByRecurringReference({
+                provider: 'newebpay',
+                providerOrderNo: merOrderNo || null,
+                providerSubscriptionId: periodNo || null
+            });
+        }
         if (!tenantId) {
             throw new Error('無法從藍新 webhook 解析 tenant_id');
         }

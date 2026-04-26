@@ -8470,6 +8470,38 @@ async function updateTenantSubscriptionRecurringState(tenantId, data = {}) {
     return getTenantSubscriptionSnapshot(safeTenantId);
 }
 
+async function resolveTenantIdByRecurringReference({ provider = 'newebpay', providerOrderNo = null, providerSubscriptionId = null } = {}) {
+    const safeProvider = String(provider || '').trim().toLowerCase() || 'newebpay';
+    const orderNo = String(providerOrderNo || '').trim();
+    const subscriptionId = String(providerSubscriptionId || '').trim();
+    if (!orderNo && !subscriptionId) {
+        return null;
+    }
+
+    const row = await queryOne(
+        usePostgreSQL
+            ? `SELECT tenant_id
+               FROM subscriptions
+               WHERE provider = $1
+                 AND ($2::varchar IS NULL OR provider_order_no = $2::varchar)
+                 AND ($3::varchar IS NULL OR provider_subscription_id = $3::varchar)
+               ORDER BY id DESC
+               LIMIT 1`
+            : `SELECT tenant_id
+               FROM subscriptions
+               WHERE provider = ?
+                 AND (? IS NULL OR provider_order_no = ?)
+                 AND (? IS NULL OR provider_subscription_id = ?)
+               ORDER BY id DESC
+               LIMIT 1`,
+        usePostgreSQL
+            ? [safeProvider, orderNo || null, subscriptionId || null]
+            : [safeProvider, orderNo || null, orderNo || null, subscriptionId || null, subscriptionId || null]
+    );
+    const tenantId = parseInt(row?.tenant_id, 10);
+    return Number.isInteger(tenantId) && tenantId > 0 ? tenantId : null;
+}
+
 async function insertPaymentEventIfAbsent({ tenantId = null, provider, eventId, eventType, payload, signature = null }) {
     const providerValue = String(provider || '').trim();
     const eventIdValue = String(eventId || '').trim();
@@ -10805,6 +10837,7 @@ module.exports = {
     setTenantSubscriptionPlan,
     updateLatestSubscriptionStatus,
     updateTenantSubscriptionRecurringState,
+    resolveTenantIdByRecurringReference,
     ensureTenantDefaultBuildingId,
     seedTenantDefaultRoomTypes,
     seedTenantDefaultAddons,
