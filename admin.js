@@ -9431,6 +9431,7 @@ function syncFieldEditorLayout(templateKey) {
         unwrapBookingPanel('paidAmountPanel');
         unwrapBookingPanel('paymentReminderBookingInfoPanel');
         unwrapBookingPanel('paymentReminderAmountPanel');
+        unwrapBookingPanel('paymentReminderNoticeTopPanel');
     }
     if (bankGrid) {
         const unwrapBankPanel = (panelId) => {
@@ -9540,8 +9541,12 @@ function syncFieldEditorLayout(templateKey) {
         setGroupLabel('fieldGroupReminderList', '重要提醒內容');
         setGroupLabel('fieldGroupContactInfo', '聯絡資訊區塊');
         if (bookingAmountGrid) {
+            const reminderNoticeTopPanel = createBookingPanel('paymentReminderNoticeTopPanel');
             const reminderBookingPanel = createBookingPanel('paymentReminderBookingInfoPanel');
+            bookingAmountGrid.appendChild(reminderNoticeTopPanel);
             bookingAmountGrid.appendChild(reminderBookingPanel);
+            if (groupReminderTitle) reminderNoticeTopPanel.appendChild(groupReminderTitle);
+            if (groupReminderList) reminderNoticeTopPanel.appendChild(groupReminderList);
             if (groupBookingInfo) reminderBookingPanel.appendChild(groupBookingInfo);
         }
         if (bankGrid) {
@@ -9767,16 +9772,6 @@ function syncFieldEditorLayout(templateKey) {
                 groupContactTitle,
                 groupContactInfo
             ]);
-            const reminderPanel = document.createElement('div');
-            reminderPanel.id = 'paymentReminderReminderPanel';
-            reminderPanel.style.border = '1px solid #93c5fd';
-            reminderPanel.style.borderRadius = '10px';
-            reminderPanel.style.background = '#f0f9ff';
-            reminderPanel.style.padding = '10px';
-            reminderPanel.style.display = 'grid';
-            reminderPanel.style.gridTemplateColumns = '1fr';
-            reminderPanel.style.gap = '12px';
-            reminderPanel.style.gridColumn = '1 / -1';
             const contactPanel = document.createElement('div');
             contactPanel.id = 'paymentReminderContactPanel';
             contactPanel.style.border = '1px solid #93c5fd';
@@ -9787,10 +9782,7 @@ function syncFieldEditorLayout(templateKey) {
             contactPanel.style.gridTemplateColumns = '1fr';
             contactPanel.style.gap = '12px';
             contactPanel.style.gridColumn = '1 / -1';
-            reminderContactGrid.appendChild(reminderPanel);
             reminderContactGrid.appendChild(contactPanel);
-            if (groupReminderTitle) reminderPanel.appendChild(groupReminderTitle);
-            if (groupReminderList) reminderPanel.appendChild(groupReminderList);
             if (groupContactInfo) contactPanel.appendChild(groupContactInfo);
         } else if (isAdminBookingTemplate) {
             appendInOrder([
