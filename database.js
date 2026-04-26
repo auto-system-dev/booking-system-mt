@@ -5132,7 +5132,7 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
                                 'direct'
                             ) AS src
                         FROM bookings
-                        WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?)${tenantClause}
+                        WHERE DATE(check_in_date) BETWEEN DATE(?) AND DATE(?)${tenantClause}${buildingClause}
                     ) b
                     GROUP BY src
                     ORDER BY active_count DESC, revenue DESC`
@@ -5158,7 +5158,7 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
                                 'direct'
                             ) AS src
                         FROM bookings
-                        WHERE tenant_id = ?
+                        WHERE tenant_id = ?${buildingClause}
                     ) b
                     GROUP BY src
                     ORDER BY active_count DESC, revenue DESC`;
