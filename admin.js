@@ -8109,6 +8109,21 @@ async function startNewebpaySubscription(planCode) {
             input.value = value == null ? '' : String(value);
             form.appendChild(input);
         });
+        // 相容部分藍新環境欄位命名差異：同時帶有底線與無底線版本
+        if (payload.MerchantID_ && !payload.MerchantID) {
+            const merchantFallback = document.createElement('input');
+            merchantFallback.type = 'hidden';
+            merchantFallback.name = 'MerchantID';
+            merchantFallback.value = String(payload.MerchantID_);
+            form.appendChild(merchantFallback);
+        }
+        if (payload.PostData_ && !payload.PostData) {
+            const postDataFallback = document.createElement('input');
+            postDataFallback.type = 'hidden';
+            postDataFallback.name = 'PostData';
+            postDataFallback.value = String(payload.PostData_);
+            form.appendChild(postDataFallback);
+        }
 
         document.body.appendChild(form);
         form.submit();
