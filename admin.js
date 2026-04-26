@@ -9400,6 +9400,8 @@ function syncFieldEditorLayout(templateKey) {
     const groupPayNowContent = document.getElementById('fieldGroupPayNowContent');
     const groupRemainingTitle = document.getElementById('fieldGroupRemainingTitle');
     const groupRemainingContent = document.getElementById('fieldGroupRemainingContent');
+    const groupReminderTitle = document.getElementById('fieldGroupReminderTitle');
+    const groupReminderList = document.getElementById('fieldGroupReminderList');
     const groupBankTitle = document.getElementById('mvpFieldBankTitle')?.closest('.form-group');
     const groupBankIntro = document.getElementById('mvpFieldBankIntro')?.closest('.form-group');
     const groupBankInfo = document.getElementById('mvpFieldBankInfo')?.closest('.form-group');
@@ -9597,8 +9599,6 @@ function syncFieldEditorLayout(templateKey) {
     const reminderContactGrid = document.querySelector('#fieldSectionReminderContact > div:last-child');
     const groupNotice = document.getElementById('fieldGroupNotice');
     const groupNoticeTitle = document.getElementById('fieldGroupNoticeTitle');
-    const groupReminderTitle = document.getElementById('fieldGroupReminderTitle');
-    const groupReminderList = document.getElementById('fieldGroupReminderList');
     const groupContactTitle = document.getElementById('fieldGroupContactTitle');
     const groupContactInfo = document.getElementById('fieldGroupContactInfo');
     if (reminderContactGrid) {
