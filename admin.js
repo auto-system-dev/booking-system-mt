@@ -9285,8 +9285,8 @@ function syncFieldEditorLayout(templateKey) {
     setVisible('fieldGroupContactInfo', !isCancelTemplate && !isFeedbackTemplate);
     setVisible('fieldGroupAmountSummaryTitle', isCheckinTemplate || isFeedbackTemplate);
     setVisible('fieldGroupAmountSummary', !isCancelTemplate && !isPaymentCompletedTemplate && !isPaymentReminderTemplate);
-    setVisible('fieldGroupPayNowTitle', !isCancelTemplate && !isFeedbackTemplate);
-    setVisible('fieldGroupPayNowContent', !isCancelTemplate && !isFeedbackTemplate);
+    setVisible('fieldGroupPayNowTitle', !isCancelTemplate && !isFeedbackTemplate && !isPaymentReminderTemplate);
+    setVisible('fieldGroupPayNowContent', !isCancelTemplate && !isFeedbackTemplate && !isPaymentReminderTemplate);
 
     const reminderContactTitle = document.getElementById('fieldSectionReminderContactTitle');
     const reminderContactSection = document.getElementById('fieldSectionReminderContact');
@@ -9334,7 +9334,7 @@ function syncFieldEditorLayout(templateKey) {
     const sectionClosingTitle = document.querySelector('#fieldSectionClosing > div:first-child');
     if (sectionClosingTitle) sectionClosingTitle.style.display = hideSectionExplainTitle ? 'none' : '';
     if (bookingAmountSection) {
-        if (isFeedbackTemplate || isCheckinTemplate || isCustomerBookingTemplate || isAdminBookingTemplate || isCancelTemplate) {
+        if (isFeedbackTemplate || isCheckinTemplate || isCustomerBookingTemplate || isAdminBookingTemplate || isCancelTemplate || isPaymentReminderTemplate || isPaymentCompletedTemplate) {
             // 感謝入住：移除外層大框，僅保留內部兩個獨立區塊
             bookingAmountSection.style.border = 'none';
             bookingAmountSection.style.background = 'transparent';
@@ -9361,7 +9361,7 @@ function syncFieldEditorLayout(templateKey) {
         }
     }
     if (reminderContactSection) {
-        if (isFeedbackTemplate || isCheckinTemplate || isCustomerBookingTemplate || isAdminBookingTemplate || isCancelTemplate) {
+        if (isFeedbackTemplate || isCheckinTemplate || isCustomerBookingTemplate || isAdminBookingTemplate || isCancelTemplate || isPaymentReminderTemplate || isPaymentCompletedTemplate) {
             // 感謝入住：移除外層大框，僅保留內部兩個獨立區塊
             reminderContactSection.style.border = 'none';
             reminderContactSection.style.background = 'transparent';
@@ -9536,19 +9536,13 @@ function syncFieldEditorLayout(templateKey) {
             if (groupPayNowContent) paidAmountPanel.appendChild(groupPayNowContent);
         }
     } else if (isPaymentReminderTemplate) {
-        setGroupLabel('fieldGroupPayNowTitle', '應付金額標題');
-        setGroupLabel('fieldGroupPayNowContent', '應付金額內容');
         setGroupLabel('fieldGroupReminderTitle', '重要提醒標題');
         setGroupLabel('fieldGroupReminderList', '重要提醒內容');
         setGroupLabel('fieldGroupContactInfo', '聯絡資訊區塊');
         if (bookingAmountGrid) {
             const reminderBookingPanel = createBookingPanel('paymentReminderBookingInfoPanel');
-            const reminderAmountPanel = createBookingPanel('paymentReminderAmountPanel');
             bookingAmountGrid.appendChild(reminderBookingPanel);
-            bookingAmountGrid.appendChild(reminderAmountPanel);
             if (groupBookingInfo) reminderBookingPanel.appendChild(groupBookingInfo);
-            if (groupPayNowTitle) reminderAmountPanel.appendChild(groupPayNowTitle);
-            if (groupPayNowContent) reminderAmountPanel.appendChild(groupPayNowContent);
         }
         if (bankGrid) {
             const reminderBankPanel = createBankPanel('paymentReminderBankPanel');
@@ -10469,11 +10463,11 @@ function getPaymentReminderDefaultFields() {
         title: '匯款期限提醒',
         greeting: '親愛的 {{guestName}} 您好，\n感謝您選擇我們的住宿服務！',
         mainContent: '',
-        bookingInfo: '訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}\n總金額：NT$ {{totalAmount}}',
+        bookingInfo: '訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n房型：{{roomType}}\n總金額：NT$ {{totalAmount}}\n應付金額：NT$ {{finalAmount}}',
         amountSummaryTitle: '',
         amountSummary: '',
-        payNowTitle: '應付金額',
-        payNowContent: 'NT$ {{finalAmount}}',
+        payNowTitle: '',
+        payNowContent: '',
         remainingAmount: '',
         remainingTitle: '',
         remainingContent: '',
@@ -10483,7 +10477,7 @@ function getPaymentReminderDefaultFields() {
         bankIntro: '此訂房將為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款。\n* 逾期將自動取消訂房。',
         bankInfo: '銀行：{{bankName}}{{bankBranchDisplay}}\n帳號：{{bankAccount}}\n戶名：{{accountName}}\n請在匯款時備註訂單編號後5碼：{{bookingIdLast5}}\n匯款後請加入官方LINE告知，謝謝！',
         reminderTitle: '⚠️ 重要提醒',
-        reminderList: '此訂房將於保留期限後自動取消，請務必於期限內完成匯款。',
+        reminderList: '此訂房為您保留 {{daysReserved}} 天，請於 {{paymentDeadline}} 前完成匯款，逾期將自動取消訂房。',
         contactTitle: '聯絡資訊',
         contactInfo: '電話：{{hotelPhone}}\nEmail：{{hotelEmail}}\n官方 LINE：{{officialLineUrl}}',
         closingMessage: '如有任何問題，請隨時與我們聯繫。\n感謝您的配合！',
@@ -10609,6 +10603,10 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
             titleText = titleText.replace(/^🏨\s*/, '').trim();
             if (!titleText) titleText = defaults.title || '入住提醒';
         }
+        if (key === 'payment_reminder') {
+            titleText = titleText.replace(/^⏰\s*/, '').trim();
+            if (!titleText) titleText = defaults.title || '匯款期限提醒';
+        }
         if (!greetingText || /感謝您的預訂/.test(String(greetingText))) {
             const greetingFallbackMap = {
                 booking_confirmation_admin: '您有一筆新的訂房申請，以下是訂房詳細資訊：',
@@ -10648,6 +10646,14 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
         const legacyCheckinNotes = '入住時間：下午 15:00 起\n退房時間：隔日 11:00 前\n如需提早入住或延後退房，請先與櫃台聯繫。';
         if (!String(remainingContentText || '').trim() || String(remainingContentText || '').trim() === legacyCheckinNotes.trim()) {
             remainingContentText = defaults.remainingContent || getCheckinReminderDefaultFields().remainingContent;
+        }
+    } else if (key === 'payment_reminder') {
+        // 匯款提醒：應付金額需併入「訂房資訊區塊」，不顯示獨立應付金額卡片
+        payNowTitleText = '';
+        payNowContentText = '';
+        if (!/\{\{\s*finalAmount\s*\}\}/.test(String(bookingInfoText || ''))) {
+            bookingInfoText = `${String(bookingInfoText || '').trim()}\n應付金額：NT$ {{finalAmount}}`.trim();
+            setVal('mvpFieldBookingInfo', bookingInfoText);
         }
     }
     setVal('mvpFieldPayNowTitle', payNowTitleText);
