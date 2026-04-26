@@ -233,6 +233,14 @@ function createPaymentService(deps) {
             hasBackUrl: !!(returnUrl || processEnv.NEWEBPAY_SUBSCRIPTION_RETURN_URL || '')
         });
 
+        const notifyUrlResolved = appendTenantIdToUrl(
+            notifyUrl || processEnv.NEWEBPAY_SUBSCRIPTION_NOTIFY_URL || '',
+            safeTenantId
+        );
+        const backUrlResolved = appendTenantIdToUrl(
+            returnUrl || processEnv.NEWEBPAY_SUBSCRIPTION_RETURN_URL || '',
+            safeTenantId
+        );
         const tradeParams = {
             MerchantID: config.MerchantID,
             RespondType: 'JSON',
@@ -246,9 +254,9 @@ function createPaymentService(deps) {
             PeriodPoint: periodPoint,
             PeriodStartType: '2',
             PeriodTimes: '12',
-            ReturnURL: notifyUrl || processEnv.NEWEBPAY_SUBSCRIPTION_NOTIFY_URL || '',
-            NotifyURL: notifyUrl || processEnv.NEWEBPAY_SUBSCRIPTION_NOTIFY_URL || '',
-            BackURL: returnUrl || processEnv.NEWEBPAY_SUBSCRIPTION_RETURN_URL || '',
+            ReturnURL: notifyUrlResolved,
+            NotifyURL: notifyUrlResolved,
+            BackURL: backUrlResolved,
             PayerEmail: customerEmail || '',
             PayerName: customerName || ''
         };
@@ -334,6 +342,23 @@ function createPaymentService(deps) {
         return '';
     }
 
+    function appendTenantIdToUrl(urlText, tenantId) {
+        const base = String(urlText || '').trim();
+        const safeTenantId = parseInt(tenantId, 10);
+        if (!base || !Number.isInteger(safeTenantId) || safeTenantId <= 0) return base;
+        try {
+            const url = new URL(base);
+            if (!url.searchParams.get('tenant_id')) {
+                url.searchParams.set('tenant_id', String(safeTenantId));
+            }
+            return url.toString();
+        } catch (_) {
+            if (base.includes('tenant_id=')) return base;
+            const sep = base.includes('?') ? '&' : '?';
+            return `${base}${sep}tenant_id=${safeTenantId}`;
+        }
+    }
+
     async function handleNewebpaySubscriptionWebhook(rawPayload = {}, context = {}) {
         const config = await getNewebpayConfigFromSettings(['HashKey', 'HashIV']);
         const encryptedPeriod = String(rawPayload.Period || rawPayload.period || '').trim();
@@ -370,6 +395,12 @@ function createPaymentService(deps) {
             ...periodPayload,
             ...resultPayload
         });
+        if (!tenantId) {
+            const tenantFromQuery = parseInt(context?.queryTenantId, 10);
+            if (Number.isInteger(tenantFromQuery) && tenantFromQuery > 0) {
+                tenantId = tenantFromQuery;
+            }
+        }
         if (!tenantId && typeof db.resolveTenantIdByRecurringReference === 'function') {
             const merOrderNo = pickFirstNonEmpty(
                 resultPayload.MerchantOrderNo,

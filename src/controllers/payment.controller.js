@@ -416,7 +416,10 @@ function createPaymentController(deps) {
                 route,
                 result: 'received'
             });
-            const result = await paymentService.handleNewebpaySubscriptionWebhook(payload, { requestId });
+            const result = await paymentService.handleNewebpaySubscriptionWebhook(payload, {
+                requestId,
+                queryTenantId: req.query?.tenant_id || req.query?.tenantId || null
+            });
             if (result.duplicate) {
                 return res.json({ success: true, duplicate: true, message: 'duplicate event ignored' });
             }
