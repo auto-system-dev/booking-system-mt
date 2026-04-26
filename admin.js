@@ -10544,15 +10544,14 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     let greetingText = pick(parsed.greeting, defaults.greeting, '親愛的 {{guestName}}，');
     if (key === 'booking_confirmation' || key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin' || key === 'cancel_notification' || key === 'checkin_reminder' || key === 'payment_reminder' || key === 'payment_completed') {
         if (!titleText || /mvp\s*測試通知/i.test(String(titleText))) {
-            titleText = defaults.title || (key === 'booking_confirmation_admin'
-                ? '新訂房通知'
-                : (key === 'cancel_notification'
-                    ? '訂房已自動取消'
-                    : (key === 'checkin_reminder'
-                        ? '入住提醒'
-                        : (key === 'payment_reminder'
-                            ? '匯款期限提醒'
-                            : (key === 'payment_completed' ? '付款完成確認' : '訂房確認成功')))));
+            const titleFallbackMap = {
+                booking_confirmation_admin: '新訂房通知',
+                cancel_notification: '訂房已自動取消',
+                checkin_reminder: '入住提醒',
+                payment_reminder: '匯款期限提醒',
+                payment_completed: '付款完成確認'
+            };
+            titleText = defaults.title || titleFallbackMap[key] || '訂房確認成功';
         }
         titleText = String(titleText || '').replace(/^🔔\s*/, '').trim();
         if (key === 'cancel_notification') {
@@ -10563,17 +10562,14 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
             if (!titleText) titleText = defaults.title || '入住提醒';
         }
         if (!greetingText || /感謝您的預訂/.test(String(greetingText))) {
-            greetingText = defaults.greeting || (key === 'booking_confirmation_admin'
-                ? '您有一筆新的訂房申請，以下是訂房詳細資訊：'
-                : (key === 'cancel_notification'
-                    ? '親愛的 {{guestName}}，\n很抱歉通知您，由於超過匯款保留期限，您的訂房已自動取消。以下是取消的訂房資訊：'
-                    : (key === 'checkin_reminder'
-                        ? '親愛的 {{guestName}}，\n您預定的住宿行程即將開始，我們特別提醒您以下資訊：'
-                        : (key === 'payment_reminder'
-                            ? '親愛的 {{guestName}} 您好，\n感謝您選擇我們的住宿服務！'
-                            : (key === 'payment_completed'
-                                ? '親愛的 {{guestName}}，\n我們已確認收到您的付款，以下是您的訂房與付款資訊：'
-                                : '親愛的 {{guestName}}，\n您的訂房已成功確認，以下是您的訂房資訊：'))));
+            const greetingFallbackMap = {
+                booking_confirmation_admin: '您有一筆新的訂房申請，以下是訂房詳細資訊：',
+                cancel_notification: '親愛的 {{guestName}}，\n很抱歉通知您，由於超過匯款保留期限，您的訂房已自動取消。以下是取消的訂房資訊：',
+                checkin_reminder: '親愛的 {{guestName}}，\n您預定的住宿行程即將開始，我們特別提醒您以下資訊：',
+                payment_reminder: '親愛的 {{guestName}} 您好，\n感謝您選擇我們的住宿服務！',
+                payment_completed: '親愛的 {{guestName}}，\n我們已確認收到您的付款，以下是您的訂房與付款資訊：'
+            };
+            greetingText = defaults.greeting || greetingFallbackMap[key] || '親愛的 {{guestName}}，\n您的訂房已成功確認，以下是您的訂房資訊：';
         }
     }
     setVal('mvpFieldTitle', titleText);
