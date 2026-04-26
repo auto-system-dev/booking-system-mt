@@ -7904,7 +7904,9 @@ function renderSubscriptionSnapshot(snapshot) {
     if (planTextEl) {
         planTextEl.textContent = planText;
     }
-    metaEl.textContent = `到期：${periodEndText}`;
+    // 避免與「使用期限」卡片重覆顯示到期時間
+    metaEl.textContent = '';
+    metaEl.style.display = 'none';
     if (statusBadge) {
         const style = getSubscriptionStatusStyle(snapshot?.status);
         statusBadge.textContent = statusText;
@@ -7995,7 +7997,12 @@ function renderSubscriptionSnapshot(snapshot) {
 function handleSubscriptionPrimaryAction() {
     const billingBlock = document.getElementById('subscriptionBillingBlock');
     const adminControls = document.getElementById('subscriptionAdminControls');
-    const target = (billingBlock && billingBlock.style.display !== 'none') ? billingBlock : adminControls;
+    if (billingBlock && billingBlock.style.display === 'none') {
+        billingBlock.style.display = 'block';
+    }
+    const billingVisible = !!(billingBlock && billingBlock.style.display !== 'none');
+    const adminVisible = !!(adminControls && adminControls.style.display !== 'none');
+    const target = billingVisible ? billingBlock : (adminVisible ? adminControls : null);
     if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
         target.style.transition = 'box-shadow 0.2s ease';
@@ -8003,7 +8010,9 @@ function handleSubscriptionPrimaryAction() {
         window.setTimeout(() => {
             target.style.boxShadow = '';
         }, 900);
+        return;
     }
+    showError('目前無可操作的續約區塊，請重新整理後再試。');
 }
 
 function renderSubscriptionPlans(plans, currentPlanCode) {
@@ -8131,8 +8140,10 @@ async function loadSubscriptionSettings() {
         const isSuperAdmin = !!(window.currentAdminInfo && window.currentAdminInfo.role === 'super_admin');
         const adminControls = document.getElementById('subscriptionAdminControls');
         const updateBtn = document.getElementById('subscriptionUpdateBtn');
+        const billingBlock = document.getElementById('subscriptionBillingBlock');
         if (adminControls) adminControls.style.display = isSuperAdmin ? 'block' : 'none';
         if (updateBtn) updateBtn.style.display = isSuperAdmin ? 'inline-flex' : 'none';
+        if (billingBlock) billingBlock.style.display = isSuperAdmin ? 'none' : 'block';
 
         const [statusResp, plansResp] = await Promise.all([
             adminFetch('/api/subscription/status'),
