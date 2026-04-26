@@ -104,16 +104,20 @@ function createPaymentService(deps) {
         return encrypted;
     }
 
-    function decryptNewebpayPeriod(encryptedHex, config) {
+    function decryptNewebpayPayload(encryptedHex, config, fieldName = 'Period') {
         const cipherHex = String(encryptedHex || '').trim();
         if (!cipherHex) {
-            throw new Error('缺少藍新回傳 Period 參數');
+            throw new Error(`缺少藍新回傳 ${fieldName} 參數`);
         }
         const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(config.HashKey), Buffer.from(config.HashIV));
         decipher.setAutoPadding(true);
         let decrypted = decipher.update(cipherHex, 'hex', 'utf8');
         decrypted += decipher.final('utf8');
         return decrypted;
+    }
+
+    function decryptNewebpayPeriod(encryptedHex, config) {
+        return decryptNewebpayPayload(encryptedHex, config, 'Period');
     }
 
     function parseNewebpayPeriodPayload(raw) {
@@ -324,18 +328,40 @@ function createPaymentService(deps) {
 
     async function handleNewebpaySubscriptionWebhook(rawPayload = {}, context = {}) {
         const config = await getNewebpayConfigFromSettings(['HashKey', 'HashIV']);
-        if (rawPayload.TradeInfo && rawPayload.TradeSha) {
+        const encryptedPeriod = String(rawPayload.Period || rawPayload.period || '').trim();
+        const encryptedTradeInfo = String(rawPayload.TradeInfo || rawPayload.tradeInfo || '').trim();
+        if (encryptedTradeInfo && rawPayload.TradeSha) {
             const validTradeSha = verifyNewebpayTradeSha(rawPayload, config);
             if (!validTradeSha) {
                 throw new Error('藍新 webhook 驗簽失敗（TradeSha 不一致）');
             }
         }
-        const encryptedPeriod = String(rawPayload.Period || rawPayload.period || '');
-        const decrypted = decryptNewebpayPeriod(encryptedPeriod, config);
-        const periodPayload = parseNewebpayPeriodPayload(decrypted);
+        let periodPayload = {};
+        if (encryptedPeriod) {
+            const decrypted = decryptNewebpayPayload(encryptedPeriod, config, 'Period');
+            periodPayload = parseNewebpayPeriodPayload(decrypted);
+        } else if (encryptedTradeInfo) {
+            const decrypted = decryptNewebpayPayload(encryptedTradeInfo, config, 'TradeInfo');
+            periodPayload = parseNewebpayPeriodPayload(decrypted);
+        } else if (rawPayload && typeof rawPayload === 'object' && Object.keys(rawPayload).length > 0) {
+            periodPayload = rawPayload;
+            if (typeof periodPayload.Result === 'string') {
+                try {
+                    periodPayload.Result = JSON.parse(periodPayload.Result);
+                } catch (_) {
+                    // keep original string when not JSON
+                }
+            }
+        } else {
+            throw new Error('缺少藍新回傳 Period/TradeInfo 參數');
+        }
         const resultPayload = (periodPayload && typeof periodPayload.Result === 'object' && periodPayload.Result) || {};
 
-        const tenantId = resolveTenantIdFromNewebpayPayload(resultPayload);
+        const tenantId = resolveTenantIdFromNewebpayPayload({
+            ...rawPayload,
+            ...periodPayload,
+            ...resultPayload
+        });
         if (!tenantId) {
             throw new Error('無法從藍新 webhook 解析 tenant_id');
         }
@@ -368,7 +394,7 @@ function createPaymentService(deps) {
                 rawPayload,
                 period: periodPayload
             },
-            signature: encryptedPeriod
+            signature: encryptedPeriod || encryptedTradeInfo
         });
         if (!saveResult.inserted) {
             return { duplicate: true, tenantId, eventId };
@@ -385,9 +411,9 @@ function createPaymentService(deps) {
         );
         const snapshot = await db.updateTenantSubscriptionRecurringState(tenantId, {
             provider: 'newebpay',
-            providerSubscriptionId: resultPayload.PeriodNo || resultPayload.periodNo || null,
-            providerCustomerId: resultPayload.PayerEmail || resultPayload.Email || null,
-            providerOrderNo: resultPayload.MerchantOrderNo || resultPayload.MerOrderNo || null,
+            providerSubscriptionId: resultPayload.PeriodNo || resultPayload.periodNo || periodPayload.PeriodNo || periodPayload.periodNo || null,
+            providerCustomerId: resultPayload.PayerEmail || resultPayload.Email || periodPayload.PayerEmail || periodPayload.Email || null,
+            providerOrderNo: resultPayload.MerchantOrderNo || resultPayload.MerOrderNo || periodPayload.MerchantOrderNo || periodPayload.MerOrderNo || null,
             paymentStatus,
             subscriptionStatus: status,
             nextBillingAt,
