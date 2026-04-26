@@ -213,7 +213,8 @@ function createPaymentService(deps) {
         const periodPoint = '1';
         const periodAmt = String(amount);
         const ts = Math.floor(Date.now() / 1000);
-        const merchantOrderNo = `T${safeTenantId}-${Date.now()}`.slice(0, 30);
+        // 藍新 MerOrderNo 僅允許英數與底線，避免使用連字號造成 PER10010
+        const merchantOrderNo = `T${safeTenantId}_${Date.now()}`.replace(/[^A-Za-z0-9_]/g, '').slice(0, 30);
         const itemDesc = `訂閱方案-${selectedPlan.code}`;
         const version = '1.5';
         const actionUrl = config.isProduction
