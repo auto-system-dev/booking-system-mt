@@ -7875,11 +7875,17 @@ function renderSubscriptionNotice(snapshot) {
 
 function renderSubscriptionSnapshot(snapshot) {
     const planInput = document.getElementById('subscriptionCurrentPlan');
+    const planTextEl = document.getElementById('subscriptionPlanText');
     const metaEl = document.getElementById('subscriptionCurrentMeta');
     const featureSummaryInput = document.getElementById('subscriptionFeatureSummary');
+    const featureSummaryBadgesEl = document.getElementById('subscriptionFeatureSummaryBadges');
     const expiryInput = document.getElementById('subscriptionExpirySummary');
+    const expiryTextEl = document.getElementById('subscriptionExpirySummaryText');
     const expiryHint = document.getElementById('subscriptionExpiryHint');
+    const expiryCard = document.getElementById('subscriptionExpiryCard');
     const statusBadge = document.getElementById('subscriptionStatusBadge');
+    const statusTextEl = document.getElementById('subscriptionStatusText');
+    const primaryActionBtn = document.getElementById('subscriptionPrimaryActionBtn');
     const statusSelect = document.getElementById('subscriptionStatusSelect');
     const periodEndInput = document.getElementById('subscriptionPeriodEndInput');
     if (!planInput || !metaEl || !featureSummaryInput || !expiryInput || !expiryHint) {
@@ -7895,7 +7901,10 @@ function renderSubscriptionSnapshot(snapshot) {
     const maxBuildings = Number(snapshot?.limits?.max_buildings || 1);
 
     planInput.value = `${planText}（${statusText}）`;
-    metaEl.textContent = `到期時間：${periodEndText}`;
+    if (planTextEl) {
+        planTextEl.textContent = planText;
+    }
+    metaEl.textContent = `到期：${periodEndText}`;
     if (statusBadge) {
         const style = getSubscriptionStatusStyle(snapshot?.status);
         statusBadge.textContent = statusText;
@@ -7903,31 +7912,77 @@ function renderSubscriptionSnapshot(snapshot) {
         statusBadge.style.color = style.color;
         statusBadge.style.border = `1px solid ${style.border}`;
     }
+    if (statusTextEl) {
+        statusTextEl.textContent = statusText;
+    }
     if (remainingDays === null) {
         expiryInput.value = '未設定到期時間';
+        if (expiryTextEl) expiryTextEl.textContent = '未設定';
         expiryHint.textContent = '請由超級管理員設定使用期限。';
         expiryInput.style.color = '#374151';
         expiryInput.style.background = '#f9fafb';
+        if (expiryCard) {
+            expiryCard.style.background = '#f9fafb';
+            expiryCard.style.border = '1px solid #e5e7eb';
+        }
     } else if (remainingDays >= 0) {
         expiryInput.value = `剩餘 ${remainingDays} 天`;
-        expiryHint.textContent = `到期時間：${periodEndText}`;
-        if (remainingDays <= 3) {
-            expiryInput.style.color = '#9a3412';
-            expiryInput.style.background = '#fff7ed';
-        } else if (remainingDays <= 7) {
+        if (expiryTextEl) expiryTextEl.textContent = `剩餘 ${remainingDays} 天`;
+        expiryHint.textContent = `到期：${periodEndText}`;
+        if (remainingDays < 7) {
+            expiryInput.style.color = '#991b1b';
+            expiryInput.style.background = '#fef2f2';
+            if (expiryCard) {
+                expiryCard.style.background = '#fef2f2';
+                expiryCard.style.border = '1px solid #fecaca';
+            }
+        } else if (remainingDays <= 14) {
             expiryInput.style.color = '#92400e';
             expiryInput.style.background = '#fffbeb';
+            if (expiryCard) {
+                expiryCard.style.background = '#fffbeb';
+                expiryCard.style.border = '1px solid #fde68a';
+            }
         } else {
             expiryInput.style.color = '#166534';
             expiryInput.style.background = '#f0fdf4';
+            if (expiryCard) {
+                expiryCard.style.background = '#f0fdf4';
+                expiryCard.style.border = '1px solid #bbf7d0';
+            }
         }
     } else {
         expiryInput.value = `已逾期 ${Math.abs(remainingDays)} 天`;
-        expiryHint.textContent = `原到期時間：${periodEndText}`;
-        expiryInput.style.color = '#991b1b';
-        expiryInput.style.background = '#fef2f2';
+        if (expiryTextEl) expiryTextEl.textContent = `已逾期 ${Math.abs(remainingDays)} 天`;
+        expiryHint.textContent = `原到期：${periodEndText}`;
+        expiryInput.style.color = '#4b5563';
+        expiryInput.style.background = '#f3f4f6';
+        if (expiryCard) {
+            expiryCard.style.background = '#f3f4f6';
+            expiryCard.style.border = '1px solid #d1d5db';
+        }
     }
     featureSummaryInput.value = `報表：${reports} / API：${apiAccess} / 館別上限：${maxBuildings}`;
+    if (featureSummaryBadgesEl) {
+        const badge = (label, active) => {
+            const bg = active ? '#dcfce7' : '#f3f4f6';
+            const color = active ? '#166534' : '#4b5563';
+            const border = active ? '#bbf7d0' : '#d1d5db';
+            return `<span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; border:1px solid ${border}; background:${bg}; color:${color}; font-size:12px; font-weight:600;">${label}</span>`;
+        };
+        featureSummaryBadgesEl.innerHTML = [
+            badge(`報表 ${snapshot?.features?.reports ? '✅' : '—'}`, !!snapshot?.features?.reports),
+            badge(`API ${snapshot?.features?.api_access ? '✅' : '—'}`, !!snapshot?.features?.api_access),
+            `<span style="display:inline-flex; align-items:center; padding:4px 10px; border-radius:999px; border:1px solid #dbeafe; background:#eff6ff; color:#1d4ed8; font-size:12px; font-weight:600;">館別上限 ${maxBuildings}</span>`
+        ].join('');
+    }
+    if (primaryActionBtn) {
+        if (remainingDays !== null && remainingDays <= 14) {
+            primaryActionBtn.textContent = '立即續約';
+        } else {
+            primaryActionBtn.textContent = '管理訂閱';
+        }
+    }
     if (statusSelect) {
         statusSelect.value = String(snapshot?.status || 'active');
     }
@@ -7935,6 +7990,20 @@ function renderSubscriptionSnapshot(snapshot) {
         periodEndInput.value = toDateTimeLocalValue(snapshot?.periodEnd);
     }
     renderSubscriptionNotice(snapshot);
+}
+
+function handleSubscriptionPrimaryAction() {
+    const billingBlock = document.getElementById('subscriptionBillingBlock');
+    const adminControls = document.getElementById('subscriptionAdminControls');
+    const target = (billingBlock && billingBlock.style.display !== 'none') ? billingBlock : adminControls;
+    if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        target.style.transition = 'box-shadow 0.2s ease';
+        target.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.2)';
+        window.setTimeout(() => {
+            target.style.boxShadow = '';
+        }, 900);
+    }
 }
 
 function renderSubscriptionPlans(plans, currentPlanCode) {

@@ -1162,23 +1162,37 @@
                             </div>
                             <div class="settings-card" style="margin-top: 0;">
                                 <div id="subscriptionStatusNotice" style="display:none; margin-bottom: 14px; padding: 10px 12px; border-radius: 8px; font-size: 14px;"></div>
-                                <div class="form-group">
-                                    <label style="display:flex; align-items:center; gap:8px;">
-                                        <span>目前方案</span>
-                                        <span id="subscriptionStatusBadge" style="display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; line-height:18px; background:#e5e7eb; color:#374151;">未知</span>
-                                    </label>
-                                    <input type="text" id="subscriptionCurrentPlan" readonly>
-                                    <small id="subscriptionCurrentMeta">-</small>
-                                </div>
-                                <div class="form-group">
-                                    <label>使用期限狀態</label>
-                                    <input type="text" id="subscriptionExpirySummary" readonly>
-                                    <small id="subscriptionExpiryHint">-</small>
+                                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px; margin-bottom: 12px;">
+                                    <div style="border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; background:#ffffff;">
+                                        <div style="font-size:12px; color:#6b7280; margin-bottom:6px;">目前狀態</div>
+                                        <div style="display:flex; align-items:center; gap:8px;">
+                                            <span id="subscriptionStatusBadge" style="display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; line-height:18px; background:#e5e7eb; color:#374151;">未知</span>
+                                            <span id="subscriptionStatusText" style="font-size:15px; font-weight:700; color:#1f2937;">-</span>
+                                        </div>
+                                    </div>
+                                    <div style="border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; background:#ffffff;">
+                                        <div style="font-size:12px; color:#6b7280; margin-bottom:6px;">目前方案</div>
+                                        <div id="subscriptionPlanText" style="font-size:15px; font-weight:700; color:#1f2937;">-</div>
+                                        <small id="subscriptionCurrentMeta">-</small>
+                                    </div>
+                                    <div id="subscriptionExpiryCard" style="border:1px solid #dcfce7; border-radius:10px; padding:10px 12px; background:#f0fdf4;">
+                                        <div style="font-size:12px; color:#6b7280; margin-bottom:6px;">使用期限</div>
+                                        <div id="subscriptionExpirySummaryText" style="font-size:18px; font-weight:800; color:#166534;">-</div>
+                                        <small id="subscriptionExpiryHint">-</small>
+                                    </div>
                                 </div>
                                 <div class="form-group">
                                     <label>功能權限摘要</label>
-                                    <input type="text" id="subscriptionFeatureSummary" readonly>
+                                    <div id="subscriptionFeatureSummaryBadges" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
                                     <small>依目前方案顯示報表/API/館別上限。</small>
+                                </div>
+                                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 4px; margin-bottom: 8px;">
+                                    <button type="button" class="btn-save" id="subscriptionPrimaryActionBtn" onclick="handleSubscriptionPrimaryAction()">管理訂閱</button>
+                                </div>
+                                <div style="display:none;">
+                                    <input type="text" id="subscriptionCurrentPlan" readonly>
+                                    <input type="text" id="subscriptionExpirySummary" readonly>
+                                    <input type="text" id="subscriptionFeatureSummary" readonly>
                                 </div>
                                 <div id="subscriptionAdminControls" style="display:none;">
                                     <div class="form-group">
