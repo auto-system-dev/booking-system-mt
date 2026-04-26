@@ -9558,7 +9558,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
   <div style="max-width:640px;margin:0 auto;">
-    ${title ? `<!--MVP:title:start--><h2 style="margin:0 0 12px;color:#dc2626;">${escapeHtml(title)}</h2><!--MVP:title:end-->` : ''}
+    ${title ? `<!--MVP:title:start--><div style="margin:0 0 16px;background:#ef4444;color:#fff;padding:20px 16px;border-radius:8px;text-align:center;"><div style="margin:0;font-size:30px;line-height:1.2;font-weight:700;border:none;text-decoration:none;">${escapeHtml(title)}</div></div><!--MVP:title:end-->` : ''}
     ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
     ${renderPlainSection('bookingInfo', '取消的訂房資訊', bookingInfo)}
     ${renderPlainSection('notice', noticeTitle, notice)}
@@ -9573,7 +9573,7 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
 <html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
 <body style="font-family:Microsoft JhengHei,Arial,sans-serif;line-height:1.8;color:#1f2937;margin:0;padding:20px;">
   <div style="max-width:640px;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px;padding:18px;background:#fff;">
-    ${title ? `<!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->` : ''}
+    ${title ? `<!--MVP:title:start--><div style="margin:0 0 16px;background:#f04b3d;color:#fff;padding:20px 16px;border-radius:8px;text-align:center;"><div style="margin:0;font-size:30px;line-height:1.2;font-weight:700;border:none;text-decoration:none;">${escapeHtml(title)}</div></div><!--MVP:title:end-->` : ''}
     ${greeting ? `<!--MVP:greeting:start-->${toParagraphs(greeting)}<!--MVP:greeting:end-->` : ''}
     ${renderBlock('bookingInfo', bookingInfo)}
     ${renderBlock('amountSummary', amountSummary)}
@@ -9613,7 +9613,9 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     }
 
     const titleHtml = title
-        ? (key === 'checkin_reminder'
+        ? (key === 'booking_confirmation'
+            ? `<!--MVP:title:start--><div style="margin:0 0 16px;background:#1f2937;color:#fff;padding:20px 16px;border-radius:8px;text-align:center;"><div style="margin:0;font-size:30px;line-height:1.2;font-weight:700;border:none;text-decoration:none;">${escapeHtml(title)}</div></div><!--MVP:title:end-->`
+            : key === 'checkin_reminder'
             ? `<!--MVP:title:start--><div style="margin:0 0 16px;background:#2196f3;color:#fff;padding:20px 16px;border-radius:8px;text-align:center;"><div style="margin:0;font-size:30px;line-height:1.2;font-weight:700;border:none;text-decoration:none;">${escapeHtml(title)}</div></div><!--MVP:title:end-->`
             : `<!--MVP:title:start--><h2 style="margin:0 0 12px;color:#0f172a;">${escapeHtml(title)}</h2><!--MVP:title:end-->`)
         : '';
@@ -9925,7 +9927,7 @@ function getBookingConfirmationAdminDefaultFields() {
 
 function getCancelNotificationDefaultFields() {
     return {
-        title: '⚠️ 訂房已自動取消',
+        title: '訂房已自動取消',
         greeting: '親愛的 {{guestName}}，\n很抱歉通知您，由於超過匯款保留期限，您的訂房已自動取消。以下是取消的訂房資訊：',
         mainContent: '',
         bookingInfo: '訂房編號：{{bookingId}}\n入住日期：{{checkInDate}}\n退房日期：{{checkOutDate}}\n住宿天數：{{nights}} 晚\n房型：{{roomType}}\n訂房日期：{{bookingDate}}\n應付金額：NT$ {{finalAmount}}',
@@ -10072,9 +10074,12 @@ function loadMvpFieldsFromTemplateContent(content, templateKey = '') {
     let greetingText = pick(parsed.greeting, defaults.greeting, '親愛的 {{guestName}}，');
     if (key === 'booking_confirmation' || key === 'mvp_booking_confirmation' || key === 'booking_confirmation_admin' || key === 'cancel_notification' || key === 'checkin_reminder') {
         if (!titleText || /mvp\s*測試通知/i.test(String(titleText))) {
-            titleText = defaults.title || (key === 'booking_confirmation_admin' ? '新訂房通知' : (key === 'cancel_notification' ? '⚠️ 訂房已自動取消' : (key === 'checkin_reminder' ? '入住提醒' : '訂房確認成功')));
+            titleText = defaults.title || (key === 'booking_confirmation_admin' ? '新訂房通知' : (key === 'cancel_notification' ? '訂房已自動取消' : (key === 'checkin_reminder' ? '入住提醒' : '訂房確認成功')));
         }
         titleText = String(titleText || '').replace(/^🔔\s*/, '').trim();
+        if (key === 'cancel_notification') {
+            titleText = titleText.replace(/^⚠️\s*/, '').trim();
+        }
         if (key === 'checkin_reminder') {
             titleText = titleText.replace(/^🏨\s*/, '').trim();
             if (!titleText) titleText = defaults.title || '入住提醒';
