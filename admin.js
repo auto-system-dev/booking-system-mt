@@ -9311,6 +9311,7 @@ function syncFieldEditorLayout(templateKey) {
     const bookingAmountTitle = document.querySelector('#fieldSectionBookingAmount > div:first-child');
     const bookingAmountSection = document.getElementById('fieldSectionBookingAmount');
     const bookingAmountGrid = document.querySelector('#fieldSectionBookingAmount > div:last-child');
+    const bankSection = document.getElementById('fieldSectionBank');
     if (bookingAmountTitle) {
         bookingAmountTitle.textContent = isFeedbackTemplate ? '訂房與評分區塊' : '訂房與金額區塊';
     }
@@ -9343,6 +9344,19 @@ function syncFieldEditorLayout(templateKey) {
             bookingAmountSection.style.background = '#f0f9ff';
             bookingAmountSection.style.padding = '10px';
             bookingAmountSection.style.borderRadius = '10px';
+        }
+    }
+    if (bankSection) {
+        if (isPaymentReminderTemplate) {
+            bankSection.style.border = 'none';
+            bankSection.style.background = 'transparent';
+            bankSection.style.padding = '0';
+            bankSection.style.borderRadius = '0';
+        } else {
+            bankSection.style.border = '1px solid #93c5fd';
+            bankSection.style.background = '#f0f9ff';
+            bankSection.style.padding = '10px';
+            bankSection.style.borderRadius = '10px';
         }
     }
     if (reminderContactSection) {
@@ -11476,7 +11490,7 @@ async function showEmailTemplateModal(templateKey) {
                     document.getElementById('daysAfterCheckout').value = template.days_after_checkout ?? 1;
                     document.getElementById('sendHourFeedback').value = template.send_hour_feedback ?? 10;
                 }
-            } else if (!isFieldEditorTemplate && templateKey === 'payment_reminder') {
+            } else if (templateKey === 'payment_reminder') {
                 if (paymentSettings) {
                     paymentSettings.style.display = 'block';
                     const daysReservedValue = template.days_reserved !== null && template.days_reserved !== undefined ? template.days_reserved : 3;
