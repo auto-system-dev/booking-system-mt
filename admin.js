@@ -9312,6 +9312,7 @@ function syncFieldEditorLayout(templateKey) {
     const bookingAmountSection = document.getElementById('fieldSectionBookingAmount');
     const bookingAmountGrid = document.querySelector('#fieldSectionBookingAmount > div:last-child');
     const bankSection = document.getElementById('fieldSectionBank');
+    const bankGrid = document.querySelector('#fieldSectionBank > div:last-child');
     if (bookingAmountTitle) {
         bookingAmountTitle.textContent = isFeedbackTemplate ? '訂房與評分區塊' : '訂房與金額區塊';
     }
@@ -9399,6 +9400,9 @@ function syncFieldEditorLayout(templateKey) {
     const groupPayNowContent = document.getElementById('fieldGroupPayNowContent');
     const groupRemainingTitle = document.getElementById('fieldGroupRemainingTitle');
     const groupRemainingContent = document.getElementById('fieldGroupRemainingContent');
+    const groupBankTitle = document.getElementById('mvpFieldBankTitle')?.closest('.form-group');
+    const groupBankIntro = document.getElementById('mvpFieldBankIntro')?.closest('.form-group');
+    const groupBankInfo = document.getElementById('mvpFieldBankInfo')?.closest('.form-group');
     if (bookingAmountGrid) {
         const unwrapBookingPanel = (panelId) => {
             const panel = document.getElementById(panelId);
@@ -9428,6 +9432,17 @@ function syncFieldEditorLayout(templateKey) {
         unwrapBookingPanel('paymentReminderBookingInfoPanel');
         unwrapBookingPanel('paymentReminderAmountPanel');
     }
+    if (bankGrid) {
+        const unwrapBankPanel = (panelId) => {
+            const panel = document.getElementById(panelId);
+            if (!panel || panel.parentElement !== bankGrid) return;
+            Array.from(panel.children).forEach((child) => {
+                bankGrid.appendChild(child);
+            });
+            panel.remove();
+        };
+        unwrapBankPanel('paymentReminderBankPanel');
+    }
     const createBookingPanel = (panelId) => {
         const panel = document.createElement('div');
         panel.id = panelId;
@@ -9439,6 +9454,18 @@ function syncFieldEditorLayout(templateKey) {
         panel.style.gridTemplateColumns = '1fr';
         panel.style.gap = '12px';
         panel.style.gridColumn = '1 / -1';
+        return panel;
+    };
+    const createBankPanel = (panelId) => {
+        const panel = document.createElement('div');
+        panel.id = panelId;
+        panel.style.border = '1px solid #93c5fd';
+        panel.style.borderRadius = '10px';
+        panel.style.background = '#f0f9ff';
+        panel.style.padding = '10px';
+        panel.style.display = 'grid';
+        panel.style.gridTemplateColumns = '1fr';
+        panel.style.gap = '12px';
         return panel;
     };
 
@@ -9522,6 +9549,13 @@ function syncFieldEditorLayout(templateKey) {
             if (groupBookingInfo) reminderBookingPanel.appendChild(groupBookingInfo);
             if (groupPayNowTitle) reminderAmountPanel.appendChild(groupPayNowTitle);
             if (groupPayNowContent) reminderAmountPanel.appendChild(groupPayNowContent);
+        }
+        if (bankGrid) {
+            const reminderBankPanel = createBankPanel('paymentReminderBankPanel');
+            bankGrid.appendChild(reminderBankPanel);
+            if (groupBankTitle) reminderBankPanel.appendChild(groupBankTitle);
+            if (groupBankIntro) reminderBankPanel.appendChild(groupBankIntro);
+            if (groupBankInfo) reminderBankPanel.appendChild(groupBankInfo);
         }
     } else if (isAdminBookingTemplate) {
         if (bookingAmountGrid) {
