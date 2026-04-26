@@ -7809,6 +7809,16 @@ function isSubscriptionModeMatch(systemMode, filterValue) {
     return mode === f;
 }
 
+function isSubscriptionAuthorizationPending(snapshot) {
+    if (!snapshot || String(snapshot.status || '').trim().toLowerCase() !== 'past_due') return false;
+    const recurring = snapshot?.recurring || {};
+    const failedCount = Number(recurring.failedPaymentCount || 0);
+    const hasProviderNo = !!String(recurring.providerSubscriptionId || '').trim();
+    const hasNextBilling = !!String(recurring.nextBillingAt || '').trim();
+    // 尚未建立完整委託號、且沒有失敗扣款紀錄時，視為「待完成授權」而非真正逾期
+    return !hasProviderNo && failedCount === 0 && !hasNextBilling;
+}
+
 function renderSubscriptionNotice(snapshot) {
     const noticeEl = document.getElementById('subscriptionStatusNotice');
     if (!noticeEl || !snapshot) {
@@ -7827,10 +7837,17 @@ function renderSubscriptionNotice(snapshot) {
 
     if (snapshot.status === 'past_due') {
         noticeEl.style.display = 'block';
-        noticeEl.style.background = '#fff7ed';
-        noticeEl.style.color = '#9a3412';
-        noticeEl.style.border = '1px solid #fed7aa';
-        noticeEl.textContent = '目前訂閱逾期，系統可能已限制部分功能，建議盡快更新方案。';
+        if (isSubscriptionAuthorizationPending(snapshot)) {
+            noticeEl.style.background = '#eff6ff';
+            noticeEl.style.color = '#1e3a8a';
+            noticeEl.style.border = '1px solid #bfdbfe';
+            noticeEl.textContent = '已建立定期定額流程，尚未完成信用卡授權。請完成持卡資料填寫後即可啟用。';
+        } else {
+            noticeEl.style.background = '#fff7ed';
+            noticeEl.style.color = '#9a3412';
+            noticeEl.style.border = '1px solid #fed7aa';
+            noticeEl.textContent = '目前訂閱逾期，系統可能已限制部分功能，建議盡快更新方案。';
+        }
         return;
     }
 
@@ -7892,7 +7909,9 @@ function renderSubscriptionSnapshot(snapshot) {
         return;
     }
 
-    const statusText = mapSubscriptionStatusLabel(snapshot?.status);
+    const statusText = isSubscriptionAuthorizationPending(snapshot)
+        ? '待完成授權'
+        : mapSubscriptionStatusLabel(snapshot?.status);
     const planText = formatSubscriptionPlanDisplay(snapshot?.planCode, snapshot?.planName);
     const periodEndText = toReadableDate(snapshot?.periodEnd);
     const remainingDays = getSubscriptionRemainingDays(snapshot?.periodEnd);
@@ -7908,7 +7927,9 @@ function renderSubscriptionSnapshot(snapshot) {
     metaEl.textContent = '';
     metaEl.style.display = 'none';
     if (statusBadge) {
-        const style = getSubscriptionStatusStyle(snapshot?.status);
+        const style = isSubscriptionAuthorizationPending(snapshot)
+            ? getSubscriptionStatusStyle('trialing')
+            : getSubscriptionStatusStyle(snapshot?.status);
         statusBadge.textContent = statusText;
         statusBadge.style.background = style.bg;
         statusBadge.style.color = style.color;

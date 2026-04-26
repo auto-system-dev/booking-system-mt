@@ -254,7 +254,8 @@ function createPaymentService(deps) {
             PeriodPoint: periodPoint,
             PeriodStartType: '2',
             PeriodTimes: '12',
-            ReturnURL: notifyUrlResolved,
+            // ReturnURL 是使用者端回跳頁，不應指向 webhook API
+            ReturnURL: backUrlResolved || notifyUrlResolved,
             NotifyURL: notifyUrlResolved,
             BackURL: backUrlResolved,
             PayerEmail: customerEmail || '',
