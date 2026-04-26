@@ -9258,6 +9258,7 @@ function syncFieldEditorLayout(templateKey) {
     const isCancelTemplate = key === 'cancel_notification';
     const isCheckinTemplate = key === 'checkin_reminder';
     const isFeedbackTemplate = key === 'feedback_request';
+    const isCustomerBookingTemplate = key === 'booking_confirmation';
     const setVisible = (id, visible) => {
         const el = document.getElementById(id);
         if (!el) return;
@@ -9317,7 +9318,7 @@ function syncFieldEditorLayout(templateKey) {
     const sectionClosingTitle = document.querySelector('#fieldSectionClosing > div:first-child');
     if (sectionClosingTitle) sectionClosingTitle.style.display = hideSectionExplainTitle ? 'none' : '';
     if (bookingAmountSection) {
-        if (isFeedbackTemplate || isCheckinTemplate) {
+        if (isFeedbackTemplate || isCheckinTemplate || isCustomerBookingTemplate || isAdminBookingTemplate || isCancelTemplate) {
             // 感謝入住：移除外層大框，僅保留內部兩個獨立區塊
             bookingAmountSection.style.border = 'none';
             bookingAmountSection.style.background = 'transparent';
@@ -9331,7 +9332,7 @@ function syncFieldEditorLayout(templateKey) {
         }
     }
     if (reminderContactSection) {
-        if (isFeedbackTemplate || isCheckinTemplate) {
+        if (isFeedbackTemplate || isCheckinTemplate || isCustomerBookingTemplate || isAdminBookingTemplate || isCancelTemplate) {
             // 感謝入住：移除外層大框，僅保留內部兩個獨立區塊
             reminderContactSection.style.border = 'none';
             reminderContactSection.style.background = 'transparent';
@@ -9386,12 +9387,38 @@ function syncFieldEditorLayout(templateKey) {
         unwrapBookingPanel('checkinTransportPanel');
         unwrapBookingPanel('checkinParkingPanel');
         unwrapBookingPanel('checkinNoticePanel');
+        unwrapBookingPanel('confirmBookingInfoPanel');
+        unwrapBookingPanel('confirmAmountPanel');
+        unwrapBookingPanel('confirmPayNowPanel');
+        unwrapBookingPanel('confirmRemainingPanel');
+        unwrapBookingPanel('adminBookingInfoPanel');
+        unwrapBookingPanel('adminAmountPanel');
+        unwrapBookingPanel('adminPayNowPanel');
+        unwrapBookingPanel('cancelBookingInfoPanel');
     }
+    const createBookingPanel = (panelId) => {
+        const panel = document.createElement('div');
+        panel.id = panelId;
+        panel.style.border = '1px solid #93c5fd';
+        panel.style.borderRadius = '10px';
+        panel.style.background = '#f0f9ff';
+        panel.style.padding = '10px';
+        panel.style.display = 'grid';
+        panel.style.gridTemplateColumns = '1fr';
+        panel.style.gap = '12px';
+        panel.style.gridColumn = '1 / -1';
+        return panel;
+    };
 
     if (isCancelTemplate) {
         setGroupLabel('fieldGroupReminderTitle', '重新訂房標題');
         setGroupLabel('fieldGroupReminderList', '重新訂房與聯絡區塊');
         setGroupLabel('fieldGroupNotice', '取消原因內容');
+        if (bookingAmountGrid) {
+            const cancelBookingPanel = createBookingPanel('cancelBookingInfoPanel');
+            bookingAmountGrid.appendChild(cancelBookingPanel);
+            if (groupBookingInfo) cancelBookingPanel.appendChild(groupBookingInfo);
+        }
     } else if (isCheckinTemplate) {
         setGroupLabel('fieldGroupAmountSummaryTitle', '交通路線標題');
         setGroupLabel('fieldGroupAmountSummary', '交通路線');
@@ -9401,19 +9428,6 @@ function syncFieldEditorLayout(templateKey) {
         setGroupLabel('fieldGroupRemainingContent', '入住注意事項內容');
 
         if (bookingAmountGrid) {
-            const createBookingPanel = (panelId) => {
-                const panel = document.createElement('div');
-                panel.id = panelId;
-                panel.style.border = '1px solid #93c5fd';
-                panel.style.borderRadius = '10px';
-                panel.style.background = '#f0f9ff';
-                panel.style.padding = '10px';
-                panel.style.display = 'grid';
-                panel.style.gridTemplateColumns = '1fr';
-                panel.style.gap = '12px';
-                panel.style.gridColumn = '1 / -1';
-                return panel;
-            };
             const bookingPanel = createBookingPanel('checkinBookingInfoPanel');
             const transportPanel = createBookingPanel('checkinTransportPanel');
             const parkingPanel = createBookingPanel('checkinParkingPanel');
@@ -9439,19 +9453,6 @@ function syncFieldEditorLayout(templateKey) {
         setGroupLabel('fieldGroupNotice', '再次入住優惠區塊');
 
         if (bookingAmountGrid) {
-            const createBookingPanel = (panelId) => {
-                const panel = document.createElement('div');
-                panel.id = panelId;
-                panel.style.border = '1px solid #93c5fd';
-                panel.style.borderRadius = '10px';
-                panel.style.background = '#f0f9ff';
-                panel.style.padding = '10px';
-                panel.style.display = 'grid';
-                panel.style.gridTemplateColumns = '1fr';
-                panel.style.gap = '12px';
-                panel.style.gridColumn = '1 / -1';
-                return panel;
-            };
             const bookingPanel = createBookingPanel('feedbackBookingInfoPanel');
             const ratingPanel = createBookingPanel('feedbackRatingPanel');
             bookingAmountGrid.appendChild(bookingPanel);
@@ -9459,6 +9460,36 @@ function syncFieldEditorLayout(templateKey) {
             if (groupBookingInfo) bookingPanel.appendChild(groupBookingInfo);
             if (groupAmountSummaryTitle) ratingPanel.appendChild(groupAmountSummaryTitle);
             if (groupAmountSummary) ratingPanel.appendChild(groupAmountSummary);
+        }
+    } else if (isAdminBookingTemplate) {
+        if (bookingAmountGrid) {
+            const adminBookingPanel = createBookingPanel('adminBookingInfoPanel');
+            const adminAmountPanel = createBookingPanel('adminAmountPanel');
+            const adminPayNowPanel = createBookingPanel('adminPayNowPanel');
+            bookingAmountGrid.appendChild(adminBookingPanel);
+            bookingAmountGrid.appendChild(adminAmountPanel);
+            bookingAmountGrid.appendChild(adminPayNowPanel);
+            if (groupBookingInfo) adminBookingPanel.appendChild(groupBookingInfo);
+            if (groupAmountSummary) adminAmountPanel.appendChild(groupAmountSummary);
+            if (groupPayNowTitle) adminPayNowPanel.appendChild(groupPayNowTitle);
+            if (groupPayNowContent) adminPayNowPanel.appendChild(groupPayNowContent);
+        }
+    } else if (isCustomerBookingTemplate) {
+        if (bookingAmountGrid) {
+            const confirmBookingPanel = createBookingPanel('confirmBookingInfoPanel');
+            const confirmAmountPanel = createBookingPanel('confirmAmountPanel');
+            const confirmPayNowPanel = createBookingPanel('confirmPayNowPanel');
+            const confirmRemainingPanel = createBookingPanel('confirmRemainingPanel');
+            bookingAmountGrid.appendChild(confirmBookingPanel);
+            bookingAmountGrid.appendChild(confirmAmountPanel);
+            bookingAmountGrid.appendChild(confirmPayNowPanel);
+            bookingAmountGrid.appendChild(confirmRemainingPanel);
+            if (groupBookingInfo) confirmBookingPanel.appendChild(groupBookingInfo);
+            if (groupAmountSummary) confirmAmountPanel.appendChild(groupAmountSummary);
+            if (groupPayNowTitle) confirmPayNowPanel.appendChild(groupPayNowTitle);
+            if (groupPayNowContent) confirmPayNowPanel.appendChild(groupPayNowContent);
+            if (groupRemainingTitle) confirmRemainingPanel.appendChild(groupRemainingTitle);
+            if (groupRemainingContent) confirmRemainingPanel.appendChild(groupRemainingContent);
         }
     } else {
         setGroupLabel('fieldGroupReminderTitle', '重要提醒標題');
@@ -9488,6 +9519,12 @@ function syncFieldEditorLayout(templateKey) {
         unwrapPanelGroups('feedbackReminderPanel');
         unwrapPanelGroups('feedbackNoticePanel');
         unwrapPanelGroups('checkinContactPanel');
+        unwrapPanelGroups('confirmReminderPanel');
+        unwrapPanelGroups('confirmContactPanel');
+        unwrapPanelGroups('confirmNoticePanel');
+        unwrapPanelGroups('adminContactPanel');
+        unwrapPanelGroups('cancelNoticePanel');
+        unwrapPanelGroups('cancelReminderPanel');
 
         const appendInOrder = (els) => {
             els.forEach((el) => {
@@ -9517,6 +9554,32 @@ function syncFieldEditorLayout(templateKey) {
                 groupContactTitle,
                 groupContactInfo
             ]);
+            const cancelNoticePanel = document.createElement('div');
+            cancelNoticePanel.id = 'cancelNoticePanel';
+            cancelNoticePanel.style.border = '1px solid #93c5fd';
+            cancelNoticePanel.style.borderRadius = '10px';
+            cancelNoticePanel.style.background = '#f0f9ff';
+            cancelNoticePanel.style.padding = '10px';
+            cancelNoticePanel.style.display = 'grid';
+            cancelNoticePanel.style.gridTemplateColumns = '1fr';
+            cancelNoticePanel.style.gap = '12px';
+            cancelNoticePanel.style.gridColumn = '1 / -1';
+            const cancelReminderPanel = document.createElement('div');
+            cancelReminderPanel.id = 'cancelReminderPanel';
+            cancelReminderPanel.style.border = '1px solid #93c5fd';
+            cancelReminderPanel.style.borderRadius = '10px';
+            cancelReminderPanel.style.background = '#f0f9ff';
+            cancelReminderPanel.style.padding = '10px';
+            cancelReminderPanel.style.display = 'grid';
+            cancelReminderPanel.style.gridTemplateColumns = '1fr';
+            cancelReminderPanel.style.gap = '12px';
+            cancelReminderPanel.style.gridColumn = '1 / -1';
+            reminderContactGrid.appendChild(cancelNoticePanel);
+            reminderContactGrid.appendChild(cancelReminderPanel);
+            if (groupNoticeTitle) cancelNoticePanel.appendChild(groupNoticeTitle);
+            if (groupNotice) cancelNoticePanel.appendChild(groupNotice);
+            if (groupReminderTitle) cancelReminderPanel.appendChild(groupReminderTitle);
+            if (groupReminderList) cancelReminderPanel.appendChild(groupReminderList);
         } else if (isFeedbackTemplate) {
             // 感謝入住：意見回饋置前，再次入住優惠標題緊貼內容
             appendInOrder([
@@ -9571,6 +9634,23 @@ function syncFieldEditorLayout(templateKey) {
             reminderContactGrid.appendChild(contactPanel);
             if (groupContactTitle) contactPanel.appendChild(groupContactTitle);
             if (groupContactInfo) contactPanel.appendChild(groupContactInfo);
+        } else if (isAdminBookingTemplate) {
+            appendInOrder([
+                groupContactTitle,
+                groupContactInfo
+            ]);
+            const adminContactPanel = document.createElement('div');
+            adminContactPanel.id = 'adminContactPanel';
+            adminContactPanel.style.border = '1px solid #93c5fd';
+            adminContactPanel.style.borderRadius = '10px';
+            adminContactPanel.style.background = '#f0f9ff';
+            adminContactPanel.style.padding = '10px';
+            adminContactPanel.style.display = 'grid';
+            adminContactPanel.style.gridTemplateColumns = '1fr';
+            adminContactPanel.style.gap = '12px';
+            adminContactPanel.style.gridColumn = '1 / -1';
+            reminderContactGrid.appendChild(adminContactPanel);
+            if (groupContactInfo) adminContactPanel.appendChild(groupContactInfo);
         } else if (key === 'booking_confirmation') {
             // 訂房確認（客戶）：重要提醒後接聯絡資訊，再注意事項
             appendInOrder([
@@ -9581,6 +9661,44 @@ function syncFieldEditorLayout(templateKey) {
                 groupNotice,
                 groupNoticeTitle
             ]);
+            const confirmReminderPanel = document.createElement('div');
+            confirmReminderPanel.id = 'confirmReminderPanel';
+            confirmReminderPanel.style.border = '1px solid #93c5fd';
+            confirmReminderPanel.style.borderRadius = '10px';
+            confirmReminderPanel.style.background = '#f0f9ff';
+            confirmReminderPanel.style.padding = '10px';
+            confirmReminderPanel.style.display = 'grid';
+            confirmReminderPanel.style.gridTemplateColumns = '1fr';
+            confirmReminderPanel.style.gap = '12px';
+            confirmReminderPanel.style.gridColumn = '1 / -1';
+            const confirmContactPanel = document.createElement('div');
+            confirmContactPanel.id = 'confirmContactPanel';
+            confirmContactPanel.style.border = '1px solid #93c5fd';
+            confirmContactPanel.style.borderRadius = '10px';
+            confirmContactPanel.style.background = '#f0f9ff';
+            confirmContactPanel.style.padding = '10px';
+            confirmContactPanel.style.display = 'grid';
+            confirmContactPanel.style.gridTemplateColumns = '1fr';
+            confirmContactPanel.style.gap = '12px';
+            confirmContactPanel.style.gridColumn = '1 / -1';
+            const confirmNoticePanel = document.createElement('div');
+            confirmNoticePanel.id = 'confirmNoticePanel';
+            confirmNoticePanel.style.border = '1px solid #93c5fd';
+            confirmNoticePanel.style.borderRadius = '10px';
+            confirmNoticePanel.style.background = '#f0f9ff';
+            confirmNoticePanel.style.padding = '10px';
+            confirmNoticePanel.style.display = 'grid';
+            confirmNoticePanel.style.gridTemplateColumns = '1fr';
+            confirmNoticePanel.style.gap = '12px';
+            confirmNoticePanel.style.gridColumn = '1 / -1';
+            reminderContactGrid.appendChild(confirmReminderPanel);
+            reminderContactGrid.appendChild(confirmContactPanel);
+            reminderContactGrid.appendChild(confirmNoticePanel);
+            if (groupReminderTitle) confirmReminderPanel.appendChild(groupReminderTitle);
+            if (groupReminderList) confirmReminderPanel.appendChild(groupReminderList);
+            if (groupContactTitle) confirmContactPanel.appendChild(groupContactTitle);
+            if (groupContactInfo) confirmContactPanel.appendChild(groupContactInfo);
+            if (groupNotice) confirmNoticePanel.appendChild(groupNotice);
         }
     }
 }
