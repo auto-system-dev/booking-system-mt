@@ -9282,6 +9282,7 @@ function syncFieldEditorLayout(templateKey) {
     setVisible('fieldGroupPayNowContent', !isCancelTemplate && !isFeedbackTemplate);
 
     const reminderContactTitle = document.getElementById('fieldSectionReminderContactTitle');
+    const reminderContactSection = document.getElementById('fieldSectionReminderContact');
     if (reminderContactTitle) {
         if (isAdminBookingTemplate) {
             reminderContactTitle.textContent = '客戶聯絡資訊區塊';
@@ -9313,6 +9314,20 @@ function syncFieldEditorLayout(templateKey) {
     if (reminderContactTitle) reminderContactTitle.style.display = hideSectionExplainTitle ? 'none' : '';
     const sectionClosingTitle = document.querySelector('#fieldSectionClosing > div:first-child');
     if (sectionClosingTitle) sectionClosingTitle.style.display = hideSectionExplainTitle ? 'none' : '';
+    if (reminderContactSection) {
+        if (isFeedbackTemplate) {
+            // 感謝入住：移除外層大框，僅保留內部兩個獨立區塊
+            reminderContactSection.style.border = 'none';
+            reminderContactSection.style.background = 'transparent';
+            reminderContactSection.style.padding = '0';
+            reminderContactSection.style.borderRadius = '0';
+        } else {
+            reminderContactSection.style.border = '1px solid #93c5fd';
+            reminderContactSection.style.background = '#f0f9ff';
+            reminderContactSection.style.padding = '10px';
+            reminderContactSection.style.borderRadius = '10px';
+        }
+    }
 
     const setGroupLabel = (groupId, text) => {
         const labelEl = document.querySelector(`#${groupId} label`);
@@ -9365,6 +9380,18 @@ function syncFieldEditorLayout(templateKey) {
     const groupContactTitle = document.getElementById('fieldGroupContactTitle');
     const groupContactInfo = document.getElementById('fieldGroupContactInfo');
     if (reminderContactGrid) {
+        const unwrapPanelGroups = (panelId) => {
+            const panel = document.getElementById(panelId);
+            if (!panel || panel.parentElement !== reminderContactGrid) return;
+            Array.from(panel.children).forEach((child) => {
+                reminderContactGrid.appendChild(child);
+            });
+            panel.remove();
+        };
+        // 每次先拆掉先前模板建立的外包裝，避免切換模板殘留
+        unwrapPanelGroups('feedbackReminderPanel');
+        unwrapPanelGroups('feedbackNoticePanel');
+
         const appendInOrder = (els) => {
             els.forEach((el) => {
                 if (el && el.parentElement === reminderContactGrid) {
@@ -9403,6 +9430,28 @@ function syncFieldEditorLayout(templateKey) {
                 groupContactTitle,
                 groupContactInfo
             ]);
+
+            const createFeedbackPanel = (panelId) => {
+                const panel = document.createElement('div');
+                panel.id = panelId;
+                panel.style.border = '1px solid #93c5fd';
+                panel.style.borderRadius = '10px';
+                panel.style.background = '#f0f9ff';
+                panel.style.padding = '10px';
+                panel.style.display = 'grid';
+                panel.style.gridTemplateColumns = '1fr';
+                panel.style.gap = '12px';
+                panel.style.gridColumn = '1 / -1';
+                return panel;
+            };
+            const reminderPanel = createFeedbackPanel('feedbackReminderPanel');
+            const noticePanel = createFeedbackPanel('feedbackNoticePanel');
+            reminderContactGrid.appendChild(reminderPanel);
+            reminderContactGrid.appendChild(noticePanel);
+            if (groupReminderTitle) reminderPanel.appendChild(groupReminderTitle);
+            if (groupReminderList) reminderPanel.appendChild(groupReminderList);
+            if (groupNoticeTitle) noticePanel.appendChild(groupNoticeTitle);
+            if (groupNotice) noticePanel.appendChild(groupNotice);
         } else if (key === 'booking_confirmation') {
             // 訂房確認（客戶）：重要提醒後接聯絡資訊，再注意事項
             appendInOrder([
