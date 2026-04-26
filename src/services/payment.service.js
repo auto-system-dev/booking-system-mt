@@ -47,9 +47,12 @@ function createPaymentService(deps) {
     }
 
     async function getNewebpayConfigFromSettings(requiredKeys = ['MerchantID', 'HashKey', 'HashIV']) {
-        const isProduction =
-            String((await db.getSetting('newebpay_is_production', defaultTenantId)) || processEnv.NEWEBPAY_IS_PRODUCTION || '')
-                .toLowerCase() === 'true';
+        const settingValue = String((await db.getSetting('newebpay_is_production', defaultTenantId)) || '').trim().toLowerCase();
+        const envValue = String(processEnv.NEWEBPAY_IS_PRODUCTION || '').trim().toLowerCase();
+        // 優先順序：資料庫設定 > 環境變數 > NODE_ENV 自動推斷（production=true）
+        const isProduction = settingValue
+            ? settingValue === 'true'
+            : (envValue ? envValue === 'true' : processEnv.NODE_ENV === 'production');
         const config = {
             MerchantID: ((await db.getSetting('newebpay_merchant_id', defaultTenantId)) || processEnv.NEWEBPAY_MERCHANT_ID || '').trim(),
             HashKey: ((await db.getSetting('newebpay_hash_key', defaultTenantId)) || processEnv.NEWEBPAY_HASH_KEY || '').trim(),
