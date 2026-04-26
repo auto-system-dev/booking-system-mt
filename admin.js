@@ -9318,6 +9318,21 @@ function syncFieldEditorLayout(templateKey) {
         const labelEl = document.querySelector(`#${groupId} label`);
         if (labelEl) labelEl.textContent = text;
     };
+    const setGroupPanelStyle = (groupId, enabled) => {
+        const groupEl = document.getElementById(groupId);
+        if (!groupEl) return;
+        if (enabled) {
+            groupEl.style.border = '1px solid #93c5fd';
+            groupEl.style.borderRadius = '10px';
+            groupEl.style.background = '#f0f9ff';
+            groupEl.style.padding = '10px';
+        } else {
+            groupEl.style.border = '';
+            groupEl.style.borderRadius = '';
+            groupEl.style.background = '';
+            groupEl.style.padding = '';
+        }
+    };
     // 先重置為通用預設，避免模板切換後殘留前一模板文案
     setGroupLabel('fieldGroupAmountSummaryTitle', '交通路線標題');
     setGroupLabel('fieldGroupAmountSummary', '費用摘要區塊');
@@ -9355,6 +9370,10 @@ function syncFieldEditorLayout(templateKey) {
         setGroupLabel('fieldGroupReminderList', '重要提醒區塊');
         setGroupLabel('fieldGroupNotice', '注意事項');
     }
+
+    // 入住提醒：讓「入住注意事項標題 / 內容」各自有獨立藍框藍底，和聯絡資訊欄位視覺一致
+    setGroupPanelStyle('fieldGroupRemainingTitle', isCheckinTemplate);
+    setGroupPanelStyle('fieldGroupRemainingContent', isCheckinTemplate);
 
     // 欄位順序：每次先重置為基準，再套入模板專屬順序，避免切換模板時版面「跑掉」
     const reminderContactGrid = document.querySelector('#fieldSectionReminderContact > div:last-child');
