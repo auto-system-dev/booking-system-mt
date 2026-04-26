@@ -9279,7 +9279,7 @@ function syncFieldEditorLayout(templateKey) {
     setVisible('fieldGroupRemainingContent', !isAdminBookingTemplate && !isCancelTemplate && !isFeedbackTemplate && !isPaymentReminderTemplate && !isPaymentCompletedTemplate);
     setVisible('fieldGroupReminderTitle', !isAdminBookingTemplate && !isCheckinTemplate);
     setVisible('fieldGroupReminderList', !isAdminBookingTemplate && !isCheckinTemplate);
-    setVisible('fieldGroupNotice', !isAdminBookingTemplate && !isCheckinTemplate && !isPaymentReminderTemplate);
+    setVisible('fieldGroupNotice', !isAdminBookingTemplate && !isCheckinTemplate && !isPaymentReminderTemplate && !isPaymentCompletedTemplate);
     setVisible('fieldGroupNoticeTitle', isCancelTemplate || isFeedbackTemplate);
     setVisible('fieldGroupContactTitle', !isAdminBookingTemplate && !isCancelTemplate && !isFeedbackTemplate && !isPaymentReminderTemplate && !isPaymentCompletedTemplate);
     setVisible('fieldGroupContactInfo', !isCancelTemplate && !isFeedbackTemplate);
@@ -10097,7 +10097,9 @@ function composeMvpTemplateHtml(fields = {}, templateKey = '') {
     ${renderBlock('reminderList', reminderBlock)}
     ${key === 'booking_confirmation'
         ? `${renderBlock('contactInfo', contactBlock)}${renderBlock('notice', noticeBlock)}`
-        : `${renderBlock('notice', noticeBlock)}${renderBlock('contactInfo', contactBlock)}`}
+        : (key === 'payment_completed'
+            ? `${renderBlock('contactInfo', contactBlock)}`
+            : `${renderBlock('notice', noticeBlock)}${renderBlock('contactInfo', contactBlock)}`)}
     ${closingMessage ? `<!--MVP:closingMessage:start--><div style="margin:14px 0 0;${key === 'checkin_reminder' ? 'text-align:center;' : ''}">${toParagraphs(closingMessage, { firstLineBold: false })}</div><!--MVP:closingMessage:end-->` : ''}
     ${systemFooter ? `<!--MVP:systemFooter:start--><p style="margin:10px 0 0;color:#64748b;font-size:12px;">${escapeHtml(systemFooter)}</p><!--MVP:systemFooter:end-->` : ''}
   </div>
