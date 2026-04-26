@@ -5209,7 +5209,8 @@ async function getStatistics(startDate, endDate, buildingId, tenantId) {
         }
 
         // 執行所有查詢
-        const shouldBindParams = hasRange || hasBuildingFilter;
+        // 所有統計查詢都至少包含 tenant 條件參數，必須一律綁定 params。
+        const shouldBindParams = true;
         const promises = [
             shouldBindParams ? queryOne(totalSql, params) : queryOne(totalSql),
             shouldBindParams ? queryOne(totalCheckedInSql, params) : queryOne(totalCheckedInSql),
