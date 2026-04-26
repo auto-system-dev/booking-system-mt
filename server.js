@@ -3412,6 +3412,21 @@ app.post('/admin', (req, res) => {
 
 // 藍新定期定額回跳中轉（不論 GET/POST，一律導回後台）
 app.all('/api/payment/newebpay/subscription/return', (req, res) => {
+    try {
+        const payload = req.body || {};
+        const rtnCode = String(payload.RtnCode || payload.rtnCode || payload.Status || '').trim();
+        const message = String(payload.Message || payload.Msg || '').trim();
+        const periodLen = String(payload.Period || payload.period || '').trim().length;
+        console.log('[PAYMENT] NewebPay return bridge:', JSON.stringify({
+            method: req.method,
+            hasBody: !!Object.keys(payload || {}).length,
+            rtnCode,
+            message,
+            hasPeriod: periodLen > 0
+        }));
+    } catch (_) {
+        // ignore logging failure
+    }
     const tenantId = String(req.query?.tenant_id || req.query?.tenantId || req.body?.tenant_id || req.body?.tenantId || '').trim();
     const qs = new URLSearchParams({ fromLogin: '1', subscriptionReturn: '1' });
     if (tenantId) qs.set('tenant_id', tenantId);
