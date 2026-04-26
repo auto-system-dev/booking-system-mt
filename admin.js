@@ -9365,18 +9365,6 @@ function syncFieldEditorLayout(templateKey) {
     const groupContactTitle = document.getElementById('fieldGroupContactTitle');
     const groupContactInfo = document.getElementById('fieldGroupContactInfo');
     if (reminderContactGrid) {
-        const unwrapPanelGroups = (panelId) => {
-            const panel = document.getElementById(panelId);
-            if (!panel || panel.parentElement !== reminderContactGrid) return;
-            Array.from(panel.children).forEach((child) => {
-                reminderContactGrid.appendChild(child);
-            });
-            panel.remove();
-        };
-        // 切換模板時先還原可能存在的包裝區塊，避免版面殘留
-        unwrapPanelGroups('feedbackReminderPanel');
-        unwrapPanelGroups('feedbackNoticePanel');
-
         const appendInOrder = (els) => {
             els.forEach((el) => {
                 if (el && el.parentElement === reminderContactGrid) {
@@ -9415,28 +9403,6 @@ function syncFieldEditorLayout(templateKey) {
                 groupContactTitle,
                 groupContactInfo
             ]);
-
-            const createFeedbackPanel = (panelId) => {
-                const panel = document.createElement('div');
-                panel.id = panelId;
-                panel.style.border = '1px solid #93c5fd';
-                panel.style.borderRadius = '10px';
-                panel.style.background = '#f0f9ff';
-                panel.style.padding = '10px';
-                panel.style.display = 'grid';
-                panel.style.gridTemplateColumns = '1fr';
-                panel.style.gap = '12px';
-                panel.style.gridColumn = '1 / -1';
-                return panel;
-            };
-            const reminderPanel = createFeedbackPanel('feedbackReminderPanel');
-            const noticePanel = createFeedbackPanel('feedbackNoticePanel');
-            reminderContactGrid.appendChild(reminderPanel);
-            reminderContactGrid.appendChild(noticePanel);
-            if (groupReminderTitle) reminderPanel.appendChild(groupReminderTitle);
-            if (groupReminderList) reminderPanel.appendChild(groupReminderList);
-            if (groupNoticeTitle) noticePanel.appendChild(groupNoticeTitle);
-            if (groupNotice) noticePanel.appendChild(groupNotice);
         } else if (key === 'booking_confirmation') {
             // 訂房確認（客戶）：重要提醒後接聯絡資訊，再注意事項
             appendInOrder([
