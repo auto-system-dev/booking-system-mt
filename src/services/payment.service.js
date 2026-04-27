@@ -454,15 +454,15 @@ function createPaymentService(deps) {
             throw new Error('無法從藍新 webhook 解析 tenant_id');
         }
 
-        const eventId = String(
-            rawPayload.PeriodNo ||
-            rawPayload.periodNo ||
+        const baseEventId = String(
             rawPayload.TradeNo ||
             rawPayload.tradeNo ||
-            resultPayload.PeriodNo ||
-            resultPayload.periodNo ||
             resultPayload.TradeNo ||
             resultPayload.tradeNo ||
+            rawPayload.PeriodNo ||
+            rawPayload.periodNo ||
+            resultPayload.PeriodNo ||
+            resultPayload.periodNo ||
             rawPayload.MerchantOrderNo ||
             rawPayload.merchantOrderNo ||
             resultPayload.MerchantOrderNo ||
@@ -471,7 +471,27 @@ function createPaymentService(deps) {
             resultPayload.merOrderNo ||
             context.requestId ||
             Date.now()
-        );
+        ).trim();
+        const eventStatusPart = String(
+            resultPayload.Status ||
+            resultPayload.status ||
+            periodPayload.Status ||
+            periodPayload.status ||
+            rawPayload.Status ||
+            rawPayload.status ||
+            'unknown'
+        ).trim().toLowerCase();
+        const eventCodePart = String(
+            resultPayload.RtnCode ||
+            resultPayload.rtnCode ||
+            periodPayload.RtnCode ||
+            periodPayload.rtnCode ||
+            rawPayload.RtnCode ||
+            rawPayload.rtnCode ||
+            ''
+        ).trim();
+        // Keep retries idempotent while allowing state transitions on same PeriodNo.
+        const eventId = `${baseEventId}:${eventStatusPart}:${eventCodePart || 'na'}`;
         const eventType = String(rawPayload.EventType || rawPayload.eventType || 'subscription.renewal');
         const saveResult = await db.insertPaymentEventIfAbsent({
             tenantId,
