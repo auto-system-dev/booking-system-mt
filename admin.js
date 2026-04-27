@@ -8063,6 +8063,30 @@ function renderSubscriptionPlans(plans, currentPlanCode) {
     });
 }
 
+function renderSubscriptionBillingActions(plans, currentPlanCode) {
+    const actionsEl = document.getElementById('subscriptionBillingActions');
+    if (!actionsEl) return;
+    const activePlans = (Array.isArray(plans) ? plans : []).filter((plan) => Number(plan?.is_active ?? 1) !== 0);
+    if (activePlans.length === 0) {
+        actionsEl.innerHTML = '<small style="color:#64748b;">目前沒有可啟用方案，請先到方案管理啟用方案。</small>';
+        return;
+    }
+    actionsEl.innerHTML = '';
+    activePlans.forEach((plan) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-save';
+        btn.setAttribute('data-plan-code', String(plan.code || '').trim());
+        const cycleText = String(plan.billing_cycle || '').trim() === 'yearly' ? '年繳' : '月繳';
+        btn.textContent = `${String(plan.name || plan.code || '方案')}（${cycleText}）`;
+        if (currentPlanCode && String(plan.code || '') === String(currentPlanCode || '')) {
+            btn.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.85)';
+        }
+        btn.onclick = () => startNewebpaySubscription(String(plan.code || '').trim());
+        actionsEl.appendChild(btn);
+    });
+}
+
 async function startNewebpaySubscription(planCode) {
     const safePlanCode = String(planCode || '').trim();
     if (!safePlanCode) {
@@ -8195,6 +8219,7 @@ async function loadSubscriptionSettings() {
         subscriptionPlansCache = plans;
         subscriptionFeatureSnapshot = snapshot;
         applyFeatureVisibilityBySubscriptionSnapshot(snapshot);
+        renderSubscriptionBillingActions(plans, snapshot.planCode);
         renderSubscriptionSnapshot(snapshot);
         if (isSuperAdmin) {
             renderSubscriptionPlans(plans, snapshot.planCode);
@@ -8250,6 +8275,9 @@ async function saveSubscriptionSettingsAsSuperAdmin() {
         const snapshot = result.data || {};
         subscriptionFeatureSnapshot = snapshot;
         applyFeatureVisibilityBySubscriptionSnapshot(snapshot);
+        if (subscriptionPlansCache.length > 0) {
+            renderSubscriptionBillingActions(subscriptionPlansCache, snapshot.planCode);
+        }
         renderSubscriptionSnapshot(snapshot);
         if (subscriptionPlansCache.length > 0) {
             renderSubscriptionPlans(subscriptionPlansCache, snapshot.planCode);
