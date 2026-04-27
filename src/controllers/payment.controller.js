@@ -6,6 +6,43 @@ function createPaymentController(deps) {
         logPaymentEvent
     } = deps;
 
+    function parseRawWebhookBody(rawText) {
+        const text = String(rawText || '').trim();
+        if (!text) return {};
+        try {
+            const parsedJson = JSON.parse(text);
+            if (parsedJson && typeof parsedJson === 'object') return parsedJson;
+        } catch (_) {
+            // keep fallback parsing
+        }
+        const params = new URLSearchParams(text);
+        const data = {};
+        for (const [key, value] of params.entries()) {
+            if (!(key in data)) {
+                data[key] = value;
+                continue;
+            }
+            if (Array.isArray(data[key])) {
+                data[key].push(value);
+            } else {
+                data[key] = [data[key], value];
+            }
+        }
+        return data;
+    }
+
+    function normalizeNewebpayWebhookPayload(req) {
+        const body = req.body;
+        if (body && typeof body === 'object' && Object.keys(body).length > 0) {
+            return body;
+        }
+        const fromRaw = parseRawWebhookBody(req.rawBody);
+        if (fromRaw && Object.keys(fromRaw).length > 0) {
+            return fromRaw;
+        }
+        return {};
+    }
+
     async function resolveTenantHomeUrl(context = {}) {
         const {
             tenantId: tenantIdFromContext,
@@ -410,11 +447,13 @@ function createPaymentController(deps) {
         const requestId = req.requestId || null;
         const route = '/api/payment/newebpay/subscription/webhook';
         try {
-            const payload = req.body || {};
+            const payload = normalizeNewebpayWebhookPayload(req);
             logPaymentEvent('info', 'payment.newebpay.webhook.received', {
                 requestId,
                 route,
-                result: 'received'
+                result: 'received',
+                bodyKeys: Object.keys(payload || {}),
+                hasRawBody: !!String(req.rawBody || '').trim()
             });
             const result = await paymentService.handleNewebpaySubscriptionWebhook(payload, {
                 requestId,

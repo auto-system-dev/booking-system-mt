@@ -343,11 +343,17 @@ app.use(cors({
     credentials: true,
     origin: true
 }));
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+function captureRawBody(req, _res, buf) {
+    if (buf && buf.length > 0) {
+        req.rawBody = buf.toString('utf8');
+    }
+}
+
+app.use(bodyParser.json({ verify: captureRawBody }));
+app.use(bodyParser.urlencoded({ extended: true, verify: captureRawBody }));
 
 // 處理綠界 POST 表單資料（application/x-www-form-urlencoded）
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, verify: captureRawBody }));
 
 // ============================================
 // API Rate Limiting 設定
