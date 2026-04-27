@@ -198,6 +198,39 @@ function createPaymentService(deps) {
             throw new Error('藍新回傳內容為空');
         }
 
+        const tryParseEmbeddedJsonObject = (value) => {
+            const source = String(value || '').trim();
+            if (!source) return null;
+            try {
+                const parsed = JSON.parse(source);
+                if (parsed && typeof parsed === 'object') return parsed;
+                if (typeof parsed === 'string') {
+                    const nested = JSON.parse(parsed);
+                    if (nested && typeof nested === 'object') return nested;
+                }
+            } catch (_) {
+                // ignore
+            }
+            return null;
+        };
+
+        const normalizeSingleJsonKeyObject = (obj) => {
+            if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+            const keys = Object.keys(obj);
+            if (keys.length !== 1) return obj;
+            const onlyKey = String(keys[0] || '').trim();
+            const onlyValue = obj[keys[0]];
+            const isEmptyValue = onlyValue == null || String(onlyValue).trim() === '';
+            if (!isEmptyValue) return obj;
+            const recovered = tryParseEmbeddedJsonObject(onlyKey);
+            return recovered || obj;
+        };
+
+        const embeddedParsed = tryParseEmbeddedJsonObject(text);
+        if (embeddedParsed) {
+            return normalizeSingleJsonKeyObject(embeddedParsed);
+        }
+
         try {
             const obj = JSON.parse(text);
             if (obj && typeof obj.Result === 'string') {
@@ -207,7 +240,7 @@ function createPaymentService(deps) {
                     // keep original string when not JSON
                 }
             }
-            return obj;
+            return normalizeSingleJsonKeyObject(obj);
         } catch (_) {
             const parsed = Object.fromEntries(new URLSearchParams(text).entries());
             if (parsed && typeof parsed.Result === 'string') {
@@ -220,7 +253,7 @@ function createPaymentService(deps) {
             if (!parsed || Object.keys(parsed).length === 0) {
                 throw new Error('藍新回傳 Period 解密內容格式無法解析');
             }
-            return parsed;
+            return normalizeSingleJsonKeyObject(parsed);
         }
     }
 
