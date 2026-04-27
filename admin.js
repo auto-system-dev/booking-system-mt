@@ -8022,7 +8022,17 @@ function renderSubscriptionSnapshot(snapshot) {
     renderSubscriptionNotice(snapshot);
 }
 
-function handleSubscriptionPrimaryAction() {
+async function handleSubscriptionPrimaryAction() {
+    const snapshot = subscriptionFeatureSnapshot || {};
+    const status = String(snapshot?.status || '').trim().toLowerCase();
+    // 付款失敗狀態：一鍵以「目前方案」重新授權綁卡（可改用新卡）
+    if (status === 'past_due') {
+        const currentPlanCode = String(snapshot?.planCode || '').trim();
+        if (currentPlanCode) {
+            await startNewebpaySubscription(currentPlanCode);
+            return;
+        }
+    }
     const billingBlock = document.getElementById('subscriptionBillingBlock');
     const adminControls = document.getElementById('subscriptionAdminControls');
     if (billingBlock && billingBlock.style.display === 'none') {
