@@ -403,6 +403,19 @@ function createPaymentService(deps) {
         const fallbackTenantIds = [tenantHint, parseInt(context?.queryTenantId, 10), defaultTenantId]
             .filter((id) => Number.isInteger(id) && id > 0)
             .filter((id, idx, arr) => arr.indexOf(id) === idx);
+        if (typeof db.getTenantsOverview === 'function') {
+            try {
+                const tenantOverview = await db.getTenantsOverview({ limit: 200, offset: 0 });
+                const tenantIds = Array.isArray(tenantOverview?.items)
+                    ? tenantOverview.items.map((item) => parseInt(item?.id, 10)).filter((id) => Number.isInteger(id) && id > 0)
+                    : [];
+                tenantIds.forEach((id) => {
+                    if (!fallbackTenantIds.includes(id)) fallbackTenantIds.push(id);
+                });
+            } catch (_) {
+                // ignore candidate lookup failure
+            }
+        }
         const decryptWithTenantFallback = async (encryptedValue, fieldName) => {
             let lastError = null;
             for (const candidateTenantId of fallbackTenantIds) {

@@ -94,6 +94,7 @@ const uploadImage = multer({
         }
     }
 });
+const parseMultipartFields = multer().none();
 
 const uploadBackupFile = multer({
     storage: multer.memoryStorage(),
@@ -3417,7 +3418,7 @@ app.post('/admin', (req, res) => {
 });
 
 // 藍新定期定額回跳中轉（不論 GET/POST，一律導回後台）
-app.all('/api/payment/newebpay/subscription/return', express.text({ type: '*/*', limit: '2mb' }), async (req, res) => {
+app.all('/api/payment/newebpay/subscription/return', parseMultipartFields, async (req, res) => {
     try {
         const parseMultipartFormData = (rawText) => {
             const text = String(rawText || '');
