@@ -8537,6 +8537,50 @@ async function insertPaymentEventIfAbsent({ tenantId = null, provider, eventId, 
     return { inserted: true, id: ins?.lastID || null };
 }
 
+async function getRecentPaymentEvents({ provider = 'newebpay', hours = 24, limit = 200 } = {}) {
+    const safeProvider = String(provider || '').trim().toLowerCase() || 'newebpay';
+    const safeHours = Math.max(1, Math.min(168, parseInt(hours, 10) || 24));
+    const safeLimit = Math.max(1, Math.min(1000, parseInt(limit, 10) || 200));
+
+    const rows = await query(
+        usePostgreSQL
+            ? `SELECT id, tenant_id, provider, event_id, event_type, payload, created_at, processed_at
+               FROM payment_events
+               WHERE provider = $1
+                 AND created_at >= (CURRENT_TIMESTAMP - ($2::int * INTERVAL '1 hour'))
+               ORDER BY created_at DESC
+               LIMIT $3`
+            : `SELECT id, tenant_id, provider, event_id, event_type, payload, created_at, processed_at
+               FROM payment_events
+               WHERE provider = ?
+                 AND created_at >= datetime('now', '-' || ? || ' hours')
+               ORDER BY created_at DESC
+               LIMIT ?`,
+        [safeProvider, safeHours, safeLimit]
+    );
+
+    return (rows.rows || []).map((row) => {
+        let payload = row.payload;
+        if (typeof payload === 'string') {
+            try {
+                payload = JSON.parse(payload);
+            } catch (_) {
+                payload = {};
+            }
+        }
+        return {
+            id: row.id,
+            tenantId: parseInt(row.tenant_id, 10) || null,
+            provider: row.provider || safeProvider,
+            eventId: row.event_id || null,
+            eventType: row.event_type || null,
+            payload: (payload && typeof payload === 'object') ? payload : {},
+            createdAt: row.created_at || null,
+            processedAt: row.processed_at || null
+        };
+    });
+}
+
 async function getSubscriptionPlans() {
     const result = await query(
         usePostgreSQL
@@ -10858,6 +10902,7 @@ module.exports = {
     updateSubscriptionPlanByAdmin,
     getAllTenantSubscriptionOverview,
     insertPaymentEventIfAbsent,
+    getRecentPaymentEvents,
     // 郵件模板
     getAllEmailTemplates,
     getEmailTemplateByKey,

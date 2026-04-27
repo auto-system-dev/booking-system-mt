@@ -3957,7 +3957,7 @@ const adminLogCleanupJobs = createAdminLogCleanupJobs({
     db,
     processEnv: process.env
 });
-const subscriptionJobs = createSubscriptionJobs({ db });
+const subscriptionJobs = createSubscriptionJobs({ db, paymentService: () => paymentService });
 
 const orderQueryService = createOrderQueryService({
     db,

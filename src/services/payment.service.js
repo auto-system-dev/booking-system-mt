@@ -612,19 +612,21 @@ function createPaymentService(deps) {
         // Keep retries idempotent while allowing state transitions on same PeriodNo.
         const eventId = `${baseEventId}:${eventStatusPart}:${eventCodePart || 'na'}`;
         const eventType = String(rawPayload.EventType || rawPayload.eventType || 'subscription.renewal');
-        const saveResult = await db.insertPaymentEventIfAbsent({
-            tenantId,
-            provider: 'newebpay',
-            eventId,
-            eventType,
-            payload: {
-                rawPayload,
-                period: periodPayload
-            },
-            signature: encryptedPeriod || encryptedTradeInfo
-        });
-        if (!saveResult.inserted) {
-            return { duplicate: true, tenantId, eventId };
+        if (!context?.forceProcessExisting) {
+            const saveResult = await db.insertPaymentEventIfAbsent({
+                tenantId,
+                provider: 'newebpay',
+                eventId,
+                eventType,
+                payload: {
+                    rawPayload,
+                    period: periodPayload
+                },
+                signature: encryptedPeriod || encryptedTradeInfo
+            });
+            if (!saveResult.inserted) {
+                return { duplicate: true, tenantId, eventId };
+            }
         }
 
         const statusSource = Object.keys(resultPayload || {}).length > 0 ? resultPayload : periodPayload;
@@ -773,6 +775,40 @@ function createPaymentService(deps) {
         return result;
     }
 
+    async function reconcileRecentNewebpayEvents(options = {}) {
+        const hours = Math.max(1, Math.min(168, parseInt(options.hours, 10) || 24));
+        const limit = Math.max(1, Math.min(1000, parseInt(options.limit, 10) || 200));
+        if (typeof db.getRecentPaymentEvents !== 'function') {
+            return { scanned: 0, synced: 0, errors: 0 };
+        }
+        const events = await db.getRecentPaymentEvents({ provider: 'newebpay', hours, limit });
+        let synced = 0;
+        let errors = 0;
+        for (const evt of events) {
+            try {
+                const payload = (evt?.payload && typeof evt.payload === 'object') ? evt.payload : {};
+                const rawPayload = (payload.rawPayload && typeof payload.rawPayload === 'object')
+                    ? payload.rawPayload
+                    : ((payload.period && typeof payload.period === 'object') ? payload.period : payload);
+                if (!rawPayload || typeof rawPayload !== 'object' || Object.keys(rawPayload).length === 0) continue;
+                const result = await handleNewebpaySubscriptionWebhook(rawPayload, {
+                    requestId: `reconcile-${evt.id || 'event'}`,
+                    queryTenantId: evt.tenantId || null,
+                    forceProcessExisting: true
+                });
+                if (!result?.duplicate && !result?.ignored) synced += 1;
+            } catch (error) {
+                errors += 1;
+                logPaymentEvent('warn', 'payment.newebpay.reconcile.event_failed', {
+                    eventId: evt?.eventId || null,
+                    tenantId: evt?.tenantId || null,
+                    error: error?.message || String(error)
+                });
+            }
+        }
+        return { scanned: events.length, synced, errors };
+    }
+
     async function handleCardPaymentSuccessByCallback(bookingId, context = {}) {
         if (!bookingId) {
             throw new Error('缺少 bookingId，無法處理付款成功回調');
@@ -849,6 +885,7 @@ function createPaymentService(deps) {
         handleCardPaymentSuccessByCallback,
         getNewebpayConfigFromSettings,
         handleNewebpaySubscriptionWebhook,
+        reconcileRecentNewebpayEvents,
         createNewebpaySubscriptionRequest,
         alterNewebpaySubscriptionStatus,
         alterNewebpaySubscriptionContent

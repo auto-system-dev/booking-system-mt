@@ -44,6 +44,10 @@ function registerScheduledJobs(deps) {
         cron.schedule('5 0 * * *', subscriptionJobs.runDailySubscriptionCheck, { timezone });
         console.log('✅ 訂閱狀態日檢任務已啟動（每天 00:05 台灣時間）');
     }
+    if (subscriptionJobs && typeof subscriptionJobs.runNewebpayReconcileJob === 'function') {
+        cron.schedule('*/10 * * * *', subscriptionJobs.runNewebpayReconcileJob, { timezone });
+        console.log('✅ 藍新訂閱補償任務已啟動（每 10 分鐘重試同步）');
+    }
 }
 
 module.exports = {
