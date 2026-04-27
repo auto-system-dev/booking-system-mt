@@ -7819,6 +7819,15 @@ function isSubscriptionAuthorizationPending(snapshot) {
     return !hasProviderNo && failedCount === 0 && !hasNextBilling;
 }
 
+function getSubscriptionPrimaryActionText(snapshot) {
+    const status = String(snapshot?.status || '').trim().toLowerCase();
+    if (status === 'trialing') return '立即啟用';
+    if (status === 'active') return '變更方案';
+    if (status === 'past_due') return '更新付款方式';
+    if (status === 'canceled') return '立即續訂啟用';
+    return '管理訂閱';
+}
+
 function renderSubscriptionNotice(snapshot) {
     const noticeEl = document.getElementById('subscriptionStatusNotice');
     if (!noticeEl || !snapshot) {
@@ -8002,11 +8011,7 @@ function renderSubscriptionSnapshot(snapshot) {
         ].join('');
     }
     if (primaryActionBtn) {
-        if (remainingDays !== null && remainingDays <= 14) {
-            primaryActionBtn.textContent = '立即續約';
-        } else {
-            primaryActionBtn.textContent = '管理訂閱';
-        }
+        primaryActionBtn.textContent = getSubscriptionPrimaryActionText(snapshot);
     }
     if (statusSelect) {
         statusSelect.value = String(snapshot?.status || 'active');
