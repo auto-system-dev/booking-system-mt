@@ -382,7 +382,10 @@ function createPaymentService(deps) {
     }
 
     async function handleNewebpaySubscriptionWebhook(rawPayload = {}, context = {}) {
-        const config = await getNewebpayConfigFromSettings(['HashKey', 'HashIV']);
+        const tenantHint = resolveTenantIdFromNewebpayPayload(rawPayload)
+            || parseInt(context?.queryTenantId, 10)
+            || defaultTenantId;
+        const config = await getNewebpayConfigFromSettings(['HashKey', 'HashIV'], tenantHint);
         const encryptedPeriod = String(rawPayload.Period || rawPayload.period || '').trim();
         const encryptedTradeInfo = String(rawPayload.TradeInfo || rawPayload.tradeInfo || '').trim();
         if (encryptedTradeInfo && rawPayload.TradeSha) {
