@@ -60,6 +60,26 @@ function createPaymentController(deps) {
     }
 
     function normalizeNewebpayWebhookPayload(req) {
+        const recoverJsonKeyPayload = (input) => {
+            if (!input || typeof input !== 'object' || Array.isArray(input)) return input || {};
+            const keys = Object.keys(input);
+            if (keys.length !== 1) return input;
+            const onlyKey = String(keys[0] || '').trim();
+            const onlyValue = input[keys[0]];
+            const isEmptyValue = onlyValue == null || String(onlyValue).trim() === '';
+            if (!isEmptyValue) return input;
+            if (!(onlyKey.startsWith('{') && onlyKey.endsWith('}'))) return input;
+            try {
+                const parsed = JSON.parse(onlyKey);
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    return parsed;
+                }
+            } catch (_) {
+                // keep original input
+            }
+            return input;
+        };
+
         const body = req.body;
         const contentType = String(req.headers?.['content-type'] || '');
         let fromBody = {};
@@ -74,11 +94,12 @@ function createPaymentController(deps) {
         const fromRaw = parseRawWebhookBody(req.rawBody, contentType);
         const fromQuery = (req.query && typeof req.query === 'object') ? req.query : {};
 
-        return {
+        const merged = {
             ...fromQuery,
             ...fromRaw,
             ...fromBody
         };
+        return recoverJsonKeyPayload(merged);
     }
 
     async function resolveTenantHomeUrl(context = {}) {
