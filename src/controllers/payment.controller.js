@@ -33,14 +33,23 @@ function createPaymentController(deps) {
 
     function normalizeNewebpayWebhookPayload(req) {
         const body = req.body;
-        if (body && typeof body === 'object' && Object.keys(body).length > 0) {
-            return body;
+        let fromBody = {};
+        if (body && typeof body === 'object' && !Buffer.isBuffer(body) && Object.keys(body).length > 0) {
+            fromBody = body;
+        } else if (typeof body === 'string' && body.trim()) {
+            fromBody = parseRawWebhookBody(body);
+        } else if (Buffer.isBuffer(body) && body.length > 0) {
+            fromBody = parseRawWebhookBody(body.toString('utf8'));
         }
+
         const fromRaw = parseRawWebhookBody(req.rawBody);
-        if (fromRaw && Object.keys(fromRaw).length > 0) {
-            return fromRaw;
-        }
-        return {};
+        const fromQuery = (req.query && typeof req.query === 'object') ? req.query : {};
+
+        return {
+            ...fromQuery,
+            ...fromRaw,
+            ...fromBody
+        };
     }
 
     async function resolveTenantHomeUrl(context = {}) {
@@ -453,7 +462,11 @@ function createPaymentController(deps) {
                 route,
                 result: 'received',
                 bodyKeys: Object.keys(payload || {}),
-                hasRawBody: !!String(req.rawBody || '').trim()
+                hasRawBody: !!String(req.rawBody || '').trim(),
+                queryKeys: Object.keys(req.query || {}),
+                contentType: String(req.headers?.['content-type'] || ''),
+                contentLength: String(req.headers?.['content-length'] || ''),
+                bodyType: Buffer.isBuffer(req.body) ? 'buffer' : typeof req.body
             });
             const result = await paymentService.handleNewebpaySubscriptionWebhook(payload, {
                 requestId,
