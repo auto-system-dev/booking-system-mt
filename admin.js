@@ -7936,7 +7936,9 @@ function renderSubscriptionSnapshot(snapshot) {
         statusBadge.style.border = `1px solid ${style.border}`;
     }
     if (statusTextEl) {
-        statusTextEl.textContent = statusText;
+        // 避免與 badge 內容重覆，只保留單一主狀態顯示
+        statusTextEl.textContent = '';
+        statusTextEl.style.display = 'none';
     }
     if (remainingDays === null) {
         expiryInput.value = '未設定到期時間';
@@ -8164,7 +8166,8 @@ async function loadSubscriptionSettings() {
         const billingBlock = document.getElementById('subscriptionBillingBlock');
         if (adminControls) adminControls.style.display = isSuperAdmin ? 'block' : 'none';
         if (updateBtn) updateBtn.style.display = isSuperAdmin ? 'inline-flex' : 'none';
-        if (billingBlock) billingBlock.style.display = isSuperAdmin ? 'none' : 'block';
+        // 方案按鈕預設收合，透過「立即續約」再展開，避免版面長駐干擾
+        if (billingBlock) billingBlock.style.display = 'none';
 
         const [statusResp, plansResp] = await Promise.all([
             adminFetch('/api/subscription/status'),
