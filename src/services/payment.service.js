@@ -135,6 +135,33 @@ function createPaymentService(deps) {
         return decryptNewebpayPayload(encryptedHex, config, 'Period');
     }
 
+    function tryParseNewebpayPayloadWithoutDecrypt(rawValue) {
+        const rawText = String(rawValue || '').trim();
+        if (!rawText) return null;
+        const candidates = [rawText];
+        if (rawText.includes('%')) {
+            try {
+                candidates.push(decodeURIComponent(rawText));
+            } catch (_) {
+                // ignore decode failure
+            }
+        }
+        try {
+            const b64 = Buffer.from(rawText, 'base64').toString('utf8').trim();
+            if (b64) candidates.push(b64);
+        } catch (_) {
+            // ignore base64 decode failure
+        }
+        for (const text of candidates) {
+            try {
+                return parseNewebpayPeriodPayload(text);
+            } catch (_) {
+                // try next candidate
+            }
+        }
+        return null;
+    }
+
     function parseNewebpayPeriodPayload(raw) {
         const text = String(raw || '').trim();
         if (!text) {
@@ -457,15 +484,37 @@ function createPaymentService(deps) {
         }
         let periodPayload = {};
         if (encryptedPeriod) {
-            const decryptedResult = await decryptWithTenantFallback(encryptedPeriod, 'Period');
-            config = decryptedResult.config || config;
-            const decrypted = decryptedResult.decrypted;
-            periodPayload = parseNewebpayPeriodPayload(decrypted);
+            try {
+                const decryptedResult = await decryptWithTenantFallback(encryptedPeriod, 'Period');
+                config = decryptedResult.config || config;
+                const decrypted = decryptedResult.decrypted;
+                periodPayload = parseNewebpayPeriodPayload(decrypted);
+            } catch (decryptError) {
+                const fallbackParsed = tryParseNewebpayPayloadWithoutDecrypt(encryptedPeriod);
+                if (!fallbackParsed) throw decryptError;
+                periodPayload = fallbackParsed;
+                logPaymentEvent('warn', 'payment.newebpay.subscription.fallback_plain_period', {
+                    requestId: context.requestId || null,
+                    tenantHint,
+                    result: 'parsed_without_decrypt'
+                });
+            }
         } else if (encryptedTradeInfo) {
-            const decryptedResult = await decryptWithTenantFallback(encryptedTradeInfo, 'TradeInfo');
-            config = decryptedResult.config || config;
-            const decrypted = decryptedResult.decrypted;
-            periodPayload = parseNewebpayPeriodPayload(decrypted);
+            try {
+                const decryptedResult = await decryptWithTenantFallback(encryptedTradeInfo, 'TradeInfo');
+                config = decryptedResult.config || config;
+                const decrypted = decryptedResult.decrypted;
+                periodPayload = parseNewebpayPeriodPayload(decrypted);
+            } catch (decryptError) {
+                const fallbackParsed = tryParseNewebpayPayloadWithoutDecrypt(encryptedTradeInfo);
+                if (!fallbackParsed) throw decryptError;
+                periodPayload = fallbackParsed;
+                logPaymentEvent('warn', 'payment.newebpay.subscription.fallback_plain_tradeinfo', {
+                    requestId: context.requestId || null,
+                    tenantHint,
+                    result: 'parsed_without_decrypt'
+                });
+            }
         } else if (rawPayload && typeof rawPayload === 'object' && Object.keys(rawPayload).length > 0) {
             periodPayload = rawPayload;
             if (typeof periodPayload.Result === 'string') {
