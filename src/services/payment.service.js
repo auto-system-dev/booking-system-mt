@@ -124,11 +124,41 @@ function createPaymentService(deps) {
         if (!cipherHex) {
             throw new Error(`缺少藍新回傳 ${fieldName} 參數`);
         }
-        const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(config.HashKey), Buffer.from(config.HashIV));
-        decipher.setAutoPadding(true);
-        let decrypted = decipher.update(cipherHex, 'hex', 'utf8');
-        decrypted += decipher.final('utf8');
-        return decrypted;
+        try {
+            const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(config.HashKey), Buffer.from(config.HashIV));
+            decipher.setAutoPadding(true);
+            let decrypted = decipher.update(cipherHex, 'hex', 'utf8');
+            decrypted += decipher.final('utf8');
+            return decrypted;
+        } catch (firstError) {
+            // NDNP 手冊範例採 OPENSSL_ZERO_PADDING + 手動去除 PKCS7。
+            // 這裡做第二條相容路徑，避免某些回傳格式在 auto padding 下失敗。
+            try {
+                const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(config.HashKey), Buffer.from(config.HashIV));
+                decipher.setAutoPadding(false);
+                const raw = Buffer.concat([
+                    decipher.update(Buffer.from(cipherHex, 'hex')),
+                    decipher.final()
+                ]);
+                const padLen = raw[raw.length - 1];
+                if (padLen > 0 && padLen <= 16) {
+                    const start = raw.length - padLen;
+                    let validPad = true;
+                    for (let i = start; i < raw.length; i += 1) {
+                        if (raw[i] !== padLen) {
+                            validPad = false;
+                            break;
+                        }
+                    }
+                    if (validPad) {
+                        return raw.slice(0, start).toString('utf8');
+                    }
+                }
+                return raw.toString('utf8').replace(/\x00+$/g, '');
+            } catch (_) {
+                throw firstError;
+            }
+        }
     }
 
     function decryptNewebpayPeriod(encryptedHex, config) {
