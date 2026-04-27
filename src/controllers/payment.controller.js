@@ -6,9 +6,37 @@ function createPaymentController(deps) {
         logPaymentEvent
     } = deps;
 
-    function parseRawWebhookBody(rawText) {
+    function parseMultipartFormData(rawText) {
+        const text = String(rawText || '');
+        if (!text) return {};
+        const parsed = {};
+        const regex = /name="([^"]+)"\r?\n\r?\n([\s\S]*?)(?=\r?\n--)/g;
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+            const key = String(match[1] || '').trim();
+            const value = String(match[2] || '').trim();
+            if (!key) continue;
+            if (!(key in parsed)) {
+                parsed[key] = value;
+            } else if (Array.isArray(parsed[key])) {
+                parsed[key].push(value);
+            } else {
+                parsed[key] = [parsed[key], value];
+            }
+        }
+        return parsed;
+    }
+
+    function parseRawWebhookBody(rawText, contentType = '') {
         const text = String(rawText || '').trim();
         if (!text) return {};
+        const type = String(contentType || '').toLowerCase();
+
+        if (type.includes('multipart/form-data') || text.includes('Content-Disposition: form-data; name=')) {
+            const multipartParsed = parseMultipartFormData(text);
+            if (Object.keys(multipartParsed).length > 0) return multipartParsed;
+        }
+
         try {
             const parsedJson = JSON.parse(text);
             if (parsedJson && typeof parsedJson === 'object') return parsedJson;
@@ -33,16 +61,17 @@ function createPaymentController(deps) {
 
     function normalizeNewebpayWebhookPayload(req) {
         const body = req.body;
+        const contentType = String(req.headers?.['content-type'] || '');
         let fromBody = {};
         if (body && typeof body === 'object' && !Buffer.isBuffer(body) && Object.keys(body).length > 0) {
             fromBody = body;
         } else if (typeof body === 'string' && body.trim()) {
-            fromBody = parseRawWebhookBody(body);
+            fromBody = parseRawWebhookBody(body, contentType);
         } else if (Buffer.isBuffer(body) && body.length > 0) {
-            fromBody = parseRawWebhookBody(body.toString('utf8'));
+            fromBody = parseRawWebhookBody(body.toString('utf8'), contentType);
         }
 
-        const fromRaw = parseRawWebhookBody(req.rawBody);
+        const fromRaw = parseRawWebhookBody(req.rawBody, contentType);
         const fromQuery = (req.query && typeof req.query === 'object') ? req.query : {};
 
         return {

@@ -3417,9 +3417,46 @@ app.post('/admin', (req, res) => {
 });
 
 // 藍新定期定額回跳中轉（不論 GET/POST，一律導回後台）
-app.all('/api/payment/newebpay/subscription/return', async (req, res) => {
+app.all('/api/payment/newebpay/subscription/return', express.text({ type: '*/*', limit: '2mb' }), async (req, res) => {
     try {
-        const payload = req.body || {};
+        const parseMultipartFormData = (rawText) => {
+            const text = String(rawText || '');
+            if (!text) return {};
+            const parsed = {};
+            const regex = /name="([^"]+)"\r?\n\r?\n([\s\S]*?)(?=\r?\n--)/g;
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+                const key = String(match[1] || '').trim();
+                const value = String(match[2] || '').trim();
+                if (!key) continue;
+                if (!(key in parsed)) parsed[key] = value;
+                else if (Array.isArray(parsed[key])) parsed[key].push(value);
+                else parsed[key] = [parsed[key], value];
+            }
+            return parsed;
+        };
+        const parseReturnPayload = () => {
+            const body = req.body;
+            const contentType = String(req.headers?.['content-type'] || '').toLowerCase();
+            if (body && typeof body === 'object' && !Buffer.isBuffer(body) && Object.keys(body).length > 0) return body;
+            const text = Buffer.isBuffer(body) ? body.toString('utf8') : String(body || req.rawBody || '');
+            if (!text.trim()) return {};
+            if (contentType.includes('multipart/form-data') || text.includes('Content-Disposition: form-data; name=')) {
+                const multipart = parseMultipartFormData(text);
+                if (Object.keys(multipart).length > 0) return multipart;
+            }
+            try {
+                const parsed = JSON.parse(text);
+                if (parsed && typeof parsed === 'object') return parsed;
+            } catch (_) {
+                // ignore
+            }
+            const params = new URLSearchParams(text);
+            const fallback = {};
+            for (const [key, value] of params.entries()) fallback[key] = value;
+            return fallback;
+        };
+        const payload = parseReturnPayload();
         const rtnCode = String(payload.RtnCode || payload.rtnCode || payload.Status || '').trim();
         const message = String(payload.Message || payload.Msg || '').trim();
         const periodLen = String(payload.Period || payload.period || '').trim().length;
