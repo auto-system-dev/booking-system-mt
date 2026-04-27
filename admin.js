@@ -8078,12 +8078,7 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
         btn.className = 'btn-save';
         btn.setAttribute('data-plan-code', String(plan.code || '').trim());
         const cycleText = String(plan.billing_cycle || '').trim() === 'yearly' ? '年繳' : '月繳';
-        const rawName = String(plan.name || plan.code || '方案');
-        const normalizedName = rawName
-            .replace(/\s*（\s*(月繳|年繳)\s*）\s*$/u, '')
-            .replace(/\s*\(\s*(monthly|yearly)\s*\)\s*$/iu, '')
-            .trim();
-        btn.textContent = `${normalizedName || rawName}（${cycleText}）`;
+        btn.textContent = `${String(plan.name || plan.code || '方案')}（${cycleText}）`;
         if (currentPlanCode && String(plan.code || '') === String(currentPlanCode || '')) {
             btn.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.85)';
         }
