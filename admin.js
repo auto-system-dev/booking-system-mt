@@ -7696,6 +7696,13 @@ function formatSubscriptionPlanDisplay(planCode, planName) {
     return formatPlanCodeLabel(planCode);
 }
 
+function formatBillingCycleLabel(billingCycle) {
+    const cycle = String(billingCycle || '').trim().toLowerCase();
+    if (cycle === 'yearly' || cycle === 'year') return '年繳';
+    if (cycle === 'monthly' || cycle === 'month') return '月繳';
+    return '';
+}
+
 function escapeHtml(value) {
     return String(value || '')
         .replace(/&/g, '&amp;')
@@ -8371,6 +8378,10 @@ async function loadSubscriptionOverview() {
                 row.planCode || row.planName
                     ? formatSubscriptionPlanDisplay(row.planCode, row.planName)
                     : '-';
+            const cycleText = formatBillingCycleLabel(row.billingCycle);
+            const planWithCycle = cycleText
+                ? `<div class="table-plan-two-line"><div>${escapeHtml(planText)}</div><div>${escapeHtml(cycleText)}</div></div>`
+                : renderPlanTwoLines(planText);
             const subStatus = row.subscriptionStatus || 'none';
             const systemModeLabel = getSystemModeLabel(row.systemMode || 'retail');
             const riskBadge = renderSubscriptionRiskBadge(row.periodEnd);
@@ -8399,7 +8410,7 @@ async function loadSubscriptionOverview() {
                     </td>
                     <td>${escapeHtml(systemModeLabel)}</td>
                     <td>${renderTenantStatusBadge(row.tenantStatus || '-')}</td>
-                    <td>${renderPlanTwoLines(planText)}</td>
+                    <td>${planWithCycle}</td>
                     <td>${renderSubscriptionStatusBadge(subStatus)}</td>
                     <td>${riskBadge}</td>
                     <td>${renderDateTimeTwoLines(row.periodEnd)}</td>
