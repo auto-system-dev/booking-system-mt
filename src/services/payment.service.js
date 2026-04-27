@@ -105,7 +105,22 @@ function createPaymentService(deps) {
     }
 
     function decryptNewebpayPayload(encryptedHex, config, fieldName = 'Period') {
-        const cipherHex = String(encryptedHex || '').trim();
+        const rawCipher = String(encryptedHex || '').trim();
+        let cipherHex = rawCipher;
+        if (cipherHex.includes('%')) {
+            try {
+                cipherHex = decodeURIComponent(cipherHex);
+            } catch (_) {
+                // keep original when decoding fails
+            }
+        }
+        cipherHex = cipherHex.replace(/\s+/g, '').replace(/^0x/i, '');
+        if (/[^0-9a-f]/i.test(cipherHex) && /[0-9a-f]/i.test(cipherHex)) {
+            const onlyHex = cipherHex.replace(/[^0-9a-f]/ig, '');
+            if (onlyHex.length >= 32) {
+                cipherHex = onlyHex;
+            }
+        }
         if (!cipherHex) {
             throw new Error(`缺少藍新回傳 ${fieldName} 參數`);
         }
@@ -385,7 +400,23 @@ function createPaymentService(deps) {
         const tenantHint = resolveTenantIdFromNewebpayPayload(rawPayload)
             || parseInt(context?.queryTenantId, 10)
             || defaultTenantId;
-        const config = await getNewebpayConfigFromSettings(['HashKey', 'HashIV'], tenantHint);
+        const fallbackTenantIds = [tenantHint, parseInt(context?.queryTenantId, 10), defaultTenantId]
+            .filter((id) => Number.isInteger(id) && id > 0)
+            .filter((id, idx, arr) => arr.indexOf(id) === idx);
+        const decryptWithTenantFallback = async (encryptedValue, fieldName) => {
+            let lastError = null;
+            for (const candidateTenantId of fallbackTenantIds) {
+                try {
+                    const candidateConfig = await getNewebpayConfigFromSettings(['HashKey', 'HashIV'], candidateTenantId);
+                    const decrypted = decryptNewebpayPayload(encryptedValue, candidateConfig, fieldName);
+                    return { decrypted, config: candidateConfig };
+                } catch (error) {
+                    lastError = error;
+                }
+            }
+            throw lastError || new Error(`無法解密藍新 ${fieldName} 內容`);
+        };
+        let config = await getNewebpayConfigFromSettings(['HashKey', 'HashIV'], tenantHint);
         const encryptedPeriod = String(rawPayload.Period || rawPayload.period || '').trim();
         const encryptedTradeInfo = String(rawPayload.TradeInfo || rawPayload.tradeInfo || '').trim();
         if (encryptedTradeInfo && rawPayload.TradeSha) {
@@ -396,10 +427,14 @@ function createPaymentService(deps) {
         }
         let periodPayload = {};
         if (encryptedPeriod) {
-            const decrypted = decryptNewebpayPayload(encryptedPeriod, config, 'Period');
+            const decryptedResult = await decryptWithTenantFallback(encryptedPeriod, 'Period');
+            config = decryptedResult.config || config;
+            const decrypted = decryptedResult.decrypted;
             periodPayload = parseNewebpayPeriodPayload(decrypted);
         } else if (encryptedTradeInfo) {
-            const decrypted = decryptNewebpayPayload(encryptedTradeInfo, config, 'TradeInfo');
+            const decryptedResult = await decryptWithTenantFallback(encryptedTradeInfo, 'TradeInfo');
+            config = decryptedResult.config || config;
+            const decrypted = decryptedResult.decrypted;
             periodPayload = parseNewebpayPeriodPayload(decrypted);
         } else if (rawPayload && typeof rawPayload === 'object' && Object.keys(rawPayload).length > 0) {
             periodPayload = rawPayload;
