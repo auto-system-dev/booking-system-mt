@@ -308,11 +308,27 @@ async function checkAuthStatus(options = {}) {
             console.log('✅ 已登入，顯示管理後台');
             setAdminAuthHint(true);
             showAdminPage(result.admin);
+            // 藍新授權返回後，直接導到「系統設定 > 訂閱狀態」
+            try {
+                const currentUrl = new URL(window.location.href);
+                const subscriptionReturn = currentUrl.searchParams.get('subscriptionReturn') === '1';
+                if (subscriptionReturn) {
+                    localStorage.setItem('settingsTab', 'subscription');
+                    if (window.location.hash !== '#settings') {
+                        window.location.hash = '#settings';
+                    }
+                    if (typeof switchSection === 'function') switchSection('settings');
+                    if (typeof switchSettingsTab === 'function') switchSettingsTab('subscription');
+                }
+            } catch (_e) {
+                // ignore
+            }
             // 清除一次性登入導向參數，避免重新整理時殘留 fromLogin=1
             try {
                 const url = new URL(window.location.href);
-                if (url.searchParams.get('fromLogin') === '1') {
+                if (url.searchParams.get('fromLogin') === '1' || url.searchParams.get('subscriptionReturn') === '1') {
                     url.searchParams.delete('fromLogin');
+                    url.searchParams.delete('subscriptionReturn');
                     const next = `${url.pathname}${url.search}${url.hash}`;
                     window.history.replaceState({}, '', next || '/admin');
                 }
