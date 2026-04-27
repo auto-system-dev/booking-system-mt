@@ -3417,7 +3417,7 @@ app.post('/admin', (req, res) => {
 });
 
 // 藍新定期定額回跳中轉（不論 GET/POST，一律導回後台）
-app.all('/api/payment/newebpay/subscription/return', (req, res) => {
+app.all('/api/payment/newebpay/subscription/return', async (req, res) => {
     try {
         const payload = req.body || {};
         const rtnCode = String(payload.RtnCode || payload.rtnCode || payload.Status || '').trim();
@@ -3430,6 +3430,16 @@ app.all('/api/payment/newebpay/subscription/return', (req, res) => {
             message,
             hasPeriod: periodLen > 0
         }));
+        if (periodLen > 0 || String(payload.TradeInfo || payload.tradeInfo || '').trim().length > 0) {
+            try {
+                await paymentService.handleNewebpaySubscriptionWebhook(payload, {
+                    requestId: req.requestId || null,
+                    queryTenantId: req.query?.tenant_id || req.query?.tenantId || null
+                });
+            } catch (syncError) {
+                console.warn('[PAYMENT] return bridge sync failed:', syncError?.message || syncError);
+            }
+        }
     } catch (_) {
         // ignore logging failure
     }

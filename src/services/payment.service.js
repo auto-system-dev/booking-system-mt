@@ -293,6 +293,7 @@ function createPaymentService(deps) {
         const rawStatus = String(payload.Status || payload.status || payload.PeriodStatus || payload.periodStatus || '').toUpperCase();
         const rtnCode = String(payload.RtnCode || payload.rtnCode || '').trim();
         const message = String(payload.Message || payload.message || payload.Msg || '').trim();
+        if (!rawStatus && !rtnCode && !message) return null;
         const isSuccessCode = rtnCode === '1' || rtnCode === '00';
         const isSuccessMessage = message.includes('授權成功') || message.toUpperCase().includes('SUCCESS');
         if (rawStatus.includes('SUCCESS') || isSuccessCode || isSuccessMessage) return 'active';
@@ -303,6 +304,7 @@ function createPaymentService(deps) {
     function inferNewebpayPaymentStatus(payload = {}) {
         const rtnCode = String(payload.RtnCode || payload.rtnCode || '').trim();
         const message = String(payload.Message || payload.message || payload.Msg || '').trim();
+        if (!rtnCode && !message) return null;
         if (rtnCode === '1' || rtnCode === '00' || message.includes('授權成功')) return 'success';
         return 'failed';
     }
@@ -511,6 +513,16 @@ function createPaymentService(deps) {
         const statusSource = Object.keys(resultPayload || {}).length > 0 ? resultPayload : periodPayload;
         const status = inferNewebpaySubscriptionStatus(statusSource);
         const paymentStatus = inferNewebpayPaymentStatus(statusSource);
+        if (!status && !paymentStatus) {
+            logPaymentEvent('warn', 'payment.newebpay.subscription.ignored_empty_status', {
+                requestId: context.requestId || null,
+                tenantId,
+                eventId,
+                bodyKeys: Object.keys(statusSource || {}),
+                result: 'ignored'
+            });
+            return { duplicate: false, ignored: true, tenantId, eventId };
+        }
         const nextBillingAt = parseNewebpayDateValue(
             resultPayload.NextPeriodDate || resultPayload.NextPeriod || periodPayload.NextPeriodDate || periodPayload.NextPeriod
         );
