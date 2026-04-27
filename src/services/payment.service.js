@@ -250,8 +250,9 @@ function createPaymentService(deps) {
             hasBackUrl: !!(returnUrl || processEnv.NEWEBPAY_SUBSCRIPTION_RETURN_URL || '')
         });
 
-        const notifyUrlResolved = appendTenantIdToUrl(
+        const notifyUrlResolved = buildNewebpayWebhookNotifyUrl(
             notifyUrl || processEnv.NEWEBPAY_SUBSCRIPTION_NOTIFY_URL || '',
+            returnUrl || processEnv.NEWEBPAY_SUBSCRIPTION_RETURN_URL || '',
             safeTenantId
         );
         const backUrlResolved = buildNewebpayBrowserReturnUrl(
@@ -394,6 +395,22 @@ function createPaymentService(deps) {
         } catch (_) {
             return appendTenantIdToUrl('/api/payment/newebpay/subscription/return', safeTenantId);
         }
+    }
+
+    function buildNewebpayWebhookNotifyUrl(rawNotifyUrl, rawReturnUrl, tenantId) {
+        const safeTenantId = parseInt(tenantId, 10);
+        const direct = String(rawNotifyUrl || '').trim();
+        if (direct) return appendTenantIdToUrl(direct, safeTenantId);
+        const returnBase = String(rawReturnUrl || '').trim();
+        if (returnBase) {
+            try {
+                const url = new URL(returnBase);
+                return appendTenantIdToUrl(`${url.origin}/api/payment/newebpay/subscription/webhook`, safeTenantId);
+            } catch (_) {
+                // ignore parse failure
+            }
+        }
+        return appendTenantIdToUrl(String(processEnv.NEWEBPAY_SUBSCRIPTION_NOTIFY_URL || '').trim(), safeTenantId);
     }
 
     async function handleNewebpaySubscriptionWebhook(rawPayload = {}, context = {}) {
