@@ -7823,7 +7823,7 @@ function getSubscriptionPrimaryActionText(snapshot) {
     const status = String(snapshot?.status || '').trim().toLowerCase();
     if (status === 'trialing') return '立即啟用';
     if (status === 'active') return '變更方案';
-    if (status === 'past_due') return '更新付款方式';
+    if (status === 'past_due') return '重選方案/啟用';
     if (status === 'canceled') return '立即續訂啟用';
     return '管理訂閱';
 }
@@ -8023,16 +8023,6 @@ function renderSubscriptionSnapshot(snapshot) {
 }
 
 async function handleSubscriptionPrimaryAction() {
-    const snapshot = subscriptionFeatureSnapshot || {};
-    const status = String(snapshot?.status || '').trim().toLowerCase();
-    // 付款失敗狀態：一鍵以「目前方案」重新授權綁卡（可改用新卡）
-    if (status === 'past_due') {
-        const currentPlanCode = String(snapshot?.planCode || '').trim();
-        if (currentPlanCode) {
-            await startNewebpaySubscription(currentPlanCode);
-            return;
-        }
-    }
     const billingBlock = document.getElementById('subscriptionBillingBlock');
     const adminControls = document.getElementById('subscriptionAdminControls');
     if (billingBlock && billingBlock.style.display === 'none') {
