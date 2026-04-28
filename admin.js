@@ -8843,6 +8843,27 @@ function openTenantDetailDrawer(tenantId) {
     const recurringReady = String(row.provider || '').toLowerCase() === 'newebpay'
         && String(row.providerSubscriptionId || '').trim()
         && String(row.providerOrderNo || '').trim();
+    const subscriptionStatus = String(row.subscriptionStatus || '').trim().toLowerCase();
+    const isCanceled = subscriptionStatus === 'canceled';
+    const isPastDue = subscriptionStatus === 'past_due';
+    const recurringActionHtml = !recurringReady
+        ? `
+            <button class="btn-refresh tenant-action-btn btn-action-danger" disabled>暫停扣款</button>
+            <button class="btn-refresh tenant-action-btn btn-action-success" disabled>恢復扣款</button>
+            <button class="btn-cancel tenant-action-btn" disabled>終止扣款</button>
+        `
+        : (isCanceled
+            ? `<small style="color:#64748b;">已終止委託，不可恢復。請回租戶後台使用「立即續訂啟用」重新授權。</small>`
+            : (isPastDue
+                ? `
+                    <button class="btn-refresh tenant-action-btn btn-action-success" onclick="triggerTenantRecurringAction(${safeTenantId}, 'restart')">恢復扣款</button>
+                    <button class="btn-cancel tenant-action-btn" onclick="triggerTenantRecurringAction(${safeTenantId}, 'terminate')">終止扣款</button>
+                `
+                : `
+                    <button class="btn-refresh tenant-action-btn btn-action-danger" onclick="triggerTenantRecurringAction(${safeTenantId}, 'suspend')">暫停扣款</button>
+                    <button class="btn-cancel tenant-action-btn" onclick="triggerTenantRecurringAction(${safeTenantId}, 'terminate')">終止扣款</button>
+                `
+            ));
     const titleEl = document.getElementById('tenantDetailDrawerTitle');
     const bodyEl = document.getElementById('tenantDetailDrawerBody');
     const drawer = document.getElementById('tenantDetailDrawer');
@@ -8880,9 +8901,7 @@ function openTenantDetailDrawer(tenantId) {
         </div>
         <div class="tenant-detail-section-title">操作</div>
         <div class="tenant-detail-action-row">
-            <button class="btn-refresh tenant-action-btn btn-action-danger" onclick="triggerTenantRecurringAction(${safeTenantId}, 'suspend')" ${recurringReady ? '' : 'disabled'}>暫停扣款</button>
-            <button class="btn-refresh tenant-action-btn btn-action-success" onclick="triggerTenantRecurringAction(${safeTenantId}, 'restart')" ${recurringReady ? '' : 'disabled'}>恢復扣款</button>
-            <button class="btn-cancel tenant-action-btn" onclick="triggerTenantRecurringAction(${safeTenantId}, 'terminate')" ${recurringReady ? '' : 'disabled'}>終止扣款</button>
+            ${recurringActionHtml}
         </div>
     `;
 
@@ -8911,7 +8930,10 @@ async function triggerTenantRecurringAction(tenantId, action) {
     };
     const safeAction = String(action || '').trim().toLowerCase();
     if (!labels[safeAction]) return;
-    const confirmed = await appConfirm(`確認對租戶 #${safeTenantId} 執行「${labels[safeAction]}」？`);
+    const confirmText = safeAction === 'terminate'
+        ? `確認對租戶 #${safeTenantId} 執行「終止扣款」？\n\n此操作通常不可逆，若要恢復需重新授權。`
+        : `確認對租戶 #${safeTenantId} 執行「${labels[safeAction]}」？`;
+    const confirmed = await appConfirm(confirmText);
     if (!confirmed) return;
     try {
         const response = await adminFetch('/api/admin/subscription/recurring-action', {

@@ -4116,8 +4116,12 @@ app.post('/api/admin/subscription/recurring-action', requireAuth, adminLimiter, 
         const snapshot = await db.getTenantSubscriptionSnapshot(tenantId);
         const recurring = snapshot?.recurring || {};
         const provider = String(recurring.provider || '').trim().toLowerCase();
+        const currentStatus = String(snapshot?.status || '').trim().toLowerCase();
         if (provider !== 'newebpay') {
             return res.status(400).json({ success: false, message: '此租戶尚未綁定藍新定期定額' });
+        }
+        if (currentStatus === 'canceled' && action === 'restart') {
+            return res.status(400).json({ success: false, message: '委託已終止不可恢復，請重新授權建立新委託' });
         }
         const merOrderNo = String(recurring.providerOrderNo || '').trim();
         const periodNo = String(recurring.providerSubscriptionId || '').trim();
