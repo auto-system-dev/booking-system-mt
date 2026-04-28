@@ -1211,15 +1211,20 @@ function createPaymentService(deps) {
                     .filter((d) => !Number.isNaN(d.getTime()))
                     .sort((a, b) => a.getTime() - b.getTime());
                 if (parsedDates.length > 0) {
+                    const future = parsedDates.find((d) => d.getTime() > nowMs) || parsedDates[0];
                     if (!nextBillingAt) {
-                        const future = parsedDates.find((d) => d.getTime() > nowMs) || parsedDates[0];
                         nextBillingAt = future.toISOString();
                     }
                     if (!periodEnd) {
-                        periodEnd = parsedDates[parsedDates.length - 1].toISOString();
+                        // UI 的「到期時間」以最近一期為準（非整張委託最後一期），避免月繳顯示成近一年後
+                        periodEnd = future.toISOString();
                     }
                 }
             }
+        }
+        if (resolvedStatus === 'active' && nextBillingAt) {
+            // 定期扣款啟用中時，到期日期對齊下一次扣款日，符合營運判讀（月繳約 +30 天）
+            periodEnd = nextBillingAt;
         }
         if (!periodEnd && resolvedStatus === 'active' && typeof db.getTenantSubscriptionSnapshot === 'function') {
             try {
