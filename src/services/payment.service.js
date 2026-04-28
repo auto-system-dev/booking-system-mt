@@ -360,7 +360,8 @@ function createPaymentService(deps) {
             periodPoint = String(safeDay).padStart(2, '0');
         }
         const periodAmt = String(amount);
-        const periodTimes = billingCycle === 'yearly' ? '1' : '12';
+        // 一般訂閱制預設為長期續扣；若需停止續扣，改由使用者取消訂閱（terminate）。
+        const periodTimes = billingCycle === 'yearly' ? '99' : '999';
         const ts = Math.floor(Date.now() / 1000);
         // 藍新 MerOrderNo 僅允許英數與底線，避免使用連字號造成 PER10010
         const merchantOrderNo = `T${safeTenantId}_${Date.now()}`.replace(/[^A-Za-z0-9_]/g, '').slice(0, 30);
