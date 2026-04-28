@@ -553,16 +553,14 @@ function createPaymentController(deps) {
                 customerEmail,
                 customerName
             });
-            // 先切換到使用者選擇方案（trialing），避免授權成功後方案仍顯示舊值。
-            if (planCode) {
-                await db.setTenantSubscriptionPlan(tenantId, String(planCode).trim(), 'trialing');
-            }
+            // 不在授權前提前切換訂閱狀態；僅記錄待授權的 provider_order_no，
+            // 由藍新 callback/webhook 確認成功後再切換為 active，避免「返回商店」時誤顯示試用中。
             await db.updateTenantSubscriptionRecurringState(tenantId, {
                 provider: 'newebpay',
                 providerCustomerId: customerEmail || null,
                 providerOrderNo: data?.merchantOrderNo || null,
                 paymentStatus: 'pending',
-                subscriptionStatus: 'trialing'
+                subscriptionStatus: null
             });
             return res.json({ success: true, data });
         } catch (error) {
