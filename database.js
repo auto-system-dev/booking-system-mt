@@ -8671,18 +8671,22 @@ async function createSubscriptionPlanByAdmin(data = {}) {
     const priceAmount = Number(data.price_amount || 0);
     const currency = String(data.currency || 'TWD').trim().toUpperCase() || 'TWD';
     const isActive = data.is_active === false || String(data.is_active) === '0' ? 0 : 1;
+    const recurringModeInput = String(data?.feature_flags?.recurring_mode || (billingCycle === 'yearly' ? 'calendar' : 'fixed_days')).trim();
+    const recurringMode = billingCycle === 'yearly'
+        ? 'calendar'
+        : (recurringModeInput === 'fixed_days' ? 'fixed_days' : 'calendar');
     const features = {
         reports: !!data?.feature_flags?.reports,
         api_access: !!data?.feature_flags?.api_access,
         max_buildings: Math.max(1, parseInt(data?.feature_flags?.max_buildings || 1, 10) || 1),
         max_admins: Math.max(0, parseInt(data?.feature_flags?.max_admins || 0, 10) || 0),
-        recurring_mode: String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 'fixed_days' : 'calendar',
+        recurring_mode: recurringMode,
         recurring_value: Math.max(
-            String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 2 : 1,
+            recurringMode === 'fixed_days' ? 2 : 1,
             Math.min(
-                String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 364 : 31,
-                parseInt(data?.feature_flags?.recurring_value || (String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 30 : 1), 10)
-                    || (String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 30 : 1)
+                recurringMode === 'fixed_days' ? 364 : 31,
+                parseInt(data?.feature_flags?.recurring_value || (recurringMode === 'fixed_days' ? 30 : 1), 10)
+                    || (recurringMode === 'fixed_days' ? 30 : 1)
             )
         )
     };
@@ -8722,18 +8726,22 @@ async function updateSubscriptionPlanByAdmin(planCode, data = {}) {
     const priceAmount = Number(data.price_amount || 0);
     const currency = String(data.currency || 'TWD').trim().toUpperCase() || 'TWD';
     const isActive = data.is_active === false || String(data.is_active) === '0' ? 0 : 1;
+    const recurringModeInput = String(data?.feature_flags?.recurring_mode || (billingCycle === 'yearly' ? 'calendar' : 'fixed_days')).trim();
+    const recurringMode = billingCycle === 'yearly'
+        ? 'calendar'
+        : (recurringModeInput === 'fixed_days' ? 'fixed_days' : 'calendar');
     const features = {
         reports: !!data?.feature_flags?.reports,
         api_access: !!data?.feature_flags?.api_access,
         max_buildings: Math.max(1, parseInt(data?.feature_flags?.max_buildings || 1, 10) || 1),
         max_admins: Math.max(0, parseInt(data?.feature_flags?.max_admins || 0, 10) || 0),
-        recurring_mode: String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 'fixed_days' : 'calendar',
+        recurring_mode: recurringMode,
         recurring_value: Math.max(
-            String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 2 : 1,
+            recurringMode === 'fixed_days' ? 2 : 1,
             Math.min(
-                String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 364 : 31,
-                parseInt(data?.feature_flags?.recurring_value || (String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 30 : 1), 10)
-                    || (String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 30 : 1)
+                recurringMode === 'fixed_days' ? 364 : 31,
+                parseInt(data?.feature_flags?.recurring_value || (recurringMode === 'fixed_days' ? 30 : 1), 10)
+                    || (recurringMode === 'fixed_days' ? 30 : 1)
             )
         )
     };

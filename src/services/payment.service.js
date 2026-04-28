@@ -350,7 +350,14 @@ function createPaymentService(deps) {
         const recurringValueRaw = parseInt(selectedPlan?.feature_flags?.recurring_value || 0, 10);
         let periodType = billingCycle === 'yearly' ? 'Y' : 'M';
         // 藍新要求固定長度：月繳 DD（01-31），年繳 MMDD（0101-1231），固定天期 D（2-999）
-        let periodPoint = periodType === 'Y' ? '0101' : '01';
+        let periodPoint = '01';
+        if (periodType === 'Y') {
+            // 年繳以「該用戶建立授權當天」作為每年扣款錨點（MMDD）
+            const now = new Date();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            periodPoint = `${mm}${dd}`;
+        }
         if (recurringMode === 'fixed_days' && billingCycle !== 'yearly') {
             periodType = 'D';
             const safeDays = Math.max(2, Math.min(364, recurringValueRaw || 30));

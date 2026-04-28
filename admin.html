@@ -3441,7 +3441,7 @@
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
                         <div class="form-group">
                             <label>週期</label>
-                            <select id="planBillingCycleInput">
+                            <select id="planBillingCycleInput" onchange="syncPlanRecurringValueInput()">
                                 <option value="monthly">月繳</option>
                                 <option value="yearly">年繳</option>
                             </select>
@@ -3456,7 +3456,7 @@
                             <label>扣款模式</label>
                             <select id="planRecurringModeInput" onchange="syncPlanRecurringValueInput()">
                                 <option value="calendar">每月固定日</option>
-                                <option value="fixed_days">固定天數</option>
+                                <option value="fixed_days">固定天數（進階）</option>
                             </select>
                         </div>
                         <div class="form-group">

@@ -8589,10 +8589,25 @@ async function loadSubscriptionOverview() {
 let planManagementRowsCache = [];
 
 function syncPlanRecurringValueInput() {
+    const cycleEl = document.getElementById('planBillingCycleInput');
     const modeEl = document.getElementById('planRecurringModeInput');
     const valueEl = document.getElementById('planRecurringValueInput');
     const labelEl = document.getElementById('planRecurringValueLabel');
-    if (!modeEl || !valueEl || !labelEl) return;
+    if (!cycleEl || !modeEl || !valueEl || !labelEl) return;
+    const billingCycle = String(cycleEl.value || 'monthly').trim();
+    if (billingCycle === 'yearly') {
+        modeEl.value = 'calendar';
+        modeEl.disabled = true;
+        labelEl.textContent = '年繳扣款日（固定每年）';
+        valueEl.min = '1';
+        valueEl.max = '31';
+        valueEl.value = '1';
+        valueEl.disabled = true;
+        return;
+    }
+
+    modeEl.disabled = false;
+    valueEl.disabled = false;
     const mode = String(modeEl.value || 'calendar').trim();
     if (mode === 'fixed_days') {
         labelEl.textContent = '固定天數（2-364）';
@@ -8705,8 +8720,8 @@ function openPlanManagementModal(mode = 'create', planCode = '') {
         nameEl.value = '';
         cycleEl.value = 'monthly';
         priceEl.value = '0';
-        recurringModeEl.value = 'calendar';
-        recurringValueEl.value = '1';
+        recurringModeEl.value = 'fixed_days';
+        recurringValueEl.value = '30';
         reportsEl.value = '1';
         apiEl.value = '0';
         maxBuildingsEl.value = '1';
@@ -8725,10 +8740,20 @@ async function savePlanManagement(event) {
     event?.preventDefault?.();
     const mode = String(document.getElementById('planFormMode')?.value || 'create');
     const originalCode = String(document.getElementById('planOriginalCode')?.value || '').trim();
+    const billingCycle = String(document.getElementById('planBillingCycleInput')?.value || 'monthly').trim();
+    const recurringModeInput = String(document.getElementById('planRecurringModeInput')?.value || 'fixed_days').trim();
+    const recurringValueInput = parseInt(document.getElementById('planRecurringValueInput')?.value || '30', 10) || 30;
+    const recurringMode = billingCycle === 'yearly'
+        ? 'calendar'
+        : (recurringModeInput === 'fixed_days' ? 'fixed_days' : 'calendar');
+    const recurringValue = recurringMode === 'fixed_days'
+        ? Math.max(2, Math.min(364, recurringValueInput || 30))
+        : Math.max(1, Math.min(31, recurringValueInput || 1));
+
     const payload = {
         code: String(document.getElementById('planCodeInput')?.value || '').trim().toLowerCase(),
         name: String(document.getElementById('planNameInput')?.value || '').trim(),
-        billing_cycle: String(document.getElementById('planBillingCycleInput')?.value || 'monthly').trim(),
+        billing_cycle: billingCycle,
         price_amount: parseInt(document.getElementById('planPriceInput')?.value || '0', 10) || 0,
         currency: 'TWD',
         is_active: String(document.getElementById('planIsActiveInput')?.value || '1') === '1',
@@ -8736,8 +8761,8 @@ async function savePlanManagement(event) {
             reports: String(document.getElementById('planFeatureReportsInput')?.value || '0') === '1',
             api_access: String(document.getElementById('planFeatureApiInput')?.value || '0') === '1',
             max_buildings: Math.max(1, parseInt(document.getElementById('planMaxBuildingsInput')?.value || '1', 10) || 1),
-            recurring_mode: String(document.getElementById('planRecurringModeInput')?.value || 'calendar').trim(),
-            recurring_value: parseInt(document.getElementById('planRecurringValueInput')?.value || '1', 10) || 1
+            recurring_mode: recurringMode,
+            recurring_value: recurringValue
         }
     };
     try {
