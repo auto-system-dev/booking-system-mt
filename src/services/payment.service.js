@@ -591,14 +591,45 @@ function createPaymentService(deps) {
     }
 
     function recoverSingleJsonKeyObject(input) {
+        const normalizeJsonLikeText = (value) => {
+            let text = String(value || '').replace(/^[\uFEFF\u200B\u200C\u200D]+/, '').trim();
+            if (!text) return '';
+            try {
+                if (text.includes('%')) text = decodeURIComponent(text);
+            } catch (_) {
+                // keep original text
+            }
+            // 若外層被包成字串（例如 "\"{\\\"Status\\\":...}\""），先拆外層引號
+            if (
+                (text.startsWith('"') && text.endsWith('"'))
+                || (text.startsWith("'") && text.endsWith("'"))
+            ) {
+                text = text.slice(1, -1).trim();
+            }
+            return text;
+        };
         if (!input || typeof input !== 'object' || Array.isArray(input)) return input;
         const keys = Object.keys(input);
         if (keys.length !== 1) return input;
-        const onlyKey = String(keys[0] || '').replace(/^[\uFEFF\u200B\u200C\u200D]+/, '').trim();
-        if (!(onlyKey.startsWith('{') && onlyKey.endsWith('}'))) return input;
+        const onlyKey = normalizeJsonLikeText(keys[0]);
+        if (!onlyKey) return input;
+
+        const isJsonLike = (
+            (onlyKey.startsWith('{') && onlyKey.endsWith('}'))
+            || (onlyKey.startsWith('[{') && onlyKey.endsWith('}]'))
+            || (onlyKey.includes('\\"Status\\"') || onlyKey.includes('\\"Result\\"'))
+        );
+        if (!isJsonLike) return input;
+
         const recovered = tryParseNewebpayPayloadWithoutDecrypt(onlyKey);
         if (recovered && typeof recovered === 'object' && !Array.isArray(recovered)) {
             return recovered;
+        }
+        // 最後再嘗試一次反跳脫後解析（避免 key 內還保留 \\"）
+        const unescaped = onlyKey.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+        const recoveredUnescaped = tryParseNewebpayPayloadWithoutDecrypt(unescaped);
+        if (recoveredUnescaped && typeof recoveredUnescaped === 'object' && !Array.isArray(recoveredUnescaped)) {
+            return recoveredUnescaped;
         }
         return input;
     }
