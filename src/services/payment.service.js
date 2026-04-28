@@ -1349,6 +1349,17 @@ function createPaymentService(deps) {
             || nestedResult?.status
             || ''
         ).toUpperCase();
+        const normalizedCode = String(
+            result?.RtnCode
+            || nestedResult?.RtnCode
+            || result?.RespondCode
+            || nestedResult?.RespondCode
+            || result?.rtnCode
+            || nestedResult?.rtnCode
+            || result?.respondCode
+            || nestedResult?.respondCode
+            || ''
+        ).trim().padStart(2, '0');
         const normalizedMessage = String(
             result?.Message
             || nestedResult?.Message
@@ -1356,7 +1367,10 @@ function createPaymentService(deps) {
             || nestedResult?.message
             || ''
         ).trim();
-        if (normalizedStatus !== 'SUCCESS') {
+        const isSuccess = normalizedStatus === 'SUCCESS'
+            || normalizedCode === '00'
+            || /成功|success/i.test(normalizedMessage);
+        if (!isSuccess) {
             throw new Error(normalizedMessage || normalizedStatus || '修改委託狀態失敗');
         }
         return result;
@@ -1430,6 +1444,17 @@ function createPaymentService(deps) {
             || nestedResult?.status
             || ''
         ).toUpperCase();
+        const normalizedCode = String(
+            result?.RtnCode
+            || nestedResult?.RtnCode
+            || result?.RespondCode
+            || nestedResult?.RespondCode
+            || result?.rtnCode
+            || nestedResult?.rtnCode
+            || result?.respondCode
+            || nestedResult?.respondCode
+            || ''
+        ).trim().padStart(2, '0');
         const normalizedMessage = String(
             result?.Message
             || nestedResult?.Message
@@ -1437,7 +1462,10 @@ function createPaymentService(deps) {
             || nestedResult?.message
             || ''
         ).trim();
-        if (normalizedStatus !== 'SUCCESS') {
+        const isSuccess = normalizedStatus === 'SUCCESS'
+            || normalizedCode === '00'
+            || /成功|success/i.test(normalizedMessage);
+        if (!isSuccess) {
             throw new Error(normalizedMessage || normalizedStatus || '修改委託內容失敗');
         }
         return result;
