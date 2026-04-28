@@ -1112,21 +1112,6 @@ function createPaymentService(deps) {
         const usedRawFallback = (!status && !paymentStatus) && !!(rawFallback.subscriptionStatus || rawFallback.paymentStatus);
         const resolvedStatus = status || rawFallback.subscriptionStatus || null;
         const resolvedPaymentStatus = paymentStatus || rawFallback.paymentStatus || null;
-        logPaymentEvent('info', 'payment.newebpay.subscription.status_debug', {
-            requestId: context.requestId || null,
-            tenantId,
-            statusKeys: Object.keys(statusSource || {}),
-            rawStatus: String(statusSource?.Status ?? statusSource?.status ?? ''),
-            rtnCode: String(statusSource?.RtnCode ?? statusSource?.rtnCode ?? ''),
-            respondCode: String(statusSource?.RespondCode ?? statusSource?.respondCode ?? ''),
-            message: String(statusSource?.Message ?? statusSource?.message ?? statusSource?.Msg ?? ''),
-            inferredSubscriptionStatus: resolvedStatus,
-            inferredPaymentStatus: resolvedPaymentStatus,
-            rawFallbackSubscriptionStatus: rawFallback.subscriptionStatus,
-            rawFallbackPaymentStatus: rawFallback.paymentStatus,
-            rawFallbackEnabled: isNewebpayRawFallbackEnabled(),
-            usedRawFallback
-        });
         const statusPeriodNo = pickFirstNonEmpty(
             resultPayload.PeriodNo,
             resultPayload.periodNo,
