@@ -8595,19 +8595,24 @@ function syncPlanRecurringValueInput() {
     const labelEl = document.getElementById('planRecurringValueLabel');
     if (!cycleEl || !modeEl || !valueEl || !labelEl) return;
     const billingCycle = String(cycleEl.value || 'monthly').trim();
+    const calendarOption = modeEl.querySelector('option[value="calendar"]');
     if (billingCycle === 'yearly') {
         modeEl.value = 'calendar';
         modeEl.disabled = true;
-        labelEl.textContent = '年繳扣款日（固定每年）';
+        if (calendarOption) calendarOption.textContent = '每年依授權日';
+        labelEl.textContent = '年繳扣款日（依用戶授權日）';
         valueEl.min = '1';
         valueEl.max = '31';
-        valueEl.value = '1';
+        valueEl.value = '';
+        valueEl.placeholder = '系統自動帶入授權日期';
         valueEl.disabled = true;
         return;
     }
 
     modeEl.disabled = false;
     valueEl.disabled = false;
+    valueEl.placeholder = '';
+    if (calendarOption) calendarOption.textContent = '每月固定日';
     const mode = String(modeEl.value || 'calendar').trim();
     if (mode === 'fixed_days') {
         labelEl.textContent = '固定天數（2-364）';
@@ -8645,7 +8650,9 @@ async function loadPlanManagementList() {
             const featureTexts = [];
             featureTexts.push(features.reports ? '報表' : '無報表');
             featureTexts.push(features.api_access ? 'API' : '無API');
-            if (String(features.recurring_mode || 'calendar') === 'fixed_days') {
+            if (String(plan.billing_cycle || '') === 'yearly') {
+                featureTexts.push('每年依授權日');
+            } else if (String(features.recurring_mode || 'calendar') === 'fixed_days') {
                 featureTexts.push(`固定天數${Math.max(2, parseInt(features.recurring_value || 30, 10) || 30)}天`);
             } else {
                 featureTexts.push(`每月${Math.max(1, parseInt(features.recurring_value || 1, 10) || 1)}日`);
