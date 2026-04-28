@@ -583,6 +583,19 @@ function createPaymentService(deps) {
         return base;
     }
 
+    function recoverSingleJsonKeyObject(input) {
+        if (!input || typeof input !== 'object' || Array.isArray(input)) return input;
+        const keys = Object.keys(input);
+        if (keys.length !== 1) return input;
+        const onlyKey = String(keys[0] || '').replace(/^[\uFEFF\u200B\u200C\u200D]+/, '').trim();
+        if (!(onlyKey.startsWith('{') && onlyKey.endsWith('}'))) return input;
+        const recovered = tryParseNewebpayPayloadWithoutDecrypt(onlyKey);
+        if (recovered && typeof recovered === 'object' && !Array.isArray(recovered)) {
+            return recovered;
+        }
+        return input;
+    }
+
     async function handleNewebpaySubscriptionWebhook(rawPayload = {}, context = {}) {
         const reqBody = coerceNewebpaySubscriptionBody(rawPayload);
         const tenantHint = resolveTenantIdFromNewebpayPayload(reqBody)
@@ -699,6 +712,8 @@ function createPaymentService(deps) {
         } else {
             throw new Error('缺少藍新回傳 Period/TradeInfo 參數');
         }
+        // 最後保底：某些回傳會變成 { '{"Status":"SUCCESS",...}': '...' }，此時先還原再做狀態推斷。
+        periodPayload = recoverSingleJsonKeyObject(periodPayload);
         function extractNewebpayPeriodResultForNested(periodObj) {
             const pp = periodObj && typeof periodObj === 'object' ? periodObj : {};
             let inner = pp.Result;
