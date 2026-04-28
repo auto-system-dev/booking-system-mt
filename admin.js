@@ -8133,11 +8133,12 @@ async function handleSubscriptionCancel() {
             msgEl.textContent = '正在送出取消訂閱請求，請稍候...';
         }
 
-        const response = await adminFetch('/api/subscription/cancel', {
+        const response = await adminFetch('/api/payment/newebpay/subscription/alter-status', {
             method: 'POST',
             body: JSON.stringify({
                 merOrderNo: reference.merOrderNo,
-                periodNo: reference.periodNo
+                periodNo: reference.periodNo,
+                alterType: 'terminate'
             })
         });
         const result = await response.json().catch(() => ({}));
