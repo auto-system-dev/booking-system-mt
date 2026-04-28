@@ -542,8 +542,44 @@ function createPaymentService(deps) {
         return appendTenantIdToUrl(String(processEnv.NEWEBPAY_SUBSCRIPTION_NOTIFY_URL || '').trim(), safeTenantId);
     }
 
+    /**
+     * 若 multipart 未正確建出 Period 欄位，但某欄位值為藍新 JSON 字串，補上 Period 供後續解析。
+     */
+    function coerceNewebpaySubscriptionBody(input) {
+        const base = input && typeof input === 'object' ? { ...input } : {};
+        if (String(base.Period || base.period || '').trim().length > 0) {
+            return base;
+        }
+        for (const [key, val] of Object.entries(base)) {
+            if (key === 'tenant_id' || key === 'tenantId' || key === 'TenantId') continue;
+            const s = typeof val === 'string' ? val.trim() : '';
+            if (!s || s.charAt(0) !== '{') continue;
+            try {
+                const parsed = JSON.parse(s);
+                if (
+                    parsed && typeof parsed === 'object'
+                    && !Array.isArray(parsed)
+                    && (
+                        parsed.Status != null
+                        || parsed.RespondCode != null
+                        || parsed.Result != null
+                        || parsed.MerchantOrderNo != null
+                        || parsed.MerchAntOrderNo != null
+                        || parsed.PeriodNo != null
+                    )
+                ) {
+                    return { ...base, Period: s };
+                }
+            } catch (_) {
+                /* ignore */
+            }
+        }
+        return base;
+    }
+
     async function handleNewebpaySubscriptionWebhook(rawPayload = {}, context = {}) {
-        const tenantHint = resolveTenantIdFromNewebpayPayload(rawPayload)
+        const reqBody = coerceNewebpaySubscriptionBody(rawPayload);
+        const tenantHint = resolveTenantIdFromNewebpayPayload(reqBody)
             || parseInt(context?.queryTenantId, 10)
             || defaultTenantId;
         const fallbackTenantIds = [tenantHint, parseInt(context?.queryTenantId, 10), defaultTenantId]
@@ -576,10 +612,10 @@ function createPaymentService(deps) {
             throw lastError || new Error(`無法解密藍新 ${fieldName} 內容`);
         };
         let config = await getNewebpayConfigFromSettings(['HashKey', 'HashIV'], tenantHint);
-        const encryptedPeriod = String(rawPayload.Period || rawPayload.period || '').trim();
-        const encryptedTradeInfo = String(rawPayload.TradeInfo || rawPayload.tradeInfo || '').trim();
-        if (encryptedTradeInfo && rawPayload.TradeSha) {
-            const validTradeSha = verifyNewebpayTradeSha(rawPayload, config);
+        const encryptedPeriod = String(reqBody.Period || reqBody.period || '').trim();
+        const encryptedTradeInfo = String(reqBody.TradeInfo || reqBody.tradeInfo || '').trim();
+        if (encryptedTradeInfo && reqBody.TradeSha) {
+            const validTradeSha = verifyNewebpayTradeSha(reqBody, config);
             if (!validTradeSha) {
                 throw new Error('藍新 webhook 驗簽失敗（TradeSha 不一致）');
             }
@@ -645,8 +681,8 @@ function createPaymentService(deps) {
                     });
                 }
             }
-        } else if (rawPayload && typeof rawPayload === 'object' && Object.keys(rawPayload).length > 0) {
-            periodPayload = rawPayload;
+        } else if (reqBody && typeof reqBody === 'object' && Object.keys(reqBody).length > 0) {
+            periodPayload = reqBody;
             if (typeof periodPayload.Result === 'string') {
                 try {
                     periodPayload.Result = JSON.parse(periodPayload.Result);
@@ -684,7 +720,7 @@ function createPaymentService(deps) {
         };
 
         let tenantId = resolveTenantIdFromNewebpayPayload({
-            ...rawPayload,
+            ...reqBody,
             ...periodPayload,
             ...resultPayload
         });
@@ -706,19 +742,19 @@ function createPaymentService(deps) {
                 periodPayload.merchantOrderNo,
                 periodPayload.MerOrderNo,
                 periodPayload.merOrderNo,
-                rawPayload.MerchantOrderNo,
-                rawPayload.MerchAntOrderNo,
-                rawPayload.merchantOrderNo,
-                rawPayload.MerOrderNo,
-                rawPayload.merOrderNo
+                reqBody.MerchantOrderNo,
+                reqBody.MerchAntOrderNo,
+                reqBody.merchantOrderNo,
+                reqBody.MerOrderNo,
+                reqBody.merOrderNo
             );
             const periodNo = pickFirstNonEmpty(
                 resultPayload.PeriodNo,
                 resultPayload.periodNo,
                 periodPayload.PeriodNo,
                 periodPayload.periodNo,
-                rawPayload.PeriodNo,
-                rawPayload.periodNo
+                reqBody.PeriodNo,
+                reqBody.periodNo
             );
             tenantId = await db.resolveTenantIdByRecurringReference({
                 provider: 'newebpay',
@@ -731,16 +767,16 @@ function createPaymentService(deps) {
         }
 
         const baseEventId = String(
-            rawPayload.TradeNo ||
-            rawPayload.tradeNo ||
+            reqBody.TradeNo ||
+            reqBody.tradeNo ||
             resultPayload.TradeNo ||
             resultPayload.tradeNo ||
-            rawPayload.PeriodNo ||
-            rawPayload.periodNo ||
+            reqBody.PeriodNo ||
+            reqBody.periodNo ||
             resultPayload.PeriodNo ||
             resultPayload.periodNo ||
-            rawPayload.MerchantOrderNo ||
-            rawPayload.merchantOrderNo ||
+            reqBody.MerchantOrderNo ||
+            reqBody.merchantOrderNo ||
             resultPayload.MerchantOrderNo ||
             resultPayload.merchantOrderNo ||
             resultPayload.MerOrderNo ||
@@ -753,8 +789,8 @@ function createPaymentService(deps) {
             resultPayload.status ||
             periodPayload.Status ||
             periodPayload.status ||
-            rawPayload.Status ||
-            rawPayload.status ||
+            reqBody.Status ||
+            reqBody.status ||
             'unknown'
         ).trim().toLowerCase();
         const eventCodePart = String(
@@ -766,15 +802,15 @@ function createPaymentService(deps) {
             periodPayload.rtnCode ||
             periodPayload.RespondCode ||
             periodPayload.respondCode ||
-            rawPayload.RtnCode ||
-            rawPayload.rtnCode ||
-            rawPayload.RespondCode ||
-            rawPayload.respondCode ||
+            reqBody.RtnCode ||
+            reqBody.rtnCode ||
+            reqBody.RespondCode ||
+            reqBody.respondCode ||
             ''
         ).trim();
         // Keep retries idempotent while allowing state transitions on same PeriodNo.
         const eventId = `${baseEventId}:${eventStatusPart}:${eventCodePart || 'na'}`;
-        const eventType = String(rawPayload.EventType || rawPayload.eventType || 'subscription.renewal');
+        const eventType = String(reqBody.EventType || reqBody.eventType || 'subscription.renewal');
         if (!context?.forceProcessExisting) {
             const saveResult = await db.insertPaymentEventIfAbsent({
                 tenantId,
@@ -782,7 +818,7 @@ function createPaymentService(deps) {
                 eventId,
                 eventType,
                 payload: {
-                    rawPayload,
+                    rawPayload: reqBody,
                     period: periodPayload
                 },
                 signature: encryptedPeriod || encryptedTradeInfo
@@ -956,9 +992,15 @@ function createPaymentService(deps) {
         for (const evt of events) {
             try {
                 const payload = (evt?.payload && typeof evt.payload === 'object') ? evt.payload : {};
-                const rawPayload = (payload.rawPayload && typeof payload.rawPayload === 'object')
+                const rawBase = (payload.rawPayload && typeof payload.rawPayload === 'object')
                     ? payload.rawPayload
-                    : ((payload.period && typeof payload.period === 'object') ? payload.period : payload);
+                    : {};
+                const periodSnap = (payload.period && typeof payload.period === 'object') ? payload.period : null;
+                const rawPayload = {
+                    ...(evt.tenantId ? { tenant_id: evt.tenantId } : {}),
+                    ...rawBase,
+                    ...(periodSnap || {})
+                };
                 if (!rawPayload || typeof rawPayload !== 'object' || Object.keys(rawPayload).length === 0) continue;
                 const result = await handleNewebpaySubscriptionWebhook(rawPayload, {
                     requestId: `reconcile-${evt.id || 'event'}`,
