@@ -165,6 +165,26 @@ function createPaymentService(deps) {
         return decryptNewebpayPayload(encryptedHex, config, 'Period');
     }
 
+    /** 藍新 AES 密文為純 hex；JSON 明文（以 { 開頭）應直接解析，不可當 hex 解密。 */
+    function isLikelyNewebpayPeriodCipherHex(str) {
+        const raw = String(str || '').trim();
+        if (!raw || raw.startsWith('{') || raw.startsWith('[')) return false;
+        let cipherHex = raw;
+        if (cipherHex.includes('%')) {
+            try {
+                cipherHex = decodeURIComponent(cipherHex);
+            } catch (_) {
+                /* keep */
+            }
+        }
+        cipherHex = cipherHex.replace(/\s+/g, '').replace(/^0x/i, '');
+        if (/[^0-9a-f]/i.test(cipherHex) && /[0-9a-f]/i.test(cipherHex)) {
+            const onlyHex = cipherHex.replace(/[^0-9a-f]/gi, '');
+            if (onlyHex.length >= 32) cipherHex = onlyHex;
+        }
+        return cipherHex.length >= 32 && /^[0-9a-f]+$/i.test(cipherHex);
+    }
+
     function tryParseNewebpayPayloadWithoutDecrypt(rawValue) {
         const rawText = String(rawValue || '').trim();
         if (!rawText) return null;
@@ -397,10 +417,12 @@ function createPaymentService(deps) {
 
     function inferNewebpaySubscriptionStatus(payload = {}) {
         const rawStatus = String(payload.Status || payload.status || payload.PeriodStatus || payload.periodStatus || '').toUpperCase();
+        // 週期付回傳常用 RespondCode（如 00），與幕前交易的 RtnCode 不同欄位
         const rtnCode = String(payload.RtnCode || payload.rtnCode || '').trim();
+        const respondCode = String(payload.RespondCode || payload.respondCode || '').trim();
         const message = String(payload.Message || payload.message || payload.Msg || '').trim();
-        if (!rawStatus && !rtnCode && !message) return null;
-        const isSuccessCode = rtnCode === '1' || rtnCode === '00';
+        if (!rawStatus && !rtnCode && !respondCode && !message) return null;
+        const isSuccessCode = rtnCode === '1' || rtnCode === '00' || respondCode === '00';
         const isSuccessMessage = message.includes('授權成功') || message.toUpperCase().includes('SUCCESS');
         if (rawStatus.includes('SUCCESS') || isSuccessCode || isSuccessMessage) return 'active';
         if (rawStatus.includes('CANCEL')) return 'canceled';
@@ -409,9 +431,10 @@ function createPaymentService(deps) {
 
     function inferNewebpayPaymentStatus(payload = {}) {
         const rtnCode = String(payload.RtnCode || payload.rtnCode || '').trim();
+        const respondCode = String(payload.RespondCode || payload.respondCode || '').trim();
         const message = String(payload.Message || payload.message || payload.Msg || '').trim();
-        if (!rtnCode && !message) return null;
-        if (rtnCode === '1' || rtnCode === '00' || message.includes('授權成功')) return 'success';
+        if (!rtnCode && !respondCode && !message) return null;
+        if (rtnCode === '1' || rtnCode === '00' || respondCode === '00' || message.includes('授權成功')) return 'success';
         return 'failed';
     }
 
@@ -547,36 +570,64 @@ function createPaymentService(deps) {
         }
         let periodPayload = {};
         if (encryptedPeriod) {
-            try {
-                const decryptedResult = await decryptWithTenantFallback(encryptedPeriod, 'Period');
-                config = decryptedResult.config || config;
-                const decrypted = decryptedResult.decrypted;
-                periodPayload = parseNewebpayPeriodPayload(decrypted);
-            } catch (decryptError) {
-                const fallbackParsed = tryParseNewebpayPayloadWithoutDecrypt(encryptedPeriod);
-                if (!fallbackParsed) throw decryptError;
-                periodPayload = fallbackParsed;
-                logPaymentEvent('warn', 'payment.newebpay.subscription.fallback_plain_period', {
-                    requestId: context.requestId || null,
-                    tenantHint,
-                    result: 'parsed_without_decrypt'
-                });
+            const tryPlainFirst = !isLikelyNewebpayPeriodCipherHex(encryptedPeriod);
+            if (tryPlainFirst) {
+                const directParsed = tryParseNewebpayPayloadWithoutDecrypt(encryptedPeriod);
+                if (directParsed) {
+                    periodPayload = directParsed;
+                    logPaymentEvent('info', 'payment.newebpay.subscription.direct_plain_period', {
+                        requestId: context.requestId || null,
+                        tenantHint,
+                        result: 'parsed_plain_json'
+                    });
+                }
+            }
+            if (!periodPayload || Object.keys(periodPayload).length === 0) {
+                try {
+                    const decryptedResult = await decryptWithTenantFallback(encryptedPeriod, 'Period');
+                    config = decryptedResult.config || config;
+                    const decrypted = decryptedResult.decrypted;
+                    periodPayload = parseNewebpayPeriodPayload(decrypted);
+                } catch (decryptError) {
+                    const fallbackParsed = tryParseNewebpayPayloadWithoutDecrypt(encryptedPeriod);
+                    if (!fallbackParsed) throw decryptError;
+                    periodPayload = fallbackParsed;
+                    logPaymentEvent('warn', 'payment.newebpay.subscription.fallback_plain_period', {
+                        requestId: context.requestId || null,
+                        tenantHint,
+                        result: 'parsed_without_decrypt_after_fail'
+                    });
+                }
             }
         } else if (encryptedTradeInfo) {
-            try {
-                const decryptedResult = await decryptWithTenantFallback(encryptedTradeInfo, 'TradeInfo');
-                config = decryptedResult.config || config;
-                const decrypted = decryptedResult.decrypted;
-                periodPayload = parseNewebpayPeriodPayload(decrypted);
-            } catch (decryptError) {
-                const fallbackParsed = tryParseNewebpayPayloadWithoutDecrypt(encryptedTradeInfo);
-                if (!fallbackParsed) throw decryptError;
-                periodPayload = fallbackParsed;
-                logPaymentEvent('warn', 'payment.newebpay.subscription.fallback_plain_tradeinfo', {
-                    requestId: context.requestId || null,
-                    tenantHint,
-                    result: 'parsed_without_decrypt'
-                });
+            const tryTradePlainFirst = !isLikelyNewebpayPeriodCipherHex(encryptedTradeInfo);
+            if (tryTradePlainFirst) {
+                const directTrade = tryParseNewebpayPayloadWithoutDecrypt(encryptedTradeInfo);
+                if (directTrade) {
+                    periodPayload = directTrade;
+                    logPaymentEvent('info', 'payment.newebpay.subscription.direct_plain_tradeinfo', {
+                        requestId: context.requestId || null,
+                        tenantHint,
+                        result: 'parsed_plain_json'
+                    });
+                }
+            }
+            if (!periodPayload || Object.keys(periodPayload).length === 0) {
+                try {
+                    const decryptedResult = await decryptWithTenantFallback(encryptedTradeInfo, 'TradeInfo');
+                    config = decryptedResult.config || config;
+                    const decrypted = decryptedResult.decrypted;
+                    periodPayload = parseNewebpayPeriodPayload(decrypted);
+                } catch (decryptError) {
+                    const fallbackParsed = tryParseNewebpayPayloadWithoutDecrypt(encryptedTradeInfo);
+                    if (!fallbackParsed) throw decryptError;
+                    periodPayload = fallbackParsed;
+                    logPaymentEvent('warn', 'payment.newebpay.subscription.fallback_plain_tradeinfo', {
+                        requestId: context.requestId || null,
+                        tenantHint,
+                        result: 'parsed_without_decrypt_after_fail'
+                    });
+                }
             }
         } else if (rawPayload && typeof rawPayload === 'object' && Object.keys(rawPayload).length > 0) {
             periodPayload = rawPayload;
@@ -591,6 +642,11 @@ function createPaymentService(deps) {
             throw new Error('缺少藍新回傳 Period/TradeInfo 參數');
         }
         const resultPayload = (periodPayload && typeof periodPayload.Result === 'object' && periodPayload.Result) || {};
+        // 推斷訂閱狀態時必須合併頂層與 Result 內層：藍新常把 Status 放在外層，細節與 RespondCode 在內層
+        const statusSource = {
+            ...(periodPayload && typeof periodPayload === 'object' ? periodPayload : {}),
+            ...(resultPayload && typeof resultPayload === 'object' ? resultPayload : {})
+        };
 
         let tenantId = resolveTenantIdFromNewebpayPayload({
             ...rawPayload,
@@ -666,10 +722,16 @@ function createPaymentService(deps) {
         const eventCodePart = String(
             resultPayload.RtnCode ||
             resultPayload.rtnCode ||
+            resultPayload.RespondCode ||
+            resultPayload.respondCode ||
             periodPayload.RtnCode ||
             periodPayload.rtnCode ||
+            periodPayload.RespondCode ||
+            periodPayload.respondCode ||
             rawPayload.RtnCode ||
             rawPayload.rtnCode ||
+            rawPayload.RespondCode ||
+            rawPayload.respondCode ||
             ''
         ).trim();
         // Keep retries idempotent while allowing state transitions on same PeriodNo.
@@ -692,7 +754,6 @@ function createPaymentService(deps) {
             }
         }
 
-        const statusSource = Object.keys(resultPayload || {}).length > 0 ? resultPayload : periodPayload;
         const status = inferNewebpaySubscriptionStatus(statusSource);
         const paymentStatus = inferNewebpayPaymentStatus(statusSource);
         if (!status && !paymentStatus) {
