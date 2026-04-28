@@ -7950,7 +7950,9 @@ function renderSubscriptionSnapshot(snapshot) {
         || (String(snapshot?.planCode || '').toLowerCase().includes('month') ? 'monthly' : '');
     const billingCycleText = formatBillingCycleLabel(inferredCycle);
     const periodEndText = toReadableDate(snapshot?.periodEnd);
+    const nextBillingText = toReadableDate(snapshot?.recurring?.nextBillingAt || snapshot?.nextBillingAt);
     const remainingDays = getSubscriptionRemainingDays(snapshot?.periodEnd);
+    const nextBillingDays = getSubscriptionRemainingDays(snapshot?.recurring?.nextBillingAt || snapshot?.nextBillingAt);
     const reports = snapshot?.features?.reports ? '開啟' : '關閉';
     const apiAccess = snapshot?.features?.api_access ? '開啟' : '關閉';
     const maxBuildings = Number(snapshot?.limits?.max_buildings || 1);
@@ -7978,7 +7980,8 @@ function renderSubscriptionSnapshot(snapshot) {
         statusTextEl.textContent = '';
         statusTextEl.style.display = 'none';
     }
-    if (remainingDays === null) {
+    const currentStatus = String(snapshot?.status || '').trim().toLowerCase();
+    if (remainingDays === null && (currentStatus === 'trialing' || !nextBillingText || nextBillingText === '未設定')) {
         expiryInput.value = '未設定到期時間';
         if (expiryTextEl) expiryTextEl.textContent = '未設定';
         expiryHint.textContent = '請由超級管理員設定使用期限。';
@@ -7988,6 +7991,16 @@ function renderSubscriptionSnapshot(snapshot) {
             expiryCard.style.background = '#f9fafb';
             expiryCard.style.border = '1px solid #e5e7eb';
         }
+    } else if (currentStatus === 'active') {
+        expiryInput.value = Number.isFinite(nextBillingDays) ? `距離下次扣款 ${nextBillingDays} 天` : '下次扣款日待確認';
+        if (expiryTextEl) expiryTextEl.textContent = Number.isFinite(nextBillingDays) ? `距離下次扣款 ${nextBillingDays} 天` : '下次扣款日待確認';
+        expiryHint.textContent = `下次扣款：${nextBillingText}`;
+        if (expiryCard) {
+            expiryCard.style.background = '#f0fdf4';
+            expiryCard.style.border = '1px solid #bbf7d0';
+        }
+        expiryInput.style.color = '#166534';
+        expiryInput.style.background = '#f0fdf4';
     } else if (remainingDays >= 0) {
         expiryInput.value = `剩餘 ${remainingDays} 天`;
         if (expiryTextEl) expiryTextEl.textContent = `剩餘 ${remainingDays} 天`;
