@@ -4,7 +4,8 @@ function registerScheduledJobs(deps) {
         bookingJobs,
         adminLogCleanupJobs,
         subscriptionJobs,
-        timezone = 'Asia/Taipei'
+        timezone = 'Asia/Taipei',
+        processEnv = process.env
     } = deps;
 
     cron.schedule('0 * * * *', bookingJobs.sendPaymentReminderEmails, {
@@ -44,9 +45,12 @@ function registerScheduledJobs(deps) {
         cron.schedule('5 0 * * *', subscriptionJobs.runDailySubscriptionCheck, { timezone });
         console.log('✅ 訂閱狀態日檢任務已啟動（每天 00:05 台灣時間）');
     }
-    if (subscriptionJobs && typeof subscriptionJobs.runNewebpayReconcileJob === 'function') {
+    const reconcileEnabled = String(processEnv.ENABLE_NEWEBPAY_RECONCILE || 'false').trim().toLowerCase() === 'true';
+    if (reconcileEnabled && subscriptionJobs && typeof subscriptionJobs.runNewebpayReconcileJob === 'function') {
         cron.schedule('*/10 * * * *', subscriptionJobs.runNewebpayReconcileJob, { timezone });
         console.log('✅ 藍新訂閱補償任務已啟動（每 10 分鐘重試同步）');
+    } else {
+        console.log('⏸️ 藍新訂閱補償任務已停用（僅驗證 webhook 主路徑）');
     }
 }
 
