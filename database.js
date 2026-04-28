@@ -8675,7 +8675,16 @@ async function createSubscriptionPlanByAdmin(data = {}) {
         reports: !!data?.feature_flags?.reports,
         api_access: !!data?.feature_flags?.api_access,
         max_buildings: Math.max(1, parseInt(data?.feature_flags?.max_buildings || 1, 10) || 1),
-        max_admins: Math.max(0, parseInt(data?.feature_flags?.max_admins || 0, 10) || 0)
+        max_admins: Math.max(0, parseInt(data?.feature_flags?.max_admins || 0, 10) || 0),
+        recurring_mode: String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 'fixed_days' : 'calendar',
+        recurring_value: Math.max(
+            String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 2 : 1,
+            Math.min(
+                String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 364 : 31,
+                parseInt(data?.feature_flags?.recurring_value || (String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 30 : 1), 10)
+                    || (String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 30 : 1)
+            )
+        )
     };
     if (!/^[a-z0-9_]{3,40}$/.test(code)) {
         throw new Error('方案代碼格式錯誤（僅限小寫英文、數字、底線，3-40字元）');
@@ -8717,7 +8726,16 @@ async function updateSubscriptionPlanByAdmin(planCode, data = {}) {
         reports: !!data?.feature_flags?.reports,
         api_access: !!data?.feature_flags?.api_access,
         max_buildings: Math.max(1, parseInt(data?.feature_flags?.max_buildings || 1, 10) || 1),
-        max_admins: Math.max(0, parseInt(data?.feature_flags?.max_admins || 0, 10) || 0)
+        max_admins: Math.max(0, parseInt(data?.feature_flags?.max_admins || 0, 10) || 0),
+        recurring_mode: String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 'fixed_days' : 'calendar',
+        recurring_value: Math.max(
+            String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 2 : 1,
+            Math.min(
+                String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 364 : 31,
+                parseInt(data?.feature_flags?.recurring_value || (String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 30 : 1), 10)
+                    || (String(data?.feature_flags?.recurring_mode || 'calendar').trim() === 'fixed_days' ? 30 : 1)
+            )
+        )
     };
     if (!name) throw new Error('方案名稱為必填');
     if (!['monthly', 'yearly'].includes(billingCycle)) throw new Error('billing_cycle 僅接受 monthly 或 yearly');

@@ -8466,6 +8466,25 @@ async function loadSubscriptionOverview() {
 
 let planManagementRowsCache = [];
 
+function syncPlanRecurringValueInput() {
+    const modeEl = document.getElementById('planRecurringModeInput');
+    const valueEl = document.getElementById('planRecurringValueInput');
+    const labelEl = document.getElementById('planRecurringValueLabel');
+    if (!modeEl || !valueEl || !labelEl) return;
+    const mode = String(modeEl.value || 'calendar').trim();
+    if (mode === 'fixed_days') {
+        labelEl.textContent = '固定天數（2-364）';
+        valueEl.min = '2';
+        valueEl.max = '364';
+        if (!valueEl.value || Number(valueEl.value) < 2) valueEl.value = '30';
+    } else {
+        labelEl.textContent = '每月扣款日（1-31）';
+        valueEl.min = '1';
+        valueEl.max = '31';
+        if (!valueEl.value || Number(valueEl.value) < 1) valueEl.value = '1';
+    }
+}
+
 async function loadPlanManagementList() {
     const tbody = document.getElementById('planManagementTableBody');
     if (!tbody) return;
@@ -8489,6 +8508,11 @@ async function loadPlanManagementList() {
             const featureTexts = [];
             featureTexts.push(features.reports ? '報表' : '無報表');
             featureTexts.push(features.api_access ? 'API' : '無API');
+            if (String(features.recurring_mode || 'calendar') === 'fixed_days') {
+                featureTexts.push(`固定天數${Math.max(2, parseInt(features.recurring_value || 30, 10) || 30)}天`);
+            } else {
+                featureTexts.push(`每月${Math.max(1, parseInt(features.recurring_value || 1, 10) || 1)}日`);
+            }
             return `
                 <tr>
                     <td><code>${escapeHtml(plan.code || '-')}</code></td>
@@ -8521,11 +8545,13 @@ function openPlanManagementModal(mode = 'create', planCode = '') {
     const nameEl = document.getElementById('planNameInput');
     const cycleEl = document.getElementById('planBillingCycleInput');
     const priceEl = document.getElementById('planPriceInput');
+    const recurringModeEl = document.getElementById('planRecurringModeInput');
+    const recurringValueEl = document.getElementById('planRecurringValueInput');
     const reportsEl = document.getElementById('planFeatureReportsInput');
     const apiEl = document.getElementById('planFeatureApiInput');
     const maxBuildingsEl = document.getElementById('planMaxBuildingsInput');
     const activeEl = document.getElementById('planIsActiveInput');
-    if (!modeEl || !codeEl || !nameEl || !cycleEl || !priceEl || !reportsEl || !apiEl || !maxBuildingsEl || !activeEl || !originalCodeEl) return;
+    if (!modeEl || !codeEl || !nameEl || !cycleEl || !priceEl || !recurringModeEl || !recurringValueEl || !reportsEl || !apiEl || !maxBuildingsEl || !activeEl || !originalCodeEl) return;
 
     if (mode === 'edit') {
         const row = planManagementRowsCache.find((p) => String(p.code) === String(planCode));
@@ -8545,6 +8571,8 @@ function openPlanManagementModal(mode = 'create', planCode = '') {
         reportsEl.value = features.reports ? '1' : '0';
         apiEl.value = features.api_access ? '1' : '0';
         maxBuildingsEl.value = String(parseInt(features.max_buildings || 1, 10) || 1);
+        recurringModeEl.value = String(features.recurring_mode || 'calendar');
+        recurringValueEl.value = String(parseInt(features.recurring_value || (String(features.recurring_mode || 'calendar') === 'fixed_days' ? 30 : 1), 10) || (String(features.recurring_mode || 'calendar') === 'fixed_days' ? 30 : 1));
         activeEl.value = row.is_active === true || String(row.is_active) === '1' ? '1' : '0';
     } else {
         if (titleEl) titleEl.textContent = '新增方案';
@@ -8555,11 +8583,14 @@ function openPlanManagementModal(mode = 'create', planCode = '') {
         nameEl.value = '';
         cycleEl.value = 'monthly';
         priceEl.value = '0';
+        recurringModeEl.value = 'calendar';
+        recurringValueEl.value = '1';
         reportsEl.value = '1';
         apiEl.value = '0';
         maxBuildingsEl.value = '1';
         activeEl.value = '1';
     }
+    syncPlanRecurringValueInput();
     modal.style.display = 'block';
 }
 
@@ -8582,7 +8613,9 @@ async function savePlanManagement(event) {
         feature_flags: {
             reports: String(document.getElementById('planFeatureReportsInput')?.value || '0') === '1',
             api_access: String(document.getElementById('planFeatureApiInput')?.value || '0') === '1',
-            max_buildings: Math.max(1, parseInt(document.getElementById('planMaxBuildingsInput')?.value || '1', 10) || 1)
+            max_buildings: Math.max(1, parseInt(document.getElementById('planMaxBuildingsInput')?.value || '1', 10) || 1),
+            recurring_mode: String(document.getElementById('planRecurringModeInput')?.value || 'calendar').trim(),
+            recurring_value: parseInt(document.getElementById('planRecurringValueInput')?.value || '1', 10) || 1
         }
     };
     try {
