@@ -907,6 +907,12 @@ function createPaymentService(deps) {
                     } catch (_) {
                         // try next candidate
                     }
+                    // JSON.parse 失敗時，改用既有容錯解析（支援單一 key / urlencoded / 跳脫字串）
+                    const recovered = tryParseNewebpayPayloadWithoutDecrypt(String(candidate || '').trim());
+                    if (recovered && typeof recovered === 'object' && !Array.isArray(recovered)) {
+                        inner = recovered;
+                        break;
+                    }
                 }
             }
             if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
