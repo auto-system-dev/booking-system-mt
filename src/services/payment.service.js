@@ -1334,8 +1334,30 @@ function createPaymentService(deps) {
         }
         const decrypted = decryptNewebpayPeriod(encryptedPeriod, config);
         const result = parseNewebpayPeriodPayload(decrypted);
-        if (String(result.Status || '').toUpperCase() !== 'SUCCESS') {
-            throw new Error(result.Message || result.Status || '修改委託狀態失敗');
+        let nestedResult = result?.Result;
+        if (typeof nestedResult === 'string') {
+            try {
+                nestedResult = JSON.parse(nestedResult);
+            } catch (_) {
+                nestedResult = null;
+            }
+        }
+        const normalizedStatus = String(
+            result?.Status
+            || nestedResult?.Status
+            || result?.status
+            || nestedResult?.status
+            || ''
+        ).toUpperCase();
+        const normalizedMessage = String(
+            result?.Message
+            || nestedResult?.Message
+            || result?.message
+            || nestedResult?.message
+            || ''
+        ).trim();
+        if (normalizedStatus !== 'SUCCESS') {
+            throw new Error(normalizedMessage || normalizedStatus || '修改委託狀態失敗');
         }
         return result;
     }
@@ -1393,8 +1415,30 @@ function createPaymentService(deps) {
         }
         const decrypted = decryptNewebpayPeriod(encryptedPeriod, config);
         const result = parseNewebpayPeriodPayload(decrypted);
-        if (String(result.Status || '').toUpperCase() !== 'SUCCESS') {
-            throw new Error(result.Message || result.Status || '修改委託內容失敗');
+        let nestedResult = result?.Result;
+        if (typeof nestedResult === 'string') {
+            try {
+                nestedResult = JSON.parse(nestedResult);
+            } catch (_) {
+                nestedResult = null;
+            }
+        }
+        const normalizedStatus = String(
+            result?.Status
+            || nestedResult?.Status
+            || result?.status
+            || nestedResult?.status
+            || ''
+        ).toUpperCase();
+        const normalizedMessage = String(
+            result?.Message
+            || nestedResult?.Message
+            || result?.message
+            || nestedResult?.message
+            || ''
+        ).trim();
+        if (normalizedStatus !== 'SUCCESS') {
+            throw new Error(normalizedMessage || normalizedStatus || '修改委託內容失敗');
         }
         return result;
     }
