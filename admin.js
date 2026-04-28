@@ -7642,7 +7642,7 @@ function mapSubscriptionStatusLabel(status) {
         trialing: '試用中',
         active: '啟用中',
         past_due: '逾期待補繳',
-        canceled: '已停權'
+        canceled: '已取消續訂'
     };
     return map[status] || status || '未知';
 }
@@ -7782,7 +7782,7 @@ function getSubscriptionStatusStyle(status) {
     if (s === 'active') return { bg: '#dcfce7', color: '#166534', border: '#86efac' };
     if (s === 'trialing') return { bg: '#dbeafe', color: '#1d4ed8', border: '#93c5fd' };
     if (s === 'past_due') return { bg: '#ffedd5', color: '#9a3412', border: '#fdba74' };
-    if (s === 'canceled') return { bg: '#fee2e2', color: '#991b1b', border: '#fecaca' };
+    if (s === 'canceled') return { bg: '#f3f4f6', color: '#374151', border: '#d1d5db' };
     return { bg: '#e5e7eb', color: '#374151', border: '#d1d5db' };
 }
 
@@ -7860,10 +7860,18 @@ function renderSubscriptionNotice(snapshot) {
 
     if (snapshot.status === 'canceled') {
         noticeEl.style.display = 'block';
-        noticeEl.style.background = '#fee2e2';
-        noticeEl.style.color = '#991b1b';
-        noticeEl.style.border = '1px solid #fecaca';
-        noticeEl.textContent = '目前訂閱已停權，部分功能已鎖定。切換至有效方案後會立即恢復。';
+        const hasPeriod = Number.isFinite(remainingDays);
+        if (hasPeriod && remainingDays >= 0) {
+            noticeEl.style.background = '#f9fafb';
+            noticeEl.style.color = '#374151';
+            noticeEl.style.border = '1px solid #e5e7eb';
+            noticeEl.textContent = `已取消自動續訂，目前方案可使用至 ${toReadableDate(snapshot?.periodEnd)}。`;
+        } else {
+            noticeEl.style.background = '#f3f4f6';
+            noticeEl.style.color = '#374151';
+            noticeEl.style.border = '1px solid #d1d5db';
+            noticeEl.textContent = '訂閱已停止，若要繼續使用請重新啟用方案。';
+        }
         return;
     }
 
@@ -8014,6 +8022,28 @@ function renderSubscriptionSnapshot(snapshot) {
         }
         expiryInput.style.color = '#166534';
         expiryInput.style.background = '#f0fdf4';
+    } else if (currentStatus === 'canceled') {
+        if (Number.isFinite(remainingDays) && remainingDays >= 0) {
+            expiryInput.value = `服務至 ${periodEndText}`;
+            if (expiryTextEl) expiryTextEl.textContent = '不再自動扣款';
+            expiryHint.textContent = `服務至：${periodEndText}`;
+            expiryInput.style.color = '#374151';
+            expiryInput.style.background = '#f9fafb';
+            if (expiryCard) {
+                expiryCard.style.background = '#f9fafb';
+                expiryCard.style.border = '1px solid #e5e7eb';
+            }
+        } else {
+            expiryInput.value = '已停用';
+            if (expiryTextEl) expiryTextEl.textContent = '已停用';
+            expiryHint.textContent = '不再自動扣款';
+            expiryInput.style.color = '#374151';
+            expiryInput.style.background = '#f3f4f6';
+            if (expiryCard) {
+                expiryCard.style.background = '#f3f4f6';
+                expiryCard.style.border = '1px solid #d1d5db';
+            }
+        }
     } else if (remainingDays >= 0) {
         expiryInput.value = `剩餘 ${remainingDays} 天`;
         if (expiryTextEl) expiryTextEl.textContent = `剩餘 ${remainingDays} 天`;
