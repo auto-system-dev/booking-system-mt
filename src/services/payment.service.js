@@ -245,9 +245,8 @@ function createPaymentService(deps) {
             const keys = Object.keys(obj);
             if (keys.length !== 1) return obj;
             const onlyKey = sanitizeJsonText(keys[0]);
-            const onlyValue = obj[keys[0]];
-            const isEmptyValue = onlyValue == null || String(onlyValue).trim() === '';
-            if (!isEmptyValue) return obj;
+            // 有些回傳會被 parse 成 { '{"Status":"SUCCESS",...}': '...' }，
+            // 即使 value 不是空字串，關鍵資料仍在 key 裡，這裡優先嘗試還原。
             const recovered = tryParseEmbeddedJsonObject(onlyKey);
             return recovered || obj;
         };
