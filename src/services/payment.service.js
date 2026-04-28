@@ -360,6 +360,7 @@ function createPaymentService(deps) {
             periodPoint = String(safeDay).padStart(2, '0');
         }
         const periodAmt = String(amount);
+        const periodTimes = billingCycle === 'yearly' ? '1' : '12';
         const ts = Math.floor(Date.now() / 1000);
         // 藍新 MerOrderNo 僅允許英數與底線，避免使用連字號造成 PER10010
         const merchantOrderNo = `T${safeTenantId}_${Date.now()}`.replace(/[^A-Za-z0-9_]/g, '').slice(0, 30);
@@ -404,7 +405,7 @@ function createPaymentService(deps) {
             PeriodType: periodType,
             PeriodPoint: periodPoint,
             PeriodStartType: '2',
-            PeriodTimes: '12',
+            PeriodTimes: periodTimes,
             // Period 回跳欄位在不同版本文件語義略有差異，統一導向中轉頁避免回跳混亂
             ReturnURL: backUrlResolved || notifyUrlResolved,
             NotifyURL: notifyUrlResolved,
