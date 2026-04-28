@@ -7945,6 +7945,10 @@ function renderSubscriptionSnapshot(snapshot) {
         ? '待完成授權'
         : mapSubscriptionStatusLabel(snapshot?.status);
     const planText = formatSubscriptionPlanDisplay(snapshot?.planCode, snapshot?.planName);
+    const inferredCycle = snapshot?.billingCycle
+        || (String(snapshot?.planCode || '').toLowerCase().includes('year') ? 'yearly' : '')
+        || (String(snapshot?.planCode || '').toLowerCase().includes('month') ? 'monthly' : '');
+    const billingCycleText = formatBillingCycleLabel(inferredCycle);
     const periodEndText = toReadableDate(snapshot?.periodEnd);
     const remainingDays = getSubscriptionRemainingDays(snapshot?.periodEnd);
     const reports = snapshot?.features?.reports ? '開啟' : '關閉';
@@ -7955,9 +7959,11 @@ function renderSubscriptionSnapshot(snapshot) {
     if (planTextEl) {
         planTextEl.textContent = planText;
     }
-    // 避免與「使用期限」卡片重覆顯示到期時間
-    metaEl.textContent = '';
-    metaEl.style.display = 'none';
+    // 在「目前方案」下方顯示月繳/年繳
+    if (metaEl) {
+        metaEl.textContent = billingCycleText ? `週期：${billingCycleText}` : '';
+        metaEl.style.display = billingCycleText ? '' : 'none';
+    }
     if (statusBadge) {
         const style = isSubscriptionAuthorizationPending(snapshot)
             ? getSubscriptionStatusStyle('trialing')

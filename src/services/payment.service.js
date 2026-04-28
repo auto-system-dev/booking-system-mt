@@ -480,6 +480,42 @@ function createPaymentService(deps) {
         return null;
     }
 
+    function parseNewebpayDateArray(raw) {
+        const candidates = [];
+        if (Array.isArray(raw)) {
+            candidates.push(raw);
+        } else {
+            const text = String(raw || '').trim();
+            if (!text) return [];
+            candidates.push(text);
+            if (text.includes('\\"') || text.includes('\\\\')) {
+                candidates.push(text.replace(/\\"/g, '"').replace(/\\\\/g, '\\'));
+            }
+        }
+
+        for (const item of candidates) {
+            if (Array.isArray(item)) {
+                return item.map((v) => String(v || '').trim()).filter(Boolean);
+            }
+            const t = String(item || '').trim();
+            if (!t) continue;
+            try {
+                const parsed = JSON.parse(t);
+                if (Array.isArray(parsed)) {
+                    return parsed.map((v) => String(v || '').trim()).filter(Boolean);
+                }
+                if (parsed && Array.isArray(parsed.DateArray)) {
+                    return parsed.DateArray.map((v) => String(v || '').trim()).filter(Boolean);
+                }
+            } catch (_) {
+                // ignore
+            }
+            const byComma = t.split(',').map((v) => v.trim()).filter((v) => /^\d{4}-\d{2}-\d{2}$/.test(v));
+            if (byComma.length > 0) return byComma;
+        }
+        return [];
+    }
+
     function resolveTenantIdFromNewebpayPayload(payload = {}) {
         const direct = parseInt(payload.tenant_id || payload.tenantId || payload.TenantId, 10);
         if (Number.isInteger(direct) && direct > 0) return direct;
@@ -1004,12 +1040,39 @@ function createPaymentService(deps) {
             });
             return { duplicate: false, ignored: true, tenantId, eventId };
         }
-        const nextBillingAt = parseNewebpayDateValue(
+        let nextBillingAt = parseNewebpayDateValue(
             resultPayload.NextPeriodDate || resultPayload.NextPeriod || periodPayload.NextPeriodDate || periodPayload.NextPeriod
         );
-        const periodEnd = nextBillingAt || parseNewebpayDateValue(
+        let periodEnd = nextBillingAt || parseNewebpayDateValue(
             resultPayload.PeriodEndDate || resultPayload.PeriodEnd || periodPayload.PeriodEndDate || periodPayload.PeriodEnd
         );
+        if (!nextBillingAt || !periodEnd) {
+            const dateArrayRaw = (
+                resultPayload.DateArray
+                || resultPayload.dateArray
+                || periodPayload.DateArray
+                || periodPayload.dateArray
+            );
+            const dateArray = parseNewebpayDateArray(dateArrayRaw);
+            if (dateArray.length > 0) {
+                const nowMs = Date.now();
+                const parsedDates = dateArray
+                    .map((d) => parseNewebpayDateValue(d))
+                    .filter(Boolean)
+                    .map((iso) => new Date(iso))
+                    .filter((d) => !Number.isNaN(d.getTime()))
+                    .sort((a, b) => a.getTime() - b.getTime());
+                if (parsedDates.length > 0) {
+                    if (!nextBillingAt) {
+                        const future = parsedDates.find((d) => d.getTime() > nowMs) || parsedDates[0];
+                        nextBillingAt = future.toISOString();
+                    }
+                    if (!periodEnd) {
+                        periodEnd = parsedDates[parsedDates.length - 1].toISOString();
+                    }
+                }
+            }
+        }
         const snapshot = await db.updateTenantSubscriptionRecurringState(tenantId, {
             provider: 'newebpay',
             providerSubscriptionId: resultPayload.PeriodNo || resultPayload.periodNo || periodPayload.PeriodNo || periodPayload.periodNo || null,
