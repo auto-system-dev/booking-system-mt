@@ -445,10 +445,15 @@ function createPaymentService(deps) {
         ).toUpperCase();
         const rtnCode = normalizeNewebpayDigitsCode(payload.RtnCode ?? payload.rtnCode);
         const respondCode = normalizeNewebpayDigitsCode(payload.RespondCode ?? payload.respondCode);
+        const message = String(payload.Message ?? payload.message ?? payload.Msg ?? '').trim();
         if (!rawStatus && !rtnCode && !respondCode) return null;
         const isSuccessCode = rtnCode === '1' || rtnCode === '00' || respondCode === '00';
         // 手冊標準：Status=SUCCESS 且銀行回應碼成功(00/1) 才視為啟用
         if (rawStatus.includes('SUCCESS') && isSuccessCode) return 'active';
+        // 建立委託成功回傳有時 Result 無法完整還原，改以明確成功訊息作次判斷（僅限 SUCCESS）
+        if (rawStatus.includes('SUCCESS') && /委託單成立/.test(message) && /首次授權成功|授權成功/.test(message)) {
+            return 'active';
+        }
         if (rawStatus.includes('CANCEL')) return 'canceled';
         if (!rawStatus) return null;
         if (rawStatus) return 'past_due';
@@ -461,13 +466,34 @@ function createPaymentService(deps) {
         ).toUpperCase();
         const rtnCode = normalizeNewebpayDigitsCode(payload.RtnCode ?? payload.rtnCode);
         const respondCode = normalizeNewebpayDigitsCode(payload.RespondCode ?? payload.respondCode);
+        const message = String(payload.Message ?? payload.message ?? payload.Msg ?? '').trim();
         if (!rawStatus && !rtnCode && !respondCode) return null;
         if (rawStatus.includes('SUCCESS') && (rtnCode === '1' || rtnCode === '00' || respondCode === '00')) {
+            return 'success';
+        }
+        if (rawStatus.includes('SUCCESS') && /委託單成立/.test(message) && /首次授權成功|授權成功/.test(message)) {
             return 'success';
         }
         if (!rawStatus) return null;
         if (rawStatus) return 'failed';
         return 'failed';
+    }
+
+    function extractNewebpayFieldFromRawText(raw, fieldName) {
+        const text = String(raw || '');
+        if (!text) return '';
+        const escaped = fieldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const patterns = [
+            new RegExp(`"${escaped}"\\s*:\\s*"([^"]+)"`, 'i'),
+            new RegExp(`"${escaped}"\\s*:\\s*"?([A-Za-z0-9_\\-]+)"?`, 'i'),
+            new RegExp(`${escaped}\\s*=>\\s*"([^"]+)"`, 'i'),
+            new RegExp(`${escaped}\\s*=\\s*([A-Za-z0-9_\\-]+)`, 'i')
+        ];
+        for (const p of patterns) {
+            const m = text.match(p);
+            if (m && String(m[1] || '').trim()) return String(m[1] || '').trim();
+        }
+        return '';
     }
 
     function parseNewebpayDateValue(raw) {
@@ -930,6 +956,19 @@ function createPaymentService(deps) {
             ...(periodPayload && typeof periodPayload === 'object' ? periodPayload : {}),
             ...(resultPayload && typeof resultPayload === 'object' ? resultPayload : {})
         });
+        const rawJoinedText = [
+            JSON.stringify(reqBody || {}),
+            JSON.stringify(periodPayload || {}),
+            JSON.stringify(resultPayload || {})
+        ].join(' ');
+        if (!statusSource.RespondCode && !statusSource.respondCode) {
+            const recoveredRespondCode = extractNewebpayFieldFromRawText(rawJoinedText, 'RespondCode');
+            if (recoveredRespondCode) statusSource.RespondCode = recoveredRespondCode;
+        }
+        if (!statusSource.PeriodNo && !statusSource.periodNo) {
+            const recoveredPeriodNo = extractNewebpayFieldFromRawText(rawJoinedText, 'PeriodNo');
+            if (recoveredPeriodNo) statusSource.PeriodNo = recoveredPeriodNo;
+        }
 
         let tenantId = resolveTenantIdFromNewebpayPayload({
             ...reqBody,
@@ -1044,9 +1083,7 @@ function createPaymentService(deps) {
         const paymentStatus = inferNewebpayPaymentStatus(statusSource);
         const rawFallback = isNewebpayRawFallbackEnabled()
             ? inferNewebpayStatusFromRawText(
-                JSON.stringify(reqBody || {}),
-                JSON.stringify(periodPayload || {}),
-                JSON.stringify(resultPayload || {})
+                rawJoinedText
             )
             : { subscriptionStatus: null, paymentStatus: null };
         const usedRawFallback = (!status && !paymentStatus) && !!(rawFallback.subscriptionStatus || rawFallback.paymentStatus);
