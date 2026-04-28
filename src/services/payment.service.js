@@ -1043,6 +1043,45 @@ function createPaymentService(deps) {
             rawFallbackEnabled: isNewebpayRawFallbackEnabled(),
             usedRawFallback
         });
+        const statusPeriodNo = pickFirstNonEmpty(
+            resultPayload.PeriodNo,
+            resultPayload.periodNo,
+            periodPayload.PeriodNo,
+            periodPayload.periodNo,
+            reqBody.PeriodNo,
+            reqBody.periodNo
+        );
+        const statusTradeNo = pickFirstNonEmpty(
+            resultPayload.TradeNo,
+            resultPayload.tradeNo,
+            periodPayload.TradeNo,
+            periodPayload.tradeNo,
+            reqBody.TradeNo,
+            reqBody.tradeNo
+        );
+        const statusOrderNo = pickFirstNonEmpty(
+            resultPayload.OrderNo,
+            resultPayload.orderNo,
+            periodPayload.OrderNo,
+            periodPayload.orderNo,
+            reqBody.OrderNo,
+            reqBody.orderNo
+        );
+        const hasRecurringReference = !!(statusPeriodNo || statusTradeNo || statusOrderNo);
+        const isDowngradeSignal = resolvedStatus === 'past_due' || resolvedStatus === 'canceled' || resolvedPaymentStatus === 'failed';
+        // 避免把建立委託/參數錯誤類事件（如 PER10010）誤判成訂閱扣款失敗，覆蓋啟用中狀態。
+        if (isDowngradeSignal && !hasRecurringReference) {
+            logPaymentEvent('warn', 'payment.newebpay.subscription.ignored_non_recurring_failure', {
+                requestId: context.requestId || null,
+                tenantId,
+                eventId,
+                rawStatus: String(statusSource?.Status ?? statusSource?.status ?? ''),
+                respondCode: String(statusSource?.RespondCode ?? statusSource?.respondCode ?? ''),
+                result: 'ignored'
+            });
+            return { duplicate: false, ignored: true, tenantId, eventId };
+        }
+
         if (!resolvedStatus && !resolvedPaymentStatus) {
             logPaymentEvent('warn', 'payment.newebpay.subscription.ignored_empty_status', {
                 requestId: context.requestId || null,
