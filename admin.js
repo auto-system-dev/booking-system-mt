@@ -7922,6 +7922,18 @@ function renderSubscriptionNotice(snapshot) {
     noticeEl.style.display = 'none';
 }
 
+function resolveCancelableRecurringReference(snapshot) {
+    const recurring = snapshot?.recurring || {};
+    const provider = String(recurring.provider || '').trim().toLowerCase();
+    const status = String(snapshot?.status || '').trim().toLowerCase();
+    const merOrderNo = String(recurring.providerOrderNo || '').trim();
+    const periodNo = String(recurring.providerSubscriptionId || '').trim();
+    if (provider !== 'newebpay' || status !== 'active' || !merOrderNo || !periodNo) {
+        return null;
+    }
+    return { merOrderNo, periodNo };
+}
+
 function renderSubscriptionSnapshot(snapshot) {
     const planInput = document.getElementById('subscriptionCurrentPlan');
     const planTextEl = document.getElementById('subscriptionPlanText');
@@ -7935,6 +7947,7 @@ function renderSubscriptionSnapshot(snapshot) {
     const statusBadge = document.getElementById('subscriptionStatusBadge');
     const statusTextEl = document.getElementById('subscriptionStatusText');
     const primaryActionBtn = document.getElementById('subscriptionPrimaryActionBtn');
+    const cancelBtn = document.getElementById('subscriptionCancelBtn');
     const statusSelect = document.getElementById('subscriptionStatusSelect');
     const periodEndInput = document.getElementById('subscriptionPeriodEndInput');
     if (!planInput || !metaEl || !featureSummaryInput || !expiryInput || !expiryHint) {
@@ -8055,6 +8068,13 @@ function renderSubscriptionSnapshot(snapshot) {
     if (primaryActionBtn) {
         primaryActionBtn.textContent = getSubscriptionPrimaryActionText(snapshot);
     }
+    if (cancelBtn) {
+        const reference = resolveCancelableRecurringReference(snapshot);
+        cancelBtn.style.display = reference ? 'inline-flex' : 'none';
+        cancelBtn.disabled = false;
+        cancelBtn.style.opacity = '';
+        cancelBtn.style.cursor = '';
+    }
     if (statusSelect) {
         statusSelect.value = String(snapshot?.status || 'active');
     }
@@ -8083,6 +8103,68 @@ async function handleSubscriptionPrimaryAction() {
         return;
     }
     showError('目前無可操作的續約區塊，請重新整理後再試。');
+}
+
+async function handleSubscriptionCancel() {
+    const snapshot = subscriptionFeatureSnapshot || {};
+    const reference = resolveCancelableRecurringReference(snapshot);
+    if (!reference) {
+        showError('目前沒有可取消的藍新定期定額。');
+        return;
+    }
+
+    const confirmed = await appConfirm(
+        '確定要取消目前的自動扣款訂閱嗎？\n\n取消後將停止後續定期扣款，若要恢復需重新授權。'
+    );
+    if (!confirmed) {
+        return;
+    }
+
+    const cancelBtn = document.getElementById('subscriptionCancelBtn');
+    const msgEl = document.getElementById('subscriptionBillingMessage');
+    try {
+        if (cancelBtn) {
+            cancelBtn.disabled = true;
+            cancelBtn.style.opacity = '0.72';
+            cancelBtn.style.cursor = 'not-allowed';
+        }
+        if (msgEl) {
+            msgEl.style.color = '#1e3a8a';
+            msgEl.textContent = '正在送出取消訂閱請求，請稍候...';
+        }
+
+        const response = await adminFetch('/api/subscription/cancel', {
+            method: 'POST',
+            body: JSON.stringify({
+                merOrderNo: reference.merOrderNo,
+                periodNo: reference.periodNo
+            })
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+
+        if (msgEl) {
+            msgEl.style.color = '#166534';
+            msgEl.textContent = '已取消自動扣款，正在同步訂閱狀態...';
+        }
+        showSuccess('已成功送出取消訂閱。');
+        await loadSubscriptionSettings();
+    } catch (error) {
+        const message = String(error?.message || '取消訂閱失敗');
+        if (msgEl) {
+            msgEl.style.color = '#991b1b';
+            msgEl.textContent = '取消訂閱失敗：' + message;
+        }
+        showError('取消訂閱失敗：' + message);
+    } finally {
+        if (cancelBtn) {
+            cancelBtn.disabled = false;
+            cancelBtn.style.opacity = '';
+            cancelBtn.style.cursor = '';
+        }
+    }
 }
 
 function renderSubscriptionPlans(plans, currentPlanCode) {

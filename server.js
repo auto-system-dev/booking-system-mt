@@ -3979,6 +3979,51 @@ app.get('/api/subscription/status', requireAuth, requireTenantContext, async (re
     }
 });
 
+app.post('/api/subscription/cancel', requireAuth, requireTenantContext, checkPermission('settings.edit'), adminLimiter, async (req, res) => {
+    try {
+        const tenantId = req.tenantId;
+        const snapshot = await db.getTenantSubscriptionSnapshot(tenantId);
+        const recurring = snapshot?.recurring || {};
+        const provider = String(recurring.provider || '').trim().toLowerCase();
+        if (provider !== 'newebpay') {
+            return res.status(400).json({ success: false, message: '目前僅支援取消藍新定期定額' });
+        }
+
+        const merOrderNo = String(req.body?.merOrderNo || recurring.providerOrderNo || '').trim();
+        const periodNo = String(req.body?.periodNo || recurring.providerSubscriptionId || '').trim();
+        if (!merOrderNo || !periodNo) {
+            return res.status(400).json({ success: false, message: '缺少藍新定期定額識別資料（MerOrderNo / PeriodNo）' });
+        }
+
+        const gatewayResult = await paymentService.alterNewebpaySubscriptionStatus({
+            tenantId,
+            merOrderNo,
+            periodNo,
+            alterType: 'terminate'
+        });
+
+        const updatedSnapshot = await db.updateTenantSubscriptionRecurringState(tenantId, {
+            provider: 'newebpay',
+            providerSubscriptionId: periodNo,
+            providerOrderNo: merOrderNo,
+            paymentStatus: 'pending',
+            subscriptionStatus: 'canceled'
+        });
+
+        return res.json({
+            success: true,
+            message: '已送出取消訂閱',
+            data: {
+                tenantId,
+                gateway: gatewayResult,
+                snapshot: updatedSnapshot
+            }
+        });
+    } catch (error) {
+        return res.status(400).json({ success: false, message: '取消訂閱失敗: ' + error.message });
+    }
+});
+
 app.get('/api/admin/subscription/plans', requireAuth, requireTenantContext, checkPermission('settings.view'), adminLimiter, async (_req, res) => {
     try {
         const plans = await db.getSubscriptionPlans();
