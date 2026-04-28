@@ -1368,8 +1368,7 @@ function createPaymentService(deps) {
             || ''
         ).trim();
         const isSuccess = normalizedStatus === 'SUCCESS'
-            || normalizedCode === '00'
-            || normalizedCode === '01';
+            || normalizedCode === '00';
         if (!isSuccess) {
             throw new Error(normalizedMessage || normalizedStatus || '修改委託狀態失敗');
         }
@@ -1463,8 +1462,7 @@ function createPaymentService(deps) {
             || ''
         ).trim();
         const isSuccess = normalizedStatus === 'SUCCESS'
-            || normalizedCode === '00'
-            || normalizedCode === '01';
+            || normalizedCode === '00';
         if (!isSuccess) {
             throw new Error(normalizedMessage || normalizedStatus || '修改委託內容失敗');
         }
