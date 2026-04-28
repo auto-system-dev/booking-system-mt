@@ -213,19 +213,25 @@ function createPaymentService(deps) {
     }
 
     function parseNewebpayPeriodPayload(raw) {
-        const text = String(raw || '').trim();
+        const sanitizeJsonText = (value) => {
+            let text = String(value || '');
+            // 去掉常見 BOM / 零寬字元，避免 JSON 開頭判斷失敗
+            text = text.replace(/^[\uFEFF\u200B\u200C\u200D]+/, '').trim();
+            return text;
+        };
+        const text = sanitizeJsonText(raw);
         if (!text) {
             throw new Error('藍新回傳內容為空');
         }
 
         const tryParseEmbeddedJsonObject = (value) => {
-            const source = String(value || '').trim();
+            const source = sanitizeJsonText(value);
             if (!source) return null;
             try {
                 const parsed = JSON.parse(source);
                 if (parsed && typeof parsed === 'object') return parsed;
                 if (typeof parsed === 'string') {
-                    const nested = JSON.parse(parsed);
+                    const nested = JSON.parse(sanitizeJsonText(parsed));
                     if (nested && typeof nested === 'object') return nested;
                 }
             } catch (_) {
@@ -238,7 +244,7 @@ function createPaymentService(deps) {
             if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
             const keys = Object.keys(obj);
             if (keys.length !== 1) return obj;
-            const onlyKey = String(keys[0] || '').trim();
+            const onlyKey = sanitizeJsonText(keys[0]);
             const onlyValue = obj[keys[0]];
             const isEmptyValue = onlyValue == null || String(onlyValue).trim() === '';
             if (!isEmptyValue) return obj;
@@ -546,13 +552,14 @@ function createPaymentService(deps) {
      * 若 multipart 未正確建出 Period 欄位，但某欄位值為藍新 JSON 字串，補上 Period 供後續解析。
      */
     function coerceNewebpaySubscriptionBody(input) {
+        const sanitizeJsonText = (value) => String(value || '').replace(/^[\uFEFF\u200B\u200C\u200D]+/, '').trim();
         const base = input && typeof input === 'object' ? { ...input } : {};
         if (String(base.Period || base.period || '').trim().length > 0) {
             return base;
         }
         for (const [key, val] of Object.entries(base)) {
             if (key === 'tenant_id' || key === 'tenantId' || key === 'TenantId') continue;
-            const s = typeof val === 'string' ? val.trim() : '';
+            const s = typeof val === 'string' ? sanitizeJsonText(val) : '';
             if (!s || s.charAt(0) !== '{') continue;
             try {
                 const parsed = JSON.parse(s);
