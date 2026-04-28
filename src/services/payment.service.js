@@ -969,6 +969,11 @@ function createPaymentService(deps) {
             const recoveredPeriodNo = extractNewebpayFieldFromRawText(rawJoinedText, 'PeriodNo');
             if (recoveredPeriodNo) statusSource.PeriodNo = recoveredPeriodNo;
         }
+        if (!statusSource.MerchantOrderNo && !statusSource.merchantOrderNo) {
+            const recoveredMerchantOrderNo = extractNewebpayFieldFromRawText(rawJoinedText, 'MerchantOrderNo')
+                || extractNewebpayFieldFromRawText(rawJoinedText, 'MerOrderNo');
+            if (recoveredMerchantOrderNo) statusSource.MerchantOrderNo = recoveredMerchantOrderNo;
+        }
 
         let tenantId = resolveTenantIdFromNewebpayPayload({
             ...reqBody,
@@ -1158,12 +1163,16 @@ function createPaymentService(deps) {
             resultPayload.nextAuthDate ||
             resultPayload.NewNextTime ||
             resultPayload.newNextTime ||
+            resultPayload.AuthDate ||
+            resultPayload.authDate ||
             resultPayload.NextPeriodDate ||
             resultPayload.NextPeriod ||
             periodPayload.NextAuthDate ||
             periodPayload.nextAuthDate ||
             periodPayload.NewNextTime ||
             periodPayload.newNextTime ||
+            periodPayload.AuthDate ||
+            periodPayload.authDate ||
             periodPayload.NextPeriodDate ||
             periodPayload.NextPeriod
         );
@@ -1178,11 +1187,16 @@ function createPaymentService(deps) {
             periodPayload.NewNextTime
         );
         if (!nextBillingAt || !periodEnd) {
+            const recoveredDateArrayFromRaw = extractNewebpayFieldFromRawText(rawJoinedText, 'DateArray')
+                || extractNewebpayFieldFromRawText(rawJoinedText, 'scheduleDates');
             const dateArrayRaw = (
                 resultPayload.DateArray
                 || resultPayload.dateArray
                 || periodPayload.DateArray
                 || periodPayload.dateArray
+                || statusSource.DateArray
+                || statusSource.dateArray
+                || recoveredDateArrayFromRaw
             );
             const dateArray = parseNewebpayDateArray(dateArrayRaw);
             if (dateArray.length > 0) {
@@ -1204,18 +1218,32 @@ function createPaymentService(deps) {
                 }
             }
         }
+        const providerSubscriptionIdCanonical = pickFirstNonEmpty(
+            resultPayload.PeriodNo,
+            resultPayload.periodNo,
+            periodPayload.PeriodNo,
+            periodPayload.periodNo,
+            statusSource.PeriodNo,
+            statusSource.periodNo,
+            extractNewebpayFieldFromRawText(rawJoinedText, 'PeriodNo')
+        );
+        const providerOrderNoCanonical = pickFirstNonEmpty(
+            resultPayload.MerchantOrderNo,
+            resultPayload.MerchAntOrderNo,
+            resultPayload.MerOrderNo,
+            periodPayload.MerchantOrderNo,
+            periodPayload.MerchAntOrderNo,
+            periodPayload.MerOrderNo,
+            statusSource.MerchantOrderNo,
+            statusSource.merchantOrderNo,
+            extractNewebpayFieldFromRawText(rawJoinedText, 'MerchantOrderNo'),
+            extractNewebpayFieldFromRawText(rawJoinedText, 'MerOrderNo')
+        );
         const snapshot = await db.updateTenantSubscriptionRecurringState(tenantId, {
             provider: 'newebpay',
-            providerSubscriptionId: resultPayload.PeriodNo || resultPayload.periodNo || periodPayload.PeriodNo || periodPayload.periodNo || null,
+            providerSubscriptionId: providerSubscriptionIdCanonical || null,
             providerCustomerId: resultPayload.PayerEmail || resultPayload.Email || periodPayload.PayerEmail || periodPayload.Email || null,
-            providerOrderNo:
-                resultPayload.MerchantOrderNo ||
-                resultPayload.MerchAntOrderNo ||
-                resultPayload.MerOrderNo ||
-                periodPayload.MerchantOrderNo ||
-                periodPayload.MerchAntOrderNo ||
-                periodPayload.MerOrderNo ||
-                null,
+            providerOrderNo: providerOrderNoCanonical || null,
             paymentStatus: resolvedPaymentStatus,
             subscriptionStatus: resolvedStatus,
             nextBillingAt,
