@@ -553,6 +553,11 @@ function createPaymentController(deps) {
                 customerEmail,
                 customerName
             });
+            // 記錄目前使用者選擇的方案（不改變狀態與使用期限），
+            // 避免授權完成後 UI 仍顯示舊方案名稱。
+            if (planCode && typeof db.updateLatestSubscriptionPlan === 'function') {
+                await db.updateLatestSubscriptionPlan(tenantId, String(planCode).trim());
+            }
             // 不在授權前提前切換訂閱狀態；僅記錄待授權的 provider_order_no，
             // 由藍新 callback/webhook 確認成功後再切換為 active，避免「返回商店」時誤顯示試用中。
             await db.updateTenantSubscriptionRecurringState(tenantId, {

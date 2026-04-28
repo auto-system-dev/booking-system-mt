@@ -8355,6 +8355,52 @@ async function setTenantSubscriptionPlan(tenantId, planCode, status = 'active') 
     return getTenantSubscriptionSnapshot(safeTenantId);
 }
 
+async function updateLatestSubscriptionPlan(tenantId, planCode) {
+    const safeTenantId = assertTenantScope(tenantId, 'updateLatestSubscriptionPlan');
+    const safePlanCode = String(planCode || '').trim();
+    if (!safePlanCode) {
+        throw new Error('缺少 planCode');
+    }
+
+    const plan = await queryOne(
+        usePostgreSQL
+            ? `SELECT id, billing_cycle FROM plans WHERE code = $1 AND is_active = 1`
+            : `SELECT id, billing_cycle FROM plans WHERE code = ? AND is_active = 1`,
+        [safePlanCode]
+    );
+    if (!plan) {
+        throw new Error(`找不到方案: ${safePlanCode}`);
+    }
+
+    const latest = await queryOne(
+        usePostgreSQL
+            ? `SELECT id FROM subscriptions WHERE tenant_id = $1 ORDER BY id DESC LIMIT 1`
+            : `SELECT id FROM subscriptions WHERE tenant_id = ? ORDER BY id DESC LIMIT 1`,
+        [safeTenantId]
+    );
+    if (!latest?.id) {
+        await seedSubscriptionMvpDefaults();
+        return updateLatestSubscriptionPlan(safeTenantId, safePlanCode);
+    }
+
+    await query(
+        usePostgreSQL
+            ? `UPDATE subscriptions
+               SET plan_id = $1::int,
+                   billing_cycle = $2::varchar,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = $3::int`
+            : `UPDATE subscriptions
+               SET plan_id = ?,
+                   billing_cycle = ?,
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = ?`,
+        [plan.id, plan.billing_cycle, latest.id]
+    );
+
+    return getTenantSubscriptionSnapshot(safeTenantId);
+}
+
 async function updateLatestSubscriptionStatus(tenantId, status, nextPeriodEnd = null) {
     const safeTenantId = assertTenantScope(tenantId, 'updateLatestSubscriptionStatus');
     const safeStatus = ['trialing', 'active', 'past_due', 'canceled'].includes(String(status || '').trim())
@@ -10905,6 +10951,7 @@ module.exports = {
     getTenantSubscriptionSnapshot,
     runSubscriptionDailyCheck,
     setTenantSubscriptionPlan,
+    updateLatestSubscriptionPlan,
     updateLatestSubscriptionStatus,
     updateTenantSubscriptionRecurringState,
     resolveTenantIdByRecurringReference,
