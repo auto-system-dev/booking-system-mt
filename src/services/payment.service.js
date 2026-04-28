@@ -634,6 +634,55 @@ function createPaymentService(deps) {
         return input;
     }
 
+    function forceNormalizeNewebpayStatusSource(input) {
+        const source = (input && typeof input === 'object' && !Array.isArray(input)) ? input : {};
+        const hasDirectStatus = (
+            source.Status != null
+            || source.status != null
+            || source.RtnCode != null
+            || source.rtnCode != null
+            || source.RespondCode != null
+            || source.respondCode != null
+            || source.Message != null
+            || source.message != null
+            || source.Msg != null
+        );
+        if (hasDirectStatus) return source;
+
+        const keys = Object.keys(source);
+        if (keys.length !== 1) return source;
+
+        const keyText = String(keys[0] || '');
+        const valueText = String(source[keys[0]] || '');
+        const candidates = [keyText, valueText, `${keyText}${valueText}`];
+
+        const extractObjectText = (text) => {
+            const raw = String(text || '').replace(/^[\uFEFF\u200B\u200C\u200D]+/, '').trim();
+            if (!raw) return '';
+            const m = raw.match(/\{[\s\S]*\}/);
+            return m ? m[0] : raw;
+        };
+
+        const tryDecode = (text) => {
+            let t = extractObjectText(text);
+            if (!t) return null;
+            for (let i = 0; i < 2; i += 1) {
+                const recovered = tryParseNewebpayPayloadWithoutDecrypt(t);
+                if (recovered && typeof recovered === 'object' && !Array.isArray(recovered)) {
+                    return recovered;
+                }
+                t = t.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+            }
+            return null;
+        };
+
+        for (const c of candidates) {
+            const decoded = tryDecode(c);
+            if (decoded) return decoded;
+        }
+        return source;
+    }
+
     async function handleNewebpaySubscriptionWebhook(rawPayload = {}, context = {}) {
         const reqBody = coerceNewebpaySubscriptionBody(rawPayload);
         const tenantHint = resolveTenantIdFromNewebpayPayload(reqBody)
@@ -773,10 +822,10 @@ function createPaymentService(deps) {
 
         const resultPayload = extractNewebpayPeriodResultForNested(periodPayload);
         // 推斷訂閱狀態時必須合併頂層與 Result 內層：藍新常把 Status 放在外層，細節與 RespondCode 在內層
-        const statusSource = {
+        const statusSource = forceNormalizeNewebpayStatusSource({
             ...(periodPayload && typeof periodPayload === 'object' ? periodPayload : {}),
             ...(resultPayload && typeof resultPayload === 'object' ? resultPayload : {})
-        };
+        });
 
         let tenantId = resolveTenantIdFromNewebpayPayload({
             ...reqBody,
