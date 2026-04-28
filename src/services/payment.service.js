@@ -367,8 +367,9 @@ function createPaymentService(deps) {
             periodPoint = String(safeDay).padStart(2, '0');
         }
         const periodAmt = String(amount);
-        // 一般訂閱制預設為長期續扣；若需停止續扣，改由使用者取消訂閱（terminate）。
-        const periodTimes = billingCycle === 'yearly' ? '99' : '999';
+        // 藍新授權期數上限為 99，月繳/年繳都以 99 作為長期續扣預設；
+        // 若需提前停止，改由使用者取消訂閱（terminate）。
+        const periodTimes = '99';
         const ts = Math.floor(Date.now() / 1000);
         // 藍新 MerOrderNo 僅允許英數與底線，避免使用連字號造成 PER10010
         const merchantOrderNo = `T${safeTenantId}_${Date.now()}`.replace(/[^A-Za-z0-9_]/g, '').slice(0, 30);
