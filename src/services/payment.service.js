@@ -363,7 +363,9 @@ function createPaymentService(deps) {
         const ts = Math.floor(Date.now() / 1000);
         // 藍新 MerOrderNo 僅允許英數與底線，避免使用連字號造成 PER10010
         const merchantOrderNo = `T${safeTenantId}_${Date.now()}`.replace(/[^A-Za-z0-9_]/g, '').slice(0, 30);
-        const itemDesc = `訂閱方案-${selectedPlan.code}`;
+        const planName = String(selectedPlan.name || selectedPlan.code || '訂閱方案').trim();
+        const cycleLabel = billingCycle === 'yearly' ? '年繳' : '月繳';
+        const itemDesc = `${planName}（${cycleLabel}）`;
         const version = '1.5';
         const actionUrl = config.isProduction
             ? 'https://core.newebpay.com/MPG/period'
