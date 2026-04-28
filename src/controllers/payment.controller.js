@@ -587,7 +587,25 @@ function createPaymentController(deps) {
                 periodNo,
                 alterType
             });
-            return res.json({ success: true, data });
+            const safeAction = String(alterType || '').trim().toLowerCase();
+            let nextStatus = null;
+            let paymentStatus = 'pending';
+            if (safeAction === 'restart') {
+                nextStatus = 'active';
+                paymentStatus = 'success';
+            } else if (safeAction === 'suspend') {
+                nextStatus = 'past_due';
+            } else if (safeAction === 'terminate') {
+                nextStatus = 'canceled';
+            }
+            const snapshot = await db.updateTenantSubscriptionRecurringState(tenantId, {
+                provider: 'newebpay',
+                providerSubscriptionId: periodNo ? String(periodNo).trim() : null,
+                providerOrderNo: merOrderNo ? String(merOrderNo).trim() : null,
+                paymentStatus,
+                subscriptionStatus: nextStatus
+            });
+            return res.json({ success: true, data, snapshot });
         } catch (error) {
             return res.status(400).json({ success: false, message: '修改藍新定期定額狀態失敗: ' + error.message });
         }
