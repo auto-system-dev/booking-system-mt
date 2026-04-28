@@ -553,6 +553,10 @@ function createPaymentController(deps) {
                 customerEmail,
                 customerName
             });
+            // 先切換到使用者選擇方案（trialing），避免授權成功後方案仍顯示舊值。
+            if (planCode) {
+                await db.setTenantSubscriptionPlan(tenantId, String(planCode).trim(), 'trialing');
+            }
             await db.updateTenantSubscriptionRecurringState(tenantId, {
                 provider: 'newebpay',
                 providerCustomerId: customerEmail || null,

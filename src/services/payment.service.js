@@ -486,6 +486,9 @@ function createPaymentService(deps) {
         const patterns = [
             new RegExp(`"${escaped}"\\s*:\\s*"([^"]+)"`, 'i'),
             new RegExp(`"${escaped}"\\s*:\\s*"?([A-Za-z0-9_\\-]+)"?`, 'i'),
+            // 兼容 JSON.stringify 後的跳脫樣式：\\\"PeriodNo\\\":\\\"Pxxxx\\\"
+            new RegExp(`\\\\+\"${escaped}\\\\+\"\\s*:\\s*\\\\+\"([^\"\\\\]+)\\\\+\"`, 'i'),
+            new RegExp(`\\\\+\"${escaped}\\\\+\"\\s*:\\s*\\\\+\"?([A-Za-z0-9_\\-]+)`, 'i'),
             new RegExp(`${escaped}\\s*=>\\s*"([^"]+)"`, 'i'),
             new RegExp(`${escaped}\\s*=\\s*([A-Za-z0-9_\\-]+)`, 'i')
         ];
@@ -1216,6 +1219,19 @@ function createPaymentService(deps) {
                         periodEnd = parsedDates[parsedDates.length - 1].toISOString();
                     }
                 }
+            }
+        }
+        if (!periodEnd && resolvedStatus === 'active' && typeof db.getTenantSubscriptionSnapshot === 'function') {
+            try {
+                const currentSnapshot = await db.getTenantSubscriptionSnapshot(tenantId);
+                const cycle = String(currentSnapshot?.billingCycle || '').toLowerCase();
+                const base = new Date();
+                if (cycle === 'yearly' || cycle === 'year') base.setFullYear(base.getFullYear() + 1);
+                else base.setMonth(base.getMonth() + 1);
+                periodEnd = base.toISOString();
+                if (!nextBillingAt) nextBillingAt = periodEnd;
+            } catch (_) {
+                // ignore period fallback failure
             }
         }
         const providerSubscriptionIdCanonical = pickFirstNonEmpty(
