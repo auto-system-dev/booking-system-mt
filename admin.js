@@ -8117,6 +8117,11 @@ function renderSubscriptionSnapshot(snapshot) {
 async function handleSubscriptionPrimaryAction() {
     const billingBlock = document.getElementById('subscriptionBillingBlock');
     const adminControls = document.getElementById('subscriptionAdminControls');
+    const msgEl = document.getElementById('subscriptionBillingMessage');
+    if (msgEl) {
+        msgEl.style.color = '#475569';
+        msgEl.textContent = '點擊後將前往藍新授權頁完成自動扣款設定；完成後會回到後台並由系統自動更新狀態。';
+    }
     if (billingBlock && billingBlock.style.display === 'none') {
         billingBlock.style.display = 'block';
     }
@@ -8172,15 +8177,19 @@ async function handleSubscriptionCancel() {
             })
         });
         const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.success) {
-            throw new Error(result.message || `HTTP ${response.status}`);
+        const rawMessage = String(result?.message || '').trim();
+        const alreadyTerminated = rawMessage.includes('終止狀態') && rawMessage.includes('無法重複終止');
+        if ((!response.ok || !result.success) && !alreadyTerminated) {
+            throw new Error(rawMessage || `HTTP ${response.status}`);
         }
 
         if (msgEl) {
             msgEl.style.color = '#166534';
-            msgEl.textContent = '已取消自動扣款，正在同步訂閱狀態...';
+            msgEl.textContent = alreadyTerminated
+                ? '目前已是取消狀態，正在同步訂閱資訊...'
+                : '已取消自動扣款，正在同步訂閱狀態...';
         }
-        showSuccess('已成功送出取消訂閱。');
+        showSuccess(alreadyTerminated ? '目前已是取消狀態。' : '已成功送出取消訂閱。');
         await loadSubscriptionSettings();
     } catch (error) {
         const message = String(error?.message || '取消訂閱失敗');
