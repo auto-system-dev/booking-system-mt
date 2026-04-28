@@ -7961,7 +7961,7 @@ function renderSubscriptionSnapshot(snapshot) {
     }
     // 在「目前方案」下方顯示月繳/年繳
     if (metaEl) {
-        metaEl.textContent = billingCycleText ? `週期：${billingCycleText}` : '';
+        metaEl.textContent = billingCycleText || '';
         metaEl.style.display = billingCycleText ? '' : 'none';
     }
     if (statusBadge) {
