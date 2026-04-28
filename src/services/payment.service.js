@@ -759,7 +759,7 @@ function createPaymentService(deps) {
     }
 
     function isNewebpayRawFallbackEnabled() {
-        const v = String(processEnv.NEWEBPAY_ENABLE_RAW_FALLBACK || 'true').trim().toLowerCase();
+        const v = String(processEnv.NEWEBPAY_ENABLE_RAW_FALLBACK || 'false').trim().toLowerCase();
         return v !== 'false' && v !== '0' && v !== 'off';
     }
 
