@@ -683,6 +683,34 @@ function createPaymentService(deps) {
         return source;
     }
 
+    function inferNewebpayStatusFromRawText(...parts) {
+        const joined = parts
+            .map((p) => String(p || ''))
+            .filter((p) => p.trim().length > 0)
+            .join(' ');
+        if (!joined.trim()) return { subscriptionStatus: null, paymentStatus: null };
+
+        // 不依賴 JSON parse，直接掃描原始字串特徵，避免被奇怪包裝卡死。
+        const hasSuccessStatus = /"Status"\s*:\s*"SUCCESS"/i.test(joined) || /Status\s*=\s*SUCCESS/i.test(joined);
+        const hasSuccessCode = /"RespondCode"\s*:\s*"?0{1,2}"?/i.test(joined)
+            || /"RtnCode"\s*:\s*"?0{1,2}"?/i.test(joined)
+            || /RespondCode\s*=\s*0{1,2}/i.test(joined)
+            || /RtnCode\s*=\s*0{1,2}/i.test(joined);
+        const hasFailedStatus = /"Status"\s*:\s*"FAILED"/i.test(joined) || /Status\s*=\s*FAILED/i.test(joined);
+        const hasCancelStatus = /"Status"\s*:\s*"CANCEL/i.test(joined) || /Status\s*=\s*CANCEL/i.test(joined);
+
+        if (hasSuccessStatus || hasSuccessCode) {
+            return { subscriptionStatus: 'active', paymentStatus: 'success' };
+        }
+        if (hasCancelStatus) {
+            return { subscriptionStatus: 'canceled', paymentStatus: 'failed' };
+        }
+        if (hasFailedStatus) {
+            return { subscriptionStatus: 'past_due', paymentStatus: 'failed' };
+        }
+        return { subscriptionStatus: null, paymentStatus: null };
+    }
+
     async function handleNewebpaySubscriptionWebhook(rawPayload = {}, context = {}) {
         const reqBody = coerceNewebpaySubscriptionBody(rawPayload);
         const tenantHint = resolveTenantIdFromNewebpayPayload(reqBody)
@@ -938,6 +966,13 @@ function createPaymentService(deps) {
 
         const status = inferNewebpaySubscriptionStatus(statusSource);
         const paymentStatus = inferNewebpayPaymentStatus(statusSource);
+        const rawFallback = inferNewebpayStatusFromRawText(
+            JSON.stringify(reqBody || {}),
+            JSON.stringify(periodPayload || {}),
+            JSON.stringify(resultPayload || {})
+        );
+        const resolvedStatus = status || rawFallback.subscriptionStatus || null;
+        const resolvedPaymentStatus = paymentStatus || rawFallback.paymentStatus || null;
         logPaymentEvent('info', 'payment.newebpay.subscription.status_debug', {
             requestId: context.requestId || null,
             tenantId,
@@ -946,10 +981,12 @@ function createPaymentService(deps) {
             rtnCode: String(statusSource?.RtnCode ?? statusSource?.rtnCode ?? ''),
             respondCode: String(statusSource?.RespondCode ?? statusSource?.respondCode ?? ''),
             message: String(statusSource?.Message ?? statusSource?.message ?? statusSource?.Msg ?? ''),
-            inferredSubscriptionStatus: status || null,
-            inferredPaymentStatus: paymentStatus || null
+            inferredSubscriptionStatus: resolvedStatus,
+            inferredPaymentStatus: resolvedPaymentStatus,
+            rawFallbackSubscriptionStatus: rawFallback.subscriptionStatus,
+            rawFallbackPaymentStatus: rawFallback.paymentStatus
         });
-        if (!status && !paymentStatus) {
+        if (!resolvedStatus && !resolvedPaymentStatus) {
             logPaymentEvent('warn', 'payment.newebpay.subscription.ignored_empty_status', {
                 requestId: context.requestId || null,
                 tenantId,
@@ -977,8 +1014,8 @@ function createPaymentService(deps) {
                 periodPayload.MerchAntOrderNo ||
                 periodPayload.MerOrderNo ||
                 null,
-            paymentStatus,
-            subscriptionStatus: status,
+            paymentStatus: resolvedPaymentStatus,
+            subscriptionStatus: resolvedStatus,
             nextBillingAt,
             nextPeriodEnd: periodEnd
         });
@@ -986,10 +1023,10 @@ function createPaymentService(deps) {
             requestId: context.requestId || null,
             tenantId,
             eventId,
-            status,
+            status: resolvedStatus,
             result: 'ok'
         });
-        return { duplicate: false, tenantId, eventId, status, snapshot };
+        return { duplicate: false, tenantId, eventId, status: resolvedStatus, snapshot };
     }
 
     async function alterNewebpaySubscriptionStatus(params = {}) {
