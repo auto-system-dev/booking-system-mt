@@ -506,6 +506,11 @@ function createPaymentService(deps) {
         if (!Number.isNaN(parsed.getTime())) {
             return parsed.toISOString();
         }
+        const datetimeCompact = text.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/);
+        if (datetimeCompact) {
+            const dt = new Date(`${datetimeCompact[1]}-${datetimeCompact[2]}-${datetimeCompact[3]}T${datetimeCompact[4]}:${datetimeCompact[5]}:${datetimeCompact[6]}+08:00`);
+            if (!Number.isNaN(dt.getTime())) return dt.toISOString();
+        }
         const compact = text.match(/^(\d{4})(\d{2})(\d{2})$/);
         if (compact) {
             const dt = new Date(`${compact[1]}-${compact[2]}-${compact[3]}T00:00:00+08:00`);
@@ -1223,7 +1228,7 @@ function createPaymentService(deps) {
             }
         }
         if (resolvedStatus === 'active' && nextBillingAt) {
-            // 定期扣款啟用中時，到期日期對齊下一次扣款日，符合營運判讀（月繳約 +30 天）
+            // 以藍新排程為準：下次扣款日期直接採用 NextAuthDate/DateArray 推導結果
             periodEnd = nextBillingAt;
         }
         if (!periodEnd && resolvedStatus === 'active' && typeof db.getTenantSubscriptionSnapshot === 'function') {
