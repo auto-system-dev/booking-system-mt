@@ -836,6 +836,17 @@ function createPaymentService(deps) {
 
         const status = inferNewebpaySubscriptionStatus(statusSource);
         const paymentStatus = inferNewebpayPaymentStatus(statusSource);
+        logPaymentEvent('info', 'payment.newebpay.subscription.status_debug', {
+            requestId: context.requestId || null,
+            tenantId,
+            statusKeys: Object.keys(statusSource || {}),
+            rawStatus: String(statusSource?.Status ?? statusSource?.status ?? ''),
+            rtnCode: String(statusSource?.RtnCode ?? statusSource?.rtnCode ?? ''),
+            respondCode: String(statusSource?.RespondCode ?? statusSource?.respondCode ?? ''),
+            message: String(statusSource?.Message ?? statusSource?.message ?? statusSource?.Msg ?? ''),
+            inferredSubscriptionStatus: status || null,
+            inferredPaymentStatus: paymentStatus || null
+        });
         if (!status && !paymentStatus) {
             logPaymentEvent('warn', 'payment.newebpay.subscription.ignored_empty_status', {
                 requestId: context.requestId || null,
