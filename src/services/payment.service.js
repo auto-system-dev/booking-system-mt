@@ -445,23 +445,28 @@ function createPaymentService(deps) {
         ).toUpperCase();
         const rtnCode = normalizeNewebpayDigitsCode(payload.RtnCode ?? payload.rtnCode);
         const respondCode = normalizeNewebpayDigitsCode(payload.RespondCode ?? payload.respondCode);
-        const message = String(payload.Message ?? payload.message ?? payload.Msg ?? '').trim();
-        if (!rawStatus && !rtnCode && !respondCode && !message) return null;
+        if (!rawStatus && !rtnCode && !respondCode) return null;
         const isSuccessCode = rtnCode === '1' || rtnCode === '00' || respondCode === '00';
-        const isSuccessMessage = message.includes('授權成功') || message.toUpperCase().includes('SUCCESS');
-        if (rawStatus.includes('SUCCESS') || isSuccessCode || isSuccessMessage) return 'active';
+        // 手冊標準：Status=SUCCESS 且銀行回應碼成功(00/1) 才視為啟用
+        if (rawStatus.includes('SUCCESS') && isSuccessCode) return 'active';
         if (rawStatus.includes('CANCEL')) return 'canceled';
+        if (!rawStatus) return null;
+        if (rawStatus) return 'past_due';
         return 'past_due';
     }
 
     function inferNewebpayPaymentStatus(payload = {}) {
+        const rawStatus = String(
+            payload.Status ?? payload.status ?? payload.PeriodStatus ?? payload.periodStatus ?? ''
+        ).toUpperCase();
         const rtnCode = normalizeNewebpayDigitsCode(payload.RtnCode ?? payload.rtnCode);
         const respondCode = normalizeNewebpayDigitsCode(payload.RespondCode ?? payload.respondCode);
-        const message = String(payload.Message ?? payload.message ?? payload.Msg ?? '').trim();
-        if (!rtnCode && !respondCode && !message) return null;
-        if (rtnCode === '1' || rtnCode === '00' || respondCode === '00' || message.includes('授權成功')) {
+        if (!rawStatus && !rtnCode && !respondCode) return null;
+        if (rawStatus.includes('SUCCESS') && (rtnCode === '1' || rtnCode === '00' || respondCode === '00')) {
             return 'success';
         }
+        if (!rawStatus) return null;
+        if (rawStatus) return 'failed';
         return 'failed';
     }
 
@@ -753,6 +758,11 @@ function createPaymentService(deps) {
         return { subscriptionStatus: null, paymentStatus: null };
     }
 
+    function isNewebpayRawFallbackEnabled() {
+        const v = String(processEnv.NEWEBPAY_ENABLE_RAW_FALLBACK || 'true').trim().toLowerCase();
+        return v !== 'false' && v !== '0' && v !== 'off';
+    }
+
     async function handleNewebpaySubscriptionWebhook(rawPayload = {}, context = {}) {
         const reqBody = coerceNewebpaySubscriptionBody(rawPayload);
         const tenantHint = resolveTenantIdFromNewebpayPayload(reqBody)
@@ -1008,11 +1018,13 @@ function createPaymentService(deps) {
 
         const status = inferNewebpaySubscriptionStatus(statusSource);
         const paymentStatus = inferNewebpayPaymentStatus(statusSource);
-        const rawFallback = inferNewebpayStatusFromRawText(
-            JSON.stringify(reqBody || {}),
-            JSON.stringify(periodPayload || {}),
-            JSON.stringify(resultPayload || {})
-        );
+        const rawFallback = isNewebpayRawFallbackEnabled()
+            ? inferNewebpayStatusFromRawText(
+                JSON.stringify(reqBody || {}),
+                JSON.stringify(periodPayload || {}),
+                JSON.stringify(resultPayload || {})
+            )
+            : { subscriptionStatus: null, paymentStatus: null };
         const usedRawFallback = (!status && !paymentStatus) && !!(rawFallback.subscriptionStatus || rawFallback.paymentStatus);
         const resolvedStatus = status || rawFallback.subscriptionStatus || null;
         const resolvedPaymentStatus = paymentStatus || rawFallback.paymentStatus || null;
@@ -1028,6 +1040,7 @@ function createPaymentService(deps) {
             inferredPaymentStatus: resolvedPaymentStatus,
             rawFallbackSubscriptionStatus: rawFallback.subscriptionStatus,
             rawFallbackPaymentStatus: rawFallback.paymentStatus,
+            rawFallbackEnabled: isNewebpayRawFallbackEnabled(),
             usedRawFallback
         });
         if (!resolvedStatus && !resolvedPaymentStatus) {
@@ -1041,10 +1054,28 @@ function createPaymentService(deps) {
             return { duplicate: false, ignored: true, tenantId, eventId };
         }
         let nextBillingAt = parseNewebpayDateValue(
-            resultPayload.NextPeriodDate || resultPayload.NextPeriod || periodPayload.NextPeriodDate || periodPayload.NextPeriod
+            resultPayload.NextAuthDate ||
+            resultPayload.nextAuthDate ||
+            resultPayload.NewNextTime ||
+            resultPayload.newNextTime ||
+            resultPayload.NextPeriodDate ||
+            resultPayload.NextPeriod ||
+            periodPayload.NextAuthDate ||
+            periodPayload.nextAuthDate ||
+            periodPayload.NewNextTime ||
+            periodPayload.newNextTime ||
+            periodPayload.NextPeriodDate ||
+            periodPayload.NextPeriod
         );
         let periodEnd = nextBillingAt || parseNewebpayDateValue(
-            resultPayload.PeriodEndDate || resultPayload.PeriodEnd || periodPayload.PeriodEndDate || periodPayload.PeriodEnd
+            resultPayload.PeriodEndDate ||
+            resultPayload.PeriodEnd ||
+            resultPayload.NextAuthDate ||
+            resultPayload.NewNextTime ||
+            periodPayload.PeriodEndDate ||
+            periodPayload.PeriodEnd ||
+            periodPayload.NextAuthDate ||
+            periodPayload.NewNextTime
         );
         if (!nextBillingAt || !periodEnd) {
             const dateArrayRaw = (
