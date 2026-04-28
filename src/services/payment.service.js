@@ -696,10 +696,16 @@ function createPaymentService(deps) {
             || /"RtnCode"\s*:\s*"?0{1,2}"?/i.test(joined)
             || /RespondCode\s*=\s*0{1,2}/i.test(joined)
             || /RtnCode\s*=\s*0{1,2}/i.test(joined);
+        const hasReference = /"PeriodNo"\s*:\s*"[^"]+"/i.test(joined)
+            || /"MerchantOrderNo"\s*:\s*"[^"]+"/i.test(joined)
+            || /"MerOrderNo"\s*:\s*"[^"]+"/i.test(joined)
+            || /PeriodNo\s*=\s*[A-Za-z0-9_]+/i.test(joined)
+            || /MerchantOrderNo\s*=\s*[A-Za-z0-9_]+/i.test(joined)
+            || /MerOrderNo\s*=\s*[A-Za-z0-9_]+/i.test(joined);
         const hasFailedStatus = /"Status"\s*:\s*"FAILED"/i.test(joined) || /Status\s*=\s*FAILED/i.test(joined);
         const hasCancelStatus = /"Status"\s*:\s*"CANCEL/i.test(joined) || /Status\s*=\s*CANCEL/i.test(joined);
 
-        if (hasSuccessStatus || hasSuccessCode) {
+        if (hasSuccessStatus && hasSuccessCode && hasReference) {
             return { subscriptionStatus: 'active', paymentStatus: 'success' };
         }
         if (hasCancelStatus) {
@@ -971,6 +977,7 @@ function createPaymentService(deps) {
             JSON.stringify(periodPayload || {}),
             JSON.stringify(resultPayload || {})
         );
+        const usedRawFallback = (!status && !paymentStatus) && !!(rawFallback.subscriptionStatus || rawFallback.paymentStatus);
         const resolvedStatus = status || rawFallback.subscriptionStatus || null;
         const resolvedPaymentStatus = paymentStatus || rawFallback.paymentStatus || null;
         logPaymentEvent('info', 'payment.newebpay.subscription.status_debug', {
@@ -984,7 +991,8 @@ function createPaymentService(deps) {
             inferredSubscriptionStatus: resolvedStatus,
             inferredPaymentStatus: resolvedPaymentStatus,
             rawFallbackSubscriptionStatus: rawFallback.subscriptionStatus,
-            rawFallbackPaymentStatus: rawFallback.paymentStatus
+            rawFallbackPaymentStatus: rawFallback.paymentStatus,
+            usedRawFallback
         });
         if (!resolvedStatus && !resolvedPaymentStatus) {
             logPaymentEvent('warn', 'payment.newebpay.subscription.ignored_empty_status', {
