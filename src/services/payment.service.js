@@ -885,17 +885,35 @@ function createPaymentService(deps) {
             const pp = periodObj && typeof periodObj === 'object' ? periodObj : {};
             let inner = pp.Result;
             if (typeof inner === 'string') {
-                try {
-                    inner = JSON.parse(inner);
-                } catch (_) {
-                    inner = undefined;
+                const candidates = [inner];
+                const trimmed = String(inner || '').trim();
+                if (
+                    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+                    || (trimmed.startsWith("'") && trimmed.endsWith("'"))
+                ) {
+                    candidates.push(trimmed.slice(1, -1));
+                }
+                candidates.push(trimmed.replace(/\\"/g, '"').replace(/\\\\/g, '\\'));
+                for (const candidate of candidates) {
+                    try {
+                        const parsed = JSON.parse(String(candidate || '').trim());
+                        inner = parsed;
+                        if (typeof inner === 'string') {
+                            // Result 可能是被包了兩層字串，繼續嘗試展開
+                            const nested = JSON.parse(String(inner || '').trim());
+                            inner = nested;
+                        }
+                        break;
+                    } catch (_) {
+                        // try next candidate
+                    }
                 }
             }
             if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
-                return inner;
+                return recoverSingleJsonKeyObject(inner);
             }
             if (Array.isArray(inner) && inner.length > 0 && inner[0] && typeof inner[0] === 'object' && !Array.isArray(inner[0])) {
-                return inner[0];
+                return recoverSingleJsonKeyObject(inner[0]);
             }
             return {};
         }
