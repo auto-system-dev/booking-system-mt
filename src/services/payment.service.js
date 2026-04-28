@@ -235,7 +235,14 @@ function createPaymentService(deps) {
                     if (nested && typeof nested === 'object') return nested;
                 }
             } catch (_) {
-                // ignore
+                // 兼容被跳脫過一次的 JSON 文字：{\"Status\":\"SUCCESS\"...}
+                try {
+                    const unescaped = source.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                    const recovered = JSON.parse(unescaped);
+                    if (recovered && typeof recovered === 'object') return recovered;
+                } catch (__err) {
+                    // ignore
+                }
             }
             return null;
         };
