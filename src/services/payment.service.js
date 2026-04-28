@@ -415,12 +415,25 @@ function createPaymentService(deps) {
         return digest === tradeSha;
     }
 
+    /**
+     * 藍新回傳碼可能是字串 "00" 或數字 0；讀取時必須用 ??，不可用 ||（0 會被當成 falsy）。
+     * 僅將「單一數字」補成兩位（0→00），保留原有 '1' 成功判斷語意。
+     */
+    function normalizeNewebpayDigitsCode(value) {
+        if (value === undefined || value === null) return '';
+        const s = String(value).trim();
+        if (!s) return '';
+        if (/^\d$/.test(s)) return s.padStart(2, '0');
+        return s;
+    }
+
     function inferNewebpaySubscriptionStatus(payload = {}) {
-        const rawStatus = String(payload.Status || payload.status || payload.PeriodStatus || payload.periodStatus || '').toUpperCase();
-        // 週期付回傳常用 RespondCode（如 00），與幕前交易的 RtnCode 不同欄位
-        const rtnCode = String(payload.RtnCode || payload.rtnCode || '').trim();
-        const respondCode = String(payload.RespondCode || payload.respondCode || '').trim();
-        const message = String(payload.Message || payload.message || payload.Msg || '').trim();
+        const rawStatus = String(
+            payload.Status ?? payload.status ?? payload.PeriodStatus ?? payload.periodStatus ?? ''
+        ).toUpperCase();
+        const rtnCode = normalizeNewebpayDigitsCode(payload.RtnCode ?? payload.rtnCode);
+        const respondCode = normalizeNewebpayDigitsCode(payload.RespondCode ?? payload.respondCode);
+        const message = String(payload.Message ?? payload.message ?? payload.Msg ?? '').trim();
         if (!rawStatus && !rtnCode && !respondCode && !message) return null;
         const isSuccessCode = rtnCode === '1' || rtnCode === '00' || respondCode === '00';
         const isSuccessMessage = message.includes('授權成功') || message.toUpperCase().includes('SUCCESS');
@@ -430,11 +443,13 @@ function createPaymentService(deps) {
     }
 
     function inferNewebpayPaymentStatus(payload = {}) {
-        const rtnCode = String(payload.RtnCode || payload.rtnCode || '').trim();
-        const respondCode = String(payload.RespondCode || payload.respondCode || '').trim();
-        const message = String(payload.Message || payload.message || payload.Msg || '').trim();
+        const rtnCode = normalizeNewebpayDigitsCode(payload.RtnCode ?? payload.rtnCode);
+        const respondCode = normalizeNewebpayDigitsCode(payload.RespondCode ?? payload.respondCode);
+        const message = String(payload.Message ?? payload.message ?? payload.Msg ?? '').trim();
         if (!rtnCode && !respondCode && !message) return null;
-        if (rtnCode === '1' || rtnCode === '00' || respondCode === '00' || message.includes('授權成功')) return 'success';
+        if (rtnCode === '1' || rtnCode === '00' || respondCode === '00' || message.includes('授權成功')) {
+            return 'success';
+        }
         return 'failed';
     }
 
@@ -458,6 +473,7 @@ function createPaymentService(deps) {
         if (Number.isInteger(direct) && direct > 0) return direct;
         const merchantOrderNo = String(
             payload.MerchantOrderNo ||
+            payload.MerchAntOrderNo ||
             payload.merchantOrderNo ||
             payload.MerOrderNo ||
             payload.merOrderNo ||
@@ -641,7 +657,26 @@ function createPaymentService(deps) {
         } else {
             throw new Error('缺少藍新回傳 Period/TradeInfo 參數');
         }
-        const resultPayload = (periodPayload && typeof periodPayload.Result === 'object' && periodPayload.Result) || {};
+        function extractNewebpayPeriodResultForNested(periodObj) {
+            const pp = periodObj && typeof periodObj === 'object' ? periodObj : {};
+            let inner = pp.Result;
+            if (typeof inner === 'string') {
+                try {
+                    inner = JSON.parse(inner);
+                } catch (_) {
+                    inner = undefined;
+                }
+            }
+            if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
+                return inner;
+            }
+            if (Array.isArray(inner) && inner.length > 0 && inner[0] && typeof inner[0] === 'object' && !Array.isArray(inner[0])) {
+                return inner[0];
+            }
+            return {};
+        }
+
+        const resultPayload = extractNewebpayPeriodResultForNested(periodPayload);
         // 推斷訂閱狀態時必須合併頂層與 Result 內層：藍新常把 Status 放在外層，細節與 RespondCode 在內層
         const statusSource = {
             ...(periodPayload && typeof periodPayload === 'object' ? periodPayload : {}),
@@ -662,14 +697,17 @@ function createPaymentService(deps) {
         if (!tenantId && typeof db.resolveTenantIdByRecurringReference === 'function') {
             const merOrderNo = pickFirstNonEmpty(
                 resultPayload.MerchantOrderNo,
+                resultPayload.MerchAntOrderNo,
                 resultPayload.merchantOrderNo,
                 resultPayload.MerOrderNo,
                 resultPayload.merOrderNo,
                 periodPayload.MerchantOrderNo,
+                periodPayload.MerchAntOrderNo,
                 periodPayload.merchantOrderNo,
                 periodPayload.MerOrderNo,
                 periodPayload.merOrderNo,
                 rawPayload.MerchantOrderNo,
+                rawPayload.MerchAntOrderNo,
                 rawPayload.merchantOrderNo,
                 rawPayload.MerOrderNo,
                 rawPayload.merOrderNo
@@ -776,7 +814,14 @@ function createPaymentService(deps) {
             provider: 'newebpay',
             providerSubscriptionId: resultPayload.PeriodNo || resultPayload.periodNo || periodPayload.PeriodNo || periodPayload.periodNo || null,
             providerCustomerId: resultPayload.PayerEmail || resultPayload.Email || periodPayload.PayerEmail || periodPayload.Email || null,
-            providerOrderNo: resultPayload.MerchantOrderNo || resultPayload.MerOrderNo || periodPayload.MerchantOrderNo || periodPayload.MerOrderNo || null,
+            providerOrderNo:
+                resultPayload.MerchantOrderNo ||
+                resultPayload.MerchAntOrderNo ||
+                resultPayload.MerOrderNo ||
+                periodPayload.MerchantOrderNo ||
+                periodPayload.MerchAntOrderNo ||
+                periodPayload.MerOrderNo ||
+                null,
             paymentStatus,
             subscriptionStatus: status,
             nextBillingAt,
