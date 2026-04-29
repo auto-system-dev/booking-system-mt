@@ -7474,12 +7474,16 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
         });
         
         // 發送測試郵件（使用統一函數，自動選擇 Resend 或 Gmail）
+        const isTenantTemplate = tenantTemplateKeys.has(String(key || ''));
         const mailOptions = {
             from: emailUser,
             to: email,
             subject: finalTestSubject,
             html: testContent
         };
+        if (isTenantTemplate) {
+            mailOptions.fromName = 'Haoding.tw';
+        }
         
         try {
             const emailResult = await sendEmail(mailOptions);
