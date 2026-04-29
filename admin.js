@@ -8460,11 +8460,16 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
         const price = document.createElement('div');
         const isYearlyPlan = String(plan?.billing_cycle || '').trim() === 'yearly';
         const cycleSuffix = isYearlyPlan ? '/年' : '/月';
-        const yearlySavingText = isYearlyPlan ? '<span style="font-size:14px;font-weight:700;color:#2563eb;margin-left:6px;">(節省2個月)</span>' : '';
+        const yearlySavingText = isYearlyPlan ? '<span style="font-size:11px;font-weight:700;color:#475569;line-height:1.2;white-space:nowrap;">(節省2個月)</span>' : '';
         price.innerHTML = `<span style="font-size:16px;font-weight:700;color:#2563eb;">NT$ </span><span style="font-size:34px;font-weight:800;color:#2563eb;line-height:1;">${formatSubscriptionPrice(plan)}</span><span style="font-size:16px;font-weight:700;color:#2563eb;">${cycleSuffix}</span>${yearlySavingText}`;
         price.style.lineHeight = '1.1';
         price.style.color = '#2563eb';
         price.style.textAlign = 'center';
+        price.style.display = 'flex';
+        price.style.justifyContent = 'center';
+        price.style.alignItems = 'flex-end';
+        price.style.gap = '6px';
+        price.style.flexWrap = 'wrap';
         price.style.marginTop = '2px';
         card.appendChild(price);
 
