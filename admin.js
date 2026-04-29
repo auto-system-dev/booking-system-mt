@@ -8227,6 +8227,33 @@ function renderSubscriptionPlans(plans, currentPlanCode) {
     });
 }
 
+function formatSubscriptionPrice(plan) {
+    const amount = Number(plan?.price_amount || 0);
+    const cycleText = String(plan?.billing_cycle || '').trim() === 'yearly' ? '年' : '月';
+    const amountText = Number.isFinite(amount) ? amount.toLocaleString('zh-TW') : '0';
+    return `NT$ ${amountText} / ${cycleText}`;
+}
+
+function buildSubscriptionPlanHighlights(plan) {
+    const flags = (plan && typeof plan.feature_flags === 'object' && plan.feature_flags) ? plan.feature_flags : {};
+    const maxBuildings = Math.max(1, Number.parseInt(flags.max_buildings || 1, 10) || 1);
+    const maxAdmins = Math.max(0, Number.parseInt(flags.max_admins || 0, 10) || 0);
+    return [
+        `可管理館別：${maxBuildings} 館`,
+        `管理員帳號：${maxAdmins} 位`,
+        `營運報表：${flags.reports ? '支援' : '不支援'}`,
+        `API 串接：${flags.api_access ? '支援' : '不支援'}`
+    ];
+}
+
+function resolveRecommendedPlanCode(plans) {
+    const list = Array.isArray(plans) ? plans : [];
+    const hasCode = (code) => list.some((plan) => String(plan?.code || '').trim() === code);
+    if (hasCode('pro_yearly')) return 'pro_yearly';
+    if (hasCode('pro_monthly')) return 'pro_monthly';
+    return '';
+}
+
 function renderSubscriptionBillingActions(plans, currentPlanCode) {
     const actionsEl = document.getElementById('subscriptionBillingActions');
     if (!actionsEl) return;
@@ -8235,19 +8262,90 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
         actionsEl.innerHTML = '<small style="color:#64748b;">目前沒有可啟用方案，請先到方案管理啟用方案。</small>';
         return;
     }
+    actionsEl.style.display = 'grid';
+    actionsEl.style.gridTemplateColumns = 'repeat(auto-fit, minmax(220px, 1fr))';
+    actionsEl.style.gap = '12px';
     actionsEl.innerHTML = '';
+    const recommendedCode = resolveRecommendedPlanCode(activePlans);
     activePlans.forEach((plan) => {
+        const planCode = String(plan.code || '').trim();
+        const isCurrentPlan = !!currentPlanCode && String(plan.code || '') === String(currentPlanCode || '');
+        const isRecommended = !!recommendedCode && planCode === recommendedCode;
+        const card = document.createElement('div');
+        card.style.border = isCurrentPlan ? '2px solid #2563eb' : '1px solid #dbeafe';
+        card.style.background = '#ffffff';
+        card.style.borderRadius = '12px';
+        card.style.padding = '14px';
+        card.style.boxShadow = isCurrentPlan
+            ? '0 6px 16px rgba(37, 99, 235, 0.18)'
+            : '0 3px 10px rgba(15, 23, 42, 0.06)';
+        card.style.display = 'flex';
+        card.style.flexDirection = 'column';
+        card.style.gap = '8px';
+
+        const name = document.createElement('div');
+        name.textContent = String(plan.name || planCode || '方案');
+        name.style.fontSize = '16px';
+        name.style.fontWeight = '700';
+        name.style.color = '#0f172a';
+        card.appendChild(name);
+
+        if (isRecommended) {
+            const recommendedBadge = document.createElement('div');
+            recommendedBadge.textContent = '推薦方案';
+            recommendedBadge.style.alignSelf = 'flex-start';
+            recommendedBadge.style.padding = '2px 8px';
+            recommendedBadge.style.borderRadius = '999px';
+            recommendedBadge.style.fontSize = '12px';
+            recommendedBadge.style.fontWeight = '700';
+            recommendedBadge.style.background = '#fef3c7';
+            recommendedBadge.style.color = '#92400e';
+            recommendedBadge.style.marginTop = '-2px';
+            card.appendChild(recommendedBadge);
+        }
+
+        const price = document.createElement('div');
+        price.textContent = formatSubscriptionPrice(plan);
+        price.style.fontSize = '18px';
+        price.style.fontWeight = '800';
+        price.style.color = '#0369a1';
+        card.appendChild(price);
+
+        const featureList = document.createElement('ul');
+        featureList.style.margin = '0';
+        featureList.style.paddingLeft = '18px';
+        featureList.style.color = '#334155';
+        featureList.style.fontSize = '13px';
+        buildSubscriptionPlanHighlights(plan).forEach((text) => {
+            const li = document.createElement('li');
+            li.textContent = text;
+            featureList.appendChild(li);
+        });
+        card.appendChild(featureList);
+
+        if (isCurrentPlan) {
+            const badge = document.createElement('div');
+            badge.textContent = '目前方案';
+            badge.style.alignSelf = 'flex-start';
+            badge.style.padding = '2px 8px';
+            badge.style.borderRadius = '999px';
+            badge.style.fontSize = '12px';
+            badge.style.fontWeight = '700';
+            badge.style.background = '#dbeafe';
+            badge.style.color = '#1d4ed8';
+            card.appendChild(badge);
+        }
+
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn-save';
-        btn.setAttribute('data-plan-code', String(plan.code || '').trim());
-        const cycleText = String(plan.billing_cycle || '').trim() === 'yearly' ? '年繳' : '月繳';
-        btn.textContent = `${String(plan.name || plan.code || '方案')}（${cycleText}）`;
-        if (currentPlanCode && String(plan.code || '') === String(currentPlanCode || '')) {
-            btn.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.85)';
-        }
-        btn.onclick = () => startNewebpaySubscription(String(plan.code || '').trim());
-        actionsEl.appendChild(btn);
+        btn.setAttribute('data-plan-code', planCode);
+        btn.textContent = isCurrentPlan ? '重新授權／續訂' : '前往付款／升級';
+        btn.style.marginTop = '4px';
+        btn.onclick = () => startNewebpaySubscription(planCode);
+        card.appendChild(btn);
+
+        actionsEl.appendChild(card);
     });
 }
 
