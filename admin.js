@@ -5527,6 +5527,31 @@ async function loadRoomTypes() {
 }
 
 // ==================== 館別管理（buildings） ====================
+let subscriptionBuildingLimit = null;
+
+async function syncAddBuildingButtonVisibility() {
+    const addBtn = document.getElementById('addBuildingBtn');
+    if (!addBtn) return;
+    let maxBuildings = Number(subscriptionBuildingLimit);
+    if (!Number.isFinite(maxBuildings) || maxBuildings <= 0) {
+        try {
+            const res = await adminFetch('/api/subscription/status');
+            if (res.ok) {
+                const j = await res.json();
+                if (j?.success) {
+                    maxBuildings = Math.max(1, Number(j?.data?.limits?.max_buildings || 1));
+                    subscriptionBuildingLimit = maxBuildings;
+                }
+            }
+        } catch (_) {
+            // ignore, keep button as-is
+        }
+    }
+    if (!Number.isFinite(maxBuildings) || maxBuildings <= 0) return;
+    const currentCount = Array.isArray(allBuildings) ? allBuildings.length : 0;
+    const canAdd = currentCount < maxBuildings;
+    addBtn.style.display = canAdd ? '' : 'none';
+}
 
 async function loadBuildings(options = {}) {
     const { silent = false } = options;
@@ -5548,6 +5573,7 @@ async function loadBuildings(options = {}) {
         syncStatisticsBuildingSelect();
         syncDashboardBuildingSelect();
         updateBookingRoomTypeFilterOptions().catch(() => {});
+        await syncAddBuildingButtonVisibility();
     } catch (err) {
         console.error('載入館別錯誤:', err);
         if (!silent) showError('載入館別時發生錯誤：' + err.message);
@@ -5642,6 +5668,14 @@ function resolveRoomTypesBuildingId() {
 }
 
 function showBuildingModal(buildingId) {
+    if (buildingId === null || buildingId === undefined) {
+        const maxBuildings = Number(subscriptionBuildingLimit);
+        const currentCount = Array.isArray(allBuildings) ? allBuildings.length : 0;
+        if (Number.isFinite(maxBuildings) && maxBuildings > 0 && currentCount >= maxBuildings) {
+            showError(`目前方案最多可建立 ${maxBuildings} 館`);
+            return;
+        }
+    }
     const modal = document.getElementById('bookingModal');
     const modalBody = document.getElementById('modalBody');
     if (!modal || !modalBody) return;
