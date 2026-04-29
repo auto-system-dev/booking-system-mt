@@ -407,6 +407,91 @@ function createNotificationService(deps) {
         }
     }
 
+    function formatDateTimeForMail(value) {
+        if (!value) return '待確認';
+        const dt = new Date(value);
+        if (Number.isNaN(dt.getTime())) return '待確認';
+        try {
+            return new Intl.DateTimeFormat('zh-TW', {
+                timeZone: 'Asia/Taipei',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            }).format(dt);
+        } catch (_) {
+            return dt.toISOString();
+        }
+    }
+
+    function resolvePlanLabel(planCode) {
+        const code = String(planCode || '').trim().toLowerCase();
+        const labels = {
+            basic_monthly: '基礎方案（月繳）',
+            basic_yearly: '基礎方案（年繳）',
+            pro_monthly: '專業方案（月繳）',
+            pro_yearly: '專業方案（年繳）'
+        };
+        return labels[code] || code || '訂閱方案';
+    }
+
+    async function sendSubscriptionActivatedNotification(params = {}) {
+        const tenantId = resolveTenantId({ tenantId: params.tenantId });
+        const snapshot = params.snapshot || {};
+        const adminEmail = await resolveAdminNotificationEmail(tenantId);
+        if (!adminEmail) return false;
+        let tenantName = `租戶 #${tenantId}`;
+        if (typeof db.getTenantById === 'function') {
+            try {
+                const tenant = await db.getTenantById(tenantId);
+                if (tenant?.name) tenantName = String(tenant.name);
+            } catch (_) {
+                // ignore
+            }
+        }
+        const planLabel = resolvePlanLabel(snapshot.planCode || snapshot.plan_code);
+        const nextBillingText = formatDateTimeForMail(snapshot.nextBillingAt || snapshot.next_billing_at);
+        const templateData = {
+            tenantId,
+            tenantName,
+            planCode: String(snapshot.planCode || snapshot.plan_code || ''),
+            planName: planLabel,
+            billingCycle: String(snapshot.billingCycle || snapshot.billing_cycle || ''),
+            nextBillingAt: nextBillingText,
+            status: '啟用中'
+        };
+        const renderResult = await buildMailOptionsFromTemplateWithFallback({
+            context: '訂閱啟用通知',
+            to: adminEmail,
+            templateKey: 'subscription_activated_notification',
+            templateArgs: [templateData],
+            fallbackSubject: `【訂閱啟用成功】${tenantName} 已啟用 ${planLabel}`,
+            fallbackHtmlFactory: async () => `
+                <div style="font-family: 'Noto Sans TC', Arial, sans-serif; max-width: 680px; margin: 0 auto; color: #1f2937; line-height: 1.8;">
+                    <h2 style="margin: 0 0 12px;">訂閱啟用成功</h2>
+                    <p>您好，${tenantName} 已完成訂閱授權並啟用成功。</p>
+                    <div style="background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; margin: 14px 0;">
+                        <div><strong>租戶：</strong>${tenantName}</div>
+                        <div><strong>方案：</strong>${planLabel}</div>
+                        <div><strong>下次扣款：</strong>${nextBillingText}</div>
+                        <div><strong>狀態：</strong>啟用中</div>
+                    </div>
+                    <p style="color: #6b7280; font-size: 13px;">此為系統自動通知信，您可至後台「系統設定 → 訂閱狀態」查看完整資訊。</p>
+                </div>
+            `
+        });
+
+        try {
+            await emailService.sendEmail(renderResult.mailOptions);
+            return true;
+        } catch (error) {
+            console.error(`❌ 訂閱成功通知郵件發送失敗 (tenant=${tenantId}):`, error.message);
+            return false;
+        }
+    }
+
     return {
         sendOrderQueryOtpEmail,
         sendCardPaymentSuccessNotifications,
@@ -415,7 +500,8 @@ function createNotificationService(deps) {
         sendPaymentReminderEmail,
         sendCancelNotificationEmail,
         sendCheckinReminderEmail,
-        sendFeedbackRequestEmail
+        sendFeedbackRequestEmail,
+        sendSubscriptionActivatedNotification
     };
 }
 

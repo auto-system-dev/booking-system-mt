@@ -1309,6 +1309,14 @@ function createPaymentService(deps) {
             extractNewebpayFieldFromRawText(rawJoinedText, 'MerchantOrderNo'),
             extractNewebpayFieldFromRawText(rawJoinedText, 'MerOrderNo')
         );
+        let previousSnapshot = null;
+        if (typeof db.getTenantSubscriptionSnapshot === 'function') {
+            try {
+                previousSnapshot = await db.getTenantSubscriptionSnapshot(tenantId);
+            } catch (_) {
+                // ignore
+            }
+        }
         const snapshot = await db.updateTenantSubscriptionRecurringState(tenantId, {
             provider: 'newebpay',
             providerSubscriptionId: providerSubscriptionIdCanonical || null,
@@ -1339,6 +1347,27 @@ function createPaymentService(deps) {
                     requestId: context.requestId || null,
                     tenantId,
                     reason: String(planSyncError?.message || planSyncError)
+                });
+            }
+        }
+        const prevStatus = String(previousSnapshot?.status || '').trim().toLowerCase();
+        const shouldNotifyActivated = (
+            resolvedStatus === 'active'
+            && resolvedPaymentStatus === 'success'
+            && prevStatus !== 'active'
+            && typeof notificationService?.sendSubscriptionActivatedNotification === 'function'
+        );
+        if (shouldNotifyActivated) {
+            try {
+                await notificationService.sendSubscriptionActivatedNotification({
+                    tenantId,
+                    snapshot
+                });
+            } catch (notifyError) {
+                logPaymentEvent('warn', 'payment.newebpay.subscription.notify_activate_failed', {
+                    requestId: context.requestId || null,
+                    tenantId,
+                    reason: String(notifyError?.message || notifyError)
                 });
             }
         }

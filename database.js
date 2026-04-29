@@ -3185,6 +3185,49 @@ async function initEmailTemplates(tenantId) {
 </body>
 </html>`,
             enabled: 1
+        },
+        {
+            key: 'subscription_activated_notification',
+            name: '訂閱授權成功通知',
+            subject: '【訂閱啟用成功】{{tenantName}} 已啟用 {{planName}}',
+            content: `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: 'Microsoft JhengHei', Arial, sans-serif; line-height: 1.8; color: #1f2937; margin: 0; padding: 0; background: #f8fafc; }
+        .container { max-width: 640px; margin: 0 auto; padding: 20px 14px; }
+        .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+        .title { margin: 0 0 12px; color: #0f172a; font-size: 24px; font-weight: 700; }
+        .desc { margin: 0 0 14px; font-size: 15px; color: #334155; }
+        .info { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px 14px; }
+        .info-row { margin: 6px 0; font-size: 15px; color: #0f172a; }
+        .muted { margin-top: 14px; color: #64748b; font-size: 12px; }
+        @media only screen and (max-width: 600px) {
+            .container { padding: 12px; }
+            .card { padding: 16px; }
+            .title { font-size: 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h2 class="title">訂閱啟用成功</h2>
+            <p class="desc">您好，{{tenantName}} 已完成訂閱授權並啟用成功。</p>
+            <div class="info">
+                <div class="info-row"><strong>租戶：</strong>{{tenantName}}</div>
+                <div class="info-row"><strong>方案：</strong>{{planName}}</div>
+                <div class="info-row"><strong>下次扣款：</strong>{{nextBillingAt}}</div>
+                <div class="info-row"><strong>狀態：</strong>{{status}}</div>
+            </div>
+            <p class="muted">此為系統自動通知信，您可至後台「系統設定 → 訂閱狀態」查看完整資訊。</p>
+        </div>
+    </div>
+</body>
+</html>`,
+            enabled: 1
         }
     ];
     

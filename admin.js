@@ -11495,6 +11495,7 @@ function renderEmailTemplates(templates) {
         'booking_confirmation_admin': '訂房確認（管理員）',
         'payment_completed': '付款完成確認',
         'cancel_notification': '取消通知',
+        'subscription_activated_notification': '訂閱授權成功通知',
         'mvp_booking_confirmation': 'MVP 測試：訂房確認',
         'mvp_payment_reminder': 'MVP 測試：付款提醒'
     };
@@ -11506,6 +11507,7 @@ function renderEmailTemplates(templates) {
         booking_confirmation_admin: '通知管理員有新訂單',
         payment_completed: '付款完成後通知客戶',
         cancel_notification: '通知客戶訂房已取消',
+        subscription_activated_notification: '租戶完成訂閱授權後通知管理者',
         mvp_booking_confirmation: 'MVP 測試版：訂房確認流程',
         mvp_payment_reminder: 'MVP 測試版：付款提醒流程'
     };
