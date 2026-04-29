@@ -8362,6 +8362,7 @@ function buildSubscriptionPlanHighlights(plan) {
     const maxAdmins = adminLimitRaw > 0 ? adminLimitRaw : (maxBuildings > 1 ? 5 : 2);
     const maxRoomTypes = roomTypeLimitRaw > 0 ? roomTypeLimitRaw : (maxBuildings > 1 ? 50 : 10);
     const isProLike = maxBuildings > 1 || !!flags.reports || !!flags.api_access;
+    const isYearlyPlan = String(plan?.billing_cycle || '').trim() === 'yearly';
     return [
         { label: '適合對象', value: isProLike ? '成長期或多館別經營' : '單一旅宿起步' },
         { label: '館別管理', value: maxBuildings > 1 ? `最多 ${maxBuildings} 館` : `${maxBuildings} 館` },
@@ -8371,7 +8372,8 @@ function buildSubscriptionPlanHighlights(plan) {
         { label: '儀表板總覽（KPI）', supported: true },
         { label: '進階營運報表', supported: !!flags.reports },
         { label: '報表 CSV 匯出', supported: !!flags.reports },
-        { label: 'Webhook / API 整合', supported: !!flags.api_access }
+        { label: 'Webhook / API 整合', supported: !!flags.api_access },
+        ...(isYearlyPlan ? [{ note: '*年繳約省2個月' }] : [])
     ];
 }
 
@@ -8460,8 +8462,7 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
         const price = document.createElement('div');
         const isYearlyPlan = String(plan?.billing_cycle || '').trim() === 'yearly';
         const cycleSuffix = isYearlyPlan ? '/年' : '/月';
-        const yearlySavingText = isYearlyPlan ? '<span style="font-size:11px;font-weight:700;color:#475569;line-height:1.2;white-space:nowrap;">(節省2個月)</span>' : '';
-        price.innerHTML = `<span style="font-size:16px;font-weight:700;color:#2563eb;">NT$ </span><span style="font-size:34px;font-weight:800;color:#2563eb;line-height:1;">${formatSubscriptionPrice(plan)}</span><span style="font-size:16px;font-weight:700;color:#2563eb;">${cycleSuffix}</span>${yearlySavingText}`;
+        price.innerHTML = `<span style="font-size:16px;font-weight:700;color:#2563eb;">NT$ </span><span style="font-size:34px;font-weight:800;color:#2563eb;line-height:1;">${formatSubscriptionPrice(plan)}</span><span style="font-size:16px;font-weight:700;color:#2563eb;">${cycleSuffix}</span>`;
         price.style.lineHeight = '1.1';
         price.style.color = '#2563eb';
         price.style.textAlign = 'center';
@@ -8489,6 +8490,16 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
         featureList.style.flex = '1';
         buildSubscriptionPlanHighlights(plan).forEach((item) => {
             const li = document.createElement('li');
+            if (item?.note) {
+                li.textContent = item.note;
+                li.style.marginTop = '-2px';
+                li.style.marginBottom = '8px';
+                li.style.fontSize = '12px';
+                li.style.color = '#64748b';
+                li.style.fontWeight = '600';
+                featureList.appendChild(li);
+                return;
+            }
             li.style.display = 'flex';
             li.style.alignItems = 'flex-start';
             li.style.gap = '6px';
