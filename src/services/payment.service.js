@@ -440,6 +440,43 @@ function createPaymentService(deps) {
         };
     }
 
+    function resolvePlanCodeFromNewebpayPeriodPayload(plans, payloads = {}) {
+        const allPlans = Array.isArray(plans) ? plans : [];
+        if (allPlans.length === 0) return '';
+        const pick = (...values) => {
+            for (const value of values) {
+                const text = String(value || '').trim();
+                if (text) return text;
+            }
+            return '';
+        };
+        const amountRaw = pick(
+            payloads?.resultPayload?.PeriodAmt,
+            payloads?.resultPayload?.periodAmt,
+            payloads?.periodPayload?.PeriodAmt,
+            payloads?.periodPayload?.periodAmt,
+            payloads?.statusSource?.PeriodAmt,
+            payloads?.statusSource?.periodAmt
+        );
+        const periodType = pick(
+            payloads?.resultPayload?.PeriodType,
+            payloads?.resultPayload?.periodType,
+            payloads?.periodPayload?.PeriodType,
+            payloads?.periodPayload?.periodType,
+            payloads?.statusSource?.PeriodType,
+            payloads?.statusSource?.periodType
+        ).toUpperCase();
+        const amount = Number.parseInt(amountRaw, 10);
+        if (!Number.isFinite(amount) || amount <= 0) return '';
+        const cycle = periodType === 'Y' ? 'yearly' : 'monthly';
+        const matched = allPlans.find((plan) => {
+            const planAmount = Number.parseInt(plan?.price_amount || 0, 10);
+            const planCycle = String(plan?.billing_cycle || '').trim().toLowerCase();
+            return planAmount === amount && planCycle === cycle;
+        });
+        return String(matched?.code || '').trim();
+    }
+
     function verifyNewebpayTradeSha(payload = {}, config = {}) {
         const tradeInfo = String(payload.TradeInfo || payload.tradeInfo || '');
         const tradeSha = String(payload.TradeSha || payload.tradeSha || '').toUpperCase();
@@ -1282,6 +1319,29 @@ function createPaymentService(deps) {
             nextBillingAt,
             nextPeriodEnd: periodEnd
         });
+        if (
+            resolvedStatus === 'active'
+            && typeof db.updateLatestSubscriptionPlan === 'function'
+            && typeof db.getSubscriptionPlans === 'function'
+        ) {
+            try {
+                const plans = await db.getSubscriptionPlans();
+                const resolvedPlanCode = resolvePlanCodeFromNewebpayPeriodPayload(plans, {
+                    resultPayload,
+                    periodPayload,
+                    statusSource
+                });
+                if (resolvedPlanCode) {
+                    await db.updateLatestSubscriptionPlan(tenantId, resolvedPlanCode);
+                }
+            } catch (planSyncError) {
+                logPaymentEvent('warn', 'payment.newebpay.subscription.plan_sync_skipped', {
+                    requestId: context.requestId || null,
+                    tenantId,
+                    reason: String(planSyncError?.message || planSyncError)
+                });
+            }
+        }
         logPaymentEvent('info', 'payment.newebpay.subscription.synced', {
             requestId: context.requestId || null,
             tenantId,
