@@ -8435,14 +8435,31 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
 
         const name = document.createElement('div');
         const safePlanName = escapeHtml(String(plan.name || planCode || '方案'));
-        name.innerHTML = isRecommended
-            ? `${safePlanName} <span style="display:inline-flex; align-items:center; gap:4px; margin-left:6px; padding:2px 8px; border-radius:999px; background:#fef3c7; color:#92400e; font-size:12px; font-weight:800; vertical-align:middle;"><span aria-hidden="true">👑</span><span>推薦</span></span>`
-            : safePlanName;
+        name.textContent = safePlanName;
         name.style.fontSize = '14px';
         name.style.fontWeight = '700';
         name.style.color = theme.titleText;
         name.style.textAlign = 'center';
         card.appendChild(name);
+
+        if (isRecommended) {
+            const badge = document.createElement('div');
+            badge.textContent = '推薦';
+            badge.style.position = 'absolute';
+            badge.style.top = '10px';
+            badge.style.right = '10px';
+            badge.style.display = 'inline-flex';
+            badge.style.alignItems = 'center';
+            badge.style.padding = '4px 10px';
+            badge.style.borderRadius = '999px';
+            badge.style.background = '#fef3c7';
+            badge.style.color = '#92400e';
+            badge.style.fontSize = '12px';
+            badge.style.fontWeight = '800';
+            badge.style.lineHeight = '1';
+            badge.style.border = '1px solid #f59e0b';
+            card.appendChild(badge);
+        }
 
         const price = document.createElement('div');
         const cycleSuffix = String(plan?.billing_cycle || '').trim() === 'yearly' ? '/年' : '/月';
