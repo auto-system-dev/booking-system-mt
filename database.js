@@ -10452,7 +10452,8 @@ async function assignDefaultPermissions() {
                 'settings.view',
                 'landing.view', 'landing.edit', 'landing.rooms.edit',
                 'email_templates.view', 'email_templates.edit',
-                'logs.view'
+                'logs.view',
+                'admins.delete'
             ],
             'staff': [
                 'dashboard.view',
@@ -10564,7 +10565,8 @@ async function ensureAdminManagementPermissionsForAdminRole() {
             'admins.view',
             'admins.create',
             'admins.edit',
-            'admins.change_password'
+            'admins.change_password',
+            'admins.delete'
         ];
 
         for (const code of requiredCodes) {
