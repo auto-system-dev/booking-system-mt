@@ -1,9 +1,27 @@
 function createSubscriptionGate(db) {
-    async function readSnapshot(req) {
-        const tenantId = req.tenantId || req?.session?.admin?.tenant_id;
-        if (!tenantId) {
+    function resolveAdminSeatLimit(snapshot) {
+        const explicitLimit = Number(snapshot?.limits?.max_admins || 0);
+        if (Number.isFinite(explicitLimit) && explicitLimit > 0) {
+            return explicitLimit;
+        }
+        // 舊資料可能尚未寫入 max_admins，使用方案資訊推估合理預設值
+        const planCode = String(snapshot?.planCode || '').trim().toLowerCase();
+        if (planCode.startsWith('basic_')) return 2;
+        const maxBuildings = Number(snapshot?.limits?.max_buildings || 0);
+        return Number.isFinite(maxBuildings) && maxBuildings > 1 ? 5 : 2;
+    }
+
+    function resolveTenantId(req) {
+        const raw = req?.tenantId ?? req?.session?.admin?.tenant_id ?? null;
+        const tenantId = parseInt(raw, 10);
+        if (!Number.isInteger(tenantId) || tenantId <= 0) {
             throw new Error('tenant_id is required');
         }
+        return tenantId;
+    }
+
+    async function readSnapshot(req) {
+        const tenantId = resolveTenantId(req);
         const snapshot = await db.getTenantSubscriptionSnapshot(tenantId);
         req.subscription = snapshot;
         return snapshot;
@@ -79,7 +97,8 @@ function createSubscriptionGate(db) {
                 const limit = Number(snapshot.limits?.max_buildings || 0);
                 if (limit <= 0) return next();
 
-                const count = await db.getBuildingCountByTenant(req.tenantId);
+                const tenantId = resolveTenantId(req);
+                const count = await db.getBuildingCountByTenant(tenantId);
                 if (count >= limit) {
                     return res.status(403).json({
                         success: false,
@@ -111,10 +130,11 @@ function createSubscriptionGate(db) {
                         message: '目前訂閱已停用，請續訂後再新增管理員'
                     });
                 }
-                const limit = Number(snapshot.limits?.max_admins || 0);
+                const limit = resolveAdminSeatLimit(snapshot);
                 if (limit <= 0) return next();
 
-                const count = await db.getAdminCountByTenant(req.tenantId);
+                const tenantId = resolveTenantId(req);
+                const count = await db.getAdminCountByTenant(tenantId);
                 if (count >= limit) {
                     return res.status(403).json({
                         success: false,
