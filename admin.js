@@ -2138,8 +2138,7 @@ function switchRoomTypeTab(tab) {
 
     const showRoomTypeChrome = () => {
         document.getElementById('addRoomTypeBtn').style.display = 'inline-flex';
-        const filterWrap = document.getElementById('roomTypesBuildingFilter');
-        if (filterWrap) filterWrap.style.display = 'inline-flex';
+        syncRoomTypesBuildingSelect();
         document.getElementById('roomTypeRefreshBtn').style.display = 'inline-flex';
         document.getElementById('holidayRefreshBtn').style.display = 'none';
         updateRoomTypesSectionLabelsForSystemMode();
@@ -5648,7 +5647,9 @@ function syncRoomTypesBuildingSelect() {
     const sel = document.getElementById('roomTypesBuildingSelect');
     if (!wrap || !sel) return;
 
-    wrap.style.display = 'inline-flex';
+    const maxBuildings = Number(subscriptionBuildingLimit);
+    const hideBuildingUi = Number.isFinite(maxBuildings) && maxBuildings <= 1;
+    wrap.style.display = hideBuildingUi ? 'none' : 'inline-flex';
 
     // 只在「房型管理／包棟方案」分頁顯示（假日分頁會在 switchRoomTypeTab 隱藏）
     const saved = parseInt(localStorage.getItem('roomTypesBuildingId') || '', 10);
@@ -5980,6 +5981,11 @@ function showRoomTypeModal(room, listScopeHint) {
         .filter((b) => Number(b.is_active) !== 0 || (isEdit && Number(room.building_id) === Number(b.id)))
         .map((b) => `<option value="${Number(b.id)}" ${(isEdit ? Number(room.building_id) : Number(selectedBuildingIdForRoomTypes)) === Number(b.id) ? 'selected' : ''}>${escapeHtml(String(b.name || ''))}</option>`)
         .join('');
+    const maxBuildings = Number(subscriptionBuildingLimit);
+    const hideBuildingField = Number.isFinite(maxBuildings) && maxBuildings <= 1;
+    const resolvedBuildingId = isEdit
+        ? (Number(room?.building_id) > 0 ? Number(room.building_id) : resolveRoomTypesBuildingId())
+        : resolveRoomTypesBuildingId();
 
     // 此 modal 會被房型/訂房/館別等功能重用，開啟時要先確保標題正確
     const titleEl = modal?.querySelector?.('.modal-header h3');
@@ -6062,13 +6068,16 @@ function showRoomTypeModal(room, listScopeHint) {
     modalBody.innerHTML = `
         <form id="roomTypeForm" onsubmit="saveRoomType(event, ${isEdit ? room.id : 'null'})">
             <input type="hidden" name="list_scope" value="${listScope}">
+            ${hideBuildingField
+                ? `<input type="hidden" name="building_id" value="${resolvedBuildingId}">`
+                : `
             <div class="form-group">
                 <label>館別</label>
                 <select name="building_id" required>
                     ${buildingOptions}
                 </select>
                 <small>目前前台訂房仍固定使用「預設館」的房型；新增其他館別不會影響既有流程</small>
-            </div>
+            </div>`}
             <div class="form-group">
                 <label>${codeLabel}</label>
                 <input type="text" name="name" value="${isEdit ? escapeHtml(room.name) : escapeHtml(initialName)}" required ${isEdit ? 'readonly' : ''}>
