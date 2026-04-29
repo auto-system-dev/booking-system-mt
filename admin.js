@@ -5551,7 +5551,7 @@ async function syncAddRoomTypeButtonVisibility() {
     addBtn.disabled = reached;
     addBtn.style.opacity = reached ? '0.6' : '';
     addBtn.style.cursor = reached ? 'not-allowed' : '';
-    addBtn.title = reached ? `目前方案房型上限為 ${maxRoomTypes} 間，已達上限` : '';
+    addBtn.title = reached ? `目前方案房間數量上限為 ${maxRoomTypes} 間，已達上限` : '';
 }
 
 // ==================== 館別管理（buildings） ====================
@@ -5931,7 +5931,7 @@ function renderRoomTypes(scope = 'retail') {
 async function showAddRoomTypeModal() {
     const addBtn = document.getElementById('addRoomTypeBtn');
     if (addBtn?.disabled) {
-        showError(addBtn.title || '目前方案房型數已達上限');
+        showError(addBtn.title || '目前方案房間數量已達上限');
         return;
     }
     showRoomTypeModal(null, getActiveRoomTypesListScope());
@@ -8368,7 +8368,7 @@ function buildSubscriptionPlanHighlights(plan) {
         { label: '館別管理', value: maxBuildings > 1 ? `最多 ${maxBuildings} 館` : `${maxBuildings} 館` },
         { label: '系統模式', value: '一般訂房／包棟訂房' },
         { label: '管理員帳號', value: `${maxAdmins} 席` },
-        { label: '房型上限', value: `${maxRoomTypes} 間` },
+        { label: '房間數量', value: `${maxRoomTypes} 間` },
         ...(isYearly ? [{ label: '年繳方案', value: '年繳約省 2 個月' }] : []),
         { label: '儀表板總覽（KPI）', supported: true },
         { label: '進階營運報表', supported: !!flags.reports },

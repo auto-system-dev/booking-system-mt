@@ -183,7 +183,7 @@ function createSubscriptionGate(db) {
                     return res.status(403).json({
                         success: false,
                         code: 'ROOM_TYPE_LIMIT_REACHED',
-                        message: `方案房型上限為 ${limit} 間，目前已達上限`
+                        message: `方案房間數量上限為 ${limit} 間，目前已達上限`
                     });
                 }
                 return next();
