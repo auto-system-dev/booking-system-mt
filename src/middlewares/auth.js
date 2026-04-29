@@ -48,7 +48,7 @@ function requireAuth(req, res, next) {
     const message = status.reason === 'absolute_timeout'
         ? '登入已超過 8 小時，請重新登入'
         : status.reason === 'idle_timeout'
-            ? '閒置超過 30 分鐘，請重新登入'
+            ? '閒置超過30分鐘，請重新登入'
             : '請先登入';
     return res.status(401).json({ success: false, message });
 }

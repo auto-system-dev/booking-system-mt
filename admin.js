@@ -8590,7 +8590,7 @@ async function loadSubscriptionSettings() {
             console.warn('ℹ️ 略過訂閱方案載入（尚未綁定租戶）');
             return;
         }
-        showError('載入訂閱方案資訊失敗：' + msg);
+        showError(msg || '無法載入訂閱資訊，請稍後再試');
     }
 }
 
