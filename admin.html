@@ -106,6 +106,10 @@
                     <span class="nav-icon"><span class="material-symbols-outlined">settings</span></span>
                     <span>系統設定</span>
                 </a>
+                <a href="#subscription-status" class="nav-item permission-required" data-section="subscription-status" data-permission="settings.view" onclick="handleNavClick(event, 'subscription-status')">
+                    <span class="nav-icon"><span class="material-symbols-outlined">workspace_premium</span></span>
+                    <span>訂閱狀態</span>
+                </a>
                 <a href="#email-templates" class="nav-item permission-required" data-section="email-templates" data-permission="email_templates.view" onclick="handleNavClick(event, 'email-templates')">
                     <span class="nav-icon"><span class="material-symbols-outlined">mail</span></span>
                     <span>郵件模板</span>
@@ -1107,10 +1111,6 @@
                         <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">toggle_on</span>
                         訂房模式
                     </button>
-                    <button type="button" class="tab-button" onclick="switchSettingsTab('subscription')" id="settingsTabSubscription">
-                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">workspace_premium</span>
-                        訂閱狀態
-                    </button>
                     <button type="button" class="tab-button active" onclick="switchSettingsTab('basic')" id="settingsTabBasic">
                         <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle;">info</span>
                         基本設定
@@ -1148,85 +1148,6 @@
                                 </div>
                                 <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                                     <button type="button" class="btn-save" onclick="switchSystemModeFromAdmin()">切換模式</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 訂閱狀態分頁 -->
-                    <div id="settingsTabSubscriptionContent" class="tab-content">
-                        <div style="margin-top: 0;">
-                            <div style="display: flex; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #7c3aed;">
-                                <span class="material-symbols-outlined" style="font-size: 24px; color: #7c3aed; margin-right: 10px;">workspace_premium</span>
-                                <h3 style="margin: 0; color: #2c3e50;">訂閱狀態與下次扣款</h3>
-                            </div>
-                            <div class="settings-card" style="margin-top: 0;">
-                                <div id="subscriptionStatusNotice" style="display:none; margin-bottom: 14px; padding: 10px 12px; border-radius: 8px; font-size: 14px;"></div>
-                                <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px; margin-bottom: 12px;">
-                                    <div style="border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; background:#ffffff;">
-                                        <div style="font-size:12px; color:#6b7280; margin-bottom:6px;">目前狀態</div>
-                                        <div style="display:flex; align-items:center; gap:8px;">
-                                            <span id="subscriptionStatusBadge" style="display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; line-height:18px; background:#e5e7eb; color:#374151;">未知</span>
-                                            <span id="subscriptionStatusText" style="font-size:15px; font-weight:700; color:#1f2937;">-</span>
-                                        </div>
-                                    </div>
-                                    <div style="border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; background:#ffffff;">
-                                        <div style="font-size:12px; color:#6b7280; margin-bottom:6px;">目前方案</div>
-                                        <div id="subscriptionPlanText" style="font-size:15px; font-weight:700; color:#1f2937;">-</div>
-                                        <small id="subscriptionCurrentMeta">-</small>
-                                    </div>
-                                    <div id="subscriptionExpiryCard" style="border:1px solid #dcfce7; border-radius:10px; padding:10px 12px; background:#f0fdf4;">
-                                        <div style="font-size:12px; color:#6b7280; margin-bottom:6px;">下次扣款</div>
-                                        <div id="subscriptionExpirySummaryText" style="font-size:18px; font-weight:800; color:#166534;">-</div>
-                                        <small id="subscriptionExpiryHint">-</small>
-                                        <div style="display:flex; justify-content:flex-end; margin-top:6px;">
-                                            <button type="button" id="subscriptionCancelBtn" onclick="handleSubscriptionCancel()" style="display:none; background:none; border:none; padding:0 2px; font-size:12px; line-height:1.4; color:#475569; text-decoration:underline; cursor:pointer;">取消訂閱</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div id="subscriptionFeatureSummaryBadges" style="display:none;"></div>
-                                <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 4px; margin-bottom: 8px;">
-                                    <button type="button" class="btn-save" id="subscriptionPrimaryActionBtn" onclick="handleSubscriptionPrimaryAction()">管理訂閱</button>
-                                </div>
-                                <div style="display:none;">
-                                    <input type="text" id="subscriptionCurrentPlan" readonly>
-                                    <input type="text" id="subscriptionExpirySummary" readonly>
-                                    <input type="text" id="subscriptionFeatureSummary" readonly>
-                                </div>
-                                <div id="subscriptionAdminControls" style="display:none;">
-                                    <div class="form-group">
-                                        <label>切換方案（僅超級管理員）</label>
-                                        <select id="subscriptionPlanSelect"></select>
-                                        <small>切換後會即時更新功能權限。</small>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>訂閱狀態（僅超級管理員）</label>
-                                        <select id="subscriptionStatusSelect">
-                                            <option value="trialing">試用中</option>
-                                            <option value="active">啟用中</option>
-                                            <option value="past_due">逾期待補繳</option>
-                                            <option value="canceled">已停權</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group">
-                                        <label>使用期限（到期時間，可選）</label>
-                                        <input type="datetime-local" id="subscriptionPeriodEndInput">
-                                        <small>留空時維持既有到期時間。</small>
-                                    </div>
-                                </div>
-                                <div id="subscriptionBillingBlock" style="margin-top: 10px; display: none;">
-                                    <div style="font-weight: 600; color: #2c3e50; margin-bottom: 8px;">立即啟用／升級（信用卡定期定額）</div>
-                                    <div id="subscriptionBillingActions" style="display:flex; gap:10px; flex-wrap:wrap;">
-                                        <button type="button" class="btn-save" data-plan-code="basic_monthly" onclick="startNewebpaySubscription('basic_monthly')">Basic（月繳）</button>
-                                        <button type="button" class="btn-save" data-plan-code="basic_yearly" onclick="startNewebpaySubscription('basic_yearly')">Basic（年繳）</button>
-                                        <button type="button" class="btn-save" data-plan-code="pro_monthly" onclick="startNewebpaySubscription('pro_monthly')">Pro（月繳）</button>
-                                        <button type="button" class="btn-save" data-plan-code="pro_yearly" onclick="startNewebpaySubscription('pro_yearly')">Pro（年繳）</button>
-                                    </div>
-                                    <small id="subscriptionBillingMessage" style="display:block; margin-top:8px; color:#475569;">點擊後將前往藍新授權頁完成自動扣款設定；完成後會回到後台並由系統自動更新狀態。</small>
-                                </div>
-                                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
-                                    <button type="button" class="btn-save" id="subscriptionUpdateBtn" style="display:none;" onclick="saveSubscriptionSettingsAsSuperAdmin()">儲存訂閱設定</button>
-                                    <button type="button" class="btn-refresh" onclick="loadSubscriptionSettings()">重新整理狀態</button>
                                 </div>
                             </div>
                         </div>
@@ -1565,6 +1486,84 @@
                                 <button class="btn-save" onclick="changePassword()">修改密碼</button>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="subscription-status-section" class="content-section">
+                <div class="section-header">
+                    <h2><span class="material-symbols-outlined" style="font-size: 28px; vertical-align: middle; margin-right: 8px;">workspace_premium</span> 訂閱狀態</h2>
+                    <button class="btn-refresh" onclick="loadSubscriptionSettings()">
+                        <span class="material-symbols-outlined">refresh</span> 重新整理狀態
+                    </button>
+                </div>
+                <div class="settings-card" style="margin-top: 0;">
+                    <div id="subscriptionStatusNotice" style="display:none; margin-bottom: 14px; padding: 10px 12px; border-radius: 8px; font-size: 14px;"></div>
+                    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:10px; margin-bottom: 12px;">
+                        <div style="border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; background:#ffffff;">
+                            <div style="font-size:12px; color:#6b7280; margin-bottom:6px;">目前狀態</div>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span id="subscriptionStatusBadge" style="display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; line-height:18px; background:#e5e7eb; color:#374151;">未知</span>
+                                <span id="subscriptionStatusText" style="font-size:15px; font-weight:700; color:#1f2937;">-</span>
+                            </div>
+                        </div>
+                        <div style="border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; background:#ffffff;">
+                            <div style="font-size:12px; color:#6b7280; margin-bottom:6px;">目前方案</div>
+                            <div id="subscriptionPlanText" style="font-size:15px; font-weight:700; color:#1f2937;">-</div>
+                            <small id="subscriptionCurrentMeta">-</small>
+                        </div>
+                        <div id="subscriptionExpiryCard" style="border:1px solid #dcfce7; border-radius:10px; padding:10px 12px; background:#f0fdf4;">
+                            <div style="font-size:12px; color:#6b7280; margin-bottom:6px;">下次扣款</div>
+                            <div id="subscriptionExpirySummaryText" style="font-size:18px; font-weight:800; color:#166534;">-</div>
+                            <small id="subscriptionExpiryHint">-</small>
+                            <div style="display:flex; justify-content:flex-end; margin-top:6px;">
+                                <button type="button" id="subscriptionCancelBtn" onclick="handleSubscriptionCancel()" style="display:none; background:none; border:none; padding:0 2px; font-size:12px; line-height:1.4; color:#475569; text-decoration:underline; cursor:pointer;">取消訂閱</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="subscriptionFeatureSummaryBadges" style="display:none;"></div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top: 4px; margin-bottom: 8px;">
+                        <button type="button" class="btn-save" id="subscriptionPrimaryActionBtn" onclick="handleSubscriptionPrimaryAction()">管理訂閱</button>
+                    </div>
+                    <div style="display:none;">
+                        <input type="text" id="subscriptionCurrentPlan" readonly>
+                        <input type="text" id="subscriptionExpirySummary" readonly>
+                        <input type="text" id="subscriptionFeatureSummary" readonly>
+                    </div>
+                    <div id="subscriptionAdminControls" style="display:none;">
+                        <div class="form-group">
+                            <label>切換方案（僅超級管理員）</label>
+                            <select id="subscriptionPlanSelect"></select>
+                            <small>切換後會即時更新功能權限。</small>
+                        </div>
+                        <div class="form-group">
+                            <label>訂閱狀態（僅超級管理員）</label>
+                            <select id="subscriptionStatusSelect">
+                                <option value="trialing">試用中</option>
+                                <option value="active">啟用中</option>
+                                <option value="past_due">逾期待補繳</option>
+                                <option value="canceled">已停權</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>使用期限（到期時間，可選）</label>
+                            <input type="datetime-local" id="subscriptionPeriodEndInput">
+                            <small>留空時維持既有到期時間。</small>
+                        </div>
+                    </div>
+                    <div id="subscriptionBillingBlock" style="margin-top: 10px; display: none;">
+                        <div style="font-weight: 600; color: #2c3e50; margin-bottom: 8px;">立即啟用／升級（信用卡定期定額）</div>
+                        <div id="subscriptionBillingActions" style="display:flex; gap:10px; flex-wrap:wrap;">
+                            <button type="button" class="btn-save" data-plan-code="basic_monthly" onclick="startNewebpaySubscription('basic_monthly')">Basic（月繳）</button>
+                            <button type="button" class="btn-save" data-plan-code="basic_yearly" onclick="startNewebpaySubscription('basic_yearly')">Basic（年繳）</button>
+                            <button type="button" class="btn-save" data-plan-code="pro_monthly" onclick="startNewebpaySubscription('pro_monthly')">Pro（月繳）</button>
+                            <button type="button" class="btn-save" data-plan-code="pro_yearly" onclick="startNewebpaySubscription('pro_yearly')">Pro（年繳）</button>
+                        </div>
+                        <small id="subscriptionBillingMessage" style="display:block; margin-top:8px; color:#475569;">點擊後將前往藍新授權頁完成自動扣款設定；完成後會回到後台並由系統自動更新狀態。</small>
+                    </div>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
+                        <button type="button" class="btn-save" id="subscriptionUpdateBtn" style="display:none;" onclick="saveSubscriptionSettingsAsSuperAdmin()">儲存訂閱設定</button>
+                        <button type="button" class="btn-refresh" onclick="loadSubscriptionSettings()">重新整理狀態</button>
                     </div>
                 </div>
             </section>

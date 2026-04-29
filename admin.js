@@ -308,22 +308,15 @@ async function checkAuthStatus(options = {}) {
             console.log('✅ 已登入，顯示管理後台');
             setAdminAuthHint(true);
             showAdminPage(result.admin);
-            // 藍新授權返回後，直接導到「系統設定 > 訂閱狀態」
+            // 藍新授權返回後，直接導到左側「訂閱狀態」
             try {
                 const currentUrl = new URL(window.location.href);
                 const subscriptionReturn = currentUrl.searchParams.get('subscriptionReturn') === '1';
                 if (subscriptionReturn) {
-                    try {
-                        sessionStorage.setItem('settingsSubscriptionTabOnce', '1');
-                    } catch (_s) {
-                        // ignore
+                    if (window.location.hash !== '#subscription-status') {
+                        window.location.hash = '#subscription-status';
                     }
-                    localStorage.setItem('settingsTab', 'subscription');
-                    if (window.location.hash !== '#settings') {
-                        window.location.hash = '#settings';
-                    }
-                    if (typeof switchSection === 'function') switchSection('settings');
-                    if (typeof switchSettingsTab === 'function') switchSettingsTab('subscription');
+                    if (typeof switchSection === 'function') switchSection('subscription-status');
                 }
             } catch (_e) {
                 // ignore
@@ -1889,6 +1882,7 @@ function switchSection(section) {
         'addons': 'addons.view',
         'promotions': 'promo_codes.view',
         'settings': 'settings.view',
+        'subscription-status': 'settings.view',
         'subscription-overview': 'admins.view',
         'plan-management': 'admins.view',
         'email-templates': 'email_templates.view',
@@ -1988,9 +1982,10 @@ function switchSection(section) {
     } else if (section === 'settings') {
         updateSystemModeSwitchSectionVisibility();
         loadSettings();
-        // 恢復上次選擇的分頁（授權返回見 loadInitialAdminRoute / check-auth 一次性旗標）
         const savedTab = localStorage.getItem('settingsTab') || 'basic';
         switchSettingsTab(savedTab);
+    } else if (section === 'subscription-status') {
+        loadSubscriptionSettings();
     } else if (section === 'subscription-overview') {
         loadSubscriptionOverview();
     } else if (section === 'plan-management') {
@@ -2051,20 +2046,10 @@ function loadInitialAdminRoute() {
     } else if (urlHash === '#buildings') {
         switchSection('buildings');
     } else if (urlHash === '#settings') {
-        try {
-            const onceSub = sessionStorage.getItem('settingsSubscriptionTabOnce') === '1';
-            if (onceSub) {
-                sessionStorage.removeItem('settingsSubscriptionTabOnce');
-                localStorage.setItem('settingsTab', 'subscription');
-            } else if ((localStorage.getItem('settingsTab') || 'basic') === 'subscription') {
-                // 重新整理／直接開 #settings：不要自動停在「訂閱狀態」（僅授權完成返回會帶一次性旗標）
-                localStorage.setItem('settingsTab', 'basic');
-            }
-        } catch (_e) {
-            // ignore
-        }
         switchSection('settings');
         if (typeof loadHolidays === 'function') loadHolidays();
+    } else if (urlHash === '#subscription-status') {
+        switchSection('subscription-status');
     } else if (urlHash === '#subscription-overview') {
         switchSection('subscription-overview');
     } else if (urlHash === '#plan-management') {
@@ -7560,6 +7545,10 @@ async function saveGmailSettings() {
 // 載入系統設定
 // 切換系統設定分頁
 function switchSettingsTab(tab) {
+    if (tab === 'subscription') {
+        tab = 'basic';
+        localStorage.setItem('settingsTab', 'basic');
+    }
     if (tab === 'mode' && (!window.currentAdminInfo || window.currentAdminInfo.role !== 'super_admin')) {
         tab = 'basic';
         localStorage.setItem('settingsTab', 'basic');
