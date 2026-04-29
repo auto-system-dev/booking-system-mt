@@ -8447,13 +8447,13 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
             const ribbon = document.createElement('div');
             ribbon.textContent = '推薦';
             ribbon.style.position = 'absolute';
-            ribbon.style.top = '14px';
-            ribbon.style.right = '-20px';
+            ribbon.style.top = '8px';
+            ribbon.style.right = '-34px';
             ribbon.style.background = '#ef4444';
             ribbon.style.color = '#ffffff';
             ribbon.style.fontSize = '12px';
             ribbon.style.fontWeight = '800';
-            ribbon.style.padding = '6px 30px';
+            ribbon.style.padding = '7px 44px';
             ribbon.style.transform = 'rotate(45deg)';
             ribbon.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
             card.appendChild(ribbon);
