@@ -10656,6 +10656,10 @@ async function replaceTemplateVariables(template, booking, bankInfo = null, addi
     // 檢查是否有基本的 HTML 結構（body 標籤）
     const hasBodyTag = content.includes('<body>') || content.includes('<body ');
     
+    // 後台「欄位式」編輯器 composeMvpTemplateHtml 產生的內容含 <!--MVP:...:start-->，
+    // 通常無 <style>（樣式為 inline），但仍為完整合法 HTML，不應觸發下方「補圖卡／補 style」邏輯，否則實寄與預覽不一致。
+    const isMvpFieldEditorEmailHtml = /<!--MVP:[a-zA-Z0-9]+:start-->/.test(content);
+    
     // templateKey 已在上面聲明，這裡不需要重複聲明
     const isCheckinReminder = templateKey === 'checkin_reminder';
 
@@ -10674,8 +10678,8 @@ async function replaceTemplateVariables(template, booking, bankInfo = null, addi
         }
     }
     
-    // 對於入住提醒郵件，如果缺少完整結構，嘗試從資料庫讀取原始模板結構
-    if ((!hasFullHtmlStructure || !hasStyleTag || !hasBodyTag) && isCheckinReminder) {
+    // 對於入住提醒郵件，如果缺少完整結構，嘗試從資料庫讀取原始模板結構（欄位式模板除外）
+    if ((!hasFullHtmlStructure || !hasStyleTag || !hasBodyTag) && isCheckinReminder && !isMvpFieldEditorEmailHtml) {
         console.log('⚠️ 入住提醒郵件模板缺少完整 HTML 結構，嘗試從資料庫讀取原始模板...', {
             templateKey,
             hasFullHtmlStructure,
@@ -10896,8 +10900,8 @@ ${htmlEnd}`;
     const stillMissingBody = !content.includes('<body>') && !content.includes('<body ');
     
     // 如果模板已經有完整的圖卡樣式結構，不要進行任何修復，直接使用
-    // 只有在缺少基本結構且沒有圖卡樣式時才進行修復
-    if (!hasCardStructure && (stillMissingStructure || stillMissingStyle || stillMissingBody)) {
+    // 只有在缺少基本結構且沒有圖卡樣式時才進行修復（欄位式 MVP 模板不干預，與後台預覽一致）
+    if (!isMvpFieldEditorEmailHtml && !hasCardStructure && (stillMissingStructure || stillMissingStyle || stillMissingBody)) {
         console.log('⚠️ 郵件模板缺少基本 HTML 結構或樣式，自動修復中...', {
             templateKey,
             stillMissingStructure,
