@@ -8412,6 +8412,7 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
         card.style.border = isCurrentPlan ? '2px solid #3498db' : `1px solid ${theme.cardBorder}`;
         card.style.borderRadius = '14px';
         card.style.padding = '18px 16px 16px';
+        card.style.overflow = 'hidden';
         card.style.boxShadow = isCurrentPlan
             ? '0 10px 24px rgba(52, 152, 219, 0.20)'
             : theme.cardShadow;
@@ -8443,22 +8444,19 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
         card.appendChild(name);
 
         if (isRecommended) {
-            const badge = document.createElement('div');
-            badge.textContent = '推薦';
-            badge.style.position = 'absolute';
-            badge.style.top = '10px';
-            badge.style.right = '10px';
-            badge.style.display = 'inline-flex';
-            badge.style.alignItems = 'center';
-            badge.style.padding = '4px 10px';
-            badge.style.borderRadius = '999px';
-            badge.style.background = '#fef3c7';
-            badge.style.color = '#92400e';
-            badge.style.fontSize = '12px';
-            badge.style.fontWeight = '800';
-            badge.style.lineHeight = '1';
-            badge.style.border = '1px solid #f59e0b';
-            card.appendChild(badge);
+            const ribbon = document.createElement('div');
+            ribbon.textContent = '推薦';
+            ribbon.style.position = 'absolute';
+            ribbon.style.top = '14px';
+            ribbon.style.right = '-20px';
+            ribbon.style.background = '#ef4444';
+            ribbon.style.color = '#ffffff';
+            ribbon.style.fontSize = '12px';
+            ribbon.style.fontWeight = '800';
+            ribbon.style.padding = '6px 30px';
+            ribbon.style.transform = 'rotate(45deg)';
+            ribbon.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+            card.appendChild(ribbon);
         }
 
         const price = document.createElement('div');
