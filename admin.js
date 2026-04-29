@@ -11496,6 +11496,10 @@ function renderEmailTemplates(templates) {
         'payment_completed': '付款完成確認',
         'cancel_notification': '取消通知',
         'subscription_activated_notification': '訂閱授權成功通知',
+        'trial_expiring_notification': '試用即將到期通知',
+        'trial_expired_notification': '試用已到期通知',
+        'subscription_payment_failed_notification': '訂閱扣款失敗通知',
+        'subscription_expiring_notification': '訂閱即將到期/停權通知',
         'mvp_booking_confirmation': 'MVP 測試：訂房確認',
         'mvp_payment_reminder': 'MVP 測試：付款提醒'
     };
@@ -11508,6 +11512,10 @@ function renderEmailTemplates(templates) {
         payment_completed: '付款完成後通知客戶',
         cancel_notification: '通知客戶訂房已取消',
         subscription_activated_notification: '租戶完成訂閱授權後通知管理者',
+        trial_expiring_notification: '試用期剩餘天數提醒',
+        trial_expired_notification: '試用期到期後提醒',
+        subscription_payment_failed_notification: '訂閱定期扣款失敗提醒',
+        subscription_expiring_notification: '訂閱即將到期或即將停權提醒',
         mvp_booking_confirmation: 'MVP 測試版：訂房確認流程',
         mvp_payment_reminder: 'MVP 測試版：付款提醒流程'
     };

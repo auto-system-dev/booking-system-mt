@@ -3228,6 +3228,160 @@ async function initEmailTemplates(tenantId) {
 </body>
 </html>`,
             enabled: 1
+        },
+        {
+            key: 'trial_expiring_notification',
+            name: '試用即將到期通知',
+            subject: '【試用即將到期】{{tenantName}} 將於 {{expireDate}} 到期（剩 {{daysLeft}} 天）',
+            content: `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: 'Microsoft JhengHei', Arial, sans-serif; line-height: 1.8; color: #1f2937; margin: 0; padding: 0; background: #f8fafc; }
+        .container { max-width: 640px; margin: 0 auto; padding: 20px 14px; }
+        .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+        .title { margin: 0 0 12px; color: #0f172a; font-size: 24px; font-weight: 700; }
+        .desc { margin: 0 0 14px; font-size: 15px; color: #334155; }
+        .info { background: #fff7ed; border: 1px solid #fdba74; border-radius: 10px; padding: 12px 14px; }
+        .info-row { margin: 6px 0; font-size: 15px; color: #0f172a; }
+        .muted { margin-top: 14px; color: #64748b; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h2 class="title">試用即將到期提醒</h2>
+            <p class="desc">您好，{{tenantName}} 的試用方案即將到期，請提前完成升級以避免服務中斷。</p>
+            <div class="info">
+                <div class="info-row"><strong>租戶：</strong>{{tenantName}}</div>
+                <div class="info-row"><strong>目前方案：</strong>{{planName}}</div>
+                <div class="info-row"><strong>到期日期：</strong>{{expireDate}}</div>
+                <div class="info-row"><strong>剩餘天數：</strong>{{daysLeft}}</div>
+            </div>
+            <p class="muted">此為系統自動通知信，建議儘早完成訂閱設定。</p>
+        </div>
+    </div>
+</body>
+</html>`,
+            enabled: 1
+        },
+        {
+            key: 'trial_expired_notification',
+            name: '試用已到期通知',
+            subject: '【試用已到期】{{tenantName}} 已於 {{expireDate}} 到期',
+            content: `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: 'Microsoft JhengHei', Arial, sans-serif; line-height: 1.8; color: #1f2937; margin: 0; padding: 0; background: #f8fafc; }
+        .container { max-width: 640px; margin: 0 auto; padding: 20px 14px; }
+        .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+        .title { margin: 0 0 12px; color: #991b1b; font-size: 24px; font-weight: 700; }
+        .desc { margin: 0 0 14px; font-size: 15px; color: #334155; }
+        .info { background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 12px 14px; }
+        .info-row { margin: 6px 0; font-size: 15px; color: #0f172a; }
+        .muted { margin-top: 14px; color: #64748b; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h2 class="title">試用已到期通知</h2>
+            <p class="desc">您好，{{tenantName}} 的試用期已結束，若尚未完成訂閱，服務可能受到限制。</p>
+            <div class="info">
+                <div class="info-row"><strong>租戶：</strong>{{tenantName}}</div>
+                <div class="info-row"><strong>目前方案：</strong>{{planName}}</div>
+                <div class="info-row"><strong>到期日期：</strong>{{expireDate}}</div>
+                <div class="info-row"><strong>目前狀態：</strong>{{status}}</div>
+            </div>
+            <p class="muted">此為系統自動通知信，請儘快完成訂閱或聯繫平台管理員。</p>
+        </div>
+    </div>
+</body>
+</html>`,
+            enabled: 1
+        },
+        {
+            key: 'subscription_payment_failed_notification',
+            name: '訂閱扣款失敗通知',
+            subject: '【訂閱扣款失敗】{{tenantName}} 扣款失敗（第 {{failedCount}} 次）',
+            content: `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: 'Microsoft JhengHei', Arial, sans-serif; line-height: 1.8; color: #1f2937; margin: 0; padding: 0; background: #f8fafc; }
+        .container { max-width: 640px; margin: 0 auto; padding: 20px 14px; }
+        .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+        .title { margin: 0 0 12px; color: #9a3412; font-size: 24px; font-weight: 700; }
+        .desc { margin: 0 0 14px; font-size: 15px; color: #334155; }
+        .info { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 10px; padding: 12px 14px; }
+        .info-row { margin: 6px 0; font-size: 15px; color: #0f172a; }
+        .muted { margin-top: 14px; color: #64748b; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h2 class="title">訂閱扣款失敗通知</h2>
+            <p class="desc">您好，{{tenantName}} 的訂閱扣款失敗，請盡快確認付款方式與授權狀態。</p>
+            <div class="info">
+                <div class="info-row"><strong>租戶：</strong>{{tenantName}}</div>
+                <div class="info-row"><strong>方案：</strong>{{planName}}</div>
+                <div class="info-row"><strong>失敗次數：</strong>{{failedCount}}</div>
+                <div class="info-row"><strong>下次重試：</strong>{{nextRetryAt}}</div>
+                <div class="info-row"><strong>目前狀態：</strong>{{status}}</div>
+            </div>
+            <p class="muted">若連續失敗可能導致停權，請儘速處理。</p>
+        </div>
+    </div>
+</body>
+</html>`,
+            enabled: 1
+        },
+        {
+            key: 'subscription_expiring_notification',
+            name: '訂閱即將到期/停權通知',
+            subject: '【訂閱即將到期】{{tenantName}} 將於 {{expireDate}} 到期（{{status}}）',
+            content: `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: 'Microsoft JhengHei', Arial, sans-serif; line-height: 1.8; color: #1f2937; margin: 0; padding: 0; background: #f8fafc; }
+        .container { max-width: 640px; margin: 0 auto; padding: 20px 14px; }
+        .card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; }
+        .title { margin: 0 0 12px; color: #0f172a; font-size: 24px; font-weight: 700; }
+        .desc { margin: 0 0 14px; font-size: 15px; color: #334155; }
+        .info { background: #eff6ff; border: 1px solid #93c5fd; border-radius: 10px; padding: 12px 14px; }
+        .info-row { margin: 6px 0; font-size: 15px; color: #0f172a; }
+        .muted { margin-top: 14px; color: #64748b; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h2 class="title">訂閱即將到期提醒</h2>
+            <p class="desc">您好，{{tenantName}} 的訂閱即將到期或接近停權，請提前完成續約設定。</p>
+            <div class="info">
+                <div class="info-row"><strong>租戶：</strong>{{tenantName}}</div>
+                <div class="info-row"><strong>方案：</strong>{{planName}}</div>
+                <div class="info-row"><strong>到期日期：</strong>{{expireDate}}</div>
+                <div class="info-row"><strong>剩餘天數：</strong>{{daysLeft}}</div>
+                <div class="info-row"><strong>目前狀態：</strong>{{status}}</div>
+            </div>
+            <p class="muted">此為系統自動通知信，建議儘速確認授權與付款資料。</p>
+        </div>
+    </div>
+</body>
+</html>`,
+            enabled: 1
         }
     ];
     

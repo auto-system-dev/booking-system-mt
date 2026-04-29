@@ -437,6 +437,32 @@ function createNotificationService(deps) {
         return labels[code] || code || '訂閱方案';
     }
 
+    async function sendTenantLifecycleTemplateEmail({
+        tenantId,
+        templateKey,
+        fallbackSubject,
+        fallbackHtmlFactory,
+        templateData
+    }) {
+        const adminEmail = await resolveAdminNotificationEmail(tenantId);
+        if (!adminEmail) return false;
+        const renderResult = await buildMailOptionsFromTemplateWithFallback({
+            context: `租戶通知:${templateKey}`,
+            to: adminEmail,
+            templateKey,
+            templateArgs: [templateData],
+            fallbackSubject,
+            fallbackHtmlFactory
+        });
+        try {
+            await emailService.sendEmail(renderResult.mailOptions);
+            return true;
+        } catch (error) {
+            console.error(`❌ 租戶模板通知發送失敗 (${templateKey}, tenant=${tenantId}):`, error.message);
+            return false;
+        }
+    }
+
     async function sendSubscriptionActivatedNotification(params = {}) {
         const tenantId = resolveTenantId({ tenantId: params.tenantId });
         const snapshot = params.snapshot || {};
@@ -492,6 +518,105 @@ function createNotificationService(deps) {
         }
     }
 
+    async function sendTrialExpiringNotification(params = {}) {
+        const tenantId = resolveTenantId({ tenantId: params.tenantId });
+        const data = {
+            tenantName: params.tenantName || `租戶 #${tenantId}`,
+            planName: resolvePlanLabel(params.planCode),
+            expireDate: params.expireDate || '待確認',
+            daysLeft: String(params.daysLeft ?? ''),
+            status: params.status || '試用中',
+            tenantId
+        };
+        return sendTenantLifecycleTemplateEmail({
+            tenantId,
+            templateKey: 'trial_expiring_notification',
+            fallbackSubject: `【試用即將到期】${data.tenantName} 將於 ${data.expireDate} 到期（剩 ${data.daysLeft} 天）`,
+            fallbackHtmlFactory: async () => `
+                <div style="font-family:'Noto Sans TC',Arial,sans-serif;max-width:680px;margin:0 auto;line-height:1.8;">
+                    <h2>試用即將到期提醒</h2>
+                    <p>${data.tenantName} 試用方案將於 ${data.expireDate} 到期（剩餘 ${data.daysLeft} 天）。</p>
+                    <p>建議提前完成升級，以避免服務中斷。</p>
+                </div>
+            `,
+            templateData: data
+        });
+    }
+
+    async function sendTrialExpiredNotification(params = {}) {
+        const tenantId = resolveTenantId({ tenantId: params.tenantId });
+        const data = {
+            tenantName: params.tenantName || `租戶 #${tenantId}`,
+            planName: resolvePlanLabel(params.planCode),
+            expireDate: params.expireDate || '待確認',
+            status: params.status || '已到期',
+            tenantId
+        };
+        return sendTenantLifecycleTemplateEmail({
+            tenantId,
+            templateKey: 'trial_expired_notification',
+            fallbackSubject: `【試用已到期】${data.tenantName} 已於 ${data.expireDate} 到期`,
+            fallbackHtmlFactory: async () => `
+                <div style="font-family:'Noto Sans TC',Arial,sans-serif;max-width:680px;margin:0 auto;line-height:1.8;">
+                    <h2>試用已到期通知</h2>
+                    <p>${data.tenantName} 試用期已結束（到期日：${data.expireDate}）。</p>
+                    <p>請儘快完成訂閱設定以恢復完整服務。</p>
+                </div>
+            `,
+            templateData: data
+        });
+    }
+
+    async function sendSubscriptionPaymentFailedNotification(params = {}) {
+        const tenantId = resolveTenantId({ tenantId: params.tenantId });
+        const data = {
+            tenantName: params.tenantName || `租戶 #${tenantId}`,
+            planName: resolvePlanLabel(params.planCode),
+            failedCount: String(params.failedCount ?? 1),
+            nextRetryAt: params.nextRetryAt || '待確認',
+            status: params.status || '扣款失敗',
+            tenantId
+        };
+        return sendTenantLifecycleTemplateEmail({
+            tenantId,
+            templateKey: 'subscription_payment_failed_notification',
+            fallbackSubject: `【訂閱扣款失敗】${data.tenantName} 扣款失敗（第 ${data.failedCount} 次）`,
+            fallbackHtmlFactory: async () => `
+                <div style="font-family:'Noto Sans TC',Arial,sans-serif;max-width:680px;margin:0 auto;line-height:1.8;">
+                    <h2>訂閱扣款失敗通知</h2>
+                    <p>${data.tenantName} 訂閱扣款失敗（第 ${data.failedCount} 次）。</p>
+                    <p>請盡快確認付款資訊並完成補繳。</p>
+                </div>
+            `,
+            templateData: data
+        });
+    }
+
+    async function sendSubscriptionExpiringNotification(params = {}) {
+        const tenantId = resolveTenantId({ tenantId: params.tenantId });
+        const data = {
+            tenantName: params.tenantName || `租戶 #${tenantId}`,
+            planName: resolvePlanLabel(params.planCode),
+            expireDate: params.expireDate || '待確認',
+            daysLeft: String(params.daysLeft ?? ''),
+            status: params.status || '即將到期',
+            tenantId
+        };
+        return sendTenantLifecycleTemplateEmail({
+            tenantId,
+            templateKey: 'subscription_expiring_notification',
+            fallbackSubject: `【訂閱即將到期】${data.tenantName} 將於 ${data.expireDate} 到期（${data.status}）`,
+            fallbackHtmlFactory: async () => `
+                <div style="font-family:'Noto Sans TC',Arial,sans-serif;max-width:680px;margin:0 auto;line-height:1.8;">
+                    <h2>訂閱即將到期提醒</h2>
+                    <p>${data.tenantName} 訂閱將於 ${data.expireDate} 到期（剩餘 ${data.daysLeft} 天）。</p>
+                    <p>請提前完成續約設定，以免服務中斷。</p>
+                </div>
+            `,
+            templateData: data
+        });
+    }
+
     return {
         sendOrderQueryOtpEmail,
         sendCardPaymentSuccessNotifications,
@@ -501,7 +626,11 @@ function createNotificationService(deps) {
         sendCancelNotificationEmail,
         sendCheckinReminderEmail,
         sendFeedbackRequestEmail,
-        sendSubscriptionActivatedNotification
+        sendSubscriptionActivatedNotification,
+        sendTrialExpiringNotification,
+        sendTrialExpiredNotification,
+        sendSubscriptionPaymentFailedNotification,
+        sendSubscriptionExpiringNotification
     };
 }
 

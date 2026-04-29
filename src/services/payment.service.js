@@ -1371,6 +1371,28 @@ function createPaymentService(deps) {
                 });
             }
         }
+        const shouldNotifyPaymentFailed = (
+            resolvedPaymentStatus === 'failed'
+            && typeof notificationService?.sendSubscriptionPaymentFailedNotification === 'function'
+        );
+        if (shouldNotifyPaymentFailed) {
+            try {
+                await notificationService.sendSubscriptionPaymentFailedNotification({
+                    tenantId,
+                    tenantName: null,
+                    planCode: snapshot?.planCode || previousSnapshot?.planCode || '',
+                    failedCount: snapshot?.recurring?.failedPaymentCount || 1,
+                    nextRetryAt: snapshot?.recurring?.nextBillingAt || nextBillingAt || null,
+                    status: snapshot?.status || resolvedStatus || 'past_due'
+                });
+            } catch (notifyError) {
+                logPaymentEvent('warn', 'payment.newebpay.subscription.notify_payment_failed', {
+                    requestId: context.requestId || null,
+                    tenantId,
+                    reason: String(notifyError?.message || notifyError)
+                });
+            }
+        }
         logPaymentEvent('info', 'payment.newebpay.subscription.synced', {
             requestId: context.requestId || null,
             tenantId,

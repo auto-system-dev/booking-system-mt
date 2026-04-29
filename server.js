@@ -3957,7 +3957,11 @@ const adminLogCleanupJobs = createAdminLogCleanupJobs({
     db,
     processEnv: process.env
 });
-const subscriptionJobs = createSubscriptionJobs({ db, paymentService: () => paymentService });
+const subscriptionJobs = createSubscriptionJobs({
+    db,
+    paymentService: () => paymentService,
+    notificationService
+});
 
 const orderQueryService = createOrderQueryService({
     db,
@@ -7180,6 +7184,25 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
             originalAmount: totalAmount,
             discountedTotal: testDiscountedTotal
         };
+        const tenantTemplateKeys = new Set([
+            'subscription_activated_notification',
+            'trial_expiring_notification',
+            'trial_expired_notification',
+            'subscription_payment_failed_notification',
+            'subscription_expiring_notification'
+        ]);
+        const mockTenantNotice = {
+            tenant_id: getRequestTenantId(req),
+            tenantId: getRequestTenantId(req),
+            tenantName: '測試旅宿租戶',
+            planName: '專業方案（年繳）',
+            expireDate: '2026/05/06',
+            daysLeft: '7',
+            failedCount: '1',
+            nextRetryAt: '2026/05/01 09:00',
+            status: 'active',
+            nextBillingAt: '2026/05/29 10:00'
+        };
         
         // 準備 additionalData（與實際發送時一致）
         const additionalData = {
@@ -7200,7 +7223,17 @@ app.post('/api/email-templates/:key/test', requireAuth, requireTenantContext, ch
         
         // 生成測試郵件內容
         let testContent, testSubject;
-        if (isFieldStyleConfirmationTemplate) {
+        if (tenantTemplateKeys.has(String(key || ''))) {
+            try {
+                const testResult = await generateEmailFromTemplate(key, mockTenantNotice, testBankInfo, additionalData);
+                testContent = testResult.content;
+                testSubject = testResult.subject;
+                console.log('✅ 租戶模板測試信使用租戶預覽資料生成');
+            } catch (tenantTemplateError) {
+                console.error('❌ 租戶模板測試信生成失敗:', tenantTemplateError);
+                throw tenantTemplateError;
+            }
+        } else if (isFieldStyleConfirmationTemplate) {
             // 欄位式模板（MVP/正式訂房確認）強制使用當前模板內容（避免回讀資料庫造成與預覽不一致）
             try {
                 const testResult = await replaceTemplateVariables(template, mockBooking, testBankInfo, additionalData);
