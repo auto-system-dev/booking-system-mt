@@ -3137,6 +3137,18 @@
                             💡 提示：使用上方按鈕插入變數，或直接點擊「姓名」、「訂房編號」等按鈕快速插入。
                         </small>
                     </div>
+                    <div id="tenantTemplateResponsivePreviewGroup" class="form-group" style="display:none; border:1px solid #dbeafe; border-radius:10px; padding:12px; background:#f8fbff;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <div style="font-size:13px; font-weight:700; color:#1e3a8a;">租戶模板預覽（實際寄送版型）</div>
+                            <div style="display:flex; gap:8px;">
+                                <button type="button" class="btn-secondary" id="tenantPreviewDesktopBtn">桌機預覽</button>
+                                <button type="button" class="btn-secondary" id="tenantPreviewMobileBtn">手機預覽</button>
+                            </div>
+                        </div>
+                        <div style="margin-top:10px;">
+                            <iframe id="tenantTemplatePreviewFrame" style="width:100%;min-height:340px;border:1px solid #dbeafe;border-radius:10px;background:#fff;"></iframe>
+                        </div>
+                    </div>
                     </div>
                     <div class="form-group">
                         <div style="display: flex; align-items: center; gap: 12px;">

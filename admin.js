@@ -9806,6 +9806,13 @@ async function saveWeekdaySettings() {
 let currentEmailTemplateScope = 'standard';
 const MVP_TEMPLATE_KEY_PREFIX = 'mvp_';
 const FIELD_EDITOR_STANDARD_TEMPLATE_KEYS = new Set(['booking_confirmation', 'booking_confirmation_admin', 'cancel_notification', 'checkin_reminder', 'feedback_request', 'payment_reminder', 'payment_completed']);
+const TENANT_TEMPLATE_KEYS = new Set([
+    'subscription_activated_notification',
+    'trial_expiring_notification',
+    'trial_expired_notification',
+    'subscription_payment_failed_notification',
+    'subscription_expiring_notification'
+]);
 const MVP_ALLOWED_VARIABLES = new Set([
     'guestName', 'bookingId', 'checkInDate', 'checkOutDate', 'roomType',
     'totalAmount', 'discountAmount', 'discountedTotal', 'finalAmount', 'remainingAmount',
@@ -9816,6 +9823,7 @@ const MVP_ALLOWED_VARIABLES = new Set([
     'bookingDate', 'nights', 'bookingUrl', 'googleReviewUrl'
 ]);
 let mvpPreviewMode = 'desktop';
+let tenantTemplatePreviewMode = 'desktop';
 let mvpLastFocusedFieldId = '';
 
 function isMvpTemplateKey(templateKey) {
@@ -9825,6 +9833,36 @@ function isMvpTemplateKey(templateKey) {
 function isFieldEditorTemplateKey(templateKey) {
     const key = String(templateKey || '').trim();
     return isMvpTemplateKey(key) || FIELD_EDITOR_STANDARD_TEMPLATE_KEYS.has(key);
+}
+
+function isTenantTemplateKey(templateKey) {
+    return TENANT_TEMPLATE_KEYS.has(String(templateKey || '').trim());
+}
+
+function syncTenantTemplatePreviewVisibility(templateKey) {
+    const group = document.getElementById('tenantTemplateResponsivePreviewGroup');
+    if (!group) return;
+    group.style.display = isTenantTemplateKey(templateKey) ? '' : 'none';
+}
+
+function renderTenantTemplateResponsivePreview() {
+    const group = document.getElementById('tenantTemplateResponsivePreviewGroup');
+    const iframe = document.getElementById('tenantTemplatePreviewFrame');
+    const contentEl = document.getElementById('emailTemplateContent');
+    if (!group || !iframe || !contentEl || group.style.display === 'none') return;
+
+    const source = String(contentEl.value || '').trim();
+    const html = /<html[\s>]/i.test(source)
+        ? source
+        : `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head><body>${source}</body></html>`;
+
+    iframe.style.maxWidth = tenantTemplatePreviewMode === 'mobile' ? '390px' : '100%';
+    iframe.style.margin = tenantTemplatePreviewMode === 'mobile' ? '0 auto' : '0';
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+    doc.open();
+    doc.write(html);
+    doc.close();
 }
 
 function syncFieldEditorTitle(templateKey) {
@@ -11807,6 +11845,10 @@ window.handleTextareaInput = function handleTextareaInput() {
             refreshEmailPreview();
         }, 300);
     }
+    clearTimeout(window.tenantPreviewUpdateTimer);
+    window.tenantPreviewUpdateTimer = setTimeout(() => {
+        renderTenantTemplateResponsivePreview();
+    }, 180);
 };
 
 // 重新整理郵件預覽
@@ -12089,9 +12131,11 @@ async function showEmailTemplateModal(templateKey) {
 
             const isMvpTemplate = isMvpTemplateKey(templateKey);
             const isFieldEditorTemplate = isFieldEditorTemplateKey(templateKey);
+            const isTenantTemplate = isTenantTemplateKey(templateKey);
             // 必須在載入欄位與預覽前先設定，避免第一次開啟仍沿用上一次模板 key
             form.dataset.templateKey = templateKey;
             setMvpEditorVisible(isFieldEditorTemplate);
+            syncTenantTemplatePreviewVisibility(templateKey);
             syncFieldEditorTitle(templateKey);
             syncFieldEditorLayout(templateKey);
             if (isFieldEditorTemplate) {
@@ -12307,6 +12351,28 @@ async function showEmailTemplateModal(templateKey) {
             if (textarea) {
                 textarea.value = htmlContent || '';
                 console.log('✅ 內容已載入到 textarea，長度:', textarea.value.length);
+                textarea.removeEventListener('input', window.handleTextareaInput);
+                textarea.addEventListener('input', window.handleTextareaInput);
+            }
+            if (isTenantTemplate) {
+                const desktopBtn = document.getElementById('tenantPreviewDesktopBtn');
+                const mobileBtn = document.getElementById('tenantPreviewMobileBtn');
+                if (desktopBtn && desktopBtn.dataset.bound !== '1') {
+                    desktopBtn.dataset.bound = '1';
+                    desktopBtn.addEventListener('click', () => {
+                        tenantTemplatePreviewMode = 'desktop';
+                        renderTenantTemplateResponsivePreview();
+                    });
+                }
+                if (mobileBtn && mobileBtn.dataset.bound !== '1') {
+                    mobileBtn.dataset.bound = '1';
+                    mobileBtn.addEventListener('click', () => {
+                        tenantTemplatePreviewMode = 'mobile';
+                        renderTenantTemplateResponsivePreview();
+                    });
+                }
+                tenantTemplatePreviewMode = 'desktop';
+                renderTenantTemplateResponsivePreview();
             }
             
             // templateKey 已於上方預覽流程前設定
