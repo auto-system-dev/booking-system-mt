@@ -8369,7 +8369,7 @@ function buildSubscriptionPlanHighlights(plan) {
         { label: '系統模式', value: '一般訂房／包棟訂房' },
         { label: '管理員帳號', value: `${maxAdmins} 席` },
         { label: '房間數量', value: `${maxRoomTypes} 間` },
-        { label: '儀表板總覽（KPI）', supported: true },
+        { label: '儀表板總覽', supported: true },
         { label: '進階營運報表', supported: !!flags.reports },
         { label: '報表 CSV 匯出', supported: !!flags.reports },
         { label: 'Webhook / API 整合', supported: !!flags.api_access },
