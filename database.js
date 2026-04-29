@@ -10423,6 +10423,8 @@ async function initRolesAndPermissions() {
         
         // 為每個角色分配預設權限
         await assignDefaultPermissions();
+        // 舊環境補齊內建 admin 的員工帳號管理能力
+        await ensureAdminManagementPermissionsForAdminRole();
         
         // 遷移現有管理員到新角色系統
         await migrateAdminsToRoles();
@@ -10543,6 +10545,45 @@ async function assignDefaultPermissions() {
         console.log('✅ 角色預設權限已分配');
     } catch (error) {
         console.error('❌ 分配角色權限失敗:', error.message);
+        throw error;
+    }
+}
+
+// 確保內建 admin 角色具備員工帳號管理最基本權限（舊環境補齊用）
+async function ensureAdminManagementPermissionsForAdminRole() {
+    try {
+        const adminRole = await queryOne(
+            usePostgreSQL
+                ? 'SELECT id FROM roles WHERE role_name = $1'
+                : 'SELECT id FROM roles WHERE role_name = ?',
+            ['admin']
+        );
+        if (!adminRole?.id) return;
+
+        const requiredCodes = [
+            'admins.view',
+            'admins.create',
+            'admins.edit',
+            'admins.change_password'
+        ];
+
+        for (const code of requiredCodes) {
+            const perm = await queryOne(
+                usePostgreSQL
+                    ? 'SELECT id FROM permissions WHERE permission_code = $1'
+                    : 'SELECT id FROM permissions WHERE permission_code = ?',
+                [code]
+            );
+            if (!perm?.id) continue;
+            await query(
+                usePostgreSQL
+                    ? 'INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING'
+                    : 'INSERT OR IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)',
+                [adminRole.id, perm.id]
+            );
+        }
+    } catch (error) {
+        console.error('❌ 補齊 admin 員工帳號管理權限失敗:', error.message);
         throw error;
     }
 }
