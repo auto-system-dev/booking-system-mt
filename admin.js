@@ -8285,7 +8285,7 @@ function resolveRecommendedPlanCode(plans) {
     return '';
 }
 
-function renderSubscriptionBillingActions(plans, currentPlanCode) {
+function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionStatus = '') {
     const actionsEl = document.getElementById('subscriptionBillingActions');
     if (!actionsEl) return;
     const activePlans = (Array.isArray(plans) ? plans : []).filter((plan) => Number(plan?.is_active ?? 1) !== 0);
@@ -8301,6 +8301,8 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
     activePlans.forEach((plan) => {
         const planCode = String(plan.code || '').trim();
         const isCurrentPlan = !!currentPlanCode && String(plan.code || '') === String(currentPlanCode || '');
+        const normalizedStatus = String(subscriptionStatus || '').trim().toLowerCase();
+        const isTrialingCurrent = isCurrentPlan && normalizedStatus === 'trialing';
         const isRecommended = !!recommendedCode && planCode === recommendedCode;
         const theme = getSubscriptionPlanTheme(plan);
         const card = document.createElement('div');
@@ -8407,7 +8409,7 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
 
         if (isCurrentPlan) {
             const statusChip = document.createElement('div');
-            statusChip.textContent = '目前使用中';
+            statusChip.textContent = isTrialingCurrent ? '目前試用中' : '目前使用中';
             statusChip.style.alignSelf = 'center';
             statusChip.style.padding = '4px 10px';
             statusChip.style.borderRadius = '999px';
@@ -8425,7 +8427,9 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
         btn.type = 'button';
         btn.className = 'btn-save';
         btn.setAttribute('data-plan-code', planCode);
-        btn.textContent = isCurrentPlan ? '重新授權/續訂' : '選擇此方案';
+        btn.textContent = isCurrentPlan
+            ? (isTrialingCurrent ? '立即啟用' : '重新授權/續訂')
+            : '選擇此方案';
         btn.style.marginTop = '6px';
         btn.style.background = theme.buttonBg;
         btn.style.color = theme.buttonText;
@@ -8570,7 +8574,7 @@ async function loadSubscriptionSettings() {
         subscriptionPlansCache = plans;
         subscriptionFeatureSnapshot = snapshot;
         applyFeatureVisibilityBySubscriptionSnapshot(snapshot);
-        renderSubscriptionBillingActions(plans, snapshot.planCode);
+        renderSubscriptionBillingActions(plans, snapshot.planCode, snapshot.status);
         renderSubscriptionSnapshot(snapshot);
         if (isSuperAdmin) {
             renderSubscriptionPlans(plans, snapshot.planCode);
@@ -8627,7 +8631,7 @@ async function saveSubscriptionSettingsAsSuperAdmin() {
         subscriptionFeatureSnapshot = snapshot;
         applyFeatureVisibilityBySubscriptionSnapshot(snapshot);
         if (subscriptionPlansCache.length > 0) {
-            renderSubscriptionBillingActions(subscriptionPlansCache, snapshot.planCode);
+            renderSubscriptionBillingActions(subscriptionPlansCache, snapshot.planCode, snapshot.status);
         }
         renderSubscriptionSnapshot(snapshot);
         if (subscriptionPlansCache.length > 0) {
