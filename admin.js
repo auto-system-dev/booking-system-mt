@@ -11489,12 +11489,12 @@ async function loadEmailTemplates() {
             renderEmailTemplates(templates);
         } else {
             console.error('API 返回失敗:', result.message);
-            showError('載入郵件模板時發生錯誤：' + (result.message || '未知錯誤'));
+            showError(result.message || '未知錯誤');
             document.getElementById('emailTemplatesList').innerHTML = '<div class="loading">載入失敗</div>';
         }
     } catch (error) {
         console.error('載入郵件模板時發生錯誤:', error);
-        showError('載入郵件模板時發生錯誤：' + error.message);
+        showError(error.message || '未知錯誤');
         document.getElementById('emailTemplatesList').innerHTML = '<div class="loading">載入失敗</div>';
     }
 }
@@ -12673,11 +12673,11 @@ async function showEmailTemplateModal(templateKey) {
                 console.log('✅ togglePreviewBtn 按鈕事件監聽器已設置');
             }
         } else {
-            showError('載入郵件模板時發生錯誤：' + (result.message || '未知錯誤'));
+            showError(result.message || '未知錯誤');
         }
     } catch (error) {
         console.error('Error:', error);
-        showError('載入郵件模板時發生錯誤：' + error.message);
+        showError(error.message || '未知錯誤');
     }
 }
 
