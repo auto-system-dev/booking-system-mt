@@ -3538,9 +3538,11 @@ async function ensureEmailTemplatesForTenant(tenantId) {
     // 因此不在 count > 0 時直接返回，而是持續走 initEmailTemplates 的差異更新邏輯。
     if (count > 0) {
         await initEmailTemplates(safeTenantId);
+        await purgeLegacyMvpEmailTemplatesForTenant(safeTenantId);
         return;
     }
     await initEmailTemplates(safeTenantId);
+    await purgeLegacyMvpEmailTemplatesForTenant(safeTenantId);
 }
 
 // 初始化 SQLite（保持原有邏輯）
@@ -9141,19 +9143,54 @@ async function resetMvpEmailTemplateToDefault(templateKey, tenantId) {
     return { changes: result.changes || result.rowCount || 0, template: tpl };
 }
 
+async function purgeLegacyMvpEmailTemplatesForTenant(tenantId) {
+    const safeTenantId = assertTenantScope(tenantId, 'purgeLegacyMvpEmailTemplatesForTenant');
+    const sql = usePostgreSQL
+        ? `DELETE FROM email_templates WHERE tenant_id = $1 AND template_key LIKE 'mvp_%'`
+        : `DELETE FROM email_templates WHERE tenant_id = ? AND template_key LIKE 'mvp_%'`;
+    try {
+        await query(sql, [safeTenantId]);
+    } catch (error) {
+        console.warn(`⚠️ 清理舊 mvp 模板失敗 (tenant=${safeTenantId}):`, error.message);
+    }
+}
+
 async function getAllEmailTemplates(tenantId, options = {}) {
     try {
         const safeTenantId = assertTenantScope(tenantId, 'getAllEmailTemplates');
         const scope = String(options?.scope || 'standard').trim().toLowerCase();
         await ensureEmailTemplatesForTenant(safeTenantId);
-        if (scope === 'mvp') {
-            await ensureMvpEmailTemplatesForTenant(safeTenantId);
+        await purgeLegacyMvpEmailTemplatesForTenant(safeTenantId);
+        const tenantTemplateKeys = [
+            'subscription_activated_notification',
+            'trial_expiring_notification',
+            'trial_expired_notification',
+            'subscription_expiring_notification',
+            'subscription_payment_failed_notification'
+        ];
+        let sql = '';
+        let params = [];
+        if (scope === 'tenant') {
+            if (usePostgreSQL) {
+                sql = `SELECT * FROM email_templates WHERE tenant_id = $1 AND template_key = ANY($2::text[]) ORDER BY template_key`;
+                params = [safeTenantId, tenantTemplateKeys];
+            } else {
+                const marks = tenantTemplateKeys.map(() => '?').join(', ');
+                sql = `SELECT * FROM email_templates WHERE tenant_id = ? AND template_key IN (${marks}) ORDER BY template_key`;
+                params = [safeTenantId, ...tenantTemplateKeys];
+            }
+        } else {
+            const keyFilter = 'mvp_%';
+            if (usePostgreSQL) {
+                sql = `SELECT * FROM email_templates WHERE tenant_id = $1 AND template_key NOT LIKE $2 AND template_key <> ALL($3::text[]) ORDER BY template_key`;
+                params = [safeTenantId, keyFilter, tenantTemplateKeys];
+            } else {
+                const marks = tenantTemplateKeys.map(() => '?').join(', ');
+                sql = `SELECT * FROM email_templates WHERE tenant_id = ? AND template_key NOT LIKE ? AND template_key NOT IN (${marks}) ORDER BY template_key`;
+                params = [safeTenantId, keyFilter, ...tenantTemplateKeys];
+            }
         }
-        const keyFilter = scope === 'mvp' ? 'mvp_%' : 'mvp_%';
-        const sql = usePostgreSQL
-            ? `SELECT * FROM email_templates WHERE tenant_id = $1 AND template_key ${scope === 'mvp' ? 'LIKE' : 'NOT LIKE'} $2 ORDER BY template_key`
-            : `SELECT * FROM email_templates WHERE tenant_id = ? AND template_key ${scope === 'mvp' ? 'LIKE' : 'NOT LIKE'} ? ORDER BY template_key`;
-        const result = await query(sql, [safeTenantId, keyFilter]);
+        const result = await query(sql, params);
         return result.rows || [];
     } catch (error) {
         console.error('❌ 查詢郵件模板失敗:', error.message);
@@ -9165,9 +9202,7 @@ async function getEmailTemplateByKey(templateKey, tenantId) {
     try {
         const safeTenantId = assertTenantScope(tenantId, 'getEmailTemplateByKey');
         await ensureEmailTemplatesForTenant(safeTenantId);
-        if (String(templateKey || '').startsWith('mvp_')) {
-            await ensureMvpEmailTemplatesForTenant(safeTenantId);
-        }
+        await purgeLegacyMvpEmailTemplatesForTenant(safeTenantId);
         const sql = usePostgreSQL
             ? `SELECT * FROM email_templates WHERE template_key = $1 AND tenant_id = $2`
             : `SELECT * FROM email_templates WHERE template_key = ? AND tenant_id = ?`;

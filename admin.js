@@ -11387,7 +11387,7 @@ window.insertMvpVariable = function insertMvpVariable(token) {
 
 function getCurrentEmailTemplateScope() {
     const safe = String(currentEmailTemplateScope || 'standard').trim().toLowerCase();
-    return safe === 'mvp' ? 'mvp' : 'standard';
+    return safe === 'tenant' ? 'tenant' : 'standard';
 }
 
 function buildEmailTemplateApiUrl(pathSuffix = '') {
@@ -11412,7 +11412,7 @@ function syncEmailTemplateScopeUi() {
         selectEl.value = getCurrentEmailTemplateScope();
     }
     if (hintEl) {
-        hintEl.style.display = (isSuper && getCurrentEmailTemplateScope() === 'mvp') ? '' : 'none';
+        hintEl.style.display = (isSuper && getCurrentEmailTemplateScope() === 'tenant') ? '' : 'none';
     }
 }
 

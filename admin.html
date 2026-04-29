@@ -1674,15 +1674,15 @@
                     <div style="display: flex; gap: 10px;">
                         <select id="emailTemplateScopeSelect" style="display:none; min-width: 180px; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px;">
                             <option value="standard">正式模板</option>
-                            <option value="mvp">MVP 測試模板（超管）</option>
+                            <option value="tenant">租戶模板（超管）</option>
                         </select>
                         <button class="btn-refresh" onclick="loadEmailTemplates()">
                             <span class="material-symbols-outlined">refresh</span> 重新整理
                         </button>
                     </div>
                 </div>
-                <p id="emailTemplateScopeHint" style="display:none; margin: 0 0 12px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px;">
-                    目前為 MVP 測試模板模式（僅超級管理員可見），不影響正式寄送模板。
+                <p id="emailTemplateScopeHint" style="display:none; margin: 0 0 12px; color: #0f766e; background: #ecfeff; border: 1px solid #99f6e4; border-radius: 8px; padding: 10px 12px;">
+                    目前為租戶模板模式（僅超級管理員可見），可編輯租戶生命週期與訂閱相關通知。
                 </p>
 
                 <div class="email-templates-container">
