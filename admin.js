@@ -313,6 +313,11 @@ async function checkAuthStatus(options = {}) {
                 const currentUrl = new URL(window.location.href);
                 const subscriptionReturn = currentUrl.searchParams.get('subscriptionReturn') === '1';
                 if (subscriptionReturn) {
+                    try {
+                        sessionStorage.setItem('settingsSubscriptionTabOnce', '1');
+                    } catch (_s) {
+                        // ignore
+                    }
                     localStorage.setItem('settingsTab', 'subscription');
                     if (window.location.hash !== '#settings') {
                         window.location.hash = '#settings';
@@ -1976,7 +1981,7 @@ function switchSection(section) {
     } else if (section === 'settings') {
         updateSystemModeSwitchSectionVisibility();
         loadSettings();
-        // 恢復上次選擇的分頁
+        // 恢復上次選擇的分頁（授權返回見 loadInitialAdminRoute / check-auth 一次性旗標）
         const savedTab = localStorage.getItem('settingsTab') || 'basic';
         switchSettingsTab(savedTab);
     } else if (section === 'subscription-overview') {
@@ -2039,6 +2044,18 @@ function loadInitialAdminRoute() {
     } else if (urlHash === '#buildings') {
         switchSection('buildings');
     } else if (urlHash === '#settings') {
+        try {
+            const onceSub = sessionStorage.getItem('settingsSubscriptionTabOnce') === '1';
+            if (onceSub) {
+                sessionStorage.removeItem('settingsSubscriptionTabOnce');
+                localStorage.setItem('settingsTab', 'subscription');
+            } else if ((localStorage.getItem('settingsTab') || 'basic') === 'subscription') {
+                // 重新整理／直接開 #settings：不要自動停在「訂閱狀態」（僅授權完成返回會帶一次性旗標）
+                localStorage.setItem('settingsTab', 'basic');
+            }
+        } catch (_e) {
+            // ignore
+        }
         switchSection('settings');
         if (typeof loadHolidays === 'function') loadHolidays();
     } else if (urlHash === '#subscription-overview') {
@@ -2075,8 +2092,7 @@ function loadInitialAdminRoute() {
     } else if (urlHash === '#landing-page') {
         switchSection('landing-page');
     } else if (!urlHash) {
-        const isSuperAdmin = !!(window.currentAdminInfo && window.currentAdminInfo.role === 'super_admin');
-        switchSection(isSuperAdmin ? 'subscription-overview' : 'dashboard');
+        switchSection('dashboard');
     }
 }
 
@@ -8468,13 +8484,6 @@ async function startNewebpaySubscription(planCode) {
         if (!window.currentAdminInfo) {
             showError('尚未取得登入資訊，請稍後再試');
             return;
-        }
-
-        // 回到後台時直接開啟「系統設定」並停留在「訂閱狀態」分頁
-        try {
-            localStorage.setItem('settingsTab', 'subscription');
-        } catch (_) {
-            // ignore
         }
 
         setBusy(true);
