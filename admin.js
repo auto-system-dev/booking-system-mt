@@ -8257,13 +8257,17 @@ function formatSubscriptionPlanCycle(plan) {
 function buildSubscriptionPlanHighlights(plan) {
     const flags = (plan && typeof plan.feature_flags === 'object' && plan.feature_flags) ? plan.feature_flags : {};
     const maxBuildings = Math.max(1, Number.parseInt(flags.max_buildings || 1, 10) || 1);
-    const maxAdmins = Math.max(0, Number.parseInt(flags.max_admins || 0, 10) || 0);
+    const adminLimitRaw = Number.parseInt(flags.max_admins || 0, 10) || 0;
+    // 舊資料可能未寫入 max_admins，避免前端出現 0 席，改用方案型態推估預設值。
+    const maxAdmins = adminLimitRaw > 0 ? adminLimitRaw : (maxBuildings > 1 ? 5 : 2);
     const isProLike = maxBuildings > 1 || !!flags.reports || !!flags.api_access;
+    const isYearly = String(plan?.billing_cycle || '').trim() === 'yearly';
     return [
         { label: '適合對象', value: isProLike ? '成長期或多館別經營' : '單一旅宿起步' },
         { label: '館別管理', value: maxBuildings > 1 ? `最多 ${maxBuildings} 館` : `${maxBuildings} 館` },
         { label: '系統模式', value: '一般訂房／包棟訂房' },
         { label: '管理員帳號', value: `${maxAdmins} 席` },
+        ...(isYearly ? [{ label: '年繳方案', value: '年繳約省 2 個月' }] : []),
         { label: '儀表板總覽（KPI）', supported: true },
         { label: '進階營運報表', supported: !!flags.reports },
         { label: '報表 CSV 匯出', supported: !!flags.reports },
@@ -8331,9 +8335,23 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
         name.style.textAlign = 'center';
         card.appendChild(name);
 
-        if (isRecommended || isCurrentPlan) {
+        if (isCurrentPlan) {
+            const statusChip = document.createElement('div');
+            statusChip.textContent = '目前使用中';
+            statusChip.style.alignSelf = 'center';
+            statusChip.style.padding = '4px 10px';
+            statusChip.style.borderRadius = '999px';
+            statusChip.style.fontSize = '12px';
+            statusChip.style.fontWeight = '800';
+            statusChip.style.background = '#dbeafe';
+            statusChip.style.color = '#1d4ed8';
+            statusChip.style.border = '1px solid #93c5fd';
+            card.appendChild(statusChip);
+        }
+
+        if (isRecommended) {
             const ribbon = document.createElement('div');
-            ribbon.textContent = isCurrentPlan ? '目前使用' : '推薦加入';
+            ribbon.textContent = '推薦加入';
             ribbon.style.position = 'absolute';
             ribbon.style.top = '10px';
             ribbon.style.right = '-26px';
@@ -8403,7 +8421,7 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
         btn.type = 'button';
         btn.className = 'btn-save';
         btn.setAttribute('data-plan-code', planCode);
-        btn.textContent = isCurrentPlan ? '重新授權' : '馬上使用';
+        btn.textContent = isCurrentPlan ? '管理目前方案' : '選擇此方案';
         btn.style.marginTop = '6px';
         btn.style.background = theme.buttonBg;
         btn.style.color = theme.buttonText;
