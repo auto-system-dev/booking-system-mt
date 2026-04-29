@@ -5873,7 +5873,7 @@ app.get('/api/admin/room-types', requireAuth, requireTenantContext, checkPermiss
 });
 
 // API: 新增房型
-app.post('/api/admin/room-types', requireAuth, requireTenantContext, checkPermission('room_types.create'), adminLimiter, validateRoomType, async (req, res) => {
+app.post('/api/admin/room-types', requireAuth, requireTenantContext, subscriptionGate.enforceRoomTypeLimit, checkPermission('room_types.create'), adminLimiter, validateRoomType, async (req, res) => {
     try {
         const roomData = req.body;
         

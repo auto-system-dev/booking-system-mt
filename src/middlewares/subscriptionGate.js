@@ -11,6 +11,17 @@ function createSubscriptionGate(db) {
         return Number.isFinite(maxBuildings) && maxBuildings > 1 ? 5 : 2;
     }
 
+    function resolveRoomTypeLimit(snapshot) {
+        const explicitLimit = Number(snapshot?.limits?.max_room_types || 0);
+        if (Number.isFinite(explicitLimit) && explicitLimit > 0) {
+            return explicitLimit;
+        }
+        const planCode = String(snapshot?.planCode || '').trim().toLowerCase();
+        if (planCode.startsWith('basic_')) return 10;
+        const maxBuildings = Number(snapshot?.limits?.max_buildings || 0);
+        return Number.isFinite(maxBuildings) && maxBuildings > 1 ? 50 : 10;
+    }
+
     function resolveTenantId(req) {
         const raw = req?.tenantId ?? req?.session?.admin?.tenant_id ?? null;
         const tenantId = parseInt(raw, 10);
@@ -153,11 +164,45 @@ function createSubscriptionGate(db) {
             });
     }
 
+    function enforceRoomTypeLimit(req, res, next) {
+        readSnapshot(req)
+            .then(async (snapshot) => {
+                if (snapshot.status === 'canceled') {
+                    return res.status(402).json({
+                        success: false,
+                        code: 'SUBSCRIPTION_CANCELED',
+                        message: '目前訂閱已停用，請續訂後再新增房型'
+                    });
+                }
+                const limit = resolveRoomTypeLimit(snapshot);
+                if (limit <= 0) return next();
+
+                const tenantId = resolveTenantId(req);
+                const count = await db.getRoomTypeCountByTenant(tenantId);
+                if (count >= limit) {
+                    return res.status(403).json({
+                        success: false,
+                        code: 'ROOM_TYPE_LIMIT_REACHED',
+                        message: `方案房型上限為 ${limit} 間，目前已達上限`
+                    });
+                }
+                return next();
+            })
+            .catch((error) => {
+                return res.status(500).json({
+                    success: false,
+                    code: 'SUBSCRIPTION_GATE_ERROR',
+                    message: '房型上限檢查失敗: ' + error.message
+                });
+            });
+    }
+
     return {
         requireSubscriptionActive,
         requireFeature,
         enforceBuildingLimit,
-        enforceAdminLimit
+        enforceAdminLimit,
+        enforceRoomTypeLimit
     };
 }
 

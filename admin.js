@@ -5421,6 +5421,7 @@ let statsWpPlanLabelCache = [];
 let statsRetailRoomLabelCache = [];
 let allBuildings = [];
 let selectedBuildingIdForRoomTypes = null;
+let subscriptionRoomTypeLimit = null;
 
 function getActiveRoomTypesListScope() {
     const tab = localStorage.getItem('roomTypeTab') || 'room-types';
@@ -5508,6 +5509,7 @@ async function loadRoomTypes() {
             } else {
                 allRoomTypesRetail = normalized;
             }
+            await syncAddRoomTypeButtonVisibility();
             renderRoomTypes(scope);
         } else {
             showError('載入房型列表失敗：' + (result.message || '未知錯誤'));
@@ -5516,6 +5518,41 @@ async function loadRoomTypes() {
         console.error('載入房型列表錯誤:', error);
         showError('載入房型列表時發生錯誤：' + error.message);
     }
+}
+
+async function syncAddRoomTypeButtonVisibility() {
+    const addBtn = document.getElementById('addRoomTypeBtn');
+    if (!addBtn) return;
+    let maxRoomTypes = Number(subscriptionRoomTypeLimit);
+    if (!Number.isFinite(maxRoomTypes) || maxRoomTypes <= 0) {
+        try {
+            const res = await adminFetch('/api/subscription/status');
+            if (res.ok) {
+                const j = await res.json();
+                if (j?.success) {
+                    const limits = j?.data?.limits || {};
+                    const planCode = String(j?.data?.planCode || '').trim().toLowerCase();
+                    const explicit = Number(limits.max_room_types || 0);
+                    if (Number.isFinite(explicit) && explicit > 0) {
+                        maxRoomTypes = explicit;
+                    } else {
+                        maxRoomTypes = planCode.startsWith('basic_') ? 10 : 50;
+                    }
+                    subscriptionRoomTypeLimit = maxRoomTypes;
+                }
+            }
+        } catch (_) {
+            // ignore
+        }
+    }
+    if (!Number.isFinite(maxRoomTypes) || maxRoomTypes <= 0) return;
+    const currentCount = (Array.isArray(allRoomTypesRetail) ? allRoomTypesRetail.length : 0)
+        + (Array.isArray(allRoomTypesWholeProperty) ? allRoomTypesWholeProperty.length : 0);
+    const reached = currentCount >= maxRoomTypes;
+    addBtn.disabled = reached;
+    addBtn.style.opacity = reached ? '0.6' : '';
+    addBtn.style.cursor = reached ? 'not-allowed' : '';
+    addBtn.title = reached ? `目前方案房型上限為 ${maxRoomTypes} 間，已達上限` : '';
 }
 
 // ==================== 館別管理（buildings） ====================
@@ -5891,6 +5928,11 @@ function renderRoomTypes(scope = 'retail') {
 
 // 顯示新增房型模態框
 async function showAddRoomTypeModal() {
+    const addBtn = document.getElementById('addRoomTypeBtn');
+    if (addBtn?.disabled) {
+        showError(addBtn.title || '目前方案房型數已達上限');
+        return;
+    }
     showRoomTypeModal(null, getActiveRoomTypesListScope());
 }
 
@@ -8306,8 +8348,10 @@ function buildSubscriptionPlanHighlights(plan) {
     const flags = (plan && typeof plan.feature_flags === 'object' && plan.feature_flags) ? plan.feature_flags : {};
     const maxBuildings = Math.max(1, Number.parseInt(flags.max_buildings || 1, 10) || 1);
     const adminLimitRaw = Number.parseInt(flags.max_admins || 0, 10) || 0;
+    const roomTypeLimitRaw = Number.parseInt(flags.max_room_types || 0, 10) || 0;
     // 舊資料可能未寫入 max_admins，避免前端出現 0 席，改用方案型態推估預設值。
     const maxAdmins = adminLimitRaw > 0 ? adminLimitRaw : (maxBuildings > 1 ? 5 : 2);
+    const maxRoomTypes = roomTypeLimitRaw > 0 ? roomTypeLimitRaw : (maxBuildings > 1 ? 50 : 10);
     const isProLike = maxBuildings > 1 || !!flags.reports || !!flags.api_access;
     const isYearly = String(plan?.billing_cycle || '').trim() === 'yearly';
     return [
@@ -8315,6 +8359,7 @@ function buildSubscriptionPlanHighlights(plan) {
         { label: '館別管理', value: maxBuildings > 1 ? `最多 ${maxBuildings} 館` : `${maxBuildings} 館` },
         { label: '系統模式', value: '一般訂房／包棟訂房' },
         { label: '管理員帳號', value: `${maxAdmins} 席` },
+        { label: '房型上限', value: `${maxRoomTypes} 間` },
         ...(isYearly ? [{ label: '年繳方案', value: '年繳約省 2 個月' }] : []),
         { label: '儀表板總覽（KPI）', supported: true },
         { label: '進階營運報表', supported: !!flags.reports },
@@ -8689,7 +8734,7 @@ async function saveSubscriptionSettingsAsSuperAdmin() {
 async function loadSubscriptionOverview() {
     const tbody = document.getElementById('subscriptionOverviewTableBody');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#666;">載入中...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#666;">載入中...</td></tr>';
     try {
         const modeFilter = String(document.getElementById('subscriptionModeFilter')?.value || '').trim();
         const riskFilter = String(document.getElementById('subscriptionRiskFilter')?.value || '').trim();
@@ -8874,7 +8919,7 @@ async function loadPlanManagementList() {
         const rows = Array.isArray(result.data) ? result.data : [];
         planManagementRowsCache = rows;
         if (rows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#666;">目前沒有方案資料</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#666;">目前沒有方案資料</td></tr>';
             return;
         }
         tbody.innerHTML = rows.map((plan) => {
@@ -8900,6 +8945,7 @@ async function loadPlanManagementList() {
                     <td>${escapeHtml(featureTexts.join(' / '))}</td>
                     <td>${escapeHtml(String(parseInt(features.max_buildings || 1, 10) || 1))}</td>
                     <td>${escapeHtml(String(Math.max(0, parseInt(features.max_admins || 0, 10) || 0)))}</td>
+                    <td>${escapeHtml(String(Math.max(0, parseInt(features.max_room_types || 0, 10) || 0)))}</td>
                     <td>${isActive ? '<span class="badge badge-success">啟用</span>' : '<span class="badge badge-secondary">停用</span>'}</td>
                     <td>${escapeHtml(String(parseInt(plan.tenant_count || 0, 10) || 0))}</td>
                     <td>
@@ -8910,7 +8956,7 @@ async function loadPlanManagementList() {
             `;
         }).join('');
     } catch (error) {
-        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
     }
 }
 
@@ -8930,8 +8976,9 @@ function openPlanManagementModal(mode = 'create', planCode = '') {
     const apiEl = document.getElementById('planFeatureApiInput');
     const maxBuildingsEl = document.getElementById('planMaxBuildingsInput');
     const maxAdminsEl = document.getElementById('planMaxAdminsInput');
+    const maxRoomTypesEl = document.getElementById('planMaxRoomTypesInput');
     const activeEl = document.getElementById('planIsActiveInput');
-    if (!modeEl || !codeEl || !nameEl || !cycleEl || !priceEl || !recurringModeEl || !recurringValueEl || !reportsEl || !apiEl || !maxBuildingsEl || !maxAdminsEl || !activeEl || !originalCodeEl) return;
+    if (!modeEl || !codeEl || !nameEl || !cycleEl || !priceEl || !recurringModeEl || !recurringValueEl || !reportsEl || !apiEl || !maxBuildingsEl || !maxAdminsEl || !maxRoomTypesEl || !activeEl || !originalCodeEl) return;
 
     if (mode === 'edit') {
         const row = planManagementRowsCache.find((p) => String(p.code) === String(planCode));
@@ -8952,6 +8999,7 @@ function openPlanManagementModal(mode = 'create', planCode = '') {
         apiEl.value = features.api_access ? '1' : '0';
         maxBuildingsEl.value = String(parseInt(features.max_buildings || 1, 10) || 1);
         maxAdminsEl.value = String(Math.max(0, parseInt(features.max_admins || 0, 10) || 0));
+        maxRoomTypesEl.value = String(Math.max(0, parseInt(features.max_room_types || 0, 10) || 0));
         recurringModeEl.value = String(features.recurring_mode || 'calendar');
         recurringValueEl.value = String(parseInt(features.recurring_value || (String(features.recurring_mode || 'calendar') === 'fixed_days' ? 30 : 1), 10) || (String(features.recurring_mode || 'calendar') === 'fixed_days' ? 30 : 1));
         activeEl.value = row.is_active === true || String(row.is_active) === '1' ? '1' : '0';
@@ -8970,6 +9018,7 @@ function openPlanManagementModal(mode = 'create', planCode = '') {
         apiEl.value = '0';
         maxBuildingsEl.value = '1';
         maxAdminsEl.value = '2';
+        maxRoomTypesEl.value = '10';
         activeEl.value = '1';
     }
     syncPlanRecurringValueInput();
@@ -9007,6 +9056,7 @@ async function savePlanManagement(event) {
             api_access: String(document.getElementById('planFeatureApiInput')?.value || '0') === '1',
             max_buildings: Math.max(1, parseInt(document.getElementById('planMaxBuildingsInput')?.value || '1', 10) || 1),
             max_admins: Math.max(0, parseInt(document.getElementById('planMaxAdminsInput')?.value || '0', 10) || 0),
+            max_room_types: Math.max(0, parseInt(document.getElementById('planMaxRoomTypesInput')?.value || '0', 10) || 0),
             recurring_mode: recurringMode,
             recurring_value: recurringValue
         }
@@ -15230,6 +15280,11 @@ function applyFeatureVisibilityBySubscriptionSnapshot(snapshot) {
     const buildingsEnabled = isBuildingsFeatureEnabled(snapshot);
     const buildingsNav = document.querySelector('.nav-item[data-section="buildings"]');
     const buildingsSection = document.getElementById('buildings-section');
+    const explicitRoomLimit = Number(snapshot?.limits?.max_room_types || 0);
+    const planCodeForRoomLimit = String(snapshot?.planCode || '').trim().toLowerCase();
+    subscriptionRoomTypeLimit = (Number.isFinite(explicitRoomLimit) && explicitRoomLimit > 0)
+        ? explicitRoomLimit
+        : (planCodeForRoomLimit.startsWith('basic_') ? 10 : 50);
     if (statisticsNav) {
         statisticsNav.style.display = reportsEnabled ? '' : 'none';
     }
@@ -15245,6 +15300,7 @@ function applyFeatureVisibilityBySubscriptionSnapshot(snapshot) {
     if (!buildingsEnabled && window.location.hash === '#buildings') {
         window.location.hash = '#dashboard';
     }
+    syncAddRoomTypeButtonVisibility();
 }
 
 function isBuildingsFeatureEnabled(snapshot) {

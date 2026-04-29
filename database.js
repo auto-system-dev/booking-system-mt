@@ -1466,28 +1466,28 @@ async function seedSubscriptionMvpDefaults() {
             name: '基礎方案（月繳）',
             cycle: 'monthly',
             price: 999,
-            features: { reports: false, api_access: false, max_buildings: 1, max_admins: 2 }
+            features: { reports: false, api_access: false, max_buildings: 1, max_admins: 2, max_room_types: 10 }
         },
         {
             code: 'basic_yearly',
             name: '基礎方案（年繳）',
             cycle: 'yearly',
             price: 9990,
-            features: { reports: false, api_access: false, max_buildings: 1, max_admins: 2 }
+            features: { reports: false, api_access: false, max_buildings: 1, max_admins: 2, max_room_types: 10 }
         },
         {
             code: 'pro_monthly',
             name: '專業方案（月繳）',
             cycle: 'monthly',
             price: 2999,
-            features: { reports: true, api_access: true, max_buildings: 5, max_admins: 5 }
+            features: { reports: true, api_access: true, max_buildings: 5, max_admins: 5, max_room_types: 50 }
         },
         {
             code: 'pro_yearly',
             name: '專業方案（年繳）',
             cycle: 'yearly',
             price: 29990,
-            features: { reports: true, api_access: true, max_buildings: 5, max_admins: 5 }
+            features: { reports: true, api_access: true, max_buildings: 5, max_admins: 5, max_room_types: 50 }
         }
     ];
 
@@ -7365,6 +7365,17 @@ async function getAdminCountByTenant(tenantId) {
     return parseInt(row?.cnt || 0, 10);
 }
 
+async function getRoomTypeCountByTenant(tenantId) {
+    const safeTenantId = assertTenantScope(tenantId, 'getRoomTypeCountByTenant');
+    const row = await queryOne(
+        usePostgreSQL
+            ? `SELECT COUNT(*)::int as cnt FROM room_types WHERE tenant_id = $1`
+            : `SELECT COUNT(*) as cnt FROM room_types WHERE tenant_id = ?`,
+        [safeTenantId]
+    );
+    return parseInt(row?.cnt || 0, 10);
+}
+
 function isDuplicateBuildingCodeError(error) {
     const code = String(error?.code || '').trim();
     const message = String(error?.message || '').toLowerCase();
@@ -8436,7 +8447,8 @@ async function getTenantSubscriptionSnapshot(tenantId) {
     const features = parseFeatureFlags(row.feature_flags);
     const limits = {
         max_buildings: parseInt(features.max_buildings || 1, 10),
-        max_admins: parseInt(features.max_admins || 0, 10)
+        max_admins: parseInt(features.max_admins || 0, 10),
+        max_room_types: parseInt(features.max_room_types || 0, 10)
     };
 
     return {
@@ -8925,6 +8937,7 @@ async function createSubscriptionPlanByAdmin(data = {}) {
         api_access: !!data?.feature_flags?.api_access,
         max_buildings: Math.max(1, parseInt(data?.feature_flags?.max_buildings || 1, 10) || 1),
         max_admins: Math.max(0, parseInt(data?.feature_flags?.max_admins || 0, 10) || 0),
+        max_room_types: Math.max(0, parseInt(data?.feature_flags?.max_room_types || 0, 10) || 0),
         recurring_mode: recurringMode,
         recurring_value: Math.max(
             recurringMode === 'fixed_days' ? 2 : 1,
@@ -8980,6 +8993,7 @@ async function updateSubscriptionPlanByAdmin(planCode, data = {}) {
         api_access: !!data?.feature_flags?.api_access,
         max_buildings: Math.max(1, parseInt(data?.feature_flags?.max_buildings || 1, 10) || 1),
         max_admins: Math.max(0, parseInt(data?.feature_flags?.max_admins || 0, 10) || 0),
+        max_room_types: Math.max(0, parseInt(data?.feature_flags?.max_room_types || 0, 10) || 0),
         recurring_mode: recurringMode,
         recurring_value: Math.max(
             recurringMode === 'fixed_days' ? 2 : 1,
@@ -11192,6 +11206,7 @@ module.exports = {
     getBuildingById,
     getBuildingCountByTenant,
     getAdminCountByTenant,
+    getRoomTypeCountByTenant,
     createBuilding,
     updateBuilding,
     deleteBuilding,

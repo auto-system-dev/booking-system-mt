@@ -1655,13 +1655,14 @@
                                 <th>功能</th>
                                 <th>館別上限</th>
                                 <th>管理員上限</th>
+                                <th>房型上限</th>
                                 <th>啟用</th>
                                 <th>使用租戶數</th>
                                 <th>操作</th>
                             </tr>
                         </thead>
                         <tbody id="planManagementTableBody">
-                            <tr><td colspan="10" style="text-align:center;color:#666;">載入中...</td></tr>
+                            <tr><td colspan="11" style="text-align:center;color:#666;">載入中...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -3488,7 +3489,7 @@
                             </select>
                         </div>
                     </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
                         <div class="form-group">
                             <label>館別上限</label>
                             <input type="number" id="planMaxBuildingsInput" min="1" step="1" required>
@@ -3496,6 +3497,10 @@
                         <div class="form-group">
                             <label>管理員上限</label>
                             <input type="number" id="planMaxAdminsInput" min="0" step="1" required>
+                        </div>
+                        <div class="form-group">
+                            <label>房型上限</label>
+                            <input type="number" id="planMaxRoomTypesInput" min="0" step="1" required>
                         </div>
                         <div class="form-group">
                             <label>方案啟用</label>
