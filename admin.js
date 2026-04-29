@@ -8434,28 +8434,15 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
         card.appendChild(cyclePill);
 
         const name = document.createElement('div');
-        name.textContent = String(plan.name || planCode || '方案');
+        const safePlanName = escapeHtml(String(plan.name || planCode || '方案'));
+        name.innerHTML = isRecommended
+            ? `${safePlanName} <span style="display:inline-flex; align-items:center; gap:4px; margin-left:6px; padding:2px 8px; border-radius:999px; background:#fef3c7; color:#92400e; font-size:12px; font-weight:800; vertical-align:middle;"><span aria-hidden="true">👑</span><span>推薦</span></span>`
+            : safePlanName;
         name.style.fontSize = '14px';
         name.style.fontWeight = '700';
         name.style.color = theme.titleText;
         name.style.textAlign = 'center';
         card.appendChild(name);
-
-        if (isRecommended) {
-            const ribbon = document.createElement('div');
-            ribbon.textContent = '推薦加入';
-            ribbon.style.position = 'absolute';
-            ribbon.style.top = '10px';
-            ribbon.style.right = '-26px';
-            ribbon.style.background = theme.ribbonBg;
-            ribbon.style.color = '#ffffff';
-            ribbon.style.fontSize = '11px';
-            ribbon.style.fontWeight = '800';
-            ribbon.style.padding = '5px 30px';
-            ribbon.style.transform = 'rotate(45deg)';
-            ribbon.style.boxShadow = '0 2px 6px rgba(0,0,0,0.25)';
-            card.appendChild(ribbon);
-        }
 
         const price = document.createElement('div');
         const cycleSuffix = String(plan?.billing_cycle || '').trim() === 'yearly' ? '/年' : '/月';
