@@ -8251,7 +8251,9 @@ function getSubscriptionPlanTheme(plan) {
 }
 
 function formatSubscriptionPlanCycle(plan) {
-    return String(plan?.billing_cycle || '').trim() === 'yearly' ? '年付方案' : '月付方案';
+    const code = String(plan?.code || '').trim().toLowerCase();
+    if (code.startsWith('pro_')) return 'Pro';
+    return 'Basic';
 }
 
 function buildSubscriptionPlanHighlights(plan) {
@@ -8313,6 +8315,7 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
         card.style.display = 'flex';
         card.style.flexDirection = 'column';
         card.style.gap = '10px';
+        card.style.height = '100%';
 
         const cyclePill = document.createElement('div');
         cyclePill.textContent = formatSubscriptionPlanCycle(plan);
@@ -8335,20 +8338,6 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
         name.style.textAlign = 'center';
         card.appendChild(name);
 
-        if (isCurrentPlan) {
-            const statusChip = document.createElement('div');
-            statusChip.textContent = '目前使用中';
-            statusChip.style.alignSelf = 'center';
-            statusChip.style.padding = '4px 10px';
-            statusChip.style.borderRadius = '999px';
-            statusChip.style.fontSize = '12px';
-            statusChip.style.fontWeight = '800';
-            statusChip.style.background = '#dbeafe';
-            statusChip.style.color = '#1d4ed8';
-            statusChip.style.border = '1px solid #93c5fd';
-            card.appendChild(statusChip);
-        }
-
         if (isRecommended) {
             const ribbon = document.createElement('div');
             ribbon.textContent = '推薦加入';
@@ -8368,10 +8357,10 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
         const price = document.createElement('div');
         const cycleSuffix = String(plan?.billing_cycle || '').trim() === 'yearly' ? '/年' : '/月';
         price.textContent = `${formatSubscriptionPrice(plan)}${cycleSuffix}`;
-        price.style.fontSize = '40px';
+        price.style.fontSize = '34px';
         price.style.fontWeight = '800';
         price.style.lineHeight = '1';
-        price.style.color = theme.price;
+        price.style.color = '#2563eb';
         price.style.textAlign = 'center';
         price.style.marginTop = '2px';
         card.appendChild(price);
@@ -8389,6 +8378,7 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
         featureList.style.color = '#1f2937';
         featureList.style.fontSize = '15px';
         featureList.style.lineHeight = '1.45';
+        featureList.style.flex = '1';
         buildSubscriptionPlanHighlights(plan).forEach((item) => {
             const li = document.createElement('li');
             li.style.display = 'flex';
@@ -8429,6 +8419,21 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
         btn.style.borderRadius = '10px';
         btn.onclick = () => startNewebpaySubscription(planCode);
         card.appendChild(btn);
+
+        if (isCurrentPlan) {
+            const statusChip = document.createElement('div');
+            statusChip.textContent = '目前使用中';
+            statusChip.style.alignSelf = 'center';
+            statusChip.style.padding = '4px 10px';
+            statusChip.style.borderRadius = '999px';
+            statusChip.style.fontSize = '12px';
+            statusChip.style.fontWeight = '800';
+            statusChip.style.background = '#dbeafe';
+            statusChip.style.color = '#1d4ed8';
+            statusChip.style.border = '1px solid #93c5fd';
+            statusChip.style.marginTop = '6px';
+            card.appendChild(statusChip);
+        }
 
         actionsEl.appendChild(card);
     });
