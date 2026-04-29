@@ -8939,8 +8939,9 @@ function openPlanManagementModal(mode = 'create', planCode = '') {
     const reportsEl = document.getElementById('planFeatureReportsInput');
     const apiEl = document.getElementById('planFeatureApiInput');
     const maxBuildingsEl = document.getElementById('planMaxBuildingsInput');
+    const maxAdminsEl = document.getElementById('planMaxAdminsInput');
     const activeEl = document.getElementById('planIsActiveInput');
-    if (!modeEl || !codeEl || !nameEl || !cycleEl || !priceEl || !recurringModeEl || !recurringValueEl || !reportsEl || !apiEl || !maxBuildingsEl || !activeEl || !originalCodeEl) return;
+    if (!modeEl || !codeEl || !nameEl || !cycleEl || !priceEl || !recurringModeEl || !recurringValueEl || !reportsEl || !apiEl || !maxBuildingsEl || !maxAdminsEl || !activeEl || !originalCodeEl) return;
 
     if (mode === 'edit') {
         const row = planManagementRowsCache.find((p) => String(p.code) === String(planCode));
@@ -8960,6 +8961,7 @@ function openPlanManagementModal(mode = 'create', planCode = '') {
         reportsEl.value = features.reports ? '1' : '0';
         apiEl.value = features.api_access ? '1' : '0';
         maxBuildingsEl.value = String(parseInt(features.max_buildings || 1, 10) || 1);
+        maxAdminsEl.value = String(Math.max(0, parseInt(features.max_admins || 0, 10) || 0));
         recurringModeEl.value = String(features.recurring_mode || 'calendar');
         recurringValueEl.value = String(parseInt(features.recurring_value || (String(features.recurring_mode || 'calendar') === 'fixed_days' ? 30 : 1), 10) || (String(features.recurring_mode || 'calendar') === 'fixed_days' ? 30 : 1));
         activeEl.value = row.is_active === true || String(row.is_active) === '1' ? '1' : '0';
@@ -8977,6 +8979,7 @@ function openPlanManagementModal(mode = 'create', planCode = '') {
         reportsEl.value = '1';
         apiEl.value = '0';
         maxBuildingsEl.value = '1';
+        maxAdminsEl.value = '2';
         activeEl.value = '1';
     }
     syncPlanRecurringValueInput();
@@ -9013,6 +9016,7 @@ async function savePlanManagement(event) {
             reports: String(document.getElementById('planFeatureReportsInput')?.value || '0') === '1',
             api_access: String(document.getElementById('planFeatureApiInput')?.value || '0') === '1',
             max_buildings: Math.max(1, parseInt(document.getElementById('planMaxBuildingsInput')?.value || '1', 10) || 1),
+            max_admins: Math.max(0, parseInt(document.getElementById('planMaxAdminsInput')?.value || '0', 10) || 0),
             recurring_mode: recurringMode,
             recurring_value: recurringValue
         }
