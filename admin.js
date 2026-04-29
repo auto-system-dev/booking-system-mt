@@ -8230,7 +8230,7 @@ function renderSubscriptionPlans(plans, currentPlanCode) {
 function formatSubscriptionPrice(plan) {
     const amount = Number(plan?.price_amount || 0);
     const amountText = Number.isFinite(amount) ? amount.toLocaleString('zh-TW') : '0';
-    return `NT$ ${amountText}`;
+    return amountText;
 }
 
 function getSubscriptionPlanTheme(plan) {
@@ -8356,10 +8356,8 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
 
         const price = document.createElement('div');
         const cycleSuffix = String(plan?.billing_cycle || '').trim() === 'yearly' ? '/年' : '/月';
-        price.textContent = `${formatSubscriptionPrice(plan)}${cycleSuffix}`;
-        price.style.fontSize = '30px';
-        price.style.fontWeight = '800';
-        price.style.lineHeight = '1';
+        price.innerHTML = `<span style="font-size:16px;font-weight:700;color:#2563eb;">NT$ </span><span style="font-size:34px;font-weight:800;color:#2563eb;line-height:1;">${formatSubscriptionPrice(plan)}</span><span style="font-size:16px;font-weight:700;color:#2563eb;">${cycleSuffix}</span>`;
+        price.style.lineHeight = '1.1';
         price.style.color = '#2563eb';
         price.style.textAlign = 'center';
         price.style.marginTop = '2px';
