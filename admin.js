@@ -8307,7 +8307,8 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
         const theme = getSubscriptionPlanTheme(plan);
         const card = document.createElement('div');
         card.style.position = 'relative';
-        card.style.background = theme.cardBg;
+        // 目前綁定的方案卡：淺藍底便於與其他白底方案區隔
+        card.style.background = isCurrentPlan ? '#eff6ff' : theme.cardBg;
         card.style.border = isCurrentPlan ? '2px solid #3498db' : `1px solid ${theme.cardBorder}`;
         card.style.borderRadius = '14px';
         card.style.padding = '18px 16px 16px';
