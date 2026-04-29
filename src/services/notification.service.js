@@ -16,6 +16,13 @@ function createNotificationService(deps) {
         const fallback = String(processEnv.ADMIN_EMAIL || 'cheng701107@gmail.com').trim();
         return configured || fallback;
     };
+    const formatFromAddress = (email, displayName = '') => {
+        const mail = String(email || '').trim();
+        const name = String(displayName || '').trim();
+        if (!mail) return '';
+        if (!name) return mail;
+        return `"${name.replace(/"/g, '\\"')}" <${mail}>`;
+    };
 
     async function buildMailOptionsFromTemplateWithFallback(params) {
         const {
@@ -24,15 +31,17 @@ function createNotificationService(deps) {
             templateKey,
             templateArgs = [],
             fallbackSubject,
-            fallbackHtmlFactory
+            fallbackHtmlFactory,
+            fromOverride = ''
         } = params;
         const emailUser = await emailService.getRequiredEmailUser(context);
+        const from = String(fromOverride || '').trim() || emailUser;
 
         try {
             const { subject, content } = await templateService.generateEmailFromTemplate(templateKey, ...templateArgs);
             return {
                 mailOptions: {
-                    from: emailUser,
+                    from,
                     to,
                     subject,
                     html: content
@@ -44,7 +53,7 @@ function createNotificationService(deps) {
             const fallbackHtml = await fallbackHtmlFactory();
             return {
                 mailOptions: {
-                    from: emailUser,
+                    from,
                     to,
                     subject: fallbackSubject,
                     html: fallbackHtml
@@ -446,13 +455,18 @@ function createNotificationService(deps) {
     }) {
         const adminEmail = await resolveAdminNotificationEmail(tenantId);
         if (!adminEmail) return false;
+        const tenantTemplateFrom = formatFromAddress(
+            await emailService.getRequiredEmailUser(`租戶通知:${templateKey}`),
+            'Haoding.tw'
+        );
         const renderResult = await buildMailOptionsFromTemplateWithFallback({
             context: `租戶通知:${templateKey}`,
             to: adminEmail,
             templateKey,
             templateArgs: [templateData],
             fallbackSubject,
-            fallbackHtmlFactory
+            fallbackHtmlFactory,
+            fromOverride: tenantTemplateFrom
         });
         try {
             await emailService.sendEmail(renderResult.mailOptions);
@@ -479,6 +493,10 @@ function createNotificationService(deps) {
         }
         const planLabel = resolvePlanLabel(snapshot.planCode || snapshot.plan_code);
         const nextBillingText = formatDateTimeForMail(snapshot.nextBillingAt || snapshot.next_billing_at);
+        const tenantTemplateFrom = formatFromAddress(
+            await emailService.getRequiredEmailUser('訂閱啟用通知'),
+            'Haoding.tw'
+        );
         const templateData = {
             tenantId,
             tenantName,
@@ -494,6 +512,7 @@ function createNotificationService(deps) {
             templateKey: 'subscription_activated_notification',
             templateArgs: [templateData],
             fallbackSubject: `【訂閱啟用成功】${tenantName} 已啟用 ${planLabel}`,
+            fromOverride: tenantTemplateFrom,
             fallbackHtmlFactory: async () => `
                 <div style="font-family: 'Noto Sans TC', Arial, sans-serif; max-width: 680px; margin: 0 auto; color: #1f2937; line-height: 1.8;">
                     <h2 style="margin: 0 0 12px;">訂閱啟用成功</h2>
