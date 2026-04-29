@@ -8407,19 +8407,6 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
         });
         card.appendChild(featureList);
 
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'btn-save';
-        btn.setAttribute('data-plan-code', planCode);
-        btn.textContent = isCurrentPlan ? '管理目前方案' : '選擇此方案';
-        btn.style.marginTop = '6px';
-        btn.style.background = theme.buttonBg;
-        btn.style.color = theme.buttonText;
-        btn.style.fontWeight = '800';
-        btn.style.borderRadius = '10px';
-        btn.onclick = () => startNewebpaySubscription(planCode);
-        card.appendChild(btn);
-
         if (isCurrentPlan) {
             const statusChip = document.createElement('div');
             statusChip.textContent = '目前使用中';
@@ -8431,9 +8418,23 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
             statusChip.style.background = '#dbeafe';
             statusChip.style.color = '#1d4ed8';
             statusChip.style.border = '1px solid #93c5fd';
-            statusChip.style.marginTop = '6px';
+            statusChip.style.marginTop = '-2px';
+            statusChip.style.marginBottom = '4px';
             card.appendChild(statusChip);
         }
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn-save';
+        btn.setAttribute('data-plan-code', planCode);
+        btn.textContent = isCurrentPlan ? '重新授權/續訂' : '選擇此方案';
+        btn.style.marginTop = '6px';
+        btn.style.background = theme.buttonBg;
+        btn.style.color = theme.buttonText;
+        btn.style.fontWeight = '800';
+        btn.style.borderRadius = '10px';
+        btn.onclick = () => startNewebpaySubscription(planCode);
+        card.appendChild(btn);
 
         actionsEl.appendChild(card);
     });
