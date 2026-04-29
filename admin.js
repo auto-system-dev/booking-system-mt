@@ -1923,6 +1923,13 @@ function switchSection(section) {
         }
         return;
     }
+    if (section === 'buildings' && subscriptionFeatureSnapshot && !isBuildingsFeatureEnabled(subscriptionFeatureSnapshot)) {
+        showError('目前方案不支援館別管理。');
+        if (section !== 'dashboard') {
+            switchSection('dashboard');
+        }
+        return;
+    }
     
     const targetSectionId = `${section}-section`;
     const targetSection = document.getElementById(targetSectionId);
@@ -15226,12 +15233,29 @@ function updateSidebarByPermissions() {
 function applyFeatureVisibilityBySubscriptionSnapshot(snapshot) {
     const reportsEnabled = !!(snapshot?.features?.reports);
     const statisticsNav = document.querySelector('.nav-item[data-section="statistics"]');
+    const buildingsEnabled = isBuildingsFeatureEnabled(snapshot);
+    const buildingsNav = document.querySelector('.nav-item[data-section="buildings"]');
+    const buildingsSection = document.getElementById('buildings-section');
     if (statisticsNav) {
         statisticsNav.style.display = reportsEnabled ? '' : 'none';
+    }
+    if (buildingsNav) {
+        buildingsNav.style.display = buildingsEnabled ? '' : 'none';
+    }
+    if (buildingsSection) {
+        buildingsSection.style.display = buildingsEnabled ? '' : 'none';
     }
     if (!reportsEnabled && window.location.hash === '#statistics') {
         window.location.hash = '#dashboard';
     }
+    if (!buildingsEnabled && window.location.hash === '#buildings') {
+        window.location.hash = '#dashboard';
+    }
+}
+
+function isBuildingsFeatureEnabled(snapshot) {
+    const maxBuildings = Number(snapshot?.limits?.max_buildings || 1);
+    return Number.isFinite(maxBuildings) && maxBuildings > 1;
 }
 
 async function syncSubscriptionFeatureVisibility() {
