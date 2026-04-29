@@ -8513,7 +8513,7 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
                 li.appendChild(icon);
 
                 const label = document.createElement('span');
-                label.textContent = `${item.label}：${supported ? '支援' : '不支援'}`;
+                label.textContent = `${item.label}`;
                 label.style.color = supported ? '#166534' : '#b91c1c';
                 label.style.fontWeight = '700';
                 li.appendChild(label);
