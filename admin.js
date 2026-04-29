@@ -8229,20 +8229,50 @@ function renderSubscriptionPlans(plans, currentPlanCode) {
 
 function formatSubscriptionPrice(plan) {
     const amount = Number(plan?.price_amount || 0);
-    const cycleText = String(plan?.billing_cycle || '').trim() === 'yearly' ? '年' : '月';
     const amountText = Number.isFinite(amount) ? amount.toLocaleString('zh-TW') : '0';
-    return `NT$ ${amountText} / ${cycleText}`;
+    return `$${amountText}`;
+}
+
+function getSubscriptionPlanTheme(plan) {
+    const cycle = String(plan?.billing_cycle || '').trim();
+    const isYearly = cycle === 'yearly';
+    return isYearly
+        ? {
+            pillBg: '#ffd5df',
+            pillText: '#9f1239',
+            price: '#ffb4c6',
+            buttonBg: '#ffc6d4',
+            buttonText: '#ffffff',
+            ribbonBg: '#ef4444'
+        }
+        : {
+            pillBg: '#f59e0b',
+            pillText: '#ffffff',
+            price: '#fbbf24',
+            buttonBg: '#f59e0b',
+            buttonText: '#ffffff',
+            ribbonBg: '#ef4444'
+        };
+}
+
+function formatSubscriptionPlanCycle(plan) {
+    return String(plan?.billing_cycle || '').trim() === 'yearly' ? '年付方案' : '月付方案';
 }
 
 function buildSubscriptionPlanHighlights(plan) {
     const flags = (plan && typeof plan.feature_flags === 'object' && plan.feature_flags) ? plan.feature_flags : {};
     const maxBuildings = Math.max(1, Number.parseInt(flags.max_buildings || 1, 10) || 1);
     const maxAdmins = Math.max(0, Number.parseInt(flags.max_admins || 0, 10) || 0);
+    const isYearly = String(plan?.billing_cycle || '').trim() === 'yearly';
+    const amount = Number(plan?.price_amount || 0);
+    const monthlyAverage = isYearly ? Math.round(amount / 12) : amount;
+    const amountText = Number.isFinite(monthlyAverage) ? monthlyAverage.toLocaleString('zh-TW') : '0';
     return [
-        `可管理館別：${maxBuildings} 館`,
-        `管理員帳號：${maxAdmins} 位`,
-        `營運報表：${flags.reports ? '支援' : '不支援'}`,
-        `API 串接：${flags.api_access ? '支援' : '不支援'}`
+        '首期免費試用 0 元',
+        isYearly ? `年繳平均每月約 $${amountText}` : '每月定期定額自動扣款',
+        `可管理館別 ${maxBuildings} 館，管理員 ${maxAdmins} 位`,
+        `營運報表 ${flags.reports ? '支援' : '不支援'}、API ${flags.api_access ? '支援' : '不支援'}`,
+        '可取消自動續訂'
     ];
 }
 
@@ -8263,85 +8293,117 @@ function renderSubscriptionBillingActions(plans, currentPlanCode) {
         return;
     }
     actionsEl.style.display = 'grid';
-    actionsEl.style.gridTemplateColumns = 'repeat(auto-fit, minmax(220px, 1fr))';
-    actionsEl.style.gap = '12px';
+    actionsEl.style.gridTemplateColumns = 'repeat(auto-fit, minmax(300px, 1fr))';
+    actionsEl.style.gap = '14px';
     actionsEl.innerHTML = '';
     const recommendedCode = resolveRecommendedPlanCode(activePlans);
     activePlans.forEach((plan) => {
         const planCode = String(plan.code || '').trim();
         const isCurrentPlan = !!currentPlanCode && String(plan.code || '') === String(currentPlanCode || '');
         const isRecommended = !!recommendedCode && planCode === recommendedCode;
+        const theme = getSubscriptionPlanTheme(plan);
         const card = document.createElement('div');
-        card.style.border = isCurrentPlan ? '2px solid #2563eb' : '1px solid #dbeafe';
-        card.style.background = '#ffffff';
-        card.style.borderRadius = '12px';
-        card.style.padding = '14px';
+        card.style.position = 'relative';
+        card.style.background = '#1f2329';
+        card.style.border = isCurrentPlan ? '2px solid #60a5fa' : '1px solid #374151';
+        card.style.borderRadius = '14px';
+        card.style.padding = '18px 16px 16px';
         card.style.boxShadow = isCurrentPlan
-            ? '0 6px 16px rgba(37, 99, 235, 0.18)'
-            : '0 3px 10px rgba(15, 23, 42, 0.06)';
+            ? '0 10px 24px rgba(37, 99, 235, 0.22)'
+            : '0 8px 20px rgba(15, 23, 42, 0.35)';
         card.style.display = 'flex';
         card.style.flexDirection = 'column';
-        card.style.gap = '8px';
+        card.style.gap = '10px';
+
+        const cyclePill = document.createElement('div');
+        cyclePill.textContent = formatSubscriptionPlanCycle(plan);
+        cyclePill.style.alignSelf = 'center';
+        cyclePill.style.background = theme.pillBg;
+        cyclePill.style.color = theme.pillText;
+        cyclePill.style.padding = '6px 16px';
+        cyclePill.style.borderRadius = '999px';
+        cyclePill.style.fontSize = '14px';
+        cyclePill.style.fontWeight = '800';
+        cyclePill.style.lineHeight = '1.2';
+        cyclePill.style.margin = '0 auto';
+        card.appendChild(cyclePill);
 
         const name = document.createElement('div');
         name.textContent = String(plan.name || planCode || '方案');
-        name.style.fontSize = '16px';
+        name.style.fontSize = '14px';
         name.style.fontWeight = '700';
-        name.style.color = '#0f172a';
+        name.style.color = '#e2e8f0';
+        name.style.textAlign = 'center';
         card.appendChild(name);
 
-        if (isRecommended) {
-            const recommendedBadge = document.createElement('div');
-            recommendedBadge.textContent = '推薦方案';
-            recommendedBadge.style.alignSelf = 'flex-start';
-            recommendedBadge.style.padding = '2px 8px';
-            recommendedBadge.style.borderRadius = '999px';
-            recommendedBadge.style.fontSize = '12px';
-            recommendedBadge.style.fontWeight = '700';
-            recommendedBadge.style.background = '#fef3c7';
-            recommendedBadge.style.color = '#92400e';
-            recommendedBadge.style.marginTop = '-2px';
-            card.appendChild(recommendedBadge);
+        if (isRecommended || isCurrentPlan) {
+            const ribbon = document.createElement('div');
+            ribbon.textContent = isCurrentPlan ? '目前使用' : '推薦加入';
+            ribbon.style.position = 'absolute';
+            ribbon.style.top = '10px';
+            ribbon.style.right = '-26px';
+            ribbon.style.background = theme.ribbonBg;
+            ribbon.style.color = '#ffffff';
+            ribbon.style.fontSize = '11px';
+            ribbon.style.fontWeight = '800';
+            ribbon.style.padding = '5px 30px';
+            ribbon.style.transform = 'rotate(45deg)';
+            ribbon.style.boxShadow = '0 2px 6px rgba(0,0,0,0.25)';
+            card.appendChild(ribbon);
         }
 
         const price = document.createElement('div');
-        price.textContent = formatSubscriptionPrice(plan);
-        price.style.fontSize = '18px';
+        const cycleSuffix = String(plan?.billing_cycle || '').trim() === 'yearly' ? '/年' : '/月';
+        price.textContent = `${formatSubscriptionPrice(plan)}${cycleSuffix}`;
+        price.style.fontSize = '52px';
         price.style.fontWeight = '800';
-        price.style.color = '#0369a1';
+        price.style.lineHeight = '1';
+        price.style.color = theme.price;
+        price.style.textAlign = 'center';
+        price.style.marginTop = '2px';
         card.appendChild(price);
+
+        const divider = document.createElement('div');
+        divider.style.height = '1px';
+        divider.style.background = 'rgba(148, 163, 184, 0.35)';
+        divider.style.margin = '2px 0 4px';
+        card.appendChild(divider);
 
         const featureList = document.createElement('ul');
         featureList.style.margin = '0';
-        featureList.style.paddingLeft = '18px';
-        featureList.style.color = '#334155';
-        featureList.style.fontSize = '13px';
+        featureList.style.padding = '0';
+        featureList.style.listStyle = 'none';
+        featureList.style.color = '#f8fafc';
+        featureList.style.fontSize = '15px';
+        featureList.style.lineHeight = '1.45';
         buildSubscriptionPlanHighlights(plan).forEach((text) => {
             const li = document.createElement('li');
-            li.textContent = text;
+            li.style.display = 'flex';
+            li.style.alignItems = 'flex-start';
+            li.style.gap = '6px';
+            li.style.marginBottom = '8px';
+            const check = document.createElement('span');
+            check.textContent = '✓';
+            check.style.color = '#ffffff';
+            check.style.fontWeight = '700';
+            li.appendChild(check);
+            const label = document.createElement('span');
+            label.textContent = text;
+            li.appendChild(label);
             featureList.appendChild(li);
         });
         card.appendChild(featureList);
-
-        if (isCurrentPlan) {
-            const badge = document.createElement('div');
-            badge.textContent = '目前方案';
-            badge.style.alignSelf = 'flex-start';
-            badge.style.padding = '2px 8px';
-            badge.style.borderRadius = '999px';
-            badge.style.fontSize = '12px';
-            badge.style.fontWeight = '700';
-            badge.style.background = '#dbeafe';
-            badge.style.color = '#1d4ed8';
-            card.appendChild(badge);
-        }
 
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn-save';
         btn.setAttribute('data-plan-code', planCode);
-        btn.textContent = isCurrentPlan ? '重新授權／續訂' : '前往付款／升級';
-        btn.style.marginTop = '4px';
+        btn.textContent = isCurrentPlan ? '重新授權' : '馬上使用';
+        btn.style.marginTop = '6px';
+        btn.style.background = theme.buttonBg;
+        btn.style.color = theme.buttonText;
+        btn.style.fontWeight = '800';
+        btn.style.borderRadius = '10px';
         btn.onclick = () => startNewebpaySubscription(planCode);
         card.appendChild(btn);
 
