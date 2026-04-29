@@ -8409,7 +8409,10 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
 
         if (isCurrentPlan) {
             const statusChip = document.createElement('div');
-            statusChip.textContent = isTrialingCurrent ? '目前試用中' : '目前使用中';
+            const isPastDueOrCanceled = normalizedStatus === 'past_due' || normalizedStatus === 'canceled';
+            statusChip.textContent = isTrialingCurrent
+                ? '目前試用中'
+                : (isPastDueOrCanceled ? '目前方案' : '目前使用中');
             statusChip.style.alignSelf = 'center';
             statusChip.style.padding = '4px 10px';
             statusChip.style.borderRadius = '999px';
