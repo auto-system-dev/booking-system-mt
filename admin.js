@@ -15338,6 +15338,7 @@ async function loadAdmins() {
         
         if (result.success) {
             const admins = result.admins || [];
+            await syncAddAdminButtonByLimit(admins.length);
             
             if (admins.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: #666;">尚無管理員資料</td></tr>';
@@ -15385,10 +15386,12 @@ async function loadAdmins() {
                 </tr>
             `).join('');
         } else {
+            await syncAddAdminButtonByLimit(0);
             tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: red;">載入失敗：${result.message}</td></tr>`;
         }
     } catch (error) {
         console.error('載入管理員列表錯誤:', error);
+        await syncAddAdminButtonByLimit(0);
         tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; color: red;">載入失敗：${error.message}</td></tr>`;
     }
 }
@@ -15405,8 +15408,67 @@ function getRoleBadgeClass(roleName) {
     return roleClasses[roleName] || 'secondary';
 }
 
+function resolveAdminSeatLimitFromSnapshotClient(snapshot) {
+    const explicitLimit = Number(snapshot?.limits?.max_admins || 0);
+    if (Number.isFinite(explicitLimit) && explicitLimit > 0) {
+        return explicitLimit;
+    }
+    const planCode = String(snapshot?.planCode || '').trim().toLowerCase();
+    if (planCode.startsWith('basic_')) return 2;
+    const maxBuildings = Number(snapshot?.limits?.max_buildings || 0);
+    return Number.isFinite(maxBuildings) && maxBuildings > 1 ? 5 : 2;
+}
+
+async function syncAddAdminButtonByLimit(currentCount = null) {
+    const addBtn = document.getElementById('addAdminBtn');
+    if (!addBtn) return;
+    if (!hasPermission('admins.create')) return;
+    if (typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin()) {
+        addBtn.disabled = false;
+        addBtn.style.opacity = '';
+        addBtn.style.cursor = '';
+        addBtn.title = '';
+        return;
+    }
+
+    let snapshot = subscriptionFeatureSnapshot || null;
+    if (!snapshot) {
+        try {
+            const response = await adminFetch('/api/subscription/status');
+            const result = await response.json().catch(() => ({}));
+            if (response.ok && result?.success) {
+                snapshot = result.data || null;
+                subscriptionFeatureSnapshot = snapshot;
+            }
+        } catch (_) {
+            // 忽略：快照讀取失敗時，不在前端提前擋按鈕
+        }
+    }
+
+    const limit = resolveAdminSeatLimitFromSnapshotClient(snapshot);
+    if (!Number.isFinite(limit) || limit <= 0) {
+        addBtn.disabled = false;
+        addBtn.style.opacity = '';
+        addBtn.style.cursor = '';
+        addBtn.title = '';
+        return;
+    }
+
+    const safeCurrentCount = Number.isFinite(Number(currentCount)) ? Number(currentCount) : 0;
+    const reached = safeCurrentCount >= limit;
+    addBtn.disabled = reached;
+    addBtn.style.opacity = reached ? '0.6' : '';
+    addBtn.style.cursor = reached ? 'not-allowed' : '';
+    addBtn.title = reached ? `目前方案管理員上限為 ${limit} 席，已達上限` : '';
+}
+
 // 顯示新增管理員模態框
 async function showAddAdminModal() {
+    const addBtn = document.getElementById('addAdminBtn');
+    if (addBtn?.disabled) {
+        showError(addBtn.title || '目前方案管理員席次已達上限');
+        return;
+    }
     document.getElementById('adminModalTitle').textContent = isPlatformSuperAdmin() ? '新增管理員' : '新增員工帳號';
     document.getElementById('editAdminId').value = '';
     document.getElementById('adminForm').reset();

@@ -149,6 +149,17 @@ function resolveAdminMgmtTenantScope(req) {
     return { ok: true, isSuper: false, tenantId: tid };
 }
 
+function resolveAdminSeatLimitFromSnapshot(snapshot) {
+    const explicitLimit = Number(snapshot?.limits?.max_admins || 0);
+    if (Number.isFinite(explicitLimit) && explicitLimit > 0) {
+        return explicitLimit;
+    }
+    const planCode = String(snapshot?.planCode || '').trim().toLowerCase();
+    if (planCode.startsWith('basic_')) return 2;
+    const maxBuildings = Number(snapshot?.limits?.max_buildings || 0);
+    return Number.isFinite(maxBuildings) && maxBuildings > 1 ? 5 : 2;
+}
+
 /** 管理員帳號異動寫入 admin_logs.details 的共通欄位（含操作者與租戶上下文） */
 function buildAdminAccountAuditDetails(req, extra = {}) {
     const a = req.session?.admin;
@@ -2806,6 +2817,27 @@ app.post('/api/admin/admins', requireAuth, checkPermission('admins.create'), sub
             }
         } else {
             targetTenantId = scope.tenantId;
+        }
+
+        // 以最終目標租戶再次硬檢查席次，避免任何中介層 tenant context 偏差造成漏擋
+        if (targetTenantId != null) {
+            const snapshot = await db.getTenantSubscriptionSnapshot(targetTenantId);
+            if (String(snapshot?.status || '').trim().toLowerCase() === 'canceled') {
+                return res.status(402).json({
+                    success: false,
+                    code: 'SUBSCRIPTION_CANCELED',
+                    message: '目前訂閱已停用，請續訂後再新增管理員'
+                });
+            }
+            const seatLimit = resolveAdminSeatLimitFromSnapshot(snapshot);
+            const adminCount = await db.getAdminCountByTenant(targetTenantId);
+            if (adminCount >= seatLimit) {
+                return res.status(403).json({
+                    success: false,
+                    code: 'ADMIN_LIMIT_REACHED',
+                    message: `方案管理員上限為 ${seatLimit} 席，目前已達上限`
+                });
+            }
         }
         
         // 檢查帳號是否已存在
