@@ -8875,7 +8875,7 @@ function syncPlanRecurringValueInput() {
 async function loadPlanManagementList() {
     const tbody = document.getElementById('planManagementTableBody');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#666;">載入中...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#666;">載入中...</td></tr>';
     try {
         const response = await adminFetch('/api/admin/subscription/plans/manage');
         const result = await response.json().catch(() => ({}));
@@ -8885,7 +8885,7 @@ async function loadPlanManagementList() {
         const rows = Array.isArray(result.data) ? result.data : [];
         planManagementRowsCache = rows;
         if (rows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#666;">目前沒有方案資料</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:#666;">目前沒有方案資料</td></tr>';
             return;
         }
         tbody.innerHTML = rows.map((plan) => {
@@ -8910,6 +8910,7 @@ async function loadPlanManagementList() {
                     <td>NT$ ${Number(plan.price_amount || 0).toLocaleString()}</td>
                     <td>${escapeHtml(featureTexts.join(' / '))}</td>
                     <td>${escapeHtml(String(parseInt(features.max_buildings || 1, 10) || 1))}</td>
+                    <td>${escapeHtml(String(Math.max(0, parseInt(features.max_admins || 0, 10) || 0)))}</td>
                     <td>${isActive ? '<span class="badge badge-success">啟用</span>' : '<span class="badge badge-secondary">停用</span>'}</td>
                     <td>${escapeHtml(String(parseInt(plan.tenant_count || 0, 10) || 0))}</td>
                     <td>
@@ -8920,7 +8921,7 @@ async function loadPlanManagementList() {
             `;
         }).join('');
     } catch (error) {
-        tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" style="text-align:center;color:#c62828;">載入失敗：${escapeHtml(error.message || '未知錯誤')}</td></tr>`;
     }
 }
 
