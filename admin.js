@@ -7942,10 +7942,15 @@ function isSubscriptionAuthorizationPending(snapshot) {
 function getSubscriptionPrimaryActionText(snapshot) {
     const status = String(snapshot?.status || '').trim().toLowerCase();
     if (status === 'trialing') return '立即啟用';
-    if (status === 'active') return '變更方案';
-    if (status === 'past_due') return '重選方案/啟用';
-    if (status === 'canceled') return '立即續訂啟用';
-    return '管理訂閱';
+    if (status === 'past_due') return '重新啟用';
+    if (status === 'canceled') {
+        const remainingDays = getSubscriptionRemainingDays(snapshot?.periodEnd);
+        const hasRemainingPeriod = Number.isFinite(remainingDays) && remainingDays >= 0;
+        const canResumeRecurring = !!resolveCancelableRecurringReference(snapshot);
+        if (hasRemainingPeriod && canResumeRecurring) return '恢復續訂';
+        return '重新啟用';
+    }
+    return '選擇方案';
 }
 
 function renderSubscriptionNotice(snapshot) {
@@ -8193,6 +8198,9 @@ function renderSubscriptionSnapshot(snapshot) {
         ].join('');
     }
     if (primaryActionBtn) {
+        const status = String(snapshot?.status || '').trim().toLowerCase();
+        const shouldHidePrimaryAction = status === 'active';
+        primaryActionBtn.style.display = shouldHidePrimaryAction ? 'none' : 'inline-flex';
         primaryActionBtn.textContent = getSubscriptionPrimaryActionText(snapshot);
     }
     if (cancelBtn) {
@@ -8550,9 +8558,24 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
         btn.type = 'button';
         btn.className = 'btn-save';
         btn.setAttribute('data-plan-code', planCode);
-        btn.textContent = isCurrentPlan
-            ? (isTrialingCurrent ? '立即啟用' : '重新授權/續訂')
-            : '選擇此方案';
+        if (isCurrentPlan) {
+            if (normalizedStatus === 'active') {
+                btn.style.display = 'none';
+            } else if (isTrialingCurrent) {
+                btn.textContent = '立即啟用';
+            } else if (normalizedStatus === 'past_due') {
+                btn.textContent = '重新啟用';
+            } else if (normalizedStatus === 'canceled') {
+                const remainingDays = getSubscriptionRemainingDays(plan?.periodEnd || null);
+                const hasRemainingPeriod = Number.isFinite(remainingDays) && remainingDays >= 0;
+                const canResumeRecurring = hasRemainingPeriod && String(plan?.code || '') === String(currentPlanCode || '');
+                btn.textContent = canResumeRecurring ? '恢復續訂' : '重新啟用';
+            } else {
+                btn.textContent = '選擇此方案';
+            }
+        } else {
+            btn.textContent = '選擇此方案';
+        }
         btn.style.marginTop = '6px';
         btn.style.background = theme.buttonBg;
         btn.style.color = theme.buttonText;
