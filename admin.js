@@ -8437,8 +8437,9 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
         const name = document.createElement('div');
         const safePlanName = escapeHtml(String(plan.name || planCode || '方案'));
         name.textContent = safePlanName;
-        name.style.fontSize = '14px';
-        name.style.fontWeight = '700';
+        name.style.fontSize = '20px';
+        name.style.fontWeight = '800';
+        name.style.lineHeight = '1.25';
         name.style.color = theme.titleText;
         name.style.textAlign = 'center';
         card.appendChild(name);
