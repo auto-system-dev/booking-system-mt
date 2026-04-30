@@ -8538,7 +8538,7 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
             const isPastDueOrCanceled = normalizedStatus === 'past_due' || normalizedStatus === 'canceled';
             statusChip.textContent = isTrialingCurrent
                 ? '目前試用中'
-                : (isPastDueOrCanceled ? '目前方案' : '目前使用中');
+                : (normalizedStatus === 'active' ? '目前方案' : (isPastDueOrCanceled ? '目前方案' : '目前使用中'));
             statusChip.style.alignSelf = 'center';
             statusChip.style.padding = '4px 10px';
             statusChip.style.borderRadius = '999px';
@@ -8553,12 +8553,14 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
         }
 
         const btn = document.createElement('button');
+        let disableButtonAction = false;
         btn.type = 'button';
         btn.className = 'btn-save';
         btn.setAttribute('data-plan-code', planCode);
         if (isCurrentPlan) {
             if (normalizedStatus === 'active') {
-                btn.style.display = 'none';
+                btn.textContent = '啟用中';
+                disableButtonAction = true;
             } else if (isTrialingCurrent) {
                 btn.textContent = '立即啟用';
             } else if (normalizedStatus === 'past_due') {
@@ -8579,7 +8581,13 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
         btn.style.color = theme.buttonText;
         btn.style.fontWeight = '800';
         btn.style.borderRadius = '10px';
-        btn.onclick = () => startNewebpaySubscription(planCode);
+        if (disableButtonAction) {
+            btn.disabled = true;
+            btn.style.opacity = '0.72';
+            btn.style.cursor = 'default';
+        } else {
+            btn.onclick = () => startNewebpaySubscription(planCode);
+        }
         card.appendChild(btn);
 
         actionsEl.appendChild(card);
