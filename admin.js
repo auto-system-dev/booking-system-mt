@@ -8198,9 +8198,7 @@ function renderSubscriptionSnapshot(snapshot) {
         ].join('');
     }
     if (primaryActionBtn) {
-        const status = String(snapshot?.status || '').trim().toLowerCase();
-        const shouldHidePrimaryAction = status === 'active';
-        primaryActionBtn.style.display = shouldHidePrimaryAction ? 'none' : 'inline-flex';
+        primaryActionBtn.style.display = 'inline-flex';
         primaryActionBtn.textContent = getSubscriptionPrimaryActionText(snapshot);
     }
     if (cancelBtn) {
