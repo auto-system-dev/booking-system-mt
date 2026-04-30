@@ -8582,9 +8582,12 @@ function renderSubscriptionBillingActions(plans, currentPlanCode, subscriptionSt
         btn.style.fontWeight = '800';
         btn.style.borderRadius = '10px';
         if (disableButtonAction) {
-            btn.disabled = true;
-            btn.style.opacity = '0.72';
+            // 不使用 disabled，以免瀏覽器套用預設灰化樣式；維持與其他方案卡按鈕同色
+            btn.setAttribute('aria-disabled', 'true');
+            btn.tabIndex = -1;
+            btn.style.pointerEvents = 'none';
             btn.style.cursor = 'default';
+            btn.style.userSelect = 'none';
         } else {
             btn.onclick = () => startNewebpaySubscription(planCode);
         }
