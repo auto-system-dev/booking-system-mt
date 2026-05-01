@@ -2715,41 +2715,6 @@
                         <div class="loading">載入中...</div>
                     </div>
                 </div>
-                <div id="systemBackupPanel" class="settings-card" style="margin-bottom: 20px; display: none;">
-                    <h3 style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-                        <span style="display:flex; align-items:center; gap:10px;">
-                            <span class="material-symbols-outlined">dns</span>
-                            全系統備份 / 還原（超管）
-                        </span>
-                        <span style="display:flex; gap:8px;">
-                            <button class="btn-primary permission-required" data-permission="backup.create" onclick="createSystemBackup()">
-                                <span class="material-symbols-outlined">add</span> 建立全系統備份
-                            </button>
-                            <button class="btn-refresh" onclick="loadSystemBackups()">
-                                <span class="material-symbols-outlined">refresh</span> 重新整理
-                            </button>
-                        </span>
-                    </h3>
-                    <div id="systemBackupStats" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 12px;">
-                        <div class="loading">載入中...</div>
-                    </div>
-                    <div class="table-container" style="margin-top: 12px;">
-                        <table class="bookings-table">
-                            <thead>
-                                <tr>
-                                    <th style="text-align: left;">檔案名稱</th>
-                                    <th style="text-align: right;">檔案大小</th>
-                                    <th style="text-align: left;">建立時間</th>
-                                    <th style="text-align: center;">操作</th>
-                                </tr>
-                            </thead>
-                            <tbody id="systemBackupsTableBody">
-                                <tr><td colspan="4" class="loading">載入中...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
                 <!-- 清理設定 -->
                 <div class="settings-card" style="margin-bottom: 20px;">
                     <h3 style="display: flex; align-items: center; gap: 10px;">
@@ -2789,6 +2754,41 @@
                         </table>
                     </div>
                 </div>
+                </div>
+
+                <div id="systemBackupPanel" class="settings-card" style="margin-bottom: 20px; display: none;">
+                    <h3 style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                        <span style="display:flex; align-items:center; gap:10px;">
+                            <span class="material-symbols-outlined">dns</span>
+                            全系統備份 / 還原（超管）
+                        </span>
+                        <span style="display:flex; gap:8px;">
+                            <button class="btn-primary permission-required" data-permission="backup.create" onclick="createSystemBackup()">
+                                <span class="material-symbols-outlined">add</span> 建立全系統備份
+                            </button>
+                            <button class="btn-refresh" onclick="loadSystemBackups()">
+                                <span class="material-symbols-outlined">refresh</span> 重新整理
+                            </button>
+                        </span>
+                    </h3>
+                    <div id="systemBackupStats" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 12px;">
+                        <div class="loading">載入中...</div>
+                    </div>
+                    <div class="table-container" style="margin-top: 12px;">
+                        <table class="bookings-table">
+                            <thead>
+                                <tr>
+                                    <th style="text-align: left;">檔案名稱</th>
+                                    <th style="text-align: right;">檔案大小</th>
+                                    <th style="text-align: left;">建立時間</th>
+                                    <th style="text-align: center;">操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="systemBackupsTableBody">
+                                <tr><td colspan="4" class="loading">載入中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 
