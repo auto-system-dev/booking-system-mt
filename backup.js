@@ -7,9 +7,76 @@
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
 // 備份目錄（支援環境變數設定，適用於 Railway Volume 掛載）
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(__dirname, 'backups');
+const BACKUP_UPLOAD_TO_R2 = String(process.env.BACKUP_UPLOAD_TO_R2 || 'false').trim().toLowerCase() === 'true';
+const R2_ACCOUNT_ID = String(process.env.R2_ACCOUNT_ID || '').trim();
+const R2_ACCESS_KEY_ID = String(process.env.R2_ACCESS_KEY_ID || '').trim();
+const R2_SECRET_ACCESS_KEY = String(process.env.R2_SECRET_ACCESS_KEY || '').trim();
+const R2_BUCKET_NAME = String(process.env.R2_BUCKET_NAME || '').trim();
+const R2_BACKUP_PREFIX = String(process.env.R2_BACKUP_PREFIX || 'db-backups').trim().replace(/^\/+|\/+$/g, '');
+
+let r2Client = null;
+
+function canUploadBackupToR2() {
+    if (!BACKUP_UPLOAD_TO_R2) return false;
+    return !!(R2_ACCOUNT_ID && R2_ACCESS_KEY_ID && R2_SECRET_ACCESS_KEY && R2_BUCKET_NAME);
+}
+
+function getR2Client() {
+    if (!canUploadBackupToR2()) return null;
+    if (r2Client) return r2Client;
+    r2Client = new S3Client({
+        region: 'auto',
+        endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+        credentials: {
+            accessKeyId: R2_ACCESS_KEY_ID,
+            secretAccessKey: R2_SECRET_ACCESS_KEY
+        }
+    });
+    return r2Client;
+}
+
+async function uploadBackupFileToR2(localFilePath, tenantId, backupFileName) {
+    const client = getR2Client();
+    if (!client) {
+        return {
+            uploaded: false,
+            reason: 'R2 自動上傳未啟用或缺少必要環境變數'
+        };
+    }
+    const safeTenantId = assertTenantId(tenantId);
+    const safeName = path.basename(String(backupFileName || '').trim());
+    if (!safeName) {
+        throw new Error('缺少備份檔名，無法上傳 R2');
+    }
+    if (!fs.existsSync(localFilePath)) {
+        throw new Error(`備份檔案不存在，無法上傳 R2：${localFilePath}`);
+    }
+
+    const key = `${R2_BACKUP_PREFIX}/${safeTenantId}/${safeName}`;
+    const body = fs.readFileSync(localFilePath);
+    const contentType = safeName.endsWith('.json') ? 'application/json' : 'application/octet-stream';
+
+    await client.send(new PutObjectCommand({
+        Bucket: R2_BUCKET_NAME,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+        Metadata: {
+            tenant_id: String(safeTenantId),
+            source: 'booking-system-backup'
+        }
+    }));
+    console.log(`☁️ R2 備份上傳成功: s3://${R2_BUCKET_NAME}/${key}`);
+    return {
+        uploaded: true,
+        bucket: R2_BUCKET_NAME,
+        key
+    };
+}
 
 // 確保備份目錄存在
 function ensureBackupDir() {
@@ -198,18 +265,28 @@ async function performBackup(tenantId) {
         
         const usePostgreSQL = !!process.env.DATABASE_URL;
         
+        let result;
         if (usePostgreSQL) {
             // PostgreSQL 備份
-            const result = await backupPostgreSQL(process.env.DATABASE_URL, tenantId);
-            console.log(`✅ 備份完成: ${result.fileName}`);
-            return result;
+            result = await backupPostgreSQL(process.env.DATABASE_URL, tenantId);
         } else {
             // SQLite 備份
             const dbPath = path.join(__dirname, 'bookings.db');
-            const result = await backupSQLite(dbPath, tenantId);
-            console.log(`✅ 備份完成: ${result.fileName}`);
-            return result;
+            result = await backupSQLite(dbPath, tenantId);
         }
+
+        try {
+            const r2Upload = await uploadBackupFileToR2(result.filePath, tenantId, result.fileName);
+            result.r2Upload = r2Upload;
+        } catch (uploadError) {
+            console.error('⚠️ R2 備份上傳失敗（不影響本地備份）:', uploadError.message);
+            result.r2Upload = {
+                uploaded: false,
+                reason: uploadError.message
+            };
+        }
+        console.log(`✅ 備份完成: ${result.fileName}`);
+        return result;
     } catch (error) {
         console.error('❌ 資料庫備份失敗:', error.message);
         throw error;
