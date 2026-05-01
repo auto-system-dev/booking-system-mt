@@ -38,25 +38,28 @@ function registerScheduledJobs(deps) {
         cron.schedule(dailyBackupCron, async () => {
             console.log('🧰 [排程備份] 開始每日全備任務...');
             try {
-                const limit = 200;
-                let offset = 0;
-                const tenantIds = [];
+                const tenantOverview = typeof db.getAllTenantSubscriptionOverview === 'function'
+                    ? await db.getAllTenantSubscriptionOverview()
+                    : [];
+                const candidates = Array.isArray(tenantOverview) ? tenantOverview : [];
 
-                while (true) {
-                    const result = await db.getTenantsOverview({ status: '', keyword: '', limit, offset });
-                    const items = Array.isArray(result?.items) ? result.items : [];
-                    if (items.length === 0) break;
-                    for (const row of items) {
-                        const tenantId = parseInt(row?.id, 10);
-                        if (Number.isInteger(tenantId) && tenantId > 0) {
-                            tenantIds.push(tenantId);
-                        }
+                const backupTargets = [];
+                let skippedDoubleCanceled = 0;
+                for (const row of candidates) {
+                    const tenantId = parseInt(row?.tenantId, 10);
+                    if (!Number.isInteger(tenantId) || tenantId <= 0) continue;
+
+                    const tenantStatus = String(row?.tenantStatus || '').trim().toLowerCase();
+                    const subscriptionStatus = String(row?.subscriptionStatus || '').trim().toLowerCase();
+                    const isDoubleCanceled = tenantStatus === 'canceled' && subscriptionStatus === 'canceled';
+                    if (isDoubleCanceled) {
+                        skippedDoubleCanceled += 1;
+                        continue;
                     }
-                    if (items.length < limit) break;
-                    offset += limit;
+                    backupTargets.push(tenantId);
                 }
 
-                const uniqueTenantIds = Array.from(new Set(tenantIds));
+                const uniqueTenantIds = Array.from(new Set(backupTargets));
                 if (uniqueTenantIds.length === 0) {
                     console.log('ℹ️ [排程備份] 找不到可備份租戶，略過。');
                     return;
@@ -71,7 +74,7 @@ function registerScheduledJobs(deps) {
                         console.error(`❌ [排程備份] tenant ${tenantId} 失敗：`, tenantError.message || tenantError);
                     }
                 }
-                console.log(`✅ [排程備份] 全部完成（租戶數：${uniqueTenantIds.length}，保留天數：${backupRetentionDays}）`);
+                console.log(`✅ [排程備份] 全部完成（備份租戶數：${uniqueTenantIds.length}，略過雙取消：${skippedDoubleCanceled}，保留天數：${backupRetentionDays}）`);
             } catch (error) {
                 console.error('❌ [排程備份] 任務失敗：', error.message || error);
             }
