@@ -4,20 +4,10 @@ function parseTenantId(value) {
 }
 
 function resolveTenantId(req) {
-    const fromSession = parseTenantId(req?.session?.admin?.tenant_id);
-    if (fromSession) return fromSession;
-
     const admin = req?.session?.admin;
-    // 已登入的一般管理員：若 session 未綁定有效租戶，不可再套用 header／query／body／預設租戶
-    if (admin && admin.role !== 'super_admin') {
-        return null;
-    }
+    const fromSession = parseTenantId(req?.session?.admin?.tenant_id);
 
-    // 匿名請求僅允許子網域或預設租戶，不信任客戶端自行帶入 tenant_id。
-    const fromSubdomain = parseTenantId(req?.subdomainTenantId);
-    if (fromSubdomain) return fromSubdomain;
-
-    // 只有 super admin 允許透過 header/query/body 明確指定目標租戶。
+    // super admin：優先尊重明確指定的 tenant_id（header/query/body），未指定才回落 session。
     if (admin?.role === 'super_admin') {
         const fromHeader = parseTenantId(req?.headers?.['x-tenant-id']);
         if (fromHeader) return fromHeader;
@@ -27,7 +17,17 @@ function resolveTenantId(req) {
 
         const fromBody = parseTenantId(req?.body?.tenant_id);
         if (fromBody) return fromBody;
+
+        if (fromSession) return fromSession;
+    } else if (admin) {
+        // 已登入的一般管理員：只允許使用自己的 session tenant_id。
+        if (fromSession) return fromSession;
+        return null;
     }
+
+    // 匿名請求僅允許子網域或預設租戶，不信任客戶端自行帶入 tenant_id。
+    const fromSubdomain = parseTenantId(req?.subdomainTenantId);
+    if (fromSubdomain) return fromSubdomain;
 
     const fromEnv = parseTenantId(process.env.DEFAULT_TENANT_ID);
     if (fromEnv) return fromEnv;
