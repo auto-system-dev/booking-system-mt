@@ -16449,17 +16449,80 @@ function resetLogFilters() {
 
 // ==================== 資料備份管理 ====================
 
+let backupTenantScopeLoaded = false;
+
+function getSelectedBackupTenantId() {
+    const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
+    if (!isSuper) return null;
+    const select = document.getElementById('backupTenantScopeSelect');
+    const tenantId = parseInt(select?.value, 10);
+    return Number.isInteger(tenantId) && tenantId > 0 ? tenantId : null;
+}
+
+function buildBackupApiUrl(basePath) {
+    const tenantId = getSelectedBackupTenantId();
+    if (!tenantId) return basePath;
+    return `${basePath}${basePath.includes('?') ? '&' : '?'}tenant_id=${tenantId}`;
+}
+
+async function ensureBackupTenantScopeOptions() {
+    const wrap = document.getElementById('backupTenantScopeWrap');
+    const select = document.getElementById('backupTenantScopeSelect');
+    const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
+    if (!wrap || !select) return;
+
+    if (!isSuper) {
+        wrap.style.display = 'none';
+        return;
+    }
+    wrap.style.display = 'inline-flex';
+    if (backupTenantScopeLoaded) return;
+
+    try {
+        const resp = await adminFetch('/api/admin/tenants?limit=200&offset=0');
+        const result = await resp.json().catch(() => ({}));
+        if (!resp.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${resp.status}`);
+        }
+        const rows = Array.isArray(result.data) ? result.data : [];
+        select.innerHTML = '<option value="">請選擇租戶（超管）</option>' + rows.map((row) => {
+            const id = parseInt(row?.id, 10);
+            if (!Number.isInteger(id) || id <= 0) return '';
+            const name = escapeHtml(String(row?.name || `Tenant ${id}`));
+            const code = escapeHtml(String(row?.code || `tenant_${id}`));
+            return `<option value="${id}">#${id} ${name}（${code}）</option>`;
+        }).join('');
+        backupTenantScopeLoaded = true;
+    } catch (error) {
+        console.error('載入備份租戶清單失敗:', error);
+        showError('載入租戶清單失敗：' + (error?.message || '未知錯誤'));
+    }
+}
+
+function handleBackupTenantScopeChange() {
+    loadBackups();
+}
+
 // 載入備份列表
 async function loadBackups() {
     const tbody = document.getElementById('backupsTableBody');
     const statsDiv = document.getElementById('backupStats');
     if (!tbody) return;
+
+    await ensureBackupTenantScopeOptions();
+    const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
+    const targetTenantId = getSelectedBackupTenantId();
+    if (isSuper && !targetTenantId) {
+        tbody.innerHTML = '<tr><td colspan="4" class="loading">請先選擇操作租戶</td></tr>';
+        if (statsDiv) statsDiv.innerHTML = '<div class="loading">請先選擇操作租戶</div>';
+        return;
+    }
     
     tbody.innerHTML = '<tr><td colspan="4" class="loading">載入中...</td></tr>';
     if (statsDiv) statsDiv.innerHTML = '<div class="loading">載入中...</div>';
     
     try {
-        const response = await adminFetch('/api/admin/backups');
+        const response = await adminFetch(buildBackupApiUrl('/api/admin/backups'));
         const result = await response.json();
         
         if (result.success) {
@@ -16547,7 +16610,7 @@ async function loadBackups() {
 async function downloadBackup(fileName) {
     if (!fileName) return;
     try {
-        const url = `/api/admin/backups/download/${encodeURIComponent(fileName)}`;
+        const url = buildBackupApiUrl(`/api/admin/backups/download/${encodeURIComponent(fileName)}`);
         const response = await adminFetch(url, { method: 'GET' });
         if (response.status === 401) return;
         if (!response.ok) {
@@ -16579,10 +16642,15 @@ async function handleBackupFileSelected(input) {
         return;
     }
     try {
+        const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
+        if (isSuper && !getSelectedBackupTenantId()) {
+            showError('請先選擇操作租戶');
+            return;
+        }
         showSuccess('正在上傳備份...');
         const formData = new FormData();
         formData.append('file', file);
-        const response = await adminFetch('/api/admin/backups/upload', {
+        const response = await adminFetch(buildBackupApiUrl('/api/admin/backups/upload'), {
             method: 'POST',
             body: formData
         });
@@ -16601,12 +16669,17 @@ async function handleBackupFileSelected(input) {
 
 // 手動建立備份
 async function createBackup() {
+    const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
+    if (isSuper && !getSelectedBackupTenantId()) {
+        showError('請先選擇操作租戶');
+        return;
+    }
     if (!(await appConfirm('確定要建立資料備份嗎？'))) return;
     
     try {
         showSuccess('正在建立備份...');
         
-        const response = await adminFetch('/api/admin/backups/create', {
+        const response = await adminFetch(buildBackupApiUrl('/api/admin/backups/create'), {
             method: 'POST'
         });
         
@@ -16626,13 +16699,18 @@ async function createBackup() {
 
 // 清理舊備份
 async function cleanupBackups() {
+    const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
+    if (isSuper && !getSelectedBackupTenantId()) {
+        showError('請先選擇操作租戶');
+        return;
+    }
     const daysInput = document.getElementById('backupRetainDays');
     const daysToKeep = parseInt(daysInput?.value) || 30;
     
     if (!(await appConfirm(`確定要清理 ${daysToKeep} 天前的備份嗎？此操作無法復原。`))) return;
     
     try {
-        const response = await adminFetch('/api/admin/backups/cleanup', {
+        const response = await adminFetch(buildBackupApiUrl('/api/admin/backups/cleanup'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ daysToKeep })
@@ -16654,10 +16732,15 @@ async function cleanupBackups() {
 
 // 刪除單一備份
 async function deleteBackup(fileName) {
+    const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
+    if (isSuper && !getSelectedBackupTenantId()) {
+        showError('請先選擇操作租戶');
+        return;
+    }
     if (!(await appConfirm(`確定要刪除備份「${fileName}」嗎？此操作無法復原。`))) return;
     
     try {
-        const response = await adminFetch(`/api/admin/backups/${encodeURIComponent(fileName)}`, {
+        const response = await adminFetch(buildBackupApiUrl(`/api/admin/backups/${encodeURIComponent(fileName)}`), {
             method: 'DELETE'
         });
         
@@ -16677,6 +16760,11 @@ async function deleteBackup(fileName) {
 
 // 還原備份
 async function restoreBackup(fileName) {
+    const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
+    if (isSuper && !getSelectedBackupTenantId()) {
+        showError('請先選擇操作租戶');
+        return;
+    }
     const choice = await (typeof appConfirmWithCheckbox === 'function'
         ? appConfirmWithCheckbox({
               message: `⚠️ 警告：還原備份將會覆蓋目前所有資料！\n\n備份檔案：${fileName}\n\n你可以選擇是否在還原前自動建立一份安全備份。`,
@@ -16694,7 +16782,7 @@ async function restoreBackup(fileName) {
     try {
         showSuccess('正在還原備份，請稍候...');
         
-        const response = await adminFetch(`/api/admin/backups/restore/${encodeURIComponent(fileName)}`, {
+        const response = await adminFetch(buildBackupApiUrl(`/api/admin/backups/restore/${encodeURIComponent(fileName)}`), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ preBackup: !!choice.checked })
@@ -16726,6 +16814,7 @@ window.createBackup = createBackup;
 window.cleanupBackups = cleanupBackups;
 window.deleteBackup = deleteBackup;
 window.restoreBackup = restoreBackup;
+window.handleBackupTenantScopeChange = handleBackupTenantScopeChange;
 
 // ==================== CSV 匯出功能 ====================
 

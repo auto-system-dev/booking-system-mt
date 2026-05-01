@@ -2676,6 +2676,12 @@
                 <div class="section-header">
                     <h2><span class="material-symbols-outlined" style="font-size: 28px; vertical-align: middle; margin-right: 8px;">backup</span> 資料備份管理</h2>
                     <div class="header-actions">
+                        <div id="backupTenantScopeWrap" style="display:none; align-items:center; gap:8px; margin-right: 8px;">
+                            <label for="backupTenantScopeSelect" style="font-size:13px; color:#475569; white-space:nowrap;">操作租戶</label>
+                            <select id="backupTenantScopeSelect" style="padding:8px; min-width:220px;" onchange="handleBackupTenantScopeChange()">
+                                <option value="">請選擇租戶（超管）</option>
+                            </select>
+                        </div>
                         <button class="btn-primary permission-required" data-permission="backup.create" onclick="createBackup()">
                             <span class="material-symbols-outlined">add</span> 手動備份
                         </button>
