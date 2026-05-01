@@ -3560,6 +3560,93 @@ app.post('/api/admin/backups/restore/:fileName', requireAuth, requireTenantConte
     }
 });
 
+// API: 全系統備份列表（僅超管）
+app.get('/api/admin/system-backups', requireAuth, checkPermission('backup.view'), adminLimiter, async (req, res) => {
+    try {
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可查看全系統備份' });
+        }
+        const backups = backup.getSystemBackupList();
+        const stats = backup.getSystemBackupStats();
+        res.json({
+            success: true,
+            data: backups,
+            stats
+        });
+    } catch (error) {
+        console.error('查詢全系統備份列表錯誤:', error);
+        res.status(500).json({
+            success: false,
+            message: '查詢全系統備份列表失敗：' + error.message
+        });
+    }
+});
+
+// API: 建立全系統備份（僅超管）
+app.post('/api/admin/system-backups/create', requireAuth, checkPermission('backup.create'), adminLimiter, async (req, res) => {
+    try {
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可建立全系統備份' });
+        }
+        const result = await backup.performSystemBackup();
+        await logAction(req, 'create_system_backup', 'backup', result.fileName, {
+            fileSize: result.fileSizeMB,
+            fileName: result.fileName,
+            scope: 'system'
+        });
+        res.json({
+            success: true,
+            message: '全系統備份已建立',
+            data: result
+        });
+    } catch (error) {
+        console.error('建立全系統備份錯誤:', error);
+        res.status(500).json({
+            success: false,
+            message: '建立全系統備份失敗：' + error.message
+        });
+    }
+});
+
+// API: 還原全系統備份（僅超管）
+app.post('/api/admin/system-backups/restore/:fileName', requireAuth, checkPermission('backup.restore'), adminLimiter, async (req, res) => {
+    try {
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可還原全系統備份' });
+        }
+        const fileName = decodeURIComponent(req.params.fileName || '');
+        const wantsPreBackup = req.body && Object.prototype.hasOwnProperty.call(req.body, 'preBackup')
+            ? !!req.body.preBackup
+            : true;
+        if (wantsPreBackup) {
+            console.log('⚠️ 全系統還原前自動建立安全備份...');
+            try {
+                await backup.performSystemBackup();
+            } catch (preBackupError) {
+                console.warn('⚠️ 全系統還原前安全備份失敗（繼續還原）:', preBackupError.message);
+            }
+        }
+        const result = await backup.restoreSystemBackup(fileName);
+        await logAction(req, 'restore_system_backup', 'backup', fileName, {
+            fileName: result.fileName,
+            restoredTables: result.restoredTables,
+            totalRowsRestored: result.totalRowsRestored,
+            scope: 'system'
+        });
+        res.json({
+            success: true,
+            message: `全系統備份已還原：${result.fileName}`,
+            data: result
+        });
+    } catch (error) {
+        console.error('還原全系統備份錯誤:', error);
+        res.status(500).json({
+            success: false,
+            message: '還原全系統備份失敗：' + error.message
+        });
+    }
+});
+
 // CSRF Token API（提供 Token 給前端）
 app.get('/api/csrf-token', generateCsrfToken, (req, res) => {
     res.json({

@@ -104,6 +104,19 @@ function getTenantBackupDir(tenantId) {
     return dir;
 }
 
+function getSystemBackupDir() {
+    ensureBackupDir();
+    const dir = path.join(BACKUP_DIR, '_system');
+    if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+    }
+    return dir;
+}
+
+function createTimestampFilePart() {
+    return new Date().toISOString().replace(/[-:]/g, '').replace('T', '_').split('.')[0];
+}
+
 /**
  * 備份 SQLite 資料庫
  */
@@ -118,7 +131,7 @@ async function backupSQLite(dbPath, tenantId) {
         
         // 產生備份檔名：backup_YYYYMMDD_HHMMSS.db
         const now = new Date();
-        const dateStr = now.toISOString().replace(/[-:]/g, '').replace('T', '_').split('.')[0];
+        const dateStr = createTimestampFilePart();
         const backupFileName = `backup_${dateStr}.db`;
         const backupPath = path.join(tenantDir, backupFileName);
         
@@ -161,7 +174,7 @@ async function backupPostgreSQL(databaseUrl, tenantId) {
         
         // 產生備份檔名：backup_YYYYMMDD_HHMMSS.json
         const now = new Date();
-        const dateStr = now.toISOString().replace(/[-:]/g, '').replace('T', '_').split('.')[0];
+        const dateStr = createTimestampFilePart();
         const backupFileName = `backup_${dateStr}.json`;
         const backupPath = path.join(tenantDir, backupFileName);
         
@@ -256,6 +269,116 @@ async function backupPostgreSQL(databaseUrl, tenantId) {
     }
 }
 
+async function backupSQLiteSystem(dbPath) {
+    try {
+        const systemDir = getSystemBackupDir();
+        if (!fs.existsSync(dbPath)) {
+            throw new Error(`資料庫檔案不存在: ${dbPath}`);
+        }
+        const now = new Date();
+        const dateStr = createTimestampFilePart();
+        const backupFileName = `system_backup_${dateStr}.db`;
+        const backupPath = path.join(systemDir, backupFileName);
+        fs.copyFileSync(dbPath, backupPath);
+        const stats = fs.statSync(backupPath);
+        const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+        console.log(`✅ SQLite 全系統備份成功: ${backupFileName} (${fileSizeMB} MB)`);
+        return {
+            success: true,
+            fileName: backupFileName,
+            filePath: backupPath,
+            fileSize: stats.size,
+            fileSizeMB: parseFloat(fileSizeMB),
+            timestamp: now.toISOString(),
+            scope: 'system'
+        };
+    } catch (error) {
+        console.error('❌ SQLite 全系統備份失敗:', error.message);
+        throw error;
+    }
+}
+
+async function backupPostgreSQLSystem(databaseUrl) {
+    try {
+        const systemDir = getSystemBackupDir();
+        const pool = new Pool({
+            connectionString: databaseUrl,
+            ssl: databaseUrl.includes('railway') ? { rejectUnauthorized: false } : false
+        });
+        const now = new Date();
+        const dateStr = createTimestampFilePart();
+        const backupFileName = `system_backup_${dateStr}.json`;
+        const backupPath = path.join(systemDir, backupFileName);
+
+        console.log('📦 開始匯出 PostgreSQL 全系統資料...');
+        const tablesResult = await pool.query(`
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'public'
+            AND table_type = 'BASE TABLE'
+            ORDER BY table_name
+        `);
+        const tables = tablesResult.rows.map(r => r.table_name);
+        const backupData = {
+            metadata: {
+                version: '1.0',
+                type: 'postgresql_json_backup',
+                scope: 'system',
+                created_at: now.toISOString(),
+                tables,
+                table_count: tables.length
+            },
+            data: {}
+        };
+        for (const table of tables) {
+            try {
+                const columnsResult = await pool.query(`
+                    SELECT column_name, data_type, is_nullable, column_default
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = $1
+                    ORDER BY ordinal_position
+                `, [table]);
+                const dataResult = await pool.query(`SELECT * FROM "${table}"`);
+                backupData.data[table] = {
+                    columns: columnsResult.rows,
+                    row_count: dataResult.rows.length,
+                    rows: dataResult.rows
+                };
+            } catch (tableError) {
+                console.error(`  ❌ 匯出 ${table} 失敗:`, tableError.message);
+                backupData.data[table] = {
+                    error: tableError.message,
+                    row_count: 0,
+                    rows: []
+                };
+            }
+        }
+        let totalRows = 0;
+        for (const table of tables) {
+            totalRows += (backupData.data[table]?.row_count || 0);
+        }
+        backupData.metadata.total_rows = totalRows;
+        fs.writeFileSync(backupPath, JSON.stringify(backupData, null, 2), 'utf8');
+        await pool.end();
+        const stats = fs.statSync(backupPath);
+        const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+        console.log(`✅ PostgreSQL 全系統備份成功: ${backupFileName} (${fileSizeMB} MB, ${totalRows} 筆資料)`);
+        return {
+            success: true,
+            fileName: backupFileName,
+            filePath: backupPath,
+            fileSize: stats.size,
+            fileSizeMB: parseFloat(fileSizeMB),
+            timestamp: now.toISOString(),
+            tableCount: tables.length,
+            totalRows,
+            scope: 'system'
+        };
+    } catch (error) {
+        console.error('❌ PostgreSQL 全系統備份失敗:', error.message);
+        throw error;
+    }
+}
+
 /**
  * 執行資料庫備份（自動偵測資料庫類型）
  */
@@ -289,6 +412,46 @@ async function performBackup(tenantId) {
         return result;
     } catch (error) {
         console.error('❌ 資料庫備份失敗:', error.message);
+        throw error;
+    }
+}
+
+async function performSystemBackup() {
+    try {
+        console.log('\n[全系統備份任務] 開始執行...');
+        const usePostgreSQL = !!process.env.DATABASE_URL;
+        let result;
+        if (usePostgreSQL) {
+            result = await backupPostgreSQLSystem(process.env.DATABASE_URL);
+        } else {
+            const dbPath = path.join(__dirname, 'bookings.db');
+            result = await backupSQLiteSystem(dbPath);
+        }
+        try {
+            const client = getR2Client();
+            if (client) {
+                const safeName = path.basename(String(result.fileName || '').trim());
+                const key = `${R2_BACKUP_PREFIX}/_system/${safeName}`;
+                const contentType = safeName.endsWith('.json') ? 'application/json' : 'application/octet-stream';
+                await client.send(new PutObjectCommand({
+                    Bucket: R2_BUCKET_NAME,
+                    Key: key,
+                    Body: fs.readFileSync(result.filePath),
+                    ContentType: contentType,
+                    Metadata: { scope: 'system', source: 'booking-system-backup' }
+                }));
+                result.r2Upload = { uploaded: true, bucket: R2_BUCKET_NAME, key };
+            } else {
+                result.r2Upload = { uploaded: false, reason: 'R2 自動上傳未啟用或缺少必要環境變數' };
+            }
+        } catch (uploadError) {
+            console.error('⚠️ 全系統備份上傳 R2 失敗（不影響本地備份）:', uploadError.message);
+            result.r2Upload = { uploaded: false, reason: uploadError.message };
+        }
+        console.log(`✅ 全系統備份完成: ${result.fileName}`);
+        return result;
+    } catch (error) {
+        console.error('❌ 全系統備份失敗:', error.message);
         throw error;
     }
 }
@@ -405,6 +568,44 @@ function getBackupStats(tenantId) {
     }
 }
 
+function getSystemBackupList() {
+    try {
+        const systemDir = getSystemBackupDir();
+        const files = fs.readdirSync(systemDir);
+        const backups = [];
+        for (const file of files) {
+            if (!file.startsWith('system_backup_')) continue;
+            const filePath = path.join(systemDir, file);
+            const stats = fs.statSync(filePath);
+            backups.push({
+                fileName: file,
+                filePath,
+                fileSize: stats.size,
+                fileSizeMB: parseFloat((stats.size / (1024 * 1024)).toFixed(2)),
+                createdAt: stats.birthtime,
+                modifiedAt: stats.mtime
+            });
+        }
+        backups.sort((a, b) => b.createdAt - a.createdAt);
+        return backups;
+    } catch (error) {
+        console.error('❌ 取得全系統備份列表失敗:', error.message);
+        throw error;
+    }
+}
+
+function getSystemBackupStats() {
+    const backups = getSystemBackupList();
+    const totalSize = backups.reduce((sum, backup) => sum + backup.fileSize, 0);
+    return {
+        totalBackups: backups.length,
+        totalSize,
+        totalSizeMB: parseFloat((totalSize / (1024 * 1024)).toFixed(2)),
+        oldestBackup: backups.length > 0 ? backups[backups.length - 1].createdAt : null,
+        newestBackup: backups.length > 0 ? backups[0].createdAt : null
+    };
+}
+
 /**
  * 刪除指定備份檔案
  */
@@ -445,9 +646,9 @@ function deleteBackup(fileName, tenantId) {
 /**
  * 還原 PostgreSQL 備份（從 JSON 備份檔案）
  */
-async function restorePostgreSQL(databaseUrl, fileName, tenantId) {
+async function restorePostgreSQL(databaseUrl, fileName, tenantId, customDir = null) {
     try {
-        const tenantDir = getTenantBackupDir(tenantId);
+        const tenantDir = customDir || getTenantBackupDir(tenantId);
         
         const safeName = path.basename(fileName);
         const filePath = path.join(tenantDir, safeName);
@@ -588,9 +789,9 @@ async function restorePostgreSQL(databaseUrl, fileName, tenantId) {
 /**
  * 還原 SQLite 備份
  */
-async function restoreSQLite(fileName, tenantId) {
+async function restoreSQLite(fileName, tenantId, customDir = null) {
     try {
-        const tenantDir = getTenantBackupDir(tenantId);
+        const tenantDir = customDir || getTenantBackupDir(tenantId);
         
         const safeName = path.basename(fileName);
         const filePath = path.join(tenantDir, safeName);
@@ -652,6 +853,37 @@ async function restoreBackup(fileName, tenantId) {
         }
     } catch (error) {
         console.error('❌ 還原備份失敗:', error.message);
+        throw error;
+    }
+}
+
+function assertSafeSystemBackupBasename(name) {
+    const raw = String(name || '');
+    if (raw.includes('..') || /[/\\]/.test(raw)) {
+        throw new Error('無效的備份檔案名稱');
+    }
+    const base = path.basename(raw);
+    if (!/^system_backup_[a-zA-Z0-9._-]+\.(json|db)$/i.test(base)) {
+        throw new Error('無效的全系統備份檔案名稱');
+    }
+    return base;
+}
+
+async function restoreSystemBackup(fileName) {
+    try {
+        const systemDir = getSystemBackupDir();
+        const safeName = assertSafeSystemBackupBasename(fileName);
+        const filePath = path.join(systemDir, safeName);
+        if (!fs.existsSync(filePath)) {
+            throw new Error('備份檔案不存在');
+        }
+        const usePostgreSQL = !!process.env.DATABASE_URL;
+        if (usePostgreSQL) {
+            return await restorePostgreSQL(process.env.DATABASE_URL, safeName, null, systemDir);
+        }
+        return await restoreSQLite(safeName, null, systemDir);
+    } catch (error) {
+        console.error('❌ 全系統備份還原失敗:', error.message);
         throw error;
     }
 }
@@ -739,11 +971,15 @@ function saveUploadedBackup(buffer, originalName, tenantId) {
 
 module.exports = {
     performBackup,
+    performSystemBackup,
     cleanupOldBackups,
     getBackupList,
     getBackupStats,
+    getSystemBackupList,
+    getSystemBackupStats,
     deleteBackup,
     restoreBackup,
+    restoreSystemBackup,
     backupSQLite,
     backupPostgreSQL,
     getBackupFileForDownload,

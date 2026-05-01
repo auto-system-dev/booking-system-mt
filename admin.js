@@ -16503,6 +16503,77 @@ function handleBackupTenantScopeChange() {
     loadBackups();
 }
 
+function renderSystemBackupStats(statsDiv, stats) {
+    if (!statsDiv) return;
+    statsDiv.innerHTML = `
+        <div style="background: #eef2ff; padding: 12px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 22px; font-weight: bold; color: #4338ca;">${stats?.totalBackups || 0}</div>
+            <div style="font-size: 12px; color: #666;">全系統備份數</div>
+        </div>
+        <div style="background: #ecfeff; padding: 12px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 22px; font-weight: bold; color: #0891b2;">${stats?.totalSizeMB || 0} MB</div>
+            <div style="font-size: 12px; color: #666;">總大小</div>
+        </div>
+        <div style="background: #fef3c7; padding: 12px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 15px; font-weight: bold; color: #b45309;">${stats?.newestBackup ? formatDateTime(stats.newestBackup) : '無'}</div>
+            <div style="font-size: 12px; color: #666;">最近備份</div>
+        </div>
+    `;
+}
+
+async function loadSystemBackups() {
+    const panel = document.getElementById('systemBackupPanel');
+    const tbody = document.getElementById('systemBackupsTableBody');
+    const statsDiv = document.getElementById('systemBackupStats');
+    const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
+    if (!panel || !tbody || !statsDiv) return;
+    if (!isSuper) {
+        panel.style.display = 'none';
+        return;
+    }
+    panel.style.display = 'block';
+    tbody.innerHTML = '<tr><td colspan="4" class="loading">載入中...</td></tr>';
+    statsDiv.innerHTML = '<div class="loading">載入中...</div>';
+    try {
+        const response = await adminFetch('/api/admin/system-backups');
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+        renderSystemBackupStats(statsDiv, result.stats || {});
+        const backups = Array.isArray(result.data) ? result.data : [];
+        if (backups.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="loading">目前沒有全系統備份</td></tr>';
+            return;
+        }
+        const canRestore = hasPermission('backup.restore');
+        tbody.innerHTML = backups.map((backup) => {
+            const rawFileName = String(backup.fileName || backup.name || '');
+            const fileName = escapeHtml(rawFileName);
+            const actionButtons = canRestore
+                ? `<button class="btn-edit" type="button" onclick="restoreSystemBackup('${fileName}')" style="padding: 4px 10px; font-size: 12px;">
+                    <span class="material-symbols-outlined" style="font-size: 15px;">restore</span> 還原全系統
+                   </button>`
+                : '-';
+            return `
+                <tr>
+                    <td>
+                        <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; margin-right: 5px; color: #4338ca;">database</span>
+                        ${fileName}
+                    </td>
+                    <td style="text-align: right;">${backup.fileSizeMB || '-'} MB</td>
+                    <td>${formatDateTime(backup.createdAt || backup.modifiedAt)}</td>
+                    <td style="text-align: center;">${actionButtons}</td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('載入全系統備份失敗:', error);
+        tbody.innerHTML = '<tr><td colspan="4" class="loading">載入失敗</td></tr>';
+        statsDiv.innerHTML = '<div class="loading">載入失敗</div>';
+    }
+}
+
 // 載入備份列表
 async function loadBackups() {
     const tbody = document.getElementById('backupsTableBody');
@@ -16510,6 +16581,7 @@ async function loadBackups() {
     if (!tbody) return;
 
     await ensureBackupTenantScopeOptions();
+    await loadSystemBackups();
     const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
     const targetTenantId = getSelectedBackupTenantId();
     if (isSuper && !targetTenantId) {
@@ -16603,6 +16675,59 @@ async function loadBackups() {
         console.error('載入備份列表錯誤:', error);
         tbody.innerHTML = '<tr><td colspan="4" class="loading">載入時發生錯誤</td></tr>';
         if (statsDiv) statsDiv.innerHTML = '<div class="loading">載入失敗</div>';
+    }
+}
+
+async function createSystemBackup() {
+    const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
+    if (!isSuper) return;
+    if (!(await appConfirm('確定要建立全系統備份嗎？此操作可能需要一些時間。'))) return;
+    try {
+        showSuccess('正在建立全系統備份...');
+        const response = await adminFetch('/api/admin/system-backups/create', { method: 'POST' });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+        showSuccess(`全系統備份已建立：${result.data?.fileName || '-'}`);
+        await loadSystemBackups();
+    } catch (error) {
+        console.error('建立全系統備份失敗:', error);
+        showError(error.message || '建立全系統備份失敗');
+    }
+}
+
+async function restoreSystemBackup(fileName) {
+    const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
+    if (!isSuper) return;
+    if (!fileName) return;
+    const choice = await (typeof appConfirmWithCheckbox === 'function'
+        ? appConfirmWithCheckbox({
+              message: `⚠️ 警告：全系統還原會覆蓋整個資料庫！\n\n備份檔案：${fileName}\n\n可選擇是否於還原前再建立一份安全備份。`,
+              checkboxLabel: '還原前自動建立安全備份（建議）',
+              defaultChecked: true,
+              okText: '繼續',
+              cancelText: '取消'
+          })
+        : (async () => ({ ok: await appConfirm(`⚠️ 警告：全系統還原會覆蓋整個資料庫！\n\n備份檔案：${fileName}\n\n確定要繼續嗎？`), checked: true }))());
+    if (!choice || !choice.ok) return;
+    if (!(await appConfirm('最後確認：此動作將覆蓋整個系統資料，確定執行？'))) return;
+    try {
+        showSuccess('正在執行全系統還原，請稍候...');
+        const response = await adminFetch(`/api/admin/system-backups/restore/${encodeURIComponent(fileName)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ preBackup: !!choice.checked })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+            throw new Error(result.message || `HTTP ${response.status}`);
+        }
+        showSuccess(`全系統備份已還原：${result.data?.fileName || fileName}`);
+        await loadSystemBackups();
+    } catch (error) {
+        console.error('全系統還原失敗:', error);
+        showError(error.message || '全系統還原失敗');
     }
 }
 
@@ -16815,6 +16940,9 @@ window.cleanupBackups = cleanupBackups;
 window.deleteBackup = deleteBackup;
 window.restoreBackup = restoreBackup;
 window.handleBackupTenantScopeChange = handleBackupTenantScopeChange;
+window.loadSystemBackups = loadSystemBackups;
+window.createSystemBackup = createSystemBackup;
+window.restoreSystemBackup = restoreSystemBackup;
 
 // ==================== CSV 匯出功能 ====================
 
