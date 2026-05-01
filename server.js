@@ -11899,7 +11899,8 @@ startServer({
     cron,
     bookingJobs: bookingNotificationJobs,
     adminLogCleanupJobs,
-    subscriptionJobs
+    subscriptionJobs,
+    backup
 }).catch((error) => {
     console.error('❌ 應用程式啟動失敗:', error.message);
     console.error('錯誤詳情:', error.stack);

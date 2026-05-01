@@ -4,6 +4,8 @@ function registerScheduledJobs(deps) {
         bookingJobs,
         adminLogCleanupJobs,
         subscriptionJobs,
+        backup,
+        db,
         timezone = 'Asia/Taipei',
         processEnv = process.env
     } = deps;
@@ -28,9 +30,56 @@ function registerScheduledJobs(deps) {
     });
     console.log('✅ 自動取消過期保留訂房定時任務已啟動（每小時 30 分檢查）');
 
-    // 多租戶：不自動每日全庫備份（租戶一多會重複佔用空間）。
-    // 各租戶請於後台「資料備份管理」手動備份；還原前可選安全備份。
-    console.log('ℹ️ 資料庫備份：未啟用排程備份（多租戶改由租戶手動備份）');
+    const dailyBackupEnabled = String(processEnv.ENABLE_DAILY_BACKUP || 'true').trim().toLowerCase() !== 'false';
+    const dailyBackupCron = String(processEnv.DAILY_BACKUP_CRON || '0 2 * * *').trim();
+    const backupRetentionDays = Math.max(1, parseInt(processEnv.BACKUP_RETENTION_DAYS || '30', 10) || 30);
+
+    if (dailyBackupEnabled && backup && db && typeof backup.performBackup === 'function' && typeof backup.cleanupOldBackups === 'function') {
+        cron.schedule(dailyBackupCron, async () => {
+            console.log('🧰 [排程備份] 開始每日全備任務...');
+            try {
+                const limit = 200;
+                let offset = 0;
+                const tenantIds = [];
+
+                while (true) {
+                    const result = await db.getTenantsOverview({ status: '', keyword: '', limit, offset });
+                    const items = Array.isArray(result?.items) ? result.items : [];
+                    if (items.length === 0) break;
+                    for (const row of items) {
+                        const tenantId = parseInt(row?.id, 10);
+                        if (Number.isInteger(tenantId) && tenantId > 0) {
+                            tenantIds.push(tenantId);
+                        }
+                    }
+                    if (items.length < limit) break;
+                    offset += limit;
+                }
+
+                const uniqueTenantIds = Array.from(new Set(tenantIds));
+                if (uniqueTenantIds.length === 0) {
+                    console.log('ℹ️ [排程備份] 找不到可備份租戶，略過。');
+                    return;
+                }
+
+                for (const tenantId of uniqueTenantIds) {
+                    try {
+                        const backupResult = await backup.performBackup(tenantId);
+                        await backup.cleanupOldBackups(backupRetentionDays, tenantId);
+                        console.log(`✅ [排程備份] tenant ${tenantId} 完成：${backupResult?.fileName || 'unknown file'}`);
+                    } catch (tenantError) {
+                        console.error(`❌ [排程備份] tenant ${tenantId} 失敗：`, tenantError.message || tenantError);
+                    }
+                }
+                console.log(`✅ [排程備份] 全部完成（租戶數：${uniqueTenantIds.length}，保留天數：${backupRetentionDays}）`);
+            } catch (error) {
+                console.error('❌ [排程備份] 任務失敗：', error.message || error);
+            }
+        }, { timezone });
+        console.log(`✅ 資料庫每日全備已啟動（${dailyBackupCron}，保留 ${backupRetentionDays} 天）`);
+    } else {
+        console.log('ℹ️ 資料庫每日全備未啟用（缺少 backup/db 依賴或 ENABLE_DAILY_BACKUP=false）');
+    }
 
     if (adminLogCleanupJobs.isEnabled()) {
         cron.schedule('15 3 * * *', async () => {
