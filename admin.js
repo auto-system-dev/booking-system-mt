@@ -16450,6 +16450,7 @@ function resetLogFilters() {
 // ==================== 資料備份管理 ====================
 
 let backupTenantScopeLoaded = false;
+let backupMode = 'tenant';
 
 function getSelectedBackupTenantId() {
     const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
@@ -16503,6 +16504,66 @@ function handleBackupTenantScopeChange() {
     loadBackups();
 }
 
+function styleBackupModeTabButtons() {
+    const tenantBtn = document.getElementById('backupTenantTabBtn');
+    const systemBtn = document.getElementById('backupSystemTabBtn');
+    const activeBg = '#2563eb';
+    const activeText = '#ffffff';
+    const inactiveBg = '';
+    const inactiveText = '';
+    if (tenantBtn) {
+        tenantBtn.style.background = backupMode === 'tenant' ? activeBg : inactiveBg;
+        tenantBtn.style.color = backupMode === 'tenant' ? activeText : inactiveText;
+    }
+    if (systemBtn) {
+        systemBtn.style.background = backupMode === 'system' ? activeBg : inactiveBg;
+        systemBtn.style.color = backupMode === 'system' ? activeText : inactiveText;
+    }
+}
+
+function updateBackupPanelsVisibility() {
+    const tenantPanel = document.getElementById('tenantBackupPanel');
+    const systemPanel = document.getElementById('systemBackupPanel');
+    if (tenantPanel) {
+        tenantPanel.style.display = backupMode === 'tenant' ? 'block' : 'none';
+    }
+    if (systemPanel) {
+        systemPanel.style.display = backupMode === 'system' ? 'block' : 'none';
+    }
+    styleBackupModeTabButtons();
+}
+
+function setupBackupTabs() {
+    const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
+    const tabsWrap = document.getElementById('backupModeTabs');
+    const systemBtn = document.getElementById('backupSystemTabBtn');
+    if (tabsWrap && !isSuper) {
+        tabsWrap.style.display = 'none';
+    } else if (tabsWrap) {
+        tabsWrap.style.display = 'flex';
+    }
+    if (systemBtn) {
+        systemBtn.style.display = isSuper ? 'inline-flex' : 'none';
+    }
+    if (!isSuper && backupMode === 'system') {
+        backupMode = 'tenant';
+    }
+    updateBackupPanelsVisibility();
+}
+
+async function switchBackupMode(mode) {
+    const target = mode === 'system' ? 'system' : 'tenant';
+    const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
+    if (target === 'system' && !isSuper) return;
+    backupMode = target;
+    updateBackupPanelsVisibility();
+    if (backupMode === 'system') {
+        await loadSystemBackups();
+    } else {
+        await loadBackups();
+    }
+}
+
 function renderSystemBackupStats(statsDiv, stats) {
     if (!statsDiv) return;
     statsDiv.innerHTML = `
@@ -16531,7 +16592,7 @@ async function loadSystemBackups() {
         panel.style.display = 'none';
         return;
     }
-    panel.style.display = 'block';
+    panel.style.display = backupMode === 'system' ? 'block' : 'none';
     tbody.innerHTML = '<tr><td colspan="4" class="loading">載入中...</td></tr>';
     statsDiv.innerHTML = '<div class="loading">載入中...</div>';
     try {
@@ -16581,7 +16642,10 @@ async function loadBackups() {
     if (!tbody) return;
 
     await ensureBackupTenantScopeOptions();
-    await loadSystemBackups();
+    setupBackupTabs();
+    if (backupMode === 'system') {
+        return loadSystemBackups();
+    }
     const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
     const targetTenantId = getSelectedBackupTenantId();
     if (isSuper && !targetTenantId) {
@@ -16943,6 +17007,7 @@ window.handleBackupTenantScopeChange = handleBackupTenantScopeChange;
 window.loadSystemBackups = loadSystemBackups;
 window.createSystemBackup = createSystemBackup;
 window.restoreSystemBackup = restoreSystemBackup;
+window.switchBackupMode = switchBackupMode;
 
 // ==================== CSV 匯出功能 ====================
 

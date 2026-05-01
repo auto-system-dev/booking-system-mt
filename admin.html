@@ -2695,6 +2695,16 @@
                     </div>
                 </div>
 
+                <div id="backupModeTabs" style="display: flex; gap: 8px; margin-bottom: 14px;">
+                    <button id="backupTenantTabBtn" type="button" class="btn-refresh" onclick="switchBackupMode('tenant')">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">apartment</span> 租戶備份
+                    </button>
+                    <button id="backupSystemTabBtn" type="button" class="btn-refresh" onclick="switchBackupMode('system')" style="display:none;">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">dns</span> 全系統備份
+                    </button>
+                </div>
+
+                <div id="tenantBackupPanel">
                 <!-- 備份統計 -->
                 <div class="settings-card" style="margin-bottom: 20px;">
                     <h3 style="display: flex; align-items: center; gap: 10px;">
@@ -2779,6 +2789,7 @@
                             </tbody>
                         </table>
                     </div>
+                </div>
                 </div>
             </section>
 
