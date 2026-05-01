@@ -407,6 +407,18 @@ const adminLimiter = rateLimit({
     }
 });
 
+// 2.5 忘記密碼 API - 嚴格限制（避免濫發信）
+const passwordResetLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 8,
+    message: {
+        success: false,
+        message: '重設密碼請求過於頻繁，請稍後再試'
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
+
 // 3. 公開 API - 寬鬆限制（訂房、查詢等）
 const publicLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 分鐘
@@ -541,6 +553,23 @@ const validateLogin = createValidationMiddleware([
         return { valid: true };
     }
 ]);
+
+function validateStrongPassword(password) {
+    const value = String(password || '');
+    if (value.length < 8) {
+        return { valid: false, message: '密碼至少需要 8 個字元' };
+    }
+    if (!/[A-Z]/.test(value)) {
+        return { valid: false, message: '密碼需包含至少 1 個大寫英文字母' };
+    }
+    if (!/[a-z]/.test(value)) {
+        return { valid: false, message: '密碼需包含至少 1 個小寫英文字母' };
+    }
+    if (!/[0-9]/.test(value)) {
+        return { valid: false, message: '密碼需包含至少 1 個數字' };
+    }
+    return { valid: true };
+}
 
 // 房型管理驗證中間件
 const validateRoomType = createValidationMiddleware([
@@ -2197,6 +2226,10 @@ app.get('/admin/login', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin-login.html'));
 });
 
+app.get('/admin/reset-password', (req, res) => {
+    res.sendFile(path.join(__dirname, 'admin-reset-password.html'));
+});
+
 // 管理後台登入 API（應用嚴格 rate limiting）
 app.post('/api/admin/login', loginLimiter, validateLogin, async (req, res) => {
     try {
@@ -2319,6 +2352,129 @@ app.post('/api/admin/login', loginLimiter, validateLogin, async (req, res) => {
         res.status(500).json({
             success: false,
             message: '登入時發生錯誤：' + error.message
+        });
+    }
+});
+
+app.post('/api/admin/password-reset/request', passwordResetLimiter, async (req, res) => {
+    try {
+        const email = String(req.body?.email || '').trim().toLowerCase();
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: '請輸入註冊 Email'
+            });
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email 格式不正確'
+            });
+        }
+
+        const admin = await db.getAdminByEmailForPasswordReset(email);
+        if (!admin) {
+            return res.status(404).json({
+                success: false,
+                message: '此信箱尚未在本系統註冊'
+            });
+        }
+
+        const ttlMinutes = Math.max(15, parseInt(process.env.ADMIN_PASSWORD_RESET_TTL_MINUTES || '30', 10) || 30);
+        const reset = await db.createAdminPasswordResetToken({
+            adminId: admin.id,
+            email,
+            ttlMinutes
+        });
+        const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+        const resetUrl = `${baseUrl}/admin/reset-password?token=${reset.token}`;
+
+        await sendEmail({
+            to: email,
+            fromName: 'Haoding.tw',
+            subject: '管理後台密碼重設',
+            html: `
+                <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;">
+                    <h2 style="margin:0 0 12px;">管理後台密碼重設</h2>
+                    <p>您好，請點擊以下連結重設管理後台密碼：</p>
+                    <p><a href="${resetUrl}" target="_blank" rel="noopener noreferrer">${resetUrl}</a></p>
+                    <p>此連結將於 ${ttlMinutes} 分鐘內失效，且僅可使用一次。</p>
+                    <p style="color:#64748b;font-size:13px;">若非您本人操作，請忽略此信件。</p>
+                </div>
+            `
+        });
+
+        return res.json({
+            success: true,
+            message: '我們已寄出重設連結'
+        });
+    } catch (error) {
+        console.error('寄送重設密碼信失敗:', error);
+        return res.status(500).json({
+            success: false,
+            message: '寄送重設密碼信失敗，請稍後再試'
+        });
+    }
+});
+
+app.post('/api/admin/password-reset/confirm', passwordResetLimiter, async (req, res) => {
+    try {
+        const token = String(req.body?.token || '').trim();
+        const newPassword = String(req.body?.newPassword || '');
+        if (!token) {
+            return res.status(400).json({
+                success: false,
+                message: '缺少重設 token'
+            });
+        }
+
+        const passwordCheck = validateStrongPassword(newPassword);
+        if (!passwordCheck.valid) {
+            return res.status(400).json({
+                success: false,
+                message: passwordCheck.message
+            });
+        }
+
+        const resetRecord = await db.getAdminPasswordResetByToken(token);
+        if (!resetRecord) {
+            return res.status(400).json({
+                success: false,
+                message: '重設連結無效或已過期'
+            });
+        }
+
+        const changed = await db.updateAdminPassword(resetRecord.admin_id, newPassword);
+        if (!changed) {
+            return res.status(400).json({
+                success: false,
+                message: '重設密碼失敗，請重新操作'
+            });
+        }
+
+        await db.markAdminPasswordResetUsed(resetRecord.id);
+        await db.invalidateOtherAdminPasswordResets(resetRecord.admin_id, resetRecord.id);
+
+        await db.logAdminAction({
+            adminId: resetRecord.admin_id,
+            adminUsername: resetRecord.username || null,
+            action: 'password_reset',
+            resourceType: 'admin',
+            resourceId: String(resetRecord.admin_id),
+            details: { via: 'forgot_password', email: resetRecord.email || null },
+            ipAddress: req.ip || req.connection?.remoteAddress || 'unknown',
+            userAgent: req.get('user-agent') || 'unknown'
+        });
+
+        return res.json({
+            success: true,
+            message: '密碼重設成功，請重新登入'
+        });
+    } catch (error) {
+        console.error('重設密碼失敗:', error);
+        return res.status(500).json({
+            success: false,
+            message: '重設密碼失敗，請稍後再試'
         });
     }
 });

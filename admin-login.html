@@ -115,6 +115,59 @@
             font-size: 14px;
             white-space: pre-line;
         }
+        .info-message {
+            display: none;
+            color: #166534;
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 14px;
+            white-space: pre-line;
+        }
+        .subtle-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: -8px;
+            margin-bottom: 6px;
+        }
+        .text-link-btn {
+            border: none;
+            background: transparent;
+            color: #2563eb;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 0;
+            text-decoration: underline;
+        }
+        .forgot-password-panel {
+            display: none;
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px solid #e5e7eb;
+        }
+        .forgot-password-panel h3 {
+            margin: 0 0 10px;
+            font-size: 18px;
+            color: #1f2937;
+        }
+        .forgot-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .btn-outline {
+            flex: 1;
+            padding: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #1e293b;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -134,8 +187,24 @@
                         <label for="password">密碼</label>
                         <input id="password" name="password" type="password" autocomplete="current-password" required>
                     </div>
+                    <div class="subtle-actions">
+                        <button id="forgotPasswordLink" class="text-link-btn" type="button">忘記密碼？</button>
+                    </div>
                     <div id="errorMessage" class="error-message"></div>
+                    <div id="infoMessage" class="info-message"></div>
                     <button id="loginButton" class="btn-primary" type="submit">登入</button>
+
+                    <div id="forgotPasswordPanel" class="forgot-password-panel">
+                        <h3>忘記密碼</h3>
+                        <div class="form-group">
+                            <label for="resetEmail">註冊 Email</label>
+                            <input id="resetEmail" name="resetEmail" type="email" autocomplete="email" placeholder="請輸入已註冊 Email">
+                        </div>
+                        <div class="forgot-actions">
+                            <button id="forgotCancelBtn" class="btn-outline" type="button">取消</button>
+                            <button id="forgotSubmitBtn" class="btn-primary" type="button" style="margin-top:0;flex:1;">寄送重設連結</button>
+                        </div>
+                    </div>
                 </form>
             </div>
         </div>
@@ -145,7 +214,14 @@
             const form = document.getElementById('loginForm');
             const btn = document.getElementById('loginButton');
             const err = document.getElementById('errorMessage');
+            const info = document.getElementById('infoMessage');
+            const forgotLink = document.getElementById('forgotPasswordLink');
+            const forgotPanel = document.getElementById('forgotPasswordPanel');
+            const forgotCancelBtn = document.getElementById('forgotCancelBtn');
+            const forgotSubmitBtn = document.getElementById('forgotSubmitBtn');
+            const resetEmailInput = document.getElementById('resetEmail');
             let pending = false;
+            let forgotPending = false;
 
             function showError(message) {
                 if (!message) {
@@ -153,8 +229,31 @@
                     err.textContent = '';
                     return;
                 }
+                info.style.display = 'none';
+                info.textContent = '';
                 err.style.display = 'block';
                 err.textContent = message;
+            }
+
+            function showInfo(message) {
+                if (!message) {
+                    info.style.display = 'none';
+                    info.textContent = '';
+                    return;
+                }
+                err.style.display = 'none';
+                err.textContent = '';
+                info.style.display = 'block';
+                info.textContent = message;
+            }
+
+            function toggleForgotPanel(show) {
+                forgotPanel.style.display = show ? 'block' : 'none';
+                forgotLink.style.display = show ? 'none' : 'inline';
+                if (show) {
+                    resetEmailInput.value = String(document.getElementById('username').value || '').trim();
+                    resetEmailInput.focus();
+                }
             }
 
             async function waitForAuthReady(maxAttempts = 4, delayMs = 250) {
@@ -213,6 +312,55 @@
                     pending = false;
                     btn.disabled = false;
                     btn.textContent = '登入';
+                }
+            });
+
+            forgotLink.addEventListener('click', function () {
+                showError('');
+                showInfo('');
+                toggleForgotPanel(true);
+            });
+
+            forgotCancelBtn.addEventListener('click', function () {
+                if (forgotPending) return;
+                showInfo('');
+                showError('');
+                toggleForgotPanel(false);
+            });
+
+            forgotSubmitBtn.addEventListener('click', async function () {
+                if (forgotPending) return;
+                const email = String(resetEmailInput.value || '').trim().toLowerCase();
+                if (!email) {
+                    showError('請輸入註冊 Email');
+                    return;
+                }
+
+                forgotPending = true;
+                forgotSubmitBtn.disabled = true;
+                forgotSubmitBtn.textContent = '寄送中...';
+                showError('');
+                showInfo('');
+
+                try {
+                    const response = await fetch('/api/admin/password-reset/request', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                    });
+                    const result = await response.json().catch(() => ({}));
+                    if (!response.ok || !result.success) {
+                        throw new Error(result.message || ('HTTP ' + response.status));
+                    }
+                    showInfo(result.message || '我們已寄出重設連結');
+                    toggleForgotPanel(false);
+                } catch (error) {
+                    showError(error && error.message ? error.message : '寄送失敗，請稍後再試');
+                } finally {
+                    forgotPending = false;
+                    forgotSubmitBtn.disabled = false;
+                    forgotSubmitBtn.textContent = '寄送重設連結';
                 }
             });
         })();

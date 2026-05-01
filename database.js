@@ -424,6 +424,18 @@ async function initMultiTenantCoreTablesPostgreSQL() {
         )
     `);
 
+    await query(`
+        CREATE TABLE IF NOT EXISTS admin_password_resets (
+            id SERIAL PRIMARY KEY,
+            admin_id INTEGER NOT NULL,
+            email VARCHAR(255) NOT NULL,
+            token VARCHAR(128) UNIQUE NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            used_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
     // 常用索引
     await query(`CREATE INDEX IF NOT EXISTS idx_users_tenant_id ON users (tenant_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_subscriptions_tenant_status ON subscriptions (tenant_id, status)`);
@@ -655,6 +667,18 @@ async function initMultiTenantCoreTablesSQLite() {
             used_at DATETIME,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+        )
+    `);
+
+    await query(`
+        CREATE TABLE IF NOT EXISTS admin_password_resets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER NOT NULL,
+            email TEXT NOT NULL,
+            token TEXT UNIQUE NOT NULL,
+            expires_at DATETIME NOT NULL,
+            used_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
 
@@ -9927,6 +9951,130 @@ async function getAdminByUsername(username) {
     }
 }
 
+async function getAdminByEmailForPasswordReset(email) {
+    const safeEmail = String(email || '').trim().toLowerCase();
+    if (!safeEmail) return null;
+    return queryOne(
+        usePostgreSQL
+            ? `SELECT id, username, email, tenant_id, role, is_active
+               FROM admins
+               WHERE LOWER(TRIM(email)) = $1
+                 AND is_active = 1
+               LIMIT 1`
+            : `SELECT id, username, email, tenant_id, role, is_active
+               FROM admins
+               WHERE LOWER(TRIM(email)) = ?
+                 AND is_active = 1
+               LIMIT 1`,
+        [safeEmail]
+    );
+}
+
+async function createAdminPasswordResetToken({ adminId, email, ttlMinutes = 30 }) {
+    const safeAdminId = parseInt(adminId, 10);
+    if (!Number.isInteger(safeAdminId) || safeAdminId <= 0) throw new Error('adminId 無效');
+    const safeEmail = String(email || '').trim().toLowerCase();
+    if (!safeEmail) throw new Error('email 為必填');
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + Math.max(15, parseInt(ttlMinutes, 10) || 30) * 60 * 1000).toISOString();
+
+    await query(
+        usePostgreSQL
+            ? `UPDATE admin_password_resets
+               SET used_at = CURRENT_TIMESTAMP
+               WHERE admin_id = $1
+                 AND used_at IS NULL
+                 AND expires_at > CURRENT_TIMESTAMP`
+            : `UPDATE admin_password_resets
+               SET used_at = CURRENT_TIMESTAMP
+               WHERE admin_id = ?
+                 AND used_at IS NULL
+                 AND expires_at > CURRENT_TIMESTAMP`,
+        [safeAdminId]
+    );
+
+    await query(
+        usePostgreSQL
+            ? `INSERT INTO admin_password_resets (admin_id, email, token, expires_at, created_at)
+               VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)`
+            : `INSERT INTO admin_password_resets (admin_id, email, token, expires_at, created_at)
+               VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [safeAdminId, safeEmail, token, expiresAt]
+    );
+
+    return { token, expiresAt };
+}
+
+async function getAdminPasswordResetByToken(token) {
+    const safeToken = String(token || '').trim();
+    if (!safeToken) return null;
+    return queryOne(
+        usePostgreSQL
+            ? `SELECT r.id,
+                      r.admin_id,
+                      r.email,
+                      r.expires_at,
+                      a.username,
+                      a.tenant_id
+               FROM admin_password_resets r
+               INNER JOIN admins a ON a.id = r.admin_id
+               WHERE r.token = $1
+                 AND r.used_at IS NULL
+                 AND r.expires_at > CURRENT_TIMESTAMP
+                 AND a.is_active = 1
+               LIMIT 1`
+            : `SELECT r.id,
+                      r.admin_id,
+                      r.email,
+                      r.expires_at,
+                      a.username,
+                      a.tenant_id
+               FROM admin_password_resets r
+               INNER JOIN admins a ON a.id = r.admin_id
+               WHERE r.token = ?
+                 AND r.used_at IS NULL
+                 AND r.expires_at > CURRENT_TIMESTAMP
+                 AND a.is_active = 1
+               LIMIT 1`,
+        [safeToken]
+    );
+}
+
+async function markAdminPasswordResetUsed(resetId) {
+    const safeResetId = parseInt(resetId, 10);
+    if (!Number.isInteger(safeResetId) || safeResetId <= 0) return false;
+    const result = await query(
+        usePostgreSQL
+            ? `UPDATE admin_password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = $1`
+            : `UPDATE admin_password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [safeResetId]
+    );
+    return result.changes > 0;
+}
+
+async function invalidateOtherAdminPasswordResets(adminId, excludeResetId = null) {
+    const safeAdminId = parseInt(adminId, 10);
+    if (!Number.isInteger(safeAdminId) || safeAdminId <= 0) return false;
+    const safeExcludeId = parseInt(excludeResetId, 10);
+    const hasExclude = Number.isInteger(safeExcludeId) && safeExcludeId > 0;
+
+    const sql = usePostgreSQL
+        ? `UPDATE admin_password_resets
+           SET used_at = CURRENT_TIMESTAMP
+           WHERE admin_id = $1
+             AND used_at IS NULL
+             ${hasExclude ? 'AND id <> $2' : ''}`
+        : `UPDATE admin_password_resets
+           SET used_at = CURRENT_TIMESTAMP
+           WHERE admin_id = ?
+             AND used_at IS NULL
+             ${hasExclude ? 'AND id <> ?' : ''}`;
+
+    const result = await query(sql, hasExclude ? [safeAdminId, safeExcludeId] : [safeAdminId]);
+    return result.changes >= 0;
+}
+
 // 驗證管理員密碼
 async function verifyAdminPassword(username, password) {
     try {
@@ -11321,9 +11469,14 @@ module.exports = {
     deleteAddon,
     // 管理員管理
     getAdminByUsername,
+    getAdminByEmailForPasswordReset,
     verifyAdminPassword,
     updateAdminLastLogin,
     updateAdminPassword,
+    createAdminPasswordResetToken,
+    getAdminPasswordResetByToken,
+    markAdminPasswordResetUsed,
+    invalidateOtherAdminPasswordResets,
     // 操作日誌
     logAdminAction,
     getAdminLogs,
