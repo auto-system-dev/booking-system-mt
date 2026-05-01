@@ -917,6 +917,19 @@ function getBackupFileForDownload(fileName, tenantId) {
 }
 
 /**
+ * 全系統下載用：回傳安全路徑
+ */
+function getSystemBackupFileForDownload(fileName) {
+    const systemDir = getSystemBackupDir();
+    const safeName = assertSafeSystemBackupBasename(fileName);
+    const filePath = path.join(systemDir, safeName);
+    if (!fs.existsSync(filePath)) {
+        throw new Error('備份檔案不存在');
+    }
+    return { safeName, filePath };
+}
+
+/**
  * 上傳備份至備份目錄（與手動備份相同位置）
  */
 function saveUploadedBackup(buffer, originalName, tenantId) {
@@ -983,6 +996,7 @@ module.exports = {
     backupSQLite,
     backupPostgreSQL,
     getBackupFileForDownload,
+    getSystemBackupFileForDownload,
     saveUploadedBackup
 };
 

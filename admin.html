@@ -2682,25 +2682,25 @@
                                 <option value="">請選擇租戶（超管）</option>
                             </select>
                         </div>
-                        <button class="btn-primary permission-required" data-permission="backup.create" onclick="createBackup()">
+                        <button id="backupCreateBtn" class="btn-primary permission-required" data-permission="backup.create" onclick="createBackup()">
                             <span class="material-symbols-outlined">add</span> 手動備份
                         </button>
-                        <button type="button" class="btn-refresh permission-required" data-permission="backup.create" onclick="document.getElementById('backupFileInput').click()" title="上傳 .json 或 .db 備份檔至伺服器">
+                        <button id="backupUploadBtn" type="button" class="btn-refresh permission-required" data-permission="backup.create" onclick="document.getElementById('backupFileInput').click()" title="上傳 .json 或 .db 備份檔至伺服器">
                             <span class="material-symbols-outlined">upload</span> 上傳備份
                         </button>
                         <input type="file" id="backupFileInput" accept=".json,.db,application/json" style="display:none" onchange="handleBackupFileSelected(this)">
-                        <button class="btn-refresh" onclick="loadBackups()">
+                        <button id="backupRefreshBtn" class="btn-refresh" onclick="loadBackups()">
                             <span class="material-symbols-outlined">refresh</span> 重新整理
                         </button>
                     </div>
                 </div>
 
-                <div id="backupModeTabs" style="display: flex; gap: 8px; margin-bottom: 14px;">
-                    <button id="backupTenantTabBtn" type="button" class="btn-refresh" onclick="switchBackupMode('tenant')">
-                        <span class="material-symbols-outlined" style="font-size: 16px;">apartment</span> 租戶備份
+                <div id="backupModeTabs" class="tab-container" style="margin-bottom: 20px; border-bottom: 2px solid #e0e0e0;">
+                    <button id="backupTenantTabBtn" type="button" class="tab-button active" onclick="switchBackupMode('tenant')">
+                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: 5px;">apartment</span> 租戶備份
                     </button>
-                    <button id="backupSystemTabBtn" type="button" class="btn-refresh" onclick="switchBackupMode('system')" style="display:none;">
-                        <span class="material-symbols-outlined" style="font-size: 16px;">dns</span> 全系統備份
+                    <button id="backupSystemTabBtn" type="button" class="tab-button" onclick="switchBackupMode('system')" style="display:none;">
+                        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: 5px;">dns</span> 全系統備份
                     </button>
                 </div>
 
@@ -2714,6 +2714,8 @@
                     <div id="backupStats" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; margin-top: 15px;">
                         <div class="loading">載入中...</div>
                     </div>
+                </div>
+
                 </div>
 
                 <div id="systemBackupPanel" class="settings-card" style="margin-bottom: 20px; display: none;">
@@ -2789,7 +2791,6 @@
                             </tbody>
                         </table>
                     </div>
-                </div>
                 </div>
             </section>
 

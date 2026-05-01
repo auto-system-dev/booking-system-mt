@@ -3582,6 +3582,31 @@ app.get('/api/admin/system-backups', requireAuth, checkPermission('backup.view')
     }
 });
 
+// API: 下載全系統備份檔（僅超管）
+app.get('/api/admin/system-backups/download/:fileName', requireAuth, checkPermission('backup.view'), adminLimiter, (req, res) => {
+    try {
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可下載全系統備份' });
+        }
+        const fileName = decodeURIComponent(req.params.fileName || '');
+        const { safeName, filePath } = backup.getSystemBackupFileForDownload(fileName);
+        res.download(filePath, safeName, (err) => {
+            if (err) {
+                console.error('全系統備份下載傳送錯誤:', err.message);
+                if (!res.headersSent) {
+                    res.status(500).json({ success: false, message: '下載失敗' });
+                }
+            }
+        });
+    } catch (error) {
+        console.error('全系統備份下載錯誤:', error);
+        res.status(400).json({
+            success: false,
+            message: error.message || '下載失敗'
+        });
+    }
+});
+
 // API: 建立全系統備份（僅超管）
 app.post('/api/admin/system-backups/create', requireAuth, checkPermission('backup.create'), adminLimiter, async (req, res) => {
     try {

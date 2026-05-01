@@ -16476,7 +16476,6 @@ async function ensureBackupTenantScopeOptions() {
         wrap.style.display = 'none';
         return;
     }
-    wrap.style.display = 'inline-flex';
     if (backupTenantScopeLoaded) return;
 
     try {
@@ -16507,28 +16506,39 @@ function handleBackupTenantScopeChange() {
 function styleBackupModeTabButtons() {
     const tenantBtn = document.getElementById('backupTenantTabBtn');
     const systemBtn = document.getElementById('backupSystemTabBtn');
-    const activeBg = '#2563eb';
-    const activeText = '#ffffff';
-    const inactiveBg = '';
-    const inactiveText = '';
     if (tenantBtn) {
-        tenantBtn.style.background = backupMode === 'tenant' ? activeBg : inactiveBg;
-        tenantBtn.style.color = backupMode === 'tenant' ? activeText : inactiveText;
+        tenantBtn.classList.toggle('active', backupMode === 'tenant');
     }
     if (systemBtn) {
-        systemBtn.style.background = backupMode === 'system' ? activeBg : inactiveBg;
-        systemBtn.style.color = backupMode === 'system' ? activeText : inactiveText;
+        systemBtn.classList.toggle('active', backupMode === 'system');
     }
 }
 
 function updateBackupPanelsVisibility() {
     const tenantPanel = document.getElementById('tenantBackupPanel');
     const systemPanel = document.getElementById('systemBackupPanel');
+    const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
+    const tenantScopeWrap = document.getElementById('backupTenantScopeWrap');
+    const tenantCreateBtn = document.getElementById('backupCreateBtn');
+    const tenantUploadBtn = document.getElementById('backupUploadBtn');
+    const tenantRefreshBtn = document.getElementById('backupRefreshBtn');
     if (tenantPanel) {
         tenantPanel.style.display = backupMode === 'tenant' ? 'block' : 'none';
     }
     if (systemPanel) {
         systemPanel.style.display = backupMode === 'system' ? 'block' : 'none';
+    }
+    if (tenantScopeWrap) {
+        tenantScopeWrap.style.display = (isSuper && backupMode === 'tenant') ? 'inline-flex' : 'none';
+    }
+    if (tenantCreateBtn) {
+        tenantCreateBtn.style.display = backupMode === 'tenant' ? 'inline-flex' : 'none';
+    }
+    if (tenantUploadBtn) {
+        tenantUploadBtn.style.display = backupMode === 'tenant' ? 'inline-flex' : 'none';
+    }
+    if (tenantRefreshBtn) {
+        tenantRefreshBtn.style.display = backupMode === 'tenant' ? 'inline-flex' : 'none';
     }
     styleBackupModeTabButtons();
 }
@@ -16608,14 +16618,22 @@ async function loadSystemBackups() {
             return;
         }
         const canRestore = hasPermission('backup.restore');
+        const canDownload = hasPermission('backup.view');
         tbody.innerHTML = backups.map((backup) => {
             const rawFileName = String(backup.fileName || backup.name || '');
             const fileName = escapeHtml(rawFileName);
-            const actionButtons = canRestore
-                ? `<button class="btn-edit" type="button" onclick="restoreSystemBackup('${fileName}')" style="padding: 4px 10px; font-size: 12px;">
+            let actionButtons = '';
+            if (canDownload) {
+                actionButtons += `<button class="btn-view" type="button" onclick="downloadSystemBackup('${fileName}')" style="padding: 4px 10px; font-size: 12px;">
+                    <span class="material-symbols-outlined" style="font-size: 15px;">download</span> 下載
+                </button> `;
+            }
+            if (canRestore) {
+                actionButtons += `<button class="btn-edit" type="button" onclick="restoreSystemBackup('${fileName}')" style="padding: 4px 10px; font-size: 12px;">
                     <span class="material-symbols-outlined" style="font-size: 15px;">restore</span> 還原全系統
-                   </button>`
-                : '-';
+                </button>`;
+            }
+            if (!actionButtons.trim()) actionButtons = '-';
             return `
                 <tr>
                     <td>
@@ -16739,6 +16757,29 @@ async function loadBackups() {
         console.error('載入備份列表錯誤:', error);
         tbody.innerHTML = '<tr><td colspan="4" class="loading">載入時發生錯誤</td></tr>';
         if (statsDiv) statsDiv.innerHTML = '<div class="loading">載入失敗</div>';
+    }
+}
+
+async function downloadSystemBackup(fileName) {
+    if (!fileName) return;
+    try {
+        const response = await adminFetch(`/api/admin/system-backups/download/${encodeURIComponent(fileName)}`, { method: 'GET' });
+        if (response.status === 401) return;
+        if (!response.ok) {
+            const errJson = await response.json().catch(() => ({}));
+            throw new Error(errJson.message || `下載失敗 (${response.status})`);
+        }
+        const blob = await response.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+    } catch (error) {
+        console.error('下載全系統備份錯誤:', error);
+        showError(error.message || '下載失敗');
     }
 }
 
@@ -17005,6 +17046,7 @@ window.deleteBackup = deleteBackup;
 window.restoreBackup = restoreBackup;
 window.handleBackupTenantScopeChange = handleBackupTenantScopeChange;
 window.loadSystemBackups = loadSystemBackups;
+window.downloadSystemBackup = downloadSystemBackup;
 window.createSystemBackup = createSystemBackup;
 window.restoreSystemBackup = restoreSystemBackup;
 window.switchBackupMode = switchBackupMode;
