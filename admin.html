@@ -1574,17 +1574,17 @@
                         <button class="btn-primary" onclick="showCreateTenantModal()">
                             <span class="material-symbols-outlined">add</span> 新增租戶
                         </button>
+                        <select id="subscriptionModeFilter" style="padding:8px;" onchange="loadSubscriptionOverview()">
+                            <option value="">全部模式</option>
+                            <option value="retail">一般模式</option>
+                            <option value="whole_property">包棟模式</option>
+                        </select>
                         <select id="subscriptionTenantStatusFilter" style="padding:8px;" onchange="loadSubscriptionOverview()">
                             <option value="">全部租戶狀態</option>
                             <option value="pending">待驗證</option>
                             <option value="active">啟用中</option>
                             <option value="suspended">已停用</option>
                             <option value="canceled">已取消</option>
-                        </select>
-                        <select id="subscriptionModeFilter" style="padding:8px;" onchange="loadSubscriptionOverview()">
-                            <option value="">全部模式</option>
-                            <option value="retail">一般模式</option>
-                            <option value="whole_property">包棟模式</option>
                         </select>
                         <select id="subscriptionSubscriptionStatusFilter" style="padding:8px;" onchange="loadSubscriptionOverview()">
                             <option value="">全部訂閱狀態</option>
