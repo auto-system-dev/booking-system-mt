@@ -1581,11 +1581,18 @@
                             <option value="suspended">已停用</option>
                             <option value="canceled">已取消</option>
                         </select>
-                        <input id="subscriptionKeywordFilter" type="text" placeholder="搜尋租戶名稱/代碼/管理員" style="padding:8px; min-width:220px;">
                         <select id="subscriptionModeFilter" style="padding:8px;" onchange="loadSubscriptionOverview()">
                             <option value="">全部模式</option>
                             <option value="retail">一般模式</option>
                             <option value="whole_property">包棟模式</option>
+                        </select>
+                        <select id="subscriptionSubscriptionStatusFilter" style="padding:8px;" onchange="loadSubscriptionOverview()">
+                            <option value="">全部訂閱狀態</option>
+                            <option value="trialing">試用中</option>
+                            <option value="active">啟用中</option>
+                            <option value="past_due">逾期中</option>
+                            <option value="canceled">已停權</option>
+                            <option value="none">未訂閱</option>
                         </select>
                         <select id="subscriptionRiskFilter" style="padding:8px;" onchange="loadSubscriptionOverview()">
                             <option value="">全部風險</option>
@@ -1595,6 +1602,7 @@
                             <option value="normal">正常</option>
                             <option value="unset">未設定</option>
                         </select>
+                        <input id="subscriptionKeywordFilter" type="text" placeholder="搜尋租戶名稱/代碼/管理員" style="padding:8px; min-width:220px;">
                         <button class="btn-refresh" onclick="loadSubscriptionOverview()">
                             <span class="material-symbols-outlined">search</span> 查詢
                         </button>

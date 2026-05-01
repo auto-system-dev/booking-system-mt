@@ -8797,6 +8797,7 @@ async function loadSubscriptionOverview() {
     tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#666;">載入中...</td></tr>';
     try {
         const modeFilter = String(document.getElementById('subscriptionModeFilter')?.value || '').trim();
+        const subscriptionStatusFilter = String(document.getElementById('subscriptionSubscriptionStatusFilter')?.value || '').trim().toLowerCase();
         const riskFilter = String(document.getElementById('subscriptionRiskFilter')?.value || '').trim();
         const tenantStatusFilter = String(document.getElementById('subscriptionTenantStatusFilter')?.value || '').trim().toLowerCase();
         const keyword = String(document.getElementById('subscriptionKeywordFilter')?.value || '').trim().toLowerCase();
@@ -8847,11 +8848,12 @@ async function loadSubscriptionOverview() {
 
         const filteredRows = mergedRows.filter((row) => {
             const statusOk = !tenantStatusFilter || String(row.tenantStatus || '').toLowerCase() === tenantStatusFilter;
+            const subscriptionStatusOk = !subscriptionStatusFilter || String(row.subscriptionStatus || '').toLowerCase() === subscriptionStatusFilter;
             const modeOk = isSubscriptionModeMatch(row.systemMode, modeFilter);
             const riskOk = isSubscriptionRiskMatch(row.periodEnd, riskFilter);
             const haystack = `${row.tenantName || ''} ${row.tenantCode || ''} ${row.adminUsername || ''} ${row.adminEmail || ''}`.toLowerCase();
             const keywordOk = !keyword || haystack.includes(keyword);
-            return statusOk && modeOk && riskOk && keywordOk;
+            return statusOk && subscriptionStatusOk && modeOk && riskOk && keywordOk;
         });
 
         if (filteredRows.length === 0) {
