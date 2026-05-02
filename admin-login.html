@@ -178,7 +178,7 @@
                     <h2>管理後台登入</h2>
                     <p class="subtitle">登入以管理訂房系統</p>
                 </div>
-                <form id="loginForm">
+                <form id="loginForm" data-awaiting-totp="">
                     <div class="form-group">
                         <label for="username">帳號</label>
                         <input id="username" name="username" type="text" autocomplete="username" required>
@@ -186,6 +186,11 @@
                     <div class="form-group">
                         <label for="password">密碼</label>
                         <input id="password" name="password" type="password" autocomplete="current-password" required>
+                    </div>
+                    <div id="loginTotpGroup" class="form-group" style="display: none;">
+                        <label for="totpCode">驗證碼（二階段驗證）</label>
+                        <input id="totpCode" name="totp" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="6 位數驗證碼">
+                        <small style="display: block; margin-top: 6px; color: #64748b; font-size: 13px;">請開啟驗證應用程式，輸入目前顯示的 6 位數</small>
                     </div>
                     <div class="subtle-actions">
                         <button id="forgotPasswordLink" class="text-link-btn" type="button">忘記密碼？</button>
@@ -281,29 +286,57 @@
                 event.preventDefault();
                 if (pending) return;
 
+                const awaitingTotp = form.dataset.awaitingTotp === '1';
                 const username = String(document.getElementById('username').value || '').trim();
                 const password = String(document.getElementById('password').value || '');
-                if (!username || !password) {
-                    showError('請輸入帳號和密碼');
+                const totpCode = String(document.getElementById('totpCode')?.value || '').replace(/\s/g, '');
+
+                if (!awaitingTotp) {
+                    if (!username || !password) {
+                        showError('請輸入帳號和密碼');
+                        return;
+                    }
+                } else if (!/^\d{6}$/.test(totpCode)) {
+                    showError('請輸入驗證應用程式顯示的 6 位數驗證碼');
                     return;
                 }
 
                 pending = true;
                 btn.disabled = true;
-                btn.textContent = '登入中...';
+                btn.textContent = awaitingTotp ? '驗證中...' : '登入中...';
                 showError('');
 
                 try {
-                    const response = await fetch('/api/admin/login', {
-                        method: 'POST',
-                        credentials: 'include',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ username, password })
-                    });
+                    let response;
+                    if (awaitingTotp) {
+                        response = await fetch('/api/admin/login/2fa', {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ code: totpCode })
+                        });
+                    } else {
+                        response = await fetch('/api/admin/login', {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ username, password })
+                        });
+                    }
                     const result = await response.json().catch(() => ({}));
                     if (!response.ok || !result.success) {
                         throw new Error(result.message || ('HTTP ' + response.status));
                     }
+                    if (result.requires2fa) {
+                        const totpGroup = document.getElementById('loginTotpGroup');
+                        if (totpGroup) totpGroup.style.display = 'block';
+                        form.dataset.awaitingTotp = '1';
+                        document.getElementById('username').disabled = true;
+                        document.getElementById('password').disabled = true;
+                        document.getElementById('totpCode')?.focus();
+                        return;
+                    }
+                    form.dataset.awaitingTotp = '';
                     await waitForAuthReady();
                     window.location.replace('/admin?fromLogin=1');
                 } catch (error) {
@@ -311,7 +344,11 @@
                 } finally {
                     pending = false;
                     btn.disabled = false;
-                    btn.textContent = '登入';
+                    if (form.dataset.awaitingTotp === '1') {
+                        btn.textContent = '驗證並登入';
+                    } else {
+                        btn.textContent = '登入';
+                    }
                 }
             });
 

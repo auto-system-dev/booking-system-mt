@@ -43,6 +43,8 @@ const requestIdMiddleware = require('./src/middlewares/requestId');
 const { logPaymentEvent } = require('./src/lib/logger');
 const { calculateDynamicPaymentDeadline, formatPaymentDeadline } = require('./src/lib/payment-deadline');
 const { requireAuth, validateAdminSession } = require('./src/middlewares/auth');
+const speakeasy = require('speakeasy');
+const QRCode = require('qrcode');
 const { createCheckPermission } = require('./src/middlewares/permission');
 const { createPaymentService } = require('./src/services/payment.service');
 const { createPaymentController } = require('./src/controllers/payment.controller');
@@ -195,6 +197,74 @@ async function hasAdminPermission(req, permissionCode) {
         admin.permissions = [...cached, code];
     }
     return granted;
+}
+
+const ADMIN_PENDING_2FA_TTL_MS = 5 * 60 * 1000;
+const ADMIN_TOTP_SETUP_TTL_MS = 10 * 60 * 1000;
+
+function verifyAdminTotpCode(secretBase32, token) {
+    const clean = String(token || '').replace(/\s/g, '');
+    if (!/^\d{6}$/.test(clean) || !secretBase32) return false;
+    return speakeasy.totp.verify({
+        secret: secretBase32,
+        encoding: 'base32',
+        token: clean,
+        window: 1
+    });
+}
+
+/** 密碼與租戶檢查通過後建立完整 admin session，並更新最後登入時間 */
+async function completeAdminLoginSession(req, adminRow, logExtra = {}) {
+    const permissions = await db.getAdminPermissions(adminRow.id);
+    const adminDetail = await db.getAdminById(adminRow.id);
+    const roleName = adminDetail?.role_display_name || adminRow.role || '管理員';
+
+    const parsedAdminTenantId = adminRow.tenant_id != null ? parseInt(adminRow.tenant_id, 10) : NaN;
+    const adminTenantId = Number.isInteger(parsedAdminTenantId) && parsedAdminTenantId > 0 ? parsedAdminTenantId : null;
+    const sessionTenantId = adminTenantId
+        ? adminTenantId
+        : (adminRow.role === 'super_admin'
+            ? (parseInt(process.env.DEFAULT_TENANT_ID || '1', 10) || 1)
+            : null);
+
+    delete req.session.pending2fa;
+    delete req.session.totpSetup;
+
+    req.session.admin = {
+        id: adminRow.id,
+        username: adminRow.username,
+        email: adminRow.email,
+        tenant_id: sessionTenantId,
+        role: adminRow.role,
+        role_id: adminDetail?.role_id,
+        role_display_name: roleName,
+        permissions: permissions,
+        session_started_at: Date.now(),
+        last_activity_at: Date.now()
+    };
+
+    await db.updateAdminLastLogin(adminRow.id);
+
+    await new Promise((resolve, reject) => {
+        req.session.save((err) => {
+            if (err) return reject(err);
+            resolve();
+        });
+    });
+
+    logAction(req, 'login', null, null, {
+        username: adminRow.username,
+        role: roleName,
+        permissionCount: permissions.length,
+        ...logExtra
+    }).catch((err) => console.error('記錄登入日誌失敗:', err));
+
+    return {
+        username: adminRow.username,
+        role: adminRow.role,
+        role_display_name: roleName,
+        permissions: permissions
+    };
 }
 
 // Railway 使用代理，需要信任代理以正確處理 HTTPS 和 Cookie
@@ -2242,7 +2312,7 @@ app.post('/api/admin/login', loginLimiter, validateLogin, async (req, res) => {
             });
         }
         
-        const admin = await db.verifyAdminPassword(username, password);
+        const admin = await db.verifyAdminPassword(username, password, { skipLastLogin: true });
         
         if (admin) {
             // 多租戶登入限制：
@@ -2267,67 +2337,45 @@ app.post('/api/admin/login', loginLimiter, validateLogin, async (req, res) => {
                 }
             }
 
-            // 取得管理員權限列表
-            const permissions = await db.getAdminPermissions(admin.id);
-            
-            // 取得管理員詳情（包含角色資訊）
-            const adminDetail = await db.getAdminById(admin.id);
-            const roleName = adminDetail?.role_display_name || admin.role || '管理員';
-            
-            // 建立 Session（訂閱者管理員必須綁定真實 tenant_id，不可在為空時套用預設租戶 1）
-            const sessionTenantId = adminTenantId
-                ? adminTenantId
-                : (admin.role === 'super_admin'
-                    ? (parseInt(process.env.DEFAULT_TENANT_ID || '1', 10) || 1)
-                    : null);
-            req.session.admin = {
-                id: admin.id,
-                username: admin.username,
-                email: admin.email,
-                tenant_id: sessionTenantId,
-                role: admin.role,
-                role_id: adminDetail?.role_id,
-                role_display_name: roleName,
-                permissions: permissions,
-                session_started_at: Date.now(),
-                last_activity_at: Date.now()
-            };
-            
-            // 記錄 Session 資訊（用於除錯）
+            if (admin.role === 'super_admin') {
+                const totp = await db.getAdminTotpForVerify(admin.id);
+                if (totp.enabled && totp.secret) {
+                    delete req.session.admin;
+                    req.session.pending2fa = {
+                        adminId: admin.id,
+                        username: admin.username,
+                        expiresAt: Date.now() + ADMIN_PENDING_2FA_TTL_MS
+                    };
+                    await new Promise((resolve, reject) => {
+                        req.session.save((err) => {
+                            if (err) return reject(err);
+                            resolve();
+                        });
+                    });
+                    return res.json({
+                        success: true,
+                        requires2fa: true,
+                        message: '請輸入驗證應用程式顯示的 6 位數驗證碼'
+                    });
+                }
+            }
+
+            const adminPayload = await completeAdminLoginSession(req, admin);
+
             console.log('✅ 登入成功，建立 Session:', {
                 sessionId: req.sessionID,
                 admin: admin.username,
-                role: roleName,
-                permissionCount: permissions.length,
+                role: adminPayload.role_display_name,
+                permissionCount: adminPayload.permissions?.length || 0,
                 hasSecret: !!process.env.SESSION_SECRET,
                 useSecureCookie: useSecureCookie
             });
-            
-            // 記錄登入日誌（異步執行，不阻塞回應）
-            logAction(req, 'login', null, null, {
-                username: admin.username,
-                role: roleName,
-                permissionCount: permissions.length
-            }).catch(err => console.error('記錄登入日誌失敗:', err));
-            
-            // 穩定性優先：先確保 Session 已成功寫入，再回應登入成功
-            await new Promise((resolve, reject) => {
-                req.session.save((err) => {
-                    if (err) return reject(err);
-                    resolve();
-                });
-            });
             console.log('✅ Session 已保存');
-            
+
             res.json({
                 success: true,
                 message: '登入成功',
-                admin: {
-                    username: admin.username,
-                    role: admin.role,
-                    role_display_name: roleName,
-                    permissions: permissions
-                }
+                admin: adminPayload
             });
         } else {
             // 記錄登入失敗日誌（不包含管理員資訊）
@@ -2349,6 +2397,109 @@ app.post('/api/admin/login', loginLimiter, validateLogin, async (req, res) => {
         }
     } catch (error) {
         console.error('登入錯誤:', error);
+        res.status(500).json({
+            success: false,
+            message: '登入時發生錯誤：' + error.message
+        });
+    }
+});
+
+// 超級管理員二階段驗證（須先完成帳密並取得 pending2fa Session）
+app.post('/api/admin/login/2fa', loginLimiter, async (req, res) => {
+    try {
+        const pending = req.session?.pending2fa;
+        if (!pending?.adminId || !pending.expiresAt) {
+            delete req.session.pending2fa;
+            return res.status(401).json({
+                success: false,
+                message: '請重新登入並輸入帳號密碼'
+            });
+        }
+        if (pending.expiresAt < Date.now()) {
+            delete req.session.pending2fa;
+            return res.status(401).json({
+                success: false,
+                message: '驗證逾時，請重新登入'
+            });
+        }
+
+        const code = String(req.body?.code || req.body?.token || '').replace(/\s/g, '');
+        if (!/^\d{6}$/.test(code)) {
+            return res.status(400).json({
+                success: false,
+                message: '請輸入 6 位數驗證碼'
+            });
+        }
+
+        const totp = await db.getAdminTotpForVerify(pending.adminId);
+        if (!totp.enabled || !totp.secret || !verifyAdminTotpCode(totp.secret, code)) {
+            await db.logAdminAction({
+                adminId: pending.adminId,
+                adminUsername: pending.username || '',
+                action: 'login_failed',
+                resourceType: null,
+                resourceId: null,
+                details: JSON.stringify({ reason: 'invalid_totp' }),
+                ipAddress: req.ip || req.connection?.remoteAddress || 'unknown',
+                userAgent: req.get('user-agent') || 'unknown'
+            });
+            return res.status(401).json({
+                success: false,
+                message: '驗證碼不正確'
+            });
+        }
+
+        const detail = await db.getAdminById(pending.adminId, null);
+        if (!detail || Number(detail.is_active) !== 1) {
+            delete req.session.pending2fa;
+            return res.status(403).json({
+                success: false,
+                message: '帳號無法登入'
+            });
+        }
+
+        const roleStr = String(detail.role_name || detail.role || '').trim();
+        if (roleStr !== 'super_admin') {
+            delete req.session.pending2fa;
+            return res.status(403).json({
+                success: false,
+                message: '無效的登入階段'
+            });
+        }
+
+        const parsedAdminTenantId = detail.tenant_id != null ? parseInt(detail.tenant_id, 10) : NaN;
+        const adminTenantId = Number.isInteger(parsedAdminTenantId) && parsedAdminTenantId > 0 ? parsedAdminTenantId : null;
+        const subdomainTenantId = req.subdomainTenantId != null ? parseInt(req.subdomainTenantId, 10) : NaN;
+        const hostTenantId = Number.isInteger(subdomainTenantId) && subdomainTenantId > 0 ? subdomainTenantId : null;
+        if (hostTenantId && roleStr !== 'super_admin') {
+            if (!adminTenantId || adminTenantId !== hostTenantId) {
+                delete req.session.pending2fa;
+                return res.status(403).json({
+                    success: false,
+                    message: '此帳號不屬於目前子網域租戶，請使用正確租戶網址登入'
+                });
+            }
+        }
+
+        const adminRow = {
+            id: detail.id,
+            username: detail.username,
+            email: detail.email,
+            tenant_id: detail.tenant_id,
+            role: 'super_admin'
+        };
+
+        const adminPayload = await completeAdminLoginSession(req, adminRow, { via2fa: true });
+
+        console.log('✅ 二階段驗證登入成功:', { admin: adminRow.username });
+
+        res.json({
+            success: true,
+            message: '登入成功',
+            admin: adminPayload
+        });
+    } catch (error) {
+        console.error('二階段驗證登入錯誤:', error);
         res.status(500).json({
             success: false,
             message: '登入時發生錯誤：' + error.message
@@ -2552,8 +2703,197 @@ app.post('/api/admin/change-password', requireAuth, adminLimiter, async (req, re
     }
 });
 
+// 超級管理員 TOTP 狀態（僅超級管理員）
+app.get('/api/admin/totp/status', requireAuth, adminLimiter, async (req, res) => {
+    try {
+        if (!req.session.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可管理二階段驗證' });
+        }
+        const row = await db.getAdminTotpForVerify(req.session.admin.id);
+        res.json({
+            success: true,
+            enabled: !!(row.enabled && row.secret)
+        });
+    } catch (error) {
+        console.error('查詢 TOTP 狀態錯誤:', error);
+        res.status(500).json({
+            success: false,
+            message: '讀取設定時發生錯誤：' + error.message
+        });
+    }
+});
+
+// 開始綁定 TOTP（回傳 QR 與手動金鑰；secret 僅存於 Session setup）
+app.post('/api/admin/totp/setup/start', requireAuth, adminLimiter, async (req, res) => {
+    try {
+        if (!req.session.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可管理二階段驗證' });
+        }
+        const existing = await db.getAdminTotpForVerify(req.session.admin.id);
+        if (existing.enabled && existing.secret) {
+            return res.status(400).json({
+                success: false,
+                message: '已啟用二階段驗證，請先停用後再重新綁定'
+            });
+        }
+
+        const issuer = String(process.env.TOTP_ISSUER_NAME || 'Haoding.tw').trim() || 'Haoding.tw';
+        const secret = speakeasy.generateSecret({
+            name: `${issuer}:${req.session.admin.username}`,
+            issuer,
+            length: 32
+        });
+
+        req.session.totpSetup = {
+            secret: secret.base32,
+            expiresAt: Date.now() + ADMIN_TOTP_SETUP_TTL_MS
+        };
+
+        await new Promise((resolve, reject) => {
+            req.session.save((err) => {
+                if (err) return reject(err);
+                resolve();
+            });
+        });
+
+        const qrDataUrl = await QRCode.toDataURL(secret.otpauth_url);
+
+        res.json({
+            success: true,
+            qrDataUrl,
+            manualEntryKey: secret.base32,
+            message: '請以驗證應用程式掃描 QR Code，並輸入 6 位數驗證碼完成綁定'
+        });
+    } catch (error) {
+        console.error('TOTP setup/start 錯誤:', error);
+        res.status(500).json({
+            success: false,
+            message: '建立綁定資料時發生錯誤：' + error.message
+        });
+    }
+});
+
+// 確認綁定 TOTP
+app.post('/api/admin/totp/setup/confirm', requireAuth, adminLimiter, async (req, res) => {
+    try {
+        if (!req.session.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可管理二階段驗證' });
+        }
+
+        const setup = req.session.totpSetup;
+        if (!setup?.secret || !setup.expiresAt || setup.expiresAt < Date.now()) {
+            delete req.session.totpSetup;
+            return res.status(400).json({
+                success: false,
+                message: '綁定資料已過期，請重新取得 QR Code'
+            });
+        }
+
+        const code = String(req.body?.code || '').replace(/\s/g, '');
+        if (!verifyAdminTotpCode(setup.secret, code)) {
+            return res.status(400).json({
+                success: false,
+                message: '驗證碼不正確'
+            });
+        }
+
+        await db.setAdminTotpSecret(req.session.admin.id, setup.secret);
+        delete req.session.totpSetup;
+
+        await new Promise((resolve, reject) => {
+            req.session.save((err) => {
+                if (err) return reject(err);
+                resolve();
+            });
+        });
+
+        await logAction(req, 'totp_enable', 'admin', req.session.admin.id, {
+            username: req.session.admin.username
+        });
+
+        res.json({
+            success: true,
+            message: '已啟用二階段驗證（登入時須輸入驗證碼）'
+        });
+    } catch (error) {
+        console.error('TOTP setup/confirm 錯誤:', error);
+        res.status(500).json({
+            success: false,
+            message: '綁定時發生錯誤：' + error.message
+        });
+    }
+});
+
+// 停用 TOTP（須目前密碼 + 驗證碼）
+app.post('/api/admin/totp/disable', requireAuth, adminLimiter, async (req, res) => {
+    try {
+        if (!req.session.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可管理二階段驗證' });
+        }
+
+        const password = String(req.body?.password || '');
+        const code = String(req.body?.code || '').replace(/\s/g, '');
+        if (!password) {
+            return res.status(400).json({ success: false, message: '請輸入目前登入密碼' });
+        }
+        if (!/^\d{6}$/.test(code)) {
+            return res.status(400).json({ success: false, message: '請輸入 6 位數驗證碼' });
+        }
+
+        const verified = await db.verifyAdminPassword(req.session.admin.username, password, { skipLastLogin: true });
+        if (!verified) {
+            return res.status(401).json({
+                success: false,
+                message: '目前密碼錯誤'
+            });
+        }
+
+        const totp = await db.getAdminTotpForVerify(req.session.admin.id);
+        if (!totp.enabled || !totp.secret) {
+            return res.status(400).json({
+                success: false,
+                message: '目前未啟用二階段驗證'
+            });
+        }
+        if (!verifyAdminTotpCode(totp.secret, code)) {
+            return res.status(401).json({
+                success: false,
+                message: '驗證碼不正確'
+            });
+        }
+
+        await db.clearAdminTotp(req.session.admin.id);
+
+        await logAction(req, 'totp_disable', 'admin', req.session.admin.id, {
+            username: req.session.admin.username
+        });
+
+        res.json({
+            success: true,
+            message: '已停用二階段驗證'
+        });
+    } catch (error) {
+        console.error('TOTP disable 錯誤:', error);
+        res.status(500).json({
+            success: false,
+            message: '停用時發生錯誤：' + error.message
+        });
+    }
+});
+
 // 檢查登入狀態 API（應用管理後台 rate limiting）
 app.get('/api/admin/check-auth', adminLimiter, async (req, res) => {
+    if (req.session?.pending2fa) {
+        if (req.session.pending2fa.expiresAt < Date.now()) {
+            delete req.session.pending2fa;
+        } else {
+            return res.json({
+                success: true,
+                authenticated: false,
+                pending2fa: true
+            });
+        }
+    }
     const sessionStatus = validateAdminSession(req, { touch: true });
     if (sessionStatus.valid && req.session && req.session.admin) {
         // 如果 session 中沒有權限列表，重新載入

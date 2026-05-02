@@ -20,17 +20,29 @@ if (typeof window !== 'undefined') {
         
         console.log('🔐 開始處理登入...');
         
+        const loginForm = document.getElementById('loginForm');
+        const awaitingTotp = loginForm && loginForm.dataset.awaitingTotp === '1';
         const username = document.getElementById('loginUsername')?.value;
         const password = document.getElementById('loginPassword')?.value;
+        const totpCode = String(document.getElementById('loginTotpCode')?.value || '').replace(/\s/g, '');
         const errorDiv = document.getElementById('loginError');
         
-        // 驗證輸入
-        if (!username || !password) {
-            console.warn('⚠️ 帳號或密碼為空');
+        if (!awaitingTotp) {
+            if (!username || !password) {
+                console.warn('⚠️ 帳號或密碼為空');
+                if (errorDiv) {
+                    errorDiv.textContent = '請輸入帳號和密碼';
+                    errorDiv.style.display = 'block';
+                }
+                loginRequestInFlight = false;
+                return;
+            }
+        } else if (!/^\d{6}$/.test(totpCode)) {
             if (errorDiv) {
-                errorDiv.textContent = '請輸入帳號和密碼';
+                errorDiv.textContent = '請輸入驗證應用程式顯示的 6 位數驗證碼';
                 errorDiv.style.display = 'block';
             }
+            loginRequestInFlight = false;
             return;
         }
         
@@ -45,29 +57,41 @@ if (typeof window !== 'undefined') {
         const originalBtnText = submitBtn?.textContent;
         if (submitBtn) {
             submitBtn.disabled = true;
-            submitBtn.textContent = '登入中...';
+            submitBtn.textContent = awaitingTotp ? '驗證中...' : '登入中...';
         }
         
         try {
-            console.log('📡 發送登入請求到 /api/admin/login...');
-            console.log('📡 請求詳情:', {
-                url: '/api/admin/login',
-                method: 'POST',
-                username: username,
-                hasPassword: !!password
-            });
-            
             let response;
             try {
-                response = await adminFetch('/api/admin/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'include', // 重要：包含 cookies
-                    skipCsrf: true, // 登入 API 已在後端排除 CSRF，避免先取 token 造成卡頓
-                    body: JSON.stringify({ username, password })
-                });
+                if (awaitingTotp) {
+                    console.log('📡 發送二階段驗證到 /api/admin/login/2fa...');
+                    response = await adminFetch('/api/admin/login/2fa', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'include',
+                        skipCsrf: true,
+                        body: JSON.stringify({ code: totpCode })
+                    });
+                } else {
+                    console.log('📡 發送登入請求到 /api/admin/login...');
+                    console.log('📡 請求詳情:', {
+                        url: '/api/admin/login',
+                        method: 'POST',
+                        username: username,
+                        hasPassword: !!password
+                    });
+                    response = await adminFetch('/api/admin/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        credentials: 'include', // 重要：包含 cookies
+                        skipCsrf: true, // 登入 API 已在後端排除 CSRF，避免先取 token 造成卡頓
+                        body: JSON.stringify({ username, password })
+                    });
+                }
             } catch (fetchError) {
                 console.error('❌ Fetch 請求失敗:', fetchError);
                 console.error('錯誤類型:', fetchError.name);
@@ -110,6 +134,25 @@ if (typeof window !== 'undefined') {
                 throw new Error('伺服器回應格式錯誤');
             }
             
+            if (result.success && result.requires2fa) {
+                const totpGroup = document.getElementById('loginTotpGroup');
+                if (totpGroup) totpGroup.style.display = 'block';
+                if (loginForm) loginForm.dataset.awaitingTotp = '1';
+                const uEl = document.getElementById('loginUsername');
+                const pEl = document.getElementById('loginPassword');
+                if (uEl) uEl.disabled = true;
+                if (pEl) pEl.disabled = true;
+                if (errorDiv) {
+                    errorDiv.style.display = 'none';
+                    errorDiv.textContent = '';
+                    errorDiv.style.color = '';
+                    errorDiv.style.background = '';
+                }
+                document.getElementById('loginTotpCode')?.focus();
+                console.log('⏳ 待二階段驗證:', result.message || '');
+                return;
+            }
+
             if (result.success) {
                 // 登入成功
                 console.log('✅ 登入成功，準備顯示管理後台');
@@ -119,7 +162,19 @@ if (typeof window !== 'undefined') {
                 if (errorDiv) {
                     errorDiv.style.display = 'none';
                     errorDiv.textContent = '';
+                    errorDiv.style.color = '';
+                    errorDiv.style.background = '';
                 }
+                if (loginForm) delete loginForm.dataset.awaitingTotp;
+                const totpGroup = document.getElementById('loginTotpGroup');
+                if (totpGroup) totpGroup.style.display = 'none';
+                const totpInput = document.getElementById('loginTotpCode');
+                if (totpInput) totpInput.value = '';
+                const uEl = document.getElementById('loginUsername');
+                const pEl = document.getElementById('loginPassword');
+                if (uEl) uEl.disabled = false;
+                if (pEl) pEl.disabled = false;
+                if (submitBtn) submitBtn.textContent = '登入';
                 
                 // 登入 API 成功且後端已保存 session，直接切換後台避免「登入中...」被 check-auth 逾時卡住
                 setAdminAuthHint(true);
@@ -139,6 +194,8 @@ if (typeof window !== 'undefined') {
                 // 登入失敗
                 console.warn('⚠️ 登入失敗:', result.message);
                 if (errorDiv) {
+                    errorDiv.style.color = '';
+                    errorDiv.style.background = '';
                     errorDiv.textContent = result.message || '登入失敗，請檢查帳號密碼';
                     errorDiv.style.display = 'block';
                 }
@@ -179,7 +236,12 @@ if (typeof window !== 'undefined') {
             // 恢復按鈕狀態
             if (submitBtn) {
                 submitBtn.disabled = false;
-                submitBtn.textContent = originalBtnText || '登入';
+                const formEl = document.getElementById('loginForm');
+                if (formEl && formEl.dataset.awaitingTotp === '1') {
+                    submitBtn.textContent = '驗證並登入';
+                } else {
+                    submitBtn.textContent = originalBtnText || '登入';
+                }
             }
         }
     };
@@ -6853,6 +6915,150 @@ async function changePassword() {
     }
 }
 
+async function loadTotpSecurityPanel() {
+    const card = document.getElementById('superAdminTotpCard');
+    if (!card) return;
+    if (typeof isPlatformSuperAdmin !== 'function' || !isPlatformSuperAdmin()) {
+        card.style.display = 'none';
+        return;
+    }
+    card.style.display = 'block';
+    const statusEl = document.getElementById('totpStatusText');
+    try {
+        const response = await adminFetch('/api/admin/totp/status');
+        const data = await response.json();
+        if (!data.success) {
+            if (statusEl) statusEl.textContent = '無法載入二階段驗證狀態';
+            return;
+        }
+        const enabled = !!data.enabled;
+        if (statusEl) {
+            statusEl.textContent = enabled
+                ? '已啟用：超級管理員登入時須輸入驗證應用程式顯示的 6 位數驗證碼。'
+                : '未啟用：建議啟用以強化帳號安全。';
+        }
+        const bindActions = document.getElementById('totpBindActions');
+        if (bindActions) bindActions.style.display = enabled ? 'none' : 'flex';
+        const disableWrap = document.getElementById('totpDisableWrap');
+        if (disableWrap) disableWrap.style.display = enabled ? 'block' : 'none';
+        if (!enabled) {
+            const panel = document.getElementById('totpSetupPanel');
+            if (panel) panel.style.display = 'none';
+            const img = document.getElementById('totpQrImg');
+            if (img) {
+                img.src = '';
+                img.style.display = 'none';
+            }
+        }
+    } catch (error) {
+        if (statusEl) statusEl.textContent = '載入失敗：' + (error.message || '');
+    }
+}
+
+async function startTotpSetup() {
+    if (typeof isPlatformSuperAdmin === 'function' && !isPlatformSuperAdmin()) return;
+    try {
+        const response = await adminFetch('/api/admin/totp/setup/start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}'
+        });
+        const data = await response.json();
+        if (!data.success) {
+            showError(data.message || '無法開始綁定');
+            return;
+        }
+        const panel = document.getElementById('totpSetupPanel');
+        const bindActions = document.getElementById('totpBindActions');
+        if (panel) panel.style.display = 'block';
+        if (bindActions) bindActions.style.display = 'none';
+        const img = document.getElementById('totpQrImg');
+        if (data.qrDataUrl && img) {
+            img.src = data.qrDataUrl;
+            img.style.display = 'block';
+        }
+        const manual = document.getElementById('totpManualKey');
+        if (manual) manual.value = data.manualEntryKey || '';
+        const confirmInput = document.getElementById('totpConfirmCode');
+        if (confirmInput) confirmInput.value = '';
+    } catch (error) {
+        showError('開始綁定時發生錯誤：' + error.message);
+    }
+}
+
+function cancelTotpSetup() {
+    const panel = document.getElementById('totpSetupPanel');
+    if (panel) panel.style.display = 'none';
+    const bindActions = document.getElementById('totpBindActions');
+    if (bindActions) bindActions.style.display = 'flex';
+    const img = document.getElementById('totpQrImg');
+    if (img) {
+        img.src = '';
+        img.style.display = 'none';
+    }
+    const confirmInput = document.getElementById('totpConfirmCode');
+    if (confirmInput) confirmInput.value = '';
+    loadTotpSecurityPanel();
+}
+
+async function confirmTotpSetup() {
+    const code = String(document.getElementById('totpConfirmCode')?.value || '').replace(/\s/g, '');
+    if (!/^\d{6}$/.test(code)) {
+        showError('請輸入 6 位數驗證碼');
+        return;
+    }
+    try {
+        const response = await adminFetch('/api/admin/totp/setup/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            showError(data.message || '綁定失敗');
+            return;
+        }
+        showSuccess(data.message || '已啟用二階段驗證');
+        cancelTotpSetup();
+        loadTotpSecurityPanel();
+    } catch (error) {
+        showError('綁定時發生錯誤：' + error.message);
+    }
+}
+
+async function disableTotp() {
+    const password = document.getElementById('totpDisablePassword')?.value || '';
+    const code = String(document.getElementById('totpDisableCode')?.value || '').replace(/\s/g, '');
+    if (!password) {
+        showError('請輸入目前密碼');
+        return;
+    }
+    if (!/^\d{6}$/.test(code)) {
+        showError('請輸入 6 位數驗證碼');
+        return;
+    }
+    try {
+        const response = await adminFetch('/api/admin/totp/disable', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password, code })
+        });
+        const data = await response.json();
+        if (!data.success) {
+            showError(data.message || '停用失敗');
+            return;
+        }
+        showSuccess(data.message || '已停用二階段驗證');
+        const pEl = document.getElementById('totpDisablePassword');
+        const cEl = document.getElementById('totpDisableCode');
+        if (pEl) pEl.value = '';
+        if (cEl) cEl.value = '';
+        loadTotpSecurityPanel();
+    } catch (error) {
+        showError('停用時發生錯誤：' + error.message);
+    }
+}
+
 // 同步「付款方式設定」開關外觀（與加購商品前台啟用開關一致）
 function updatePaymentMethodToggleUI(type, isEnabled) {
     const isTransfer = type === 'transfer';
@@ -7642,6 +7848,10 @@ function switchSettingsTab(tab) {
     
     // 儲存當前分頁到 localStorage
     localStorage.setItem('settingsTab', tab);
+
+    if (tab === 'security' && typeof loadTotpSecurityPanel === 'function') {
+        loadTotpSecurityPanel();
+    }
 }
 
 async function loadSettings() {

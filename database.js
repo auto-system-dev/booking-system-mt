@@ -768,6 +768,66 @@ async function ensureAdminTenantColumn() {
     }
 }
 
+async function ensureAdminTotpColumns() {
+    try {
+        if (usePostgreSQL) {
+            await query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS totp_enabled INTEGER DEFAULT 0`);
+            await query(`ALTER TABLE admins ADD COLUMN IF NOT EXISTS totp_secret TEXT`);
+        } else {
+            try {
+                await query(`ALTER TABLE admins ADD COLUMN totp_enabled INTEGER DEFAULT 0`);
+            } catch (error) {
+                const msg = String(error?.message || '').toLowerCase();
+                if (!msg.includes('duplicate column') && !msg.includes('already exists')) throw error;
+            }
+            try {
+                await query(`ALTER TABLE admins ADD COLUMN totp_secret TEXT`);
+            } catch (error) {
+                const msg = String(error?.message || '').toLowerCase();
+                if (!msg.includes('duplicate column') && !msg.includes('already exists')) throw error;
+            }
+        }
+    } catch (error) {
+        const msg = String(error?.message || '').toLowerCase();
+        if (!msg.includes('duplicate column') && !msg.includes('already exists')) {
+            throw error;
+        }
+    }
+}
+
+/** 供後端驗證 TOTP；enabled 僅在已寫入 secret 且 totp_enabled=1 時為 true */
+async function getAdminTotpForVerify(adminId) {
+    await ensureAdminTotpColumns();
+    const row = await queryOne(
+        usePostgreSQL
+            ? `SELECT totp_enabled, totp_secret FROM admins WHERE id = $1`
+            : `SELECT totp_enabled, totp_secret FROM admins WHERE id = ?`,
+        [adminId]
+    );
+    if (!row) {
+        return { enabled: false, secret: null };
+    }
+    const secret = row.totp_secret ? String(row.totp_secret).trim() : '';
+    const enabled = Number(row.totp_enabled) === 1 && secret.length > 0;
+    return { enabled, secret: enabled ? secret : null };
+}
+
+async function setAdminTotpSecret(adminId, secretBase32) {
+    await ensureAdminTotpColumns();
+    const sql = usePostgreSQL
+        ? `UPDATE admins SET totp_secret = $1, totp_enabled = 1 WHERE id = $2`
+        : `UPDATE admins SET totp_secret = ?, totp_enabled = 1 WHERE id = ?`;
+    await query(sql, [secretBase32, adminId]);
+}
+
+async function clearAdminTotp(adminId) {
+    await ensureAdminTotpColumns();
+    const sql = usePostgreSQL
+        ? `UPDATE admins SET totp_secret = NULL, totp_enabled = 0 WHERE id = $1`
+        : `UPDATE admins SET totp_secret = NULL, totp_enabled = 0 WHERE id = ?`;
+    await query(sql, [adminId]);
+}
+
 /** _nonempty 信箱做不分大小寫／去頭尾空白後的比對 */
 function normalizeAdminEmailForUniqueCheck(email) {
     return String(email || '').trim().toLowerCase();
@@ -1605,6 +1665,7 @@ async function initDatabase() {
         }
         await initMultiTenantCoreTables();
         await ensureAdminsEmailUniqueIndex();
+        await ensureAdminTotpColumns();
         await backfillLegacyTenantIds();
         await seedSubscriptionMvpDefaults();
         await backfillTenantsDefaultAddons();
@@ -10076,7 +10137,8 @@ async function invalidateOtherAdminPasswordResets(adminId, excludeResetId = null
 }
 
 // 驗證管理員密碼
-async function verifyAdminPassword(username, password) {
+async function verifyAdminPassword(username, password, options = {}) {
+    const skipLastLogin = !!options.skipLastLogin;
     try {
         const admin = await getAdminByUsername(username);
         if (!admin) {
@@ -10113,8 +10175,9 @@ async function verifyAdminPassword(username, password) {
                     admin.role_id = roleRow.id;
                 }
             }
-            // 更新最後登入時間
-            await updateAdminLastLogin(admin.id);
+            if (!skipLastLogin) {
+                await updateAdminLastLogin(admin.id);
+            }
             return admin;
         }
         
@@ -11135,6 +11198,7 @@ async function getAdminById(adminId, tenantScope = null) {
             admin.permissions = await getAdminPermissions(adminId);
             // 移除敏感資訊
             delete admin.password_hash;
+            delete admin.totp_secret;
         }
         
         return admin;
@@ -11471,6 +11535,10 @@ module.exports = {
     getAdminByUsername,
     getAdminByEmailForPasswordReset,
     verifyAdminPassword,
+    ensureAdminTotpColumns,
+    getAdminTotpForVerify,
+    setAdminTotpSecret,
+    clearAdminTotp,
     updateAdminLastLogin,
     updateAdminPassword,
     createAdminPasswordResetToken,
