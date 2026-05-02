@@ -16969,10 +16969,9 @@ async function cleanupBackups() {
         showError('請先選擇操作租戶');
         return;
     }
-    const daysInput = document.getElementById('backupRetainDays');
-    const daysToKeep = parseInt(daysInput?.value) || 30;
-    
-    if (!(await appConfirm(`確定要清理 ${daysToKeep} 天前的備份嗎？此操作無法復原。`))) return;
+    const daysToKeep = 30;
+
+    if (!(await appConfirm(`確定要清理超過 ${daysToKeep} 天前的租戶備份嗎？此操作無法復原。`))) return;
     
     try {
         const response = await adminFetch(buildBackupApiUrl('/api/admin/backups/cleanup'), {

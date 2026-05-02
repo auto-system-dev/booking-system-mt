@@ -2715,20 +2715,6 @@
                         <div class="loading">載入中...</div>
                     </div>
                 </div>
-                <!-- 清理設定 -->
-                <div class="settings-card" style="margin-bottom: 20px;">
-                    <h3 style="display: flex; align-items: center; gap: 10px;">
-                        <span class="material-symbols-outlined">cleaning_services</span>
-                        清理舊備份
-                    </h3>
-                    <div style="display: flex; align-items: center; gap: 15px; margin-top: 15px;">
-                        <label>保留天數：</label>
-                        <input type="number" id="backupRetainDays" value="30" min="1" max="365" style="width: 80px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                        <button class="btn-cancel permission-required" data-permission="backup.delete" onclick="cleanupBackups()">
-                            <span class="material-symbols-outlined">delete_sweep</span> 清理
-                        </button>
-                    </div>
-                </div>
 
                 <!-- 備份列表 -->
                 <div class="settings-card">
@@ -2752,6 +2738,22 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+
+                <!-- 清理設定（與每日排程相同保留天數，固定 30 天） -->
+                <div class="settings-card" style="margin-bottom: 20px; margin-top: 8px; border-top: 1px solid #e5e7eb; padding-top: 18px;">
+                    <h3 style="display: flex; align-items: center; gap: 10px;">
+                        <span class="material-symbols-outlined">cleaning_services</span>
+                        清理舊備份
+                    </h3>
+                    <p style="margin: 12px 0 0 0; font-size: 13px; color: #64748b; line-height: 1.5;">
+                        將刪除此租戶目錄中超過 <strong>30 天</strong> 的備份檔（與系統每日排程保留政策一致；排程仍會自動清理）。
+                    </p>
+                    <div style="margin-top: 14px;">
+                        <button class="btn-cancel permission-required" data-permission="backup.delete" onclick="cleanupBackups()">
+                            <span class="material-symbols-outlined">delete_sweep</span> 清理過期備份
+                        </button>
                     </div>
                 </div>
                 </div>
