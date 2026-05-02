@@ -16962,38 +16962,6 @@ async function createBackup() {
     }
 }
 
-// 清理舊備份
-async function cleanupBackups() {
-    const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
-    if (isSuper && !getSelectedBackupTenantId()) {
-        showError('請先選擇操作租戶');
-        return;
-    }
-    const daysToKeep = 30;
-
-    if (!(await appConfirm(`確定要清理超過 ${daysToKeep} 天前的租戶備份嗎？此操作無法復原。`))) return;
-    
-    try {
-        const response = await adminFetch(buildBackupApiUrl('/api/admin/backups/cleanup'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ daysToKeep })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            showSuccess(result.message);
-            loadBackups();
-        } else {
-            showError('清理失敗：' + (result.message || '未知錯誤'));
-        }
-    } catch (error) {
-        console.error('清理備份錯誤:', error);
-        showError('清理備份時發生錯誤：' + error.message);
-    }
-}
-
 // 刪除單一備份
 async function deleteBackup(fileName) {
     const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
@@ -17075,7 +17043,6 @@ window.loadLogs = loadLogs;
 window.resetLogFilters = resetLogFilters;
 window.loadBackups = loadBackups;
 window.createBackup = createBackup;
-window.cleanupBackups = cleanupBackups;
 window.deleteBackup = deleteBackup;
 window.restoreBackup = restoreBackup;
 window.handleBackupTenantScopeChange = handleBackupTenantScopeChange;
