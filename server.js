@@ -3607,6 +3607,53 @@ app.get('/api/admin/system-backups/download/:fileName', requireAuth, checkPermis
     }
 });
 
+// API: 上傳全系統備份檔（僅超管；檔名須為 system_backup_*.json / system_backup_*.db）
+app.post(
+    '/api/admin/system-backups/upload',
+    requireAuth,
+    checkPermission('backup.create'),
+    adminLimiter,
+    (req, res, next) => {
+        if (!req.session?.admin || req.session.admin.role !== 'super_admin') {
+            return res.status(403).json({ success: false, message: '僅超級管理員可上傳全系統備份' });
+        }
+        uploadBackupFile.single('file')(req, res, (err) => {
+            if (err) {
+                const msg =
+                    err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE'
+                        ? '檔案超過 200MB 上限'
+                        : err.message || '上傳失敗';
+                return res.status(400).json({ success: false, message: msg });
+            }
+            next();
+        });
+    },
+    async (req, res) => {
+        try {
+            if (!req.file || !req.file.buffer) {
+                return res.status(400).json({ success: false, message: '請選擇備份檔案' });
+            }
+            const result = backup.saveUploadedSystemBackup(req.file.buffer, req.file.originalname);
+            await logAction(req, 'upload_system_backup', 'backup', result.fileName, {
+                fileName: result.fileName,
+                fileSizeMB: result.fileSizeMB,
+                scope: 'system'
+            });
+            res.json({
+                success: true,
+                message: `全系統備份已上傳：${result.fileName}`,
+                data: result
+            });
+        } catch (error) {
+            console.error('全系統備份上傳錯誤:', error);
+            res.status(400).json({
+                success: false,
+                message: error.message || '上傳失敗'
+            });
+        }
+    }
+);
+
 // API: 建立全系統備份（僅超管）
 app.post('/api/admin/system-backups/create', requireAuth, checkPermission('backup.create'), adminLimiter, async (req, res) => {
     try {

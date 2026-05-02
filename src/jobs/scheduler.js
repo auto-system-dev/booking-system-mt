@@ -61,8 +61,7 @@ function registerScheduledJobs(deps) {
 
                 const uniqueTenantIds = Array.from(new Set(backupTargets));
                 if (uniqueTenantIds.length === 0) {
-                    console.log('ℹ️ [排程備份] 找不到可備份租戶，略過。');
-                    return;
+                    console.log('ℹ️ [排程備份] 找不到可備份租戶（租戶迴圈略過）。');
                 }
 
                 for (const tenantId of uniqueTenantIds) {
@@ -74,12 +73,27 @@ function registerScheduledJobs(deps) {
                         console.error(`❌ [排程備份] tenant ${tenantId} 失敗：`, tenantError.message || tenantError);
                     }
                 }
-                console.log(`✅ [排程備份] 全部完成（備份租戶數：${uniqueTenantIds.length}，略過雙取消：${skippedDoubleCanceled}，保留天數：${backupRetentionDays}）`);
+
+                const dailySystemEnabled = String(processEnv.ENABLE_DAILY_SYSTEM_BACKUP ?? 'true').trim().toLowerCase() !== 'false';
+                if (dailySystemEnabled && typeof backup.performSystemBackup === 'function') {
+                    try {
+                        console.log('🧰 [排程備份] 開始全系統備份...');
+                        const sysResult = await backup.performSystemBackup();
+                        console.log(`✅ [排程備份] 全系統備份完成：${sysResult?.fileName || 'unknown'}`);
+                        if (typeof backup.cleanupOldSystemBackups === 'function') {
+                            await backup.cleanupOldSystemBackups(backupRetentionDays);
+                        }
+                    } catch (sysErr) {
+                        console.error('❌ [排程備份] 全系統備份失敗：', sysErr.message || sysErr);
+                    }
+                }
+
+                console.log(`✅ [排程備份] 全部完成（租戶備份數：${uniqueTenantIds.length}，略過雙取消：${skippedDoubleCanceled}，保留天數：${backupRetentionDays}）`);
             } catch (error) {
                 console.error('❌ [排程備份] 任務失敗：', error.message || error);
             }
         }, { timezone });
-        console.log(`✅ 資料庫每日全備已啟動（${dailyBackupCron}，保留 ${backupRetentionDays} 天）`);
+        console.log(`✅ 資料庫每日全備已啟動（${dailyBackupCron}，保留 ${backupRetentionDays} 天；含租戶備份與全系統備份，全系統可關閉 ENABLE_DAILY_SYSTEM_BACKUP）`);
     } else {
         console.log('ℹ️ 資料庫每日全備未啟用（缺少 backup/db 依賴或 ENABLE_DAILY_BACKUP=false）');
     }

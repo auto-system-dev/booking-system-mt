@@ -2766,6 +2766,10 @@
                             <button class="btn-primary permission-required" data-permission="backup.create" onclick="createSystemBackup()">
                                 <span class="material-symbols-outlined">add</span> 建立全系統備份
                             </button>
+                            <button id="backupSystemUploadBtn" type="button" class="btn-refresh permission-required" data-permission="backup.create" onclick="document.getElementById('systemBackupFileInput').click()" title="上傳 system_backup_*.json 或 .db">
+                                <span class="material-symbols-outlined">upload</span> 上傳備份
+                            </button>
+                            <input type="file" id="systemBackupFileInput" accept=".json,.db,application/json" style="display:none" onchange="handleSystemBackupFileSelected(this)">
                             <button class="btn-refresh" onclick="loadSystemBackups()">
                                 <span class="material-symbols-outlined">refresh</span> 重新整理
                             </button>

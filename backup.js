@@ -459,6 +459,52 @@ async function performSystemBackup() {
 /**
  * 清理舊備份（保留最近 N 天）
  */
+/**
+ * 清理全系統備份目錄中超過保留天數的 system_backup_* 檔案
+ */
+async function cleanupOldSystemBackups(daysToKeep = 30) {
+    try {
+        const systemDir = getSystemBackupDir();
+        const files = fs.readdirSync(systemDir);
+        const now = new Date();
+        const cutoffDate = new Date(now);
+        cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+
+        let deletedCount = 0;
+        let totalSizeFreed = 0;
+
+        for (const file of files) {
+            if (!file.startsWith('system_backup_')) {
+                continue;
+            }
+            const filePath = path.join(systemDir, file);
+            const stats = fs.statSync(filePath);
+            const fileDate = stats.mtime;
+
+            if (fileDate < cutoffDate) {
+                totalSizeFreed += stats.size;
+                fs.unlinkSync(filePath);
+                deletedCount++;
+                console.log(`🗑️  刪除舊全系統備份: ${file}`);
+            }
+        }
+
+        if (deletedCount > 0) {
+            const sizeFreedMB = (totalSizeFreed / (1024 * 1024)).toFixed(2);
+            console.log(`✅ 全系統備份清理完成: 刪除 ${deletedCount} 個檔案，釋放 ${sizeFreedMB} MB`);
+        }
+
+        return {
+            deletedCount,
+            totalSizeFreed,
+            totalSizeFreedMB: parseFloat((totalSizeFreed / (1024 * 1024)).toFixed(2))
+        };
+    } catch (error) {
+        console.error('❌ 清理全系統備份失敗:', error.message);
+        throw error;
+    }
+}
+
 async function cleanupOldBackups(daysToKeep = 30, tenantId) {
     try {
         const tenantDir = getTenantBackupDir(tenantId);
@@ -932,6 +978,59 @@ function getSystemBackupFileForDownload(fileName) {
 /**
  * 上傳備份至備份目錄（與手動備份相同位置）
  */
+/**
+ * 上傳全系統備份至 _system 目錄（檔名須為 system_backup_*.json / system_backup_*.db）
+ */
+function saveUploadedSystemBackup(buffer, originalName) {
+    const systemDir = getSystemBackupDir();
+    const safeName = assertSafeSystemBackupBasename(originalName);
+    const dest = path.join(systemDir, safeName);
+    if (fs.existsSync(dest)) {
+        throw new Error('已存在同名全系統備份檔，請先刪除或使用不同檔名');
+    }
+    if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
+        throw new Error('檔案內容為空');
+    }
+
+    const usePg = !!process.env.DATABASE_URL;
+
+    if (safeName.endsWith('.json')) {
+        if (!usePg) {
+            throw new Error('目前為 SQLite 環境，請上傳 .db 全系統備份檔');
+        }
+        let data;
+        try {
+            data = JSON.parse(buffer.toString('utf8'));
+        } catch (e) {
+            throw new Error('JSON 備份格式無法解析');
+        }
+        if (!data.metadata || typeof data.metadata !== 'object') {
+            throw new Error('不是有效的全系統 JSON 備份（缺少 metadata）');
+        }
+        if (data.metadata.type !== 'postgresql_json_backup') {
+            throw new Error('請上傳本系統產生的 PostgreSQL JSON 全系統備份');
+        }
+    } else if (safeName.endsWith('.db')) {
+        if (usePg) {
+            throw new Error('目前為 PostgreSQL 環境，請上傳 .json 全系統備份檔');
+        }
+        const header = buffer.slice(0, 16).toString('utf8');
+        if (!header.startsWith('SQLite format 3')) {
+            throw new Error('不是有效的 SQLite 備份檔（檔頭不符）');
+        }
+    }
+
+    fs.writeFileSync(dest, buffer);
+    const stats = fs.statSync(dest);
+    const fileSizeMB = parseFloat((stats.size / (1024 * 1024)).toFixed(2));
+    return {
+        fileName: safeName,
+        filePath: dest,
+        fileSize: stats.size,
+        fileSizeMB
+    };
+}
+
 function saveUploadedBackup(buffer, originalName, tenantId) {
     const tenantDir = getTenantBackupDir(tenantId);
     const safeName = assertSafeBackupBasename(originalName);
@@ -986,6 +1085,7 @@ module.exports = {
     performBackup,
     performSystemBackup,
     cleanupOldBackups,
+    cleanupOldSystemBackups,
     getBackupList,
     getBackupStats,
     getSystemBackupList,
@@ -997,6 +1097,7 @@ module.exports = {
     backupPostgreSQL,
     getBackupFileForDownload,
     getSystemBackupFileForDownload,
-    saveUploadedBackup
+    saveUploadedBackup,
+    saveUploadedSystemBackup
 };
 

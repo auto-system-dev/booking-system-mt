@@ -16897,6 +16897,41 @@ async function handleBackupFileSelected(input) {
     }
 }
 
+async function handleSystemBackupFileSelected(input) {
+    const file = input && input.files && input.files[0];
+    if (!file) return;
+    input.value = '';
+    const name = file.name || '';
+    if (!/^system_backup_.+\.(json|db)$/i.test(name)) {
+        showError('檔名須為 system_backup_ 開頭，副檔名 .json 或 .db');
+        return;
+    }
+    const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
+    if (!isSuper) {
+        showError('僅超級管理員可上傳全系統備份');
+        return;
+    }
+    try {
+        showSuccess('正在上傳全系統備份...');
+        const formData = new FormData();
+        formData.append('file', file);
+        const response = await adminFetch('/api/admin/system-backups/upload', {
+            method: 'POST',
+            body: formData
+        });
+        const result = await response.json();
+        if (result.success) {
+            showSuccess(result.message || '全系統備份已上傳');
+            await loadSystemBackups();
+        } else {
+            showError(result.message || '上傳失敗');
+        }
+    } catch (error) {
+        console.error('上傳全系統備份錯誤:', error);
+        showError(error.message || '上傳失敗');
+    }
+}
+
 // 手動建立備份
 async function createBackup() {
     const isSuper = typeof isPlatformSuperAdmin === 'function' && isPlatformSuperAdmin();
@@ -17049,6 +17084,7 @@ window.loadSystemBackups = loadSystemBackups;
 window.downloadSystemBackup = downloadSystemBackup;
 window.createSystemBackup = createSystemBackup;
 window.restoreSystemBackup = restoreSystemBackup;
+window.handleSystemBackupFileSelected = handleSystemBackupFileSelected;
 window.switchBackupMode = switchBackupMode;
 
 // ==================== CSV 匯出功能 ====================
